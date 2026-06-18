@@ -126,7 +126,7 @@ struct Home: View {
                 AbosView()
             } label: {
                 HomeKachel(
-                    icon: "ellipsis.circle.fill",
+                    icon: "rectangle.stack.badge.person.crop.fill",
                     titel: "Abos & Profile",
                     farbe: kachelFarbe
                 )
