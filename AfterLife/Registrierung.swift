@@ -1,0 +1,192 @@
+import SwiftUI
+import AuthenticationServices
+
+struct Registrierung: View {
+    @State private var email = ""
+    @State private var passwort = ""
+    @State private var fehlermeldung = ""
+    @State private var showHome = false
+    @State private var akzeptiertDisclaimer = false
+    @State private var captchaAntwort = ""
+    @State private var captchaZahl1 = Int.random(in: 2...9)
+    @State private var captchaZahl2 = Int.random(in: 2...9)
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 24) {
+
+                Text("Registrierung")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+
+                VStack(spacing: 16) {
+                    TextField("E-Mail", text: $email)
+                        .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .textFieldStyle(.roundedBorder)
+
+                    SecureField("Passwort", text: $passwort)
+                        .textFieldStyle(.roundedBorder)
+                }
+
+                if !fehlermeldung.isEmpty {
+                    Text(fehlermeldung)
+                        .foregroundStyle(.red)
+                        .font(.footnote)
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Toggle(isOn: $akzeptiertDisclaimer) {
+                        Text("Ich akzeptiere den Haftungsausschluss.")
+                            .font(.caption)
+                    }
+
+                    Text("""
+                    AfterLife dient ausschliesslich der Organisation persönlicher Informationen und ersetzt keine Rechts-, Steuer-, Finanz- oder Vorsorgeberatung sowie keine rechtsgültigen Dokumente wie Testamente, Erbverträge, Vorsorgeaufträge oder Patientenverfügungen. Die Nutzung erfolgt in eigener Verantwortung.
+                    """)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Verifizeriung, ich bin ein Mensch")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+
+                        HStack(spacing: 12) {
+                            Text("Was ist \(captchaZahl1) + \(captchaZahl2)?")
+                                .font(.caption)
+
+                            TextField("Antwort", text: $captchaAntwort)
+                                .keyboardType(.numberPad)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 100)
+                        }
+
+                        if !captchaAntwort.isEmpty && !captchaIstGueltig {
+                            Text("Die Antwort ist nicht korrekt.")
+                                .font(.caption2)
+                                .foregroundStyle(.red)
+                        }
+                    }
+                }
+
+                Button("Mit E-Mail registrieren") {
+                    registrierenMitEmail()
+                }
+                .buttonStyle(.borderedProminent)
+                .frame(maxWidth: .infinity)
+                .disabled(!registrierungErlaubt)
+
+                SignInWithAppleButton(.signUp) { request in
+                    request.requestedScopes = [.fullName, .email]
+                } onCompletion: { result in
+                    guard akzeptiertDisclaimer else {
+                        fehlermeldung = "Bitte akzeptiere zuerst den Haftungsausschluss."
+                        return
+                    }
+
+                    guard captchaIstGueltig else {
+                        fehlermeldung = "Bitte löse das Captcha korrekt."
+                        captchaNeuLaden()
+                        return
+                    }
+
+                    switch result {
+                    case .success:
+                        showHome = true
+                    case .failure:
+                        fehlermeldung = "Apple Login konnte nicht abgeschlossen werden."
+                    }
+                }
+                .signInWithAppleButtonStyle(.black)
+                .frame(height: 50)
+                .disabled(!registrierungErlaubt)
+
+                Button {
+                    googleLogin()
+                } label: {
+                    HStack {
+                        Image(systemName: "g.circle.fill")
+                        Text("Mit Google anmelden")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .frame(height: 50)
+                .disabled(!registrierungErlaubt)
+
+                Spacer()
+            }
+            .padding()
+            .navigationDestination(isPresented: $showHome) {
+                Home()
+            }
+        }
+    }
+
+    private var registrierungErlaubt: Bool {
+        akzeptiertDisclaimer && captchaIstGueltig
+    }
+
+    private var captchaIstGueltig: Bool {
+        Int(captchaAntwort.trimmingCharacters(in: .whitespacesAndNewlines)) == captchaZahl1 + captchaZahl2
+    }
+
+    private func registrierenMitEmail() {
+        fehlermeldung = ""
+
+        guard akzeptiertDisclaimer else {
+            fehlermeldung = "Bitte akzeptiere zuerst den Haftungsausschluss."
+            return
+        }
+
+        guard captchaIstGueltig else {
+            fehlermeldung = "Bitte löse das Captcha korrekt."
+            captchaNeuLaden()
+            return
+        }
+
+        guard email.contains("@"), email.contains(".") else {
+            fehlermeldung = "Bitte gib eine gültige E-Mail-Adresse ein."
+            return
+        }
+
+        guard passwort.count >= 8 else {
+            fehlermeldung = "Das Passwort muss mindestens 8 Zeichen lang sein."
+            return
+        }
+
+        // Hier folgt später die echte Registrierung über Firebase, Supabase oder dein Backend.
+        showHome = true
+    }
+
+    private func googleLogin() {
+        fehlermeldung = ""
+
+        guard akzeptiertDisclaimer else {
+            fehlermeldung = "Bitte akzeptiere zuerst den Haftungsausschluss."
+            return
+        }
+
+        guard captchaIstGueltig else {
+            fehlermeldung = "Bitte löse das Captcha korrekt."
+            captchaNeuLaden()
+            return
+        }
+
+        // Hier folgt später die echte Google-Login-Integration.
+        showHome = true
+    }
+
+    private func captchaNeuLaden() {
+        captchaAntwort = ""
+        captchaZahl1 = Int.random(in: 2...9)
+        captchaZahl2 = Int.random(in: 2...9)
+    }
+}
+
+#Preview {
+    Registrierung()
+}

@@ -14,16 +14,29 @@ struct ContentView: View {
 
     var body: some View {
         NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
+            VStack {
+                Image("Home")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 180)
+                    .padding(.top)
+                Button("Jetzt Registrieren") {
+                    // Aktion folgt später
                 }
-                .onDelete(perform: deleteItems)
+                .buttonStyle(.borderedProminent)
+                .padding(.top, 50)
+                List {
+                    ForEach(items) { item in
+                        NavigationLink {
+                            Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
+                        } label: {
+                            Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+                        }
+                    }
+                    .onDelete(perform: deleteItems)
+                }
             }
+            .navigationTitle("Home")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     EditButton()

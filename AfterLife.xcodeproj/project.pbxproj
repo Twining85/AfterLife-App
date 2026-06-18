@@ -75,6 +75,7 @@
 		93EB7C592FE2EA910082E303 = {
 			isa = PBXGroup;
 			children = (
+				93EB7C8E2FE2EAF50082E303 /* Bilder */,
 				93EB7C642FE2EA910082E303 /* AfterLife */,
 				93EB7C742FE2EA930082E303 /* AfterLifeTests */,
 				93EB7C7E2FE2EA930082E303 /* AfterLifeUITests */,
@@ -90,6 +91,13 @@
 				93EB7C7B2FE2EA930082E303 /* AfterLifeUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		93EB7C8E2FE2EAF50082E303 /* Bilder */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Bilder;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
