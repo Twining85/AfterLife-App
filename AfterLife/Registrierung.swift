@@ -1,7 +1,14 @@
 import SwiftUI
+import SwiftData
 import AuthenticationServices
 
 struct Registrierung: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query private var gespeicherteProfile: [ProfilModell]
+    @AppStorage("profilIstVorhanden") private var profilIstVorhanden = false
+    @AppStorage("gespeicherteEmail") private var gespeicherteEmail = ""
+    @AppStorage("gespeichertesPasswort") private var gespeichertesPasswort = ""
+    @AppStorage("registrierungsArt") private var registrierungsArt = "E-Mail"
     @State private var email = ""
     @State private var passwort = ""
     @State private var fehlermeldung = ""
@@ -94,7 +101,13 @@ struct Registrierung: View {
                     }
 
                     switch result {
-                    case .success:
+                    case .success(let authorization):
+                        let appleEmail = appleEmailAusAuthorization(authorization)
+                        gespeicherteEmail = appleEmail
+                        gespeichertesPasswort = ""
+                        registrierungsArt = "Apple ID"
+                        profilIstVorhanden = true
+                        speichereRegistrierungsdaten(art: "Apple ID", email: appleEmail)
                         showHome = true
                     case .failure:
                         fehlermeldung = "Apple Login konnte nicht abgeschlossen werden."
@@ -158,8 +171,26 @@ struct Registrierung: View {
             return
         }
 
-        // Hier folgt später die echte Registrierung über Firebase, Supabase oder dein Backend.
-        showHome = true
+        let bereinigteEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        do {
+            try KeychainHelper.shared.save(
+                passwort,
+                service: "AfterLife.Login",
+                account: bereinigteEmail
+            )
+
+            gespeicherteEmail = bereinigteEmail
+            gespeichertesPasswort = passwort
+            registrierungsArt = "E-Mail"
+            profilIstVorhanden = true
+
+            speichereRegistrierungsdaten(art: "E-Mail", email: bereinigteEmail)
+            // Hier folgt später die echte Registrierung über Firebase, Supabase oder dein Backend.
+            showHome = true
+        } catch {
+            fehlermeldung = "Das Passwort konnte nicht sicher gespeichert werden. Bitte versuche es erneut."
+        }
     }
 
     private func googleLogin() {
@@ -176,8 +207,50 @@ struct Registrierung: View {
             return
         }
 
+        let bereinigteEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        gespeicherteEmail = bereinigteEmail
+        gespeichertesPasswort = ""
+        registrierungsArt = "Google"
+        profilIstVorhanden = true
+
+        speichereRegistrierungsdaten(art: "Google", email: bereinigteEmail)
         // Hier folgt später die echte Google-Login-Integration.
         showHome = true
+    }
+
+    private func speichereRegistrierungsdaten(art: String, email: String) {
+        let bereinigteEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let profil: ProfilModell
+
+        if let vorhandenesProfil = gespeicherteProfile.first {
+            profil = vorhandenesProfil
+        } else {
+            let neuesProfil = ProfilModell()
+            modelContext.insert(neuesProfil)
+            profil = neuesProfil
+        }
+
+        profil.registrierungsart = art
+        profil.registrierungsEmail = bereinigteEmail
+        profilIstVorhanden = true
+        gespeicherteEmail = bereinigteEmail
+        registrierungsArt = art
+
+        if profil.email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            profil.email = bereinigteEmail
+        }
+    }
+
+    private func appleEmailAusAuthorization(_ authorization: ASAuthorization) -> String {
+        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
+            return email.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        if let appleEmail = credential.email, !appleEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return appleEmail
+        }
+
+        return email.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func captchaNeuLaden() {
@@ -189,4 +262,5 @@ struct Registrierung: View {
 
 #Preview {
     Registrierung()
+        .modelContainer(for: [ProfilModell.self], inMemory: true)
 }

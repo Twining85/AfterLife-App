@@ -1,9 +1,16 @@
 import SwiftUI
+import SwiftData
 import ContactsUI
 import PhotosUI
 import UniformTypeIdentifiers
+import QuickLook
 
 struct WuenscheView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query private var gespeicherteWuensche: [WuenscheModell]
+    @Query private var gespeicherteHinterbliebeneKontakte: [HinterbliebeneModell]
+    @State private var wuenscheGeladen = false
+    @State private var kontakteGeladen = false
     @State private var hatBesondereWuensche = true
 
     @State private var bestattungsart: Bestattungsart = .kremation
@@ -12,6 +19,7 @@ struct WuenscheView: View {
     @State private var erdbestattungHinweise = ""
     @State private var sonstigeBemerkungen = ""
 
+    @State private var keineBlumengeschenkeBitte = false
     @State private var besondereMusik = false
     @State private var besondereMusikText = ""
 
@@ -31,12 +39,13 @@ struct WuenscheView: View {
 
     @State private var kontakte: [BeisetzungsKontakt] = []
     @State private var ausgeklappteKontaktIDs: Set<UUID> = []
-    @AppStorage("hinterbliebeneKontakteJSON") private var hinterbliebeneKontakteJSON = "[]"
     @State private var kontaktPickerAnzeigen = false
 
     @State private var hatTestament = false
+    @State private var testamentAblageort = ""
     @State private var testamentDateiName: String?
     @State private var testamentDateiURL: URL?
+    @State private var testamentDateiData: Data?
     @State private var testamentHochgeladenAm: Date?
     @State private var testamentErinnerungAktiv = true
     @State private var testamentErinnerungDatum = Date()
@@ -44,6 +53,7 @@ struct WuenscheView: View {
     @State private var hatPatientenverfuegung = false
     @State private var patientenverfuegungDateiName: String?
     @State private var patientenverfuegungDateiURL: URL?
+    @State private var patientenverfuegungDateiData: Data?
     @State private var patientenverfuegungHochgeladenAm: Date?
     @State private var patientenverfuegungErinnerungAktiv = true
     @State private var patientenverfuegungErinnerungDatum = Date()
@@ -51,6 +61,7 @@ struct WuenscheView: View {
     @State private var hatVorsorgeauftrag = false
     @State private var vorsorgeauftragDateiName: String?
     @State private var vorsorgeauftragDateiURL: URL?
+    @State private var vorsorgeauftragDateiData: Data?
     @State private var vorsorgeauftragHochgeladenAm: Date?
     @State private var vorsorgeauftragErinnerungAktiv = true
     @State private var vorsorgeauftragErinnerungDatum = Date()
@@ -58,6 +69,7 @@ struct WuenscheView: View {
     @State private var offenFuerSterbebegleitung = false
     @State private var sterbebegleitungDateiName: String?
     @State private var sterbebegleitungDateiURL: URL?
+    @State private var sterbebegleitungDateiData: Data?
     @State private var sterbebegleitungHochgeladenAm: Date?
     @State private var sterbebegleitungErinnerungAktiv = true
     @State private var sterbebegleitungErinnerungDatum = Date()
@@ -69,361 +81,98 @@ struct WuenscheView: View {
 
     @State private var dokumentImporterAnzeigen = false
     @State private var aktiverDokumentTyp: DokumentTyp?
+    @State private var dokumentVorschauURL: URL?
+
+    private var kontakteSpeicherSignatur: String {
+        kontakte.map { kontakt in
+            [
+                kontakt.id.uuidString,
+                kontakt.vorname,
+                kontakt.name,
+                kontakt.adresse,
+                kontakt.telefon,
+                kontakt.email,
+                kontakt.art.rawValue,
+                String(kontakt.informieren),
+                String(kontakt.einladen)
+            ].joined(separator: "|")
+        }
+        .joined(separator: "#")
+    }
+
+    private var wuenscheSpeicherSignatur: String {
+        [
+            String(hatBesondereWuensche),
+            bestattungsart.rawValue,
+            bestattungswuensche,
+            kremationHinweise,
+            erdbestattungHinweise,
+            sonstigeBemerkungen,
+            String(keineBlumengeschenkeBitte),
+            String(besondereMusik),
+            besondereMusikText,
+            String(zeremonie),
+            zeremonieText,
+            String(zeremonieBereitsOrganisiert),
+            zeremonieOrganisiertDetails,
+            String(zeremonieFinanziellAbgesichert),
+            String(moechteNochWasSagen),
+            letzteWorteText,
+            String(nachrufVorstellung),
+            nachrufText,
+            nachrufBildData?.base64EncodedString() ?? "",
+            String(hatTestament),
+            testamentAblageort,
+            testamentDateiName ?? "",
+            testamentDateiData?.count.description ?? "",
+            testamentHochgeladenAm?.timeIntervalSince1970.description ?? "",
+            String(testamentErinnerungAktiv),
+            testamentErinnerungDatum.timeIntervalSince1970.description,
+            String(hatPatientenverfuegung),
+            patientenverfuegungDateiName ?? "",
+            patientenverfuegungDateiData?.count.description ?? "",
+            patientenverfuegungHochgeladenAm?.timeIntervalSince1970.description ?? "",
+            String(patientenverfuegungErinnerungAktiv),
+            patientenverfuegungErinnerungDatum.timeIntervalSince1970.description,
+            String(hatVorsorgeauftrag),
+            vorsorgeauftragDateiName ?? "",
+            vorsorgeauftragDateiData?.count.description ?? "",
+            vorsorgeauftragHochgeladenAm?.timeIntervalSince1970.description ?? "",
+            String(vorsorgeauftragErinnerungAktiv),
+            vorsorgeauftragErinnerungDatum.timeIntervalSince1970.description,
+            String(offenFuerSterbebegleitung),
+            sterbebegleitungDateiName ?? "",
+            sterbebegleitungDateiData?.count.description ?? "",
+            sterbebegleitungHochgeladenAm?.timeIntervalSince1970.description ?? "",
+            String(sterbebegleitungErinnerungAktiv),
+            sterbebegleitungErinnerungDatum.timeIntervalSince1970.description,
+            String(hatSchwereGesundheitlicheErkrankung),
+            schwereErkrankung?.rawValue ?? "",
+            sterbebegleitungWichtig,
+            String(lebensqualitaetRegelmaessigBeurteilen)
+        ].joined(separator: "|")
+    }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    Toggle("Ich habe besondere Wünsche nach meinem Tod", isOn: $hatBesondereWuensche)
-                }
+                hauptToggleSection
 
                 if hatBesondereWuensche {
-                    Section("Meine Beisetzung") {
-                        TextField("Bestattungswünsche", text: $bestattungswuensche, axis: .vertical)
-                            .lineLimit(3...8)
-
-                        Picker("Bestattungsart", selection: $bestattungsart) {
-                            ForEach(Bestattungsart.allCases) { art in
-                                Text(art.rawValue).tag(art)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-
-                        if bestattungsart == .kremation {
-                            TextField("Was ist bei der Kremation zu beachten? z.B. Art der Urne, Urnengrab, Waldfriedhof", text: $kremationHinweise, axis: .vertical)
-                                .lineLimit(3...8)
-                        }
-
-                        if bestattungsart == .erdbestattung {
-                            TextField("Was ist bei der Erdbestattung zu beachten? z.B. Art des Sarges, Kleidung, Ort und Ablauf", text: $erdbestattungHinweise, axis: .vertical)
-                                .lineLimit(3...8)
-                        }
-
-                        TextField("Sonstige Bemerkungen", text: $sonstigeBemerkungen, axis: .vertical)
-                            .lineLimit(3...8)
-                    }
-
-                    Section("Wünsche zur Beisetzung") {
-                        Toggle("Zeremonie", isOn: $zeremonie)
-
-                        if zeremonie {
-                            DetailBox {
-                                TextField("Wie soll die Zeremonie gestaltet sein?", text: $zeremonieText, axis: .vertical)
-                                    .lineLimit(2...6)
-
-                                Divider()
-
-                                Toggle("Bereits organisiert", isOn: $zeremonieBereitsOrganisiert)
-
-                                if zeremonieBereitsOrganisiert {
-                                    DetailBox {
-                                        TextField("Details zur Organisation", text: $zeremonieOrganisiertDetails, axis: .vertical)
-                                            .lineLimit(2...6)
-                                    }
-                                }
-
-                                Divider()
-
-                                Button {
-                                    zeremonieFinanziellAbgesichert.toggle()
-                                } label: {
-                                    HStack {
-                                        Image(systemName: zeremonieFinanziellAbgesichert ? "checkmark.square.fill" : "square")
-                                        Text("Finanziell abgesichert, diese zu begleichen")
-                                        Spacer()
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-
-                        Toggle("Besondere Musik", isOn: $besondereMusik)
-
-                        if besondereMusik {
-                            DetailBox {
-                                TextField("Welche Musik soll gespielt werden?", text: $besondereMusikText, axis: .vertical)
-                                    .lineLimit(2...6)
-                            }
-                        }
-
-                        Toggle("Persönliche Botschaft", isOn: $moechteNochWasSagen)
-
-                        if moechteNochWasSagen {
-                            DetailBox {
-                                TextField("Was möchtest du noch sagen?", text: $letzteWorteText, axis: .vertical)
-                                    .lineLimit(3...8)
-                            }
-                        }
-
-                        Toggle("Ich habe eine Vorstellung, wie der Nachruf sein soll", isOn: $nachrufVorstellung)
-
-                        if nachrufVorstellung {
-                            DetailBox {
-                                TextField("Wie soll der Nachruf sein? z.B Zeitung, Karte", text: $nachrufText, axis: .vertical)
-                                    .lineLimit(3...8)
-
-                                Divider()
-
-                                VStack(spacing: 12) {
-                                    if let nachrufBildData,
-                                       let uiImage = UIImage(data: nachrufBildData) {
-                                        Image(uiImage: uiImage)
-                                            .resizable()
-                                            .scaledToFill()
-                                            .frame(width: 140, height: 140)
-                                            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                                            .clipped()
-                                    } else {
-                                        Image(systemName: "photo.fill")
-                                            .font(.system(size: 48))
-                                            .foregroundStyle(.secondary)
-                                    }
-
-                                    PhotosPicker(
-                                        selection: $nachrufBildAuswahl,
-                                        matching: .images,
-                                        photoLibrary: .shared()
-                                    ) {
-                                        Label(nachrufBildData == nil ? "Bild für Nachruf hochladen" : "Bild für Nachruf ändern", systemImage: "photo.on.rectangle")
-                                    }
-                                    .buttonStyle(.borderless)
-
-                                    if nachrufBildData != nil {
-                                        Button(role: .destructive) {
-                                            nachrufBildEntfernen()
-                                        } label: {
-                                            Label("Bild entfernen", systemImage: "trash")
-                                                .font(.caption)
-                                        }
-                                        .buttonStyle(.borderless)
-                                    }
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 8)
-                            }
-                        }
-                    }
-
-                    Section("Personen informieren / einladen") {
-                        if kontakte.isEmpty {
-                            Text("Noch keine Kontakte erfasst.")
-                                .foregroundStyle(.secondary)
-                        }
-
-                        ForEach($kontakte) { $kontakt in
-                            if kontakte.count > 3 {
-                                DisclosureGroup(
-                                    isExpanded: Binding(
-                                        get: { ausgeklappteKontaktIDs.contains(kontakt.id) },
-                                        set: { istOffen in
-                                            if istOffen {
-                                                ausgeklappteKontaktIDs.insert(kontakt.id)
-                                            } else {
-                                                ausgeklappteKontaktIDs.remove(kontakt.id)
-                                            }
-                                        }
-                                    )
-                                ) {
-                                    kontaktDetailFormular(kontakt: $kontakt)
-                                } label: {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(kontakt.anzeigename)
-                                            .font(.headline)
-
-                                        Text(kontakt.art.rawValue)
-                                            .font(.footnote)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                            } else {
-                                kontaktDetailFormular(kontakt: $kontakt)
-                            }
-                        }
-                        .onDelete(perform: kontaktLoeschen)
-
-                        Button {
-                            kontaktHinzufuegen()
-                        } label: {
-                            Label("Kontakt manuell hinzufügen", systemImage: "plus.circle.fill")
-                        }
-
-                        Button {
-                            kontaktPickerAnzeigen = true
-                        } label: {
-                            Label("Aus Adressbuch hinzufügen", systemImage: "person.crop.circle.badge.plus")
-                        }
-                    }
-
-                    Section("Nachlass") {
-                        Toggle("Ich habe ein Testament", isOn: $hatTestament)
-
-                        if hatTestament {
-                            DetailBox {
-                                Text("Ein Testament muss den gesetzlichen und formellen Anforderungen entsprechen. Du bist selbst dafür verantwortlich, dass Inhalt, Form und Aufbewahrung korrekt und rechtsgültig sind. Diese App ersetzt keine rechtliche Beratung.")
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-
-                                Divider()
-
-                                VStack(spacing: 12) {
-                                    Image(systemName: testamentDateiName == nil ? "doc.fill" : "doc.text.fill")
-                                        .font(.system(size: 48))
-                                        .foregroundStyle(.secondary)
-
-                                    if let testamentDateiName {
-                                        Text(testamentDateiName)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                            .multilineTextAlignment(.center)
-                                    }
-
-                                    if let testamentHochgeladenAm {
-                                        Text("Testament hochgeladen am \(testamentHochgeladenAm.formatted(date: .abbreviated, time: .shortened))")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                            .multilineTextAlignment(.center)
-                                    }
-
-                                    Button {
-                                        dokumentImportStarten(.testament)
-                                    } label: {
-                                        Label(testamentDateiName == nil ? "Testament hochladen" : "Testament ändern", systemImage: "doc.badge.plus")
-                                    }
-                                    .buttonStyle(.borderless)
-
-                                    if testamentDateiName != nil {
-                                        Button(role: .destructive) {
-                                            testamentDateiEntfernen()
-                                        } label: {
-                                            Label("Testament entfernen", systemImage: "trash")
-                                                .font(.caption)
-                                        }
-                                        .buttonStyle(.borderless)
-
-                                        Divider()
-
-                                        Toggle("Erinnerung zur Überprüfung", isOn: $testamentErinnerungAktiv)
-
-                                        if testamentErinnerungAktiv {
-                                            DatePicker(
-                                                "Überprüfung am",
-                                                selection: $testamentErinnerungDatum,
-                                                displayedComponents: .date
-                                            )
-                                            .environment(\.locale, Locale(identifier: "de_CH"))
-                                        }
-                                    }
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 8)
-                            }
-                        }
-                    }
-
-                    Section("Patientenverfügung") {
-                        Toggle("Ich habe eine Patientenverfügung", isOn: $hatPatientenverfuegung)
-
-                        if hatPatientenverfuegung {
-                            DetailBox {
-                                DokumentUploadBox(
-                                    dateiName: patientenverfuegungDateiName,
-                                    hochgeladenAm: patientenverfuegungHochgeladenAm,
-                                    timestampTitel: "Patientenverfügung hochgeladen am",
-                                    uploadTitel: patientenverfuegungDateiName == nil ? "Patientenverfügung hochladen" : "Patientenverfügung ändern",
-                                    entfernenTitel: "Patientenverfügung entfernen",
-                                    erinnerungAktiv: $patientenverfuegungErinnerungAktiv,
-                                    erinnerungDatum: $patientenverfuegungErinnerungDatum,
-                                    uploadAktion: {
-                                        dokumentImportStarten(.patientenverfuegung)
-                                    },
-                                    entfernenAktion: {
-                                        patientenverfuegungDateiEntfernen()
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    Section("Vorsorgeauftrag") {
-                        Toggle("Ich habe einen Vorsorgeauftrag", isOn: $hatVorsorgeauftrag)
-
-                        if hatVorsorgeauftrag {
-                            DetailBox {
-                                DokumentUploadBox(
-                                    dateiName: vorsorgeauftragDateiName,
-                                    hochgeladenAm: vorsorgeauftragHochgeladenAm,
-                                    timestampTitel: "Vorsorgeauftrag hochgeladen am",
-                                    uploadTitel: vorsorgeauftragDateiName == nil ? "Vorsorgeauftrag hochladen" : "Vorsorgeauftrag ändern",
-                                    entfernenTitel: "Vorsorgeauftrag entfernen",
-                                    erinnerungAktiv: $vorsorgeauftragErinnerungAktiv,
-                                    erinnerungDatum: $vorsorgeauftragErinnerungDatum,
-                                    uploadAktion: {
-                                        dokumentImportStarten(.vorsorgeauftrag)
-                                    },
-                                    entfernenAktion: {
-                                        vorsorgeauftragDateiEntfernen()
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    Section("Sterbebegleitung") {
-                        Toggle("Ich bin offen für eine Sterbebegleitung", isOn: $offenFuerSterbebegleitung)
-
-                        if offenFuerSterbebegleitung {
-                            DetailBox {
-                                Toggle("Ich habe eine schwerwiegende gesundheitliche Erkrankung", isOn: $hatSchwereGesundheitlicheErkrankung)
-
-                                if hatSchwereGesundheitlicheErkrankung {
-                                    DetailBox {
-                                        Picker("Erkrankung", selection: $schwereErkrankung) {
-                                            Text("Bitte wählen").tag(nil as SchwereErkrankung?)
-                                            ForEach(SchwereErkrankung.allCases) { erkrankung in
-                                                Text(erkrankung.rawValue).tag(erkrankung as SchwereErkrankung?)
-                                            }
-                                        }
-
-                                        TextField("Das ist für mich wichtig", text: $sterbebegleitungWichtig, axis: .vertical)
-                                            .lineLimit(3...8)
-
-                                        if schwereErkrankung != nil {
-                                            Toggle(
-                                                "Ich möchte regelmässig bewusst beurteilen, ob mein Leben für mich noch lebenswert ist und welcher Weg sich für mich stimmig anfühlt.",
-                                                isOn: $lebensqualitaetRegelmaessigBeurteilen
-                                                //Funktion wird später erfolgen
-                                            )
-                                        }
-                                    }
-                                }
-
-                                Divider()
-
-                                DokumentUploadBox(
-                                    dateiName: sterbebegleitungDateiName,
-                                    hochgeladenAm: sterbebegleitungHochgeladenAm,
-                                    timestampTitel: "Sterbebegleitung hochgeladen am",
-                                    uploadTitel: sterbebegleitungDateiName == nil ? "Dokument zur Sterbebegleitung hochladen" : "Dokument zur Sterbebegleitung ändern",
-                                    entfernenTitel: "Dokument zur Sterbebegleitung entfernen",
-                                    erinnerungAktiv: $sterbebegleitungErinnerungAktiv,
-                                    erinnerungDatum: $sterbebegleitungErinnerungDatum,
-                                    uploadAktion: {
-                                        dokumentImportStarten(.sterbebegleitung)
-                                    },
-                                    entfernenAktion: {
-                                        sterbebegleitungDateiEntfernen()
-                                    }
-                                )
-                            }
-                        }
-                    }
+                    beisetzungSection
+                    beisetzungsWuenscheSection
+                    kontakteSection
+                    nachlassSection
+                    patientenverfuegungSection
+                    vorsorgeauftragSection
+                    sterbebegleitungSection
                 }
             }
             .navigationTitle("Meine Wünsche")
             .sheet(isPresented: $kontaktPickerAnzeigen) {
                 KontaktPicker { kontakt in
                     kontakte.append(kontakt)
-                    gemeinsameKontakteSpeichern()
+                    synchronisiereKontakteMitHinterbliebenen()
                     kontaktPickerAnzeigen = false
                 }
             }
@@ -434,18 +183,530 @@ struct WuenscheView: View {
             ) { result in
                 dokumentImportVerarbeiten(result)
             }
+            .quickLookPreview($dokumentVorschauURL)
             .onChange(of: nachrufBildAuswahl) { _, neueAuswahl in
                 Task {
                     if let data = try? await neueAuswahl?.loadTransferable(type: Data.self) {
-                        nachrufBildData = data
+                        await MainActor.run {
+                            nachrufBildData = data
+                            speichereWuensche()
+                        }
                     }
+                }
+            }
+            .onAppear {
+                ladeOderErstelleWuensche()
+                ladeKontakteAusHinterbliebenen()
+            }
+            .onChange(of: wuenscheSpeicherSignatur) { _, _ in
+                speichereWuensche()
+            }
+            .onChange(of: kontakteSpeicherSignatur) { _, _ in
+                synchronisiereKontakteMitHinterbliebenen()
+            }
+        }
+    }
+
+    private var hauptToggleSection: some View {
+        Section {
+            Toggle("Ich habe besondere Wünsche nach meinem Tod", isOn: $hatBesondereWuensche)
+        }
+    }
+
+    private var beisetzungSection: some View {
+        Section("Meine Beisetzung") {
+            TextField("Bestattungswünsche", text: $bestattungswuensche, axis: .vertical)
+                .lineLimit(3...8)
+
+            Picker("Bestattungsart", selection: $bestattungsart) {
+                ForEach(Bestattungsart.allCases) { art in
+                    Text(art.rawValue).tag(art)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            if bestattungsart == .kremation {
+                TextField("Was ist bei der Kremation zu beachten? z.B. Art der Urne, Urnengrab, Waldfriedhof", text: $kremationHinweise, axis: .vertical)
+                    .lineLimit(3...8)
+            }
+
+            if bestattungsart == .erdbestattung {
+                TextField("Was ist bei der Erdbestattung zu beachten? z.B. Art des Sarges, Kleidung, Ort und Ablauf", text: $erdbestattungHinweise, axis: .vertical)
+                    .lineLimit(3...8)
+            }
+
+            TextField("Sonstige Bemerkungen", text: $sonstigeBemerkungen, axis: .vertical)
+                .lineLimit(3...8)
+        }
+    }
+
+    private var beisetzungsWuenscheSection: some View {
+        Section("Wünsche zur Beisetzung") {
+            Toggle("Keine Blumengeschenke, bitte spendet das Geld lieber", isOn: $keineBlumengeschenkeBitte)
+            Toggle("Zeremonie", isOn: $zeremonie)
+
+            if zeremonie {
+                DetailBox {
+                    TextField("Wie soll die Zeremonie gestaltet sein?", text: $zeremonieText, axis: .vertical)
+                        .lineLimit(2...6)
+
+                    Divider()
+
+                    Toggle("Bereits organisiert", isOn: $zeremonieBereitsOrganisiert)
+
+                    if zeremonieBereitsOrganisiert {
+                        DetailBox {
+                            TextField("Details zur Organisation", text: $zeremonieOrganisiertDetails, axis: .vertical)
+                                .lineLimit(2...6)
+                        }
+                    }
+
+                    Divider()
+
+                    Button {
+                        zeremonieFinanziellAbgesichert.toggle()
+                    } label: {
+                        HStack {
+                            Image(systemName: zeremonieFinanziellAbgesichert ? "checkmark.square.fill" : "square")
+                            Text("Finanziell abgesichert, diese zu begleichen")
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Toggle("Besondere Musik", isOn: $besondereMusik)
+
+            if besondereMusik {
+                DetailBox {
+                    TextField("Welche Musik soll gespielt werden?", text: $besondereMusikText, axis: .vertical)
+                        .lineLimit(2...6)
+                }
+            }
+
+            Toggle("Persönliche Botschaft", isOn: $moechteNochWasSagen)
+
+            if moechteNochWasSagen {
+                DetailBox {
+                    TextField("Was möchtest du noch sagen?", text: $letzteWorteText, axis: .vertical)
+                        .lineLimit(3...8)
+                }
+            }
+
+            nachrufBlock
+        }
+    }
+
+    private var nachrufBlock: some View {
+        Group {
+            Toggle("Ich habe eine Vorstellung, wie der Nachruf sein soll", isOn: $nachrufVorstellung)
+
+            if nachrufVorstellung {
+                DetailBox {
+                    TextField("Wie soll der Nachruf sein? z.B Zeitung, Karte", text: $nachrufText, axis: .vertical)
+                        .lineLimit(3...8)
+
+                    Divider()
+
+                    VStack(spacing: 12) {
+                        if let nachrufBildData,
+                           let uiImage = UIImage(data: nachrufBildData) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 140, height: 140)
+                                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                                .clipped()
+                        } else {
+                            Image(systemName: "photo.fill")
+                                .font(.system(size: 48))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        PhotosPicker(
+                            selection: $nachrufBildAuswahl,
+                            matching: .images,
+                            photoLibrary: .shared()
+                        ) {
+                            Label(nachrufBildData == nil ? "Bild für Nachruf hochladen" : "Bild für Nachruf ändern", systemImage: "photo.on.rectangle")
+                        }
+                        .buttonStyle(.borderless)
+
+                        if nachrufBildData != nil {
+                            Button(role: .destructive) {
+                                nachrufBildEntfernen()
+                            } label: {
+                                Label("Bild entfernen", systemImage: "trash")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.borderless)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
                 }
             }
         }
     }
 
+    private var kontakteSection: some View {
+        Section("Personen informieren / einladen") {
+            if kontakte.isEmpty {
+                Text("Noch keine Kontakte erfasst.")
+                    .foregroundStyle(.secondary)
+            }
+
+            ForEach($kontakte) { $kontakt in
+                kontaktEintragView(kontakt: $kontakt)
+            }
+            .onDelete(perform: kontaktLoeschen)
+
+            Button {
+                kontaktHinzufuegen()
+            } label: {
+                Label("Kontakt manuell hinzufügen", systemImage: "plus.circle.fill")
+            }
+
+            Button {
+                kontaktPickerAnzeigen = true
+            } label: {
+                Label("Aus Adressbuch hinzufügen", systemImage: "person.crop.circle.badge.plus")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func kontaktEintragView(kontakt: Binding<BeisetzungsKontakt>) -> some View {
+        if kontakte.count > 3 {
+            DisclosureGroup(
+                isExpanded: Binding(
+                    get: { ausgeklappteKontaktIDs.contains(kontakt.wrappedValue.id) },
+                    set: { istOffen in
+                        if istOffen {
+                            ausgeklappteKontaktIDs.insert(kontakt.wrappedValue.id)
+                        } else {
+                            ausgeklappteKontaktIDs.remove(kontakt.wrappedValue.id)
+                        }
+                    }
+                )
+            ) {
+                kontaktDetailFormular(kontakt: kontakt)
+            } label: {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(kontakt.wrappedValue.anzeigename)
+                        .font(.headline)
+
+                    Text(kontakt.wrappedValue.art.rawValue)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } else {
+            kontaktDetailFormular(kontakt: kontakt)
+        }
+    }
+
+    private var nachlassSection: some View {
+        Section("Nachlass") {
+            Toggle("Ich habe ein Testament", isOn: $hatTestament)
+
+            if hatTestament {
+                DetailBox {
+                    Text("Ein Testament muss den gesetzlichen und formellen Anforderungen entsprechen. Du bist selbst dafür verantwortlich, dass Inhalt, Form und Aufbewahrung korrekt und rechtsgültig sind. Diese App ersetzt keine rechtliche Beratung.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    Divider()
+
+                    TextField("Ablageort", text: $testamentAblageort, axis: .vertical)
+                        .lineLimit(2...4)
+                        .textContentType(.location)
+
+                    Divider()
+
+                    DokumentUploadBox(
+                        dateiName: testamentDateiName,
+                        hochgeladenAm: testamentHochgeladenAm,
+                        timestampTitel: "Testament hochgeladen am",
+                        uploadTitel: testamentDateiName == nil ? "Testament hochladen" : "Testament ändern",
+                        entfernenTitel: "Testament entfernen",
+                        erinnerungAktiv: $testamentErinnerungAktiv,
+                        erinnerungDatum: $testamentErinnerungDatum,
+                        vorschauAktion: {
+                            dokumentVorschauAnzeigen(testamentDateiURL, dateiName: testamentDateiName, dateiData: testamentDateiData)
+                        },
+                        uploadAktion: {
+                            dokumentImportStarten(.testament)
+                        },
+                        entfernenAktion: {
+                            testamentDateiEntfernen()
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    private var patientenverfuegungSection: some View {
+        Section("Patientenverfügung") {
+            Toggle("Ich habe eine Patientenverfügung", isOn: $hatPatientenverfuegung)
+
+            if hatPatientenverfuegung {
+                DetailBox {
+                    DokumentUploadBox(
+                        dateiName: patientenverfuegungDateiName,
+                        hochgeladenAm: patientenverfuegungHochgeladenAm,
+                        timestampTitel: "Patientenverfügung hochgeladen am",
+                        uploadTitel: patientenverfuegungDateiName == nil ? "Patientenverfügung hochladen" : "Patientenverfügung ändern",
+                        entfernenTitel: "Patientenverfügung entfernen",
+                        erinnerungAktiv: $patientenverfuegungErinnerungAktiv,
+                        erinnerungDatum: $patientenverfuegungErinnerungDatum,
+                        vorschauAktion: {
+                            dokumentVorschauAnzeigen(patientenverfuegungDateiURL, dateiName: patientenverfuegungDateiName, dateiData: patientenverfuegungDateiData)
+                        },
+                        uploadAktion: {
+                            dokumentImportStarten(.patientenverfuegung)
+                        },
+                        entfernenAktion: {
+                            patientenverfuegungDateiEntfernen()
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    private var vorsorgeauftragSection: some View {
+        Section("Vorsorgeauftrag") {
+            Toggle("Ich habe einen Vorsorgeauftrag", isOn: $hatVorsorgeauftrag)
+
+            if hatVorsorgeauftrag {
+                DetailBox {
+                    DokumentUploadBox(
+                        dateiName: vorsorgeauftragDateiName,
+                        hochgeladenAm: vorsorgeauftragHochgeladenAm,
+                        timestampTitel: "Vorsorgeauftrag hochgeladen am",
+                        uploadTitel: vorsorgeauftragDateiName == nil ? "Vorsorgeauftrag hochladen" : "Vorsorgeauftrag ändern",
+                        entfernenTitel: "Vorsorgeauftrag entfernen",
+                        erinnerungAktiv: $vorsorgeauftragErinnerungAktiv,
+                        erinnerungDatum: $vorsorgeauftragErinnerungDatum,
+                        vorschauAktion: {
+                            dokumentVorschauAnzeigen(vorsorgeauftragDateiURL, dateiName: vorsorgeauftragDateiName, dateiData: vorsorgeauftragDateiData)
+                        },
+                        uploadAktion: {
+                            dokumentImportStarten(.vorsorgeauftrag)
+                        },
+                        entfernenAktion: {
+                            vorsorgeauftragDateiEntfernen()
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    private var sterbebegleitungSection: some View {
+        Section("Sterbebegleitung") {
+            Toggle("Ich bin offen für eine Sterbebegleitung", isOn: $offenFuerSterbebegleitung)
+
+            if offenFuerSterbebegleitung {
+                DetailBox {
+                    Toggle("Ich habe eine schwerwiegende gesundheitliche Erkrankung", isOn: $hatSchwereGesundheitlicheErkrankung)
+
+                    if hatSchwereGesundheitlicheErkrankung {
+                        DetailBox {
+                            Picker("Erkrankung", selection: $schwereErkrankung) {
+                                Text("Bitte wählen").tag(nil as SchwereErkrankung?)
+                                ForEach(SchwereErkrankung.allCases) { erkrankung in
+                                    Text(erkrankung.rawValue).tag(erkrankung as SchwereErkrankung?)
+                                }
+                            }
+
+                            TextField("Das ist für mich wichtig", text: $sterbebegleitungWichtig, axis: .vertical)
+                                .lineLimit(3...8)
+
+                            if schwereErkrankung != nil {
+                                Toggle(
+                                    "Ich möchte regelmässig bewusst beurteilen, ob mein Leben für mich noch lebenswert ist und welcher Weg sich für mich stimmig anfühlt.",
+                                    isOn: $lebensqualitaetRegelmaessigBeurteilen
+                                )
+                            }
+                        }
+                    }
+
+                    Divider()
+
+                    DokumentUploadBox(
+                        dateiName: sterbebegleitungDateiName,
+                        hochgeladenAm: sterbebegleitungHochgeladenAm,
+                        timestampTitel: "Sterbebegleitung hochgeladen am",
+                        uploadTitel: sterbebegleitungDateiName == nil ? "Dokument zur Sterbebegleitung hochladen" : "Dokument zur Sterbebegleitung ändern",
+                        entfernenTitel: "Dokument zur Sterbebegleitung entfernen",
+                        erinnerungAktiv: $sterbebegleitungErinnerungAktiv,
+                        erinnerungDatum: $sterbebegleitungErinnerungDatum,
+                        vorschauAktion: {
+                            dokumentVorschauAnzeigen(sterbebegleitungDateiURL, dateiName: sterbebegleitungDateiName, dateiData: sterbebegleitungDateiData)
+                        },
+                        uploadAktion: {
+                            dokumentImportStarten(.sterbebegleitung)
+                        },
+                        entfernenAktion: {
+                            sterbebegleitungDateiEntfernen()
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    private func ladeOderErstelleWuensche() {
+        guard !wuenscheGeladen else { return }
+
+        if let vorhandeneWuensche = gespeicherteWuensche.first {
+            hatBesondereWuensche = vorhandeneWuensche.hatWuensche
+            bestattungsart = Bestattungsart(rawValue: vorhandeneWuensche.beisetzungsArt) ?? .kremation
+            bestattungswuensche = vorhandeneWuensche.beisetzungHinweis
+            sonstigeBemerkungen = vorhandeneWuensche.sonstigeBemerkungen
+
+            if bestattungsart == .kremation {
+                kremationHinweise = vorhandeneWuensche.beisetzungHinweis
+            } else {
+                erdbestattungHinweise = vorhandeneWuensche.beisetzungHinweis
+            }
+
+            keineBlumengeschenkeBitte = vorhandeneWuensche.keineBlumengeschenkeBitte
+            besondereMusik = vorhandeneWuensche.besondereMusik
+            besondereMusikText = vorhandeneWuensche.musikWunsch
+
+            zeremonie = vorhandeneWuensche.zeremonieGewuenscht
+            zeremonieText = vorhandeneWuensche.zeremonieDetails
+            zeremonieBereitsOrganisiert = vorhandeneWuensche.zeremonieOrganisiert
+            zeremonieFinanziellAbgesichert = vorhandeneWuensche.zeremonieFinanziellAbgesichert
+
+            moechteNochWasSagen = vorhandeneWuensche.moechteNochEtwasSagen
+            letzteWorteText = vorhandeneWuensche.letzteBotschaft
+
+            nachrufVorstellung = vorhandeneWuensche.nachrufGewuenscht
+            nachrufText = vorhandeneWuensche.nachrufText
+            nachrufBildData = vorhandeneWuensche.nachrufBildData
+
+            hatTestament = vorhandeneWuensche.testamentVorhanden
+            testamentAblageort = vorhandeneWuensche.testamentAblageort
+            testamentDateiName = vorhandeneWuensche.testamentDateiName.isEmpty ? nil : vorhandeneWuensche.testamentDateiName
+            testamentDateiData = vorhandeneWuensche.testamentDateiData
+            testamentHochgeladenAm = vorhandeneWuensche.testamentHochgeladenAm
+            testamentErinnerungAktiv = vorhandeneWuensche.testamentErinnerungAktiv
+            testamentErinnerungDatum = vorhandeneWuensche.testamentErinnerungAm ?? Date()
+
+            hatPatientenverfuegung = vorhandeneWuensche.patientenverfuegungVorhanden
+            patientenverfuegungDateiName = vorhandeneWuensche.patientenverfuegungDateiName.isEmpty ? nil : vorhandeneWuensche.patientenverfuegungDateiName
+            patientenverfuegungDateiData = vorhandeneWuensche.patientenverfuegungDateiData
+            patientenverfuegungHochgeladenAm = vorhandeneWuensche.patientenverfuegungHochgeladenAm
+            patientenverfuegungErinnerungAktiv = vorhandeneWuensche.patientenverfuegungErinnerungAktiv
+            patientenverfuegungErinnerungDatum = vorhandeneWuensche.patientenverfuegungErinnerungAm ?? Date()
+
+            hatVorsorgeauftrag = vorhandeneWuensche.vorsorgeauftragVorhanden
+            vorsorgeauftragDateiName = vorhandeneWuensche.vorsorgeauftragDateiName.isEmpty ? nil : vorhandeneWuensche.vorsorgeauftragDateiName
+            vorsorgeauftragDateiData = vorhandeneWuensche.vorsorgeauftragDateiData
+            vorsorgeauftragHochgeladenAm = vorhandeneWuensche.vorsorgeauftragHochgeladenAm
+            vorsorgeauftragErinnerungAktiv = vorhandeneWuensche.vorsorgeauftragErinnerungAktiv
+            vorsorgeauftragErinnerungDatum = vorhandeneWuensche.vorsorgeauftragErinnerungAm ?? Date()
+
+            offenFuerSterbebegleitung = vorhandeneWuensche.sterbebegleitungGewuenscht
+            sterbebegleitungDateiName = vorhandeneWuensche.sterbebegleitungDateiName.isEmpty ? nil : vorhandeneWuensche.sterbebegleitungDateiName
+            sterbebegleitungDateiData = vorhandeneWuensche.sterbebegleitungDateiData
+            sterbebegleitungHochgeladenAm = vorhandeneWuensche.sterbebegleitungHochgeladenAm
+            sterbebegleitungErinnerungAktiv = vorhandeneWuensche.sterbebegleitungErinnerungAktiv
+            sterbebegleitungErinnerungDatum = vorhandeneWuensche.sterbebegleitungErinnerungAm ?? Date()
+
+            hatSchwereGesundheitlicheErkrankung = vorhandeneWuensche.schwereErkrankungVorhanden
+            schwereErkrankung = SchwereErkrankung(rawValue: vorhandeneWuensche.schwereErkrankungArt)
+            sterbebegleitungWichtig = vorhandeneWuensche.mirIstWichtig
+            lebensqualitaetRegelmaessigBeurteilen = vorhandeneWuensche.regelmaessigBeurteilen
+        } else {
+            let neueWuensche = WuenscheModell()
+            modelContext.insert(neueWuensche)
+        }
+
+        wuenscheGeladen = true
+    }
+
+    private func speichereWuensche() {
+        guard wuenscheGeladen else { return }
+
+        let wuensche: WuenscheModell
+
+        if let vorhandeneWuensche = gespeicherteWuensche.first {
+            wuensche = vorhandeneWuensche
+        } else {
+            let neueWuensche = WuenscheModell()
+            modelContext.insert(neueWuensche)
+            wuensche = neueWuensche
+        }
+
+        wuensche.hatWuensche = hatBesondereWuensche
+        wuensche.beisetzungsArt = bestattungsart.rawValue
+
+        switch bestattungsart {
+        case .kremation:
+            wuensche.beisetzungHinweis = kremationHinweise.isEmpty ? bestattungswuensche : kremationHinweise
+        case .erdbestattung:
+            wuensche.beisetzungHinweis = erdbestattungHinweise.isEmpty ? bestattungswuensche : erdbestattungHinweise
+        }
+
+        wuensche.sonstigeBemerkungen = sonstigeBemerkungen
+        wuensche.keineBlumengeschenkeBitte = keineBlumengeschenkeBitte
+        wuensche.besondereMusik = besondereMusik
+        wuensche.musikWunsch = besondereMusikText
+        wuensche.zeremonieGewuenscht = zeremonie
+        wuensche.zeremonieDetails = zeremonieText
+        wuensche.zeremonieOrganisiert = zeremonieBereitsOrganisiert
+        wuensche.zeremonieFinanziellAbgesichert = zeremonieFinanziellAbgesichert
+        wuensche.moechteNochEtwasSagen = moechteNochWasSagen
+        wuensche.letzteBotschaft = letzteWorteText
+        wuensche.nachrufGewuenscht = nachrufVorstellung
+        wuensche.nachrufText = nachrufText
+        wuensche.nachrufBildData = nachrufBildData
+
+        wuensche.testamentVorhanden = hatTestament
+        wuensche.testamentAblageort = testamentAblageort
+        wuensche.testamentDateiName = testamentDateiName ?? ""
+        wuensche.testamentDateiData = testamentDateiData
+        wuensche.testamentHochgeladenAm = testamentHochgeladenAm
+        wuensche.testamentErinnerungAktiv = testamentErinnerungAktiv
+        wuensche.testamentErinnerungAm = testamentErinnerungDatum
+
+        wuensche.patientenverfuegungVorhanden = hatPatientenverfuegung
+        wuensche.patientenverfuegungDateiName = patientenverfuegungDateiName ?? ""
+        wuensche.patientenverfuegungDateiData = patientenverfuegungDateiData
+        wuensche.patientenverfuegungHochgeladenAm = patientenverfuegungHochgeladenAm
+        wuensche.patientenverfuegungErinnerungAktiv = patientenverfuegungErinnerungAktiv
+        wuensche.patientenverfuegungErinnerungAm = patientenverfuegungErinnerungDatum
+
+        wuensche.vorsorgeauftragVorhanden = hatVorsorgeauftrag
+        wuensche.vorsorgeauftragDateiName = vorsorgeauftragDateiName ?? ""
+        wuensche.vorsorgeauftragDateiData = vorsorgeauftragDateiData
+        wuensche.vorsorgeauftragHochgeladenAm = vorsorgeauftragHochgeladenAm
+        wuensche.vorsorgeauftragErinnerungAktiv = vorsorgeauftragErinnerungAktiv
+        wuensche.vorsorgeauftragErinnerungAm = vorsorgeauftragErinnerungDatum
+
+        wuensche.sterbebegleitungGewuenscht = offenFuerSterbebegleitung
+        wuensche.sterbebegleitungDateiName = sterbebegleitungDateiName ?? ""
+        wuensche.sterbebegleitungDateiData = sterbebegleitungDateiData
+        wuensche.sterbebegleitungHochgeladenAm = sterbebegleitungHochgeladenAm
+        wuensche.sterbebegleitungErinnerungAktiv = sterbebegleitungErinnerungAktiv
+        wuensche.sterbebegleitungErinnerungAm = sterbebegleitungErinnerungDatum
+
+        wuensche.schwereErkrankungVorhanden = hatSchwereGesundheitlicheErkrankung
+        wuensche.schwereErkrankungArt = schwereErkrankung?.rawValue ?? ""
+        wuensche.mirIstWichtig = sterbebegleitungWichtig
+        wuensche.regelmaessigBeurteilen = lebensqualitaetRegelmaessigBeurteilen
+    }
+
     private func kontaktHinzufuegen() {
         kontakte.append(BeisetzungsKontakt())
+        synchronisiereKontakteMitHinterbliebenen()
     }
 
     private func kontaktLoeschen(at offsets: IndexSet) {
@@ -456,17 +717,185 @@ struct WuenscheView: View {
         }
 
         kontakte.remove(atOffsets: offsets)
+        synchronisiereKontakteMitHinterbliebenen()
     }
 
     private func kontaktEntfernen(_ kontakt: BeisetzungsKontakt) {
         ausgeklappteKontaktIDs.remove(kontakt.id)
         kontakte.removeAll { $0.id == kontakt.id }
+        synchronisiereKontakteMitHinterbliebenen()
     }
 
-    private func gemeinsameKontakteSpeichern() {
-        if let data = try? JSONEncoder().encode(kontakte),
-           let json = String(data: data, encoding: .utf8) {
-            hinterbliebeneKontakteJSON = json
+
+    private func ladeKontakteAusHinterbliebenen() {
+        guard !kontakteGeladen else { return }
+
+        let gespeicherteWuenscheKontakte = gespeicherteHinterbliebeneKontakte
+            .filter { $0.quelle == "WuenscheView" || $0.bemerkungen == "Quelle: WuenscheView" }
+            .sorted { $0.erstelltAm < $1.erstelltAm }
+
+        kontakte = gespeicherteWuenscheKontakte.map { gespeicherterKontakt in
+            BeisetzungsKontakt(
+                id: UUID(uuidString: gespeicherterKontakt.rolle.components(separatedBy: "|").last ?? "") ?? UUID(),
+                vorname: gespeicherterKontakt.vorname,
+                name: gespeicherterKontakt.name,
+                adresse: gespeicherterKontakt.adresse,
+                telefon: gespeicherterKontakt.telefon,
+                email: gespeicherterKontakt.email,
+                art: kontaktArtAusBeziehung(gespeicherterKontakt.beziehung),
+                informieren: gespeicherterKontakt.sollInformiertWerden,
+                einladen: gespeicherterKontakt.darfDokumenteErhalten
+            )
+        }
+
+        kontakteGeladen = true
+    }
+
+    private func synchronisiereKontakteMitHinterbliebenen() {
+        guard kontakteGeladen else { return }
+
+        let gueltigeKontakte = kontakte.filter { kontakt in
+            !kontakt.vorname.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+            !kontakt.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+            !kontakt.adresse.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+            !kontakt.telefon.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+            !kontakt.email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+
+        let gueltigeIDs = Set(gueltigeKontakte.map { $0.id.uuidString })
+
+        let gespeicherteWuenscheKontakte = gespeicherteHinterbliebeneKontakte.filter {
+            $0.quelle == "WuenscheView" || $0.bemerkungen == "Quelle: WuenscheView"
+        }
+
+        for gespeicherterKontakt in gespeicherteWuenscheKontakte {
+            let gespeicherteID = kontaktIDAusRolle(gespeicherterKontakt.rolle)
+
+            if !gueltigeIDs.contains(gespeicherteID) {
+                modelContext.delete(gespeicherterKontakt)
+            }
+        }
+
+        for kontakt in gueltigeKontakte {
+            let kontaktID = kontakt.id.uuidString
+
+            let passendeKontakteNachID = gespeicherteWuenscheKontakte.filter {
+                kontaktIDAusRolle($0.rolle) == kontaktID
+            }
+
+            let passendeKontakteNachInhalt = gespeicherteHinterbliebeneKontakte.filter {
+                istGleicherKontakt($0, wie: kontakt)
+            }
+
+            let passendeKontakte = passendeKontakteNachID + passendeKontakteNachInhalt.filter { inhaltKontakt in
+                !passendeKontakteNachID.contains { idKontakt in
+                    idKontakt === inhaltKontakt
+                }
+            }
+
+            let zielKontakt: HinterbliebeneModell
+
+            if let bestehenderKontakt = passendeKontakte.first {
+                zielKontakt = bestehenderKontakt
+
+                passendeKontakte.dropFirst().forEach { doppelterKontakt in
+                    modelContext.delete(doppelterKontakt)
+                }
+            } else {
+                let neuerKontakt = HinterbliebeneModell(
+                    quelle: "WuenscheView"
+                )
+                modelContext.insert(neuerKontakt)
+                zielKontakt = neuerKontakt
+            }
+
+            zielKontakt.vorname = kontakt.vorname
+            zielKontakt.name = kontakt.name
+            zielKontakt.rolle = "\(kontakt.art.rawValue)|\(kontakt.id.uuidString)"
+            zielKontakt.beziehung = beziehungFuerKontaktArt(kontakt.art)
+            zielKontakt.telefon = kontakt.telefon
+            zielKontakt.email = kontakt.email
+            zielKontakt.adresse = kontakt.adresse
+            zielKontakt.quelle = zielKontakt.quelle.isEmpty ? "WuenscheView" : zielKontakt.quelle
+            zielKontakt.istVertrauensperson = zielKontakt.istVertrauensperson
+            zielKontakt.sollInformiertWerden = kontakt.informieren
+            zielKontakt.darfDokumenteErhalten = kontakt.einladen
+            zielKontakt.aktualisiertAm = Date()
+        }
+    }
+
+    private func kontaktIDAusRolle(_ rolle: String) -> String {
+        rolle.components(separatedBy: "|").last ?? ""
+    }
+
+    private func istGleicherKontakt(_ gespeicherterKontakt: HinterbliebeneModell, wie kontakt: BeisetzungsKontakt) -> Bool {
+        let gespeicherteEmail = gespeicherterKontakt.email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let kontaktEmail = kontakt.email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        if !gespeicherteEmail.isEmpty && gespeicherteEmail == kontaktEmail {
+            return true
+        }
+
+        let gespeicherteTelefonnummer = normalisierteTelefonnummer(gespeicherterKontakt.telefon)
+        let kontaktTelefonnummer = normalisierteTelefonnummer(kontakt.telefon)
+
+        let gespeicherterName = normalisierterName(vorname: gespeicherterKontakt.vorname, name: gespeicherterKontakt.name)
+        let kontaktName = normalisierterName(vorname: kontakt.vorname, name: kontakt.name)
+
+        if !gespeicherterName.isEmpty,
+           gespeicherterName == kontaktName,
+           !gespeicherteTelefonnummer.isEmpty,
+           gespeicherteTelefonnummer == kontaktTelefonnummer {
+            return true
+        }
+
+        let gespeicherteAdresse = gespeicherterKontakt.adresse.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let kontaktAdresse = kontakt.adresse.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        if !gespeicherterName.isEmpty,
+           gespeicherterName == kontaktName,
+           !gespeicherteAdresse.isEmpty,
+           gespeicherteAdresse == kontaktAdresse {
+            return true
+        }
+
+        return false
+    }
+
+    private func normalisierterName(vorname: String, name: String) -> String {
+        [vorname, name]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+    }
+
+    private func normalisierteTelefonnummer(_ telefon: String) -> String {
+        telefon.filter { $0.isNumber }
+    }
+
+    private func beziehungFuerKontaktArt(_ art: KontaktArt) -> String {
+        switch art {
+        case .partner:
+            return VertrauenspersonKategorie.partner.rawValue
+        case .familie:
+            return VertrauenspersonKategorie.familie.rawValue
+        case .freunde:
+            return VertrauenspersonKategorie.freunde.rawValue
+        case .anderes:
+            return VertrauenspersonKategorie.beguenstigte.rawValue
+        }
+    }
+
+    private func kontaktArtAusBeziehung(_ beziehung: String) -> KontaktArt {
+        switch beziehung {
+        case VertrauenspersonKategorie.partner.rawValue:
+            return .partner
+        case VertrauenspersonKategorie.familie.rawValue:
+            return .familie
+        case VertrauenspersonKategorie.freunde.rawValue:
+            return .freunde
+        default:
+            return .anderes
         }
     }
 
@@ -508,6 +937,41 @@ struct WuenscheView: View {
     private func nachrufBildEntfernen() {
         nachrufBildData = nil
         nachrufBildAuswahl = nil
+        speichereWuensche()
+    }
+
+    private func dokumentVorschauAnzeigen(_ url: URL?, dateiName: String?, dateiData: Data?) {
+        if let url {
+            dokumentVorschauURL = nil
+            DispatchQueue.main.async {
+                dokumentVorschauURL = url
+            }
+            return
+        }
+
+        guard let dateiName,
+              let dateiData,
+              let tempURL = temporaereDateiURL(dateiName: dateiName, dateiData: dateiData) else { return }
+
+        dokumentVorschauURL = nil
+        DispatchQueue.main.async {
+            dokumentVorschauURL = tempURL
+        }
+    }
+
+    private func temporaereDateiURL(dateiName: String, dateiData: Data) -> URL? {
+        let bereinigterName = dateiName
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(bereinigterName)
+
+        do {
+            try dateiData.write(to: url, options: .atomic)
+            return url
+        } catch {
+            return nil
+        }
     }
 
     private func dokumentImportStarten(_ typ: DokumentTyp) {
@@ -520,35 +984,48 @@ struct WuenscheView: View {
         case .success(let urls):
             guard let url = urls.first else { return }
 
+            let hatZugriffErhalten = url.startAccessingSecurityScopedResource()
+            defer {
+                if hatZugriffErhalten {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            let dateiData = try? Data(contentsOf: url)
+
             switch aktiverDokumentTyp {
             case .testament:
                 testamentDateiURL = url
                 testamentDateiName = url.lastPathComponent
+                testamentDateiData = dateiData
                 testamentHochgeladenAm = Date()
                 testamentErinnerungAktiv = true
                 testamentErinnerungDatum = erinnerungsDatumInEinemJahr()
             case .patientenverfuegung:
                 patientenverfuegungDateiURL = url
                 patientenverfuegungDateiName = url.lastPathComponent
+                patientenverfuegungDateiData = dateiData
                 patientenverfuegungHochgeladenAm = Date()
                 patientenverfuegungErinnerungAktiv = true
                 patientenverfuegungErinnerungDatum = erinnerungsDatumInEinemJahr()
             case .vorsorgeauftrag:
                 vorsorgeauftragDateiURL = url
                 vorsorgeauftragDateiName = url.lastPathComponent
+                vorsorgeauftragDateiData = dateiData
                 vorsorgeauftragHochgeladenAm = Date()
                 vorsorgeauftragErinnerungAktiv = true
                 vorsorgeauftragErinnerungDatum = erinnerungsDatumInEinemJahr()
             case .sterbebegleitung:
                 sterbebegleitungDateiURL = url
                 sterbebegleitungDateiName = url.lastPathComponent
+                sterbebegleitungDateiData = dateiData
                 sterbebegleitungHochgeladenAm = Date()
                 sterbebegleitungErinnerungAktiv = true
                 sterbebegleitungErinnerungDatum = erinnerungsDatumInEinemJahr()
             case .none:
                 break
             }
-
+            speichereWuensche()
         case .failure:
             break
         }
@@ -559,33 +1036,41 @@ struct WuenscheView: View {
     private func testamentDateiEntfernen() {
         testamentDateiName = nil
         testamentDateiURL = nil
+        testamentDateiData = nil
         testamentHochgeladenAm = nil
         testamentErinnerungAktiv = true
         testamentErinnerungDatum = Date()
+        speichereWuensche()
     }
 
     private func patientenverfuegungDateiEntfernen() {
         patientenverfuegungDateiName = nil
         patientenverfuegungDateiURL = nil
+        patientenverfuegungDateiData = nil
         patientenverfuegungHochgeladenAm = nil
         patientenverfuegungErinnerungAktiv = true
         patientenverfuegungErinnerungDatum = Date()
+        speichereWuensche()
     }
 
     private func vorsorgeauftragDateiEntfernen() {
         vorsorgeauftragDateiName = nil
         vorsorgeauftragDateiURL = nil
+        vorsorgeauftragDateiData = nil
         vorsorgeauftragHochgeladenAm = nil
         vorsorgeauftragErinnerungAktiv = true
         vorsorgeauftragErinnerungDatum = Date()
+        speichereWuensche()
     }
 
     private func sterbebegleitungDateiEntfernen() {
         sterbebegleitungDateiName = nil
         sterbebegleitungDateiURL = nil
+        sterbebegleitungDateiData = nil
         sterbebegleitungHochgeladenAm = nil
         sterbebegleitungErinnerungAktiv = true
         sterbebegleitungErinnerungDatum = Date()
+        speichereWuensche()
     }
 
     private func erinnerungsDatumInEinemJahr() -> Date {
@@ -604,7 +1089,7 @@ enum KontaktArt: String, CaseIterable, Identifiable, Codable {
     case partner = "Partner"
     case familie = "Familie"
     case freunde = "Freunde"
-    case anderes = "Anderes"
+    case anderes = "Andere"
 
     var id: String { rawValue }
 }
@@ -721,44 +1206,70 @@ struct DokumentUploadBox: View {
     let entfernenTitel: String
     @Binding var erinnerungAktiv: Bool
     @Binding var erinnerungDatum: Date
+    let vorschauAktion: () -> Void
     let uploadAktion: () -> Void
     let entfernenAktion: () -> Void
 
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: dateiName == nil ? "doc.fill" : "doc.text.fill")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
-
-            if let dateiName {
-                Text(dateiName)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-
-            if let hochgeladenAm {
-                Text("\(timestampTitel) \(hochgeladenAm.formatted(date: .abbreviated, time: .shortened))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-
+        VStack(spacing: 14) {
             Button {
                 uploadAktion()
             } label: {
-                Label(uploadTitel, systemImage: "doc.badge.plus")
+                Image(systemName: "doc.badge.plus")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 42, height: 42)
+                    .background(Circle().fill(Color.black))
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.plain)
+            .accessibilityLabel(uploadTitel)
 
-            if dateiName != nil {
-                Button(role: .destructive) {
-                    entfernenAktion()
-                } label: {
-                    Label(entfernenTitel, systemImage: "trash")
-                        .font(.caption)
+            if let dateiName {
+                HStack(spacing: 10) {
+                    Image(systemName: "doc.fill")
+                        .foregroundStyle(.secondary)
+
+                    Button {
+                        vorschauAktion()
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(dateiName)
+                                .font(.footnote)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+
+                            if let hochgeladenAm {
+                                Text("\(timestampTitel) \(hochgeladenAm.formatted(date: .abbreviated, time: .shortened))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Dokument Vorschau öffnen")
+
+                    Spacer()
+
+                    Button {
+                        vorschauAktion()
+                    } label: {
+                        Image(systemName: "eye.fill")
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Dokument anzeigen")
+
+                    Button(role: .destructive) {
+                        entfernenAktion()
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel(entfernenTitel)
                 }
-                .buttonStyle(.borderless)
+                .padding(12)
+                .background(Color(.systemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                 Divider()
 
@@ -772,6 +1283,11 @@ struct DokumentUploadBox: View {
                     )
                     .environment(\.locale, Locale(identifier: "de_CH"))
                 }
+            } else {
+                Text("Noch kein Dokument hochgeladen.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
             }
         }
         .frame(maxWidth: .infinity)
@@ -781,4 +1297,6 @@ struct DokumentUploadBox: View {
 
 #Preview {
     WuenscheView()
+        .modelContainer(for: [WuenscheModell.self, HinterbliebeneModell.self], inMemory: true)
 }
+

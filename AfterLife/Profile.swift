@@ -1,13 +1,25 @@
 import SwiftUI
-
+import SwiftData
 import PhotosUI
 import UIKit
 
 struct ProfilView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query private var gespeicherteProfile: [ProfilModell]
+    @Query private var gespeicherteWuensche: [WuenscheModell]
+    @Query private var gespeicherteHinterbliebene: [HinterbliebeneModell]
+    @Query private var gespeicherteBankkonten: [BankkontoModell]
+    @Query private var gespeicherteSchulden: [SchuldenModell]
+    @Query private var gespeicherteVersicherungen: [VersicherungModell]
+    @Query private var gespeicherteLiegenschaften: [LiegenschaftModell]
+    @Query private var gespeicherteWertsachen: [WertsacheModell]
+    @Query private var gespeicherteSteuerdokumente: [SteuerdokumentModell]
+    @Query private var gespeicherteAboModelle: [AboModell]
 
     @AppStorage("gespeicherteEmail") private var gespeicherteEmail = ""
     @AppStorage("gespeichertesPasswort") private var gespeichertesPasswort = ""
     @AppStorage("registrierungsArt") private var registrierungsArt = "E-Mail"
+    @AppStorage("biometrieAktiviert") private var biometrieAktiviert = false
 
     @State private var vorname = ""
 
@@ -16,6 +28,16 @@ struct ProfilView: View {
     @State private var geburtsdatum = Calendar.current.date(from: DateComponents(year: 1978, month: 6, day: 1)) ?? Date()
 
     @State private var adresse = ""
+    @State private var hausnummer = ""
+    @State private var adressVorschlaege: [SchweizerStrasse] = []
+    @State private var adressSucheLaeuft = false
+    @State private var adressVorschlagWurdeGewaehlt = false
+    @State private var adressSucheBeimLadenUnterdruecken = false
+
+    @State private var plz = ""
+
+    @State private var stadt = ""
+    @State private var plzSucheLaeuft = false
 
     @State private var land = "Schweiz"
 
@@ -54,7 +76,17 @@ struct ProfilView: View {
 
     @State private var profilLoeschenBestaetigen = false
 
+    @State private var passwortAendernAnzeigen = false
+    @State private var registrierungsPasswortAnzeigen = false
+    @State private var aktuellesPasswort = ""
+    @State private var neuesPasswort = ""
+    @State private var neuesPasswortWiederholen = ""
+    @State private var passwortAendernFehler = ""
+    @State private var passwortAendernErfolg = ""
+
     @State private var dossierPDF: ExportiertesDossier?
+    @State private var passwortExportAuswahlAnzeigen = false
+    @State private var profilGeladen = false
 
 
 
@@ -66,6 +98,15 @@ struct ProfilView: View {
 
         return email.range(of: emailRegex, options: .regularExpression) != nil
 
+    }
+
+    private var istEmailRegistrierung: Bool {
+        registrierungsArt == "E-Mail" || registrierungsArt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var angezeigtesRegistrierungsPasswort: String {
+        guard !gespeichertesPasswort.isEmpty else { return "Nicht erfasst" }
+        return registrierungsPasswortAnzeigen ? gespeichertesPasswort : String(repeating: "•", count: max(6, gespeichertesPasswort.count))
     }
 
     var body: some View {
@@ -156,11 +197,57 @@ struct ProfilView: View {
 
                     .environment(\.locale, Locale(identifier: "de_CH"))
 
-                    TextField("Adresse", text: $adresse, axis: .vertical)
+                    TextField("Strasse", text: $adresse)
+                        .textContentType(.streetAddressLine1)
 
-                        .textContentType(.fullStreetAddress)
+                    TextField("Hausnummer", text: $hausnummer)
+                        .textContentType(.streetAddressLine2)
 
-                        .lineLimit(2...4)
+                    if adressSucheLaeuft {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                            Text("Adresse wird gesucht …")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    if !adressVorschlaege.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(adressVorschlaege) { vorschlag in
+                                Button {
+                                    adressVorschlagWurdeGewaehlt = true
+                                    adresse = vorschlag.name
+                                    hausnummer = ""
+                                    plz = vorschlag.postalCode
+                                    stadt = vorschlag.locality
+                                    adressVorschlaege = []
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(vorschlag.name)
+                                            .foregroundStyle(.primary)
+
+                                        Text("\(vorschlag.postalCode) \(vorschlag.locality)")
+                                            .font(.footnote)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+
+                    HStack {
+
+                        TextField("PLZ", text: $plz)
+
+                            .keyboardType(.numberPad)
+
+                        TextField("Stadt", text: $stadt)
+
+                    }
 
                     Picker("Land", selection: $land) {
                         ForEach(laender, id: \.self) { land in
@@ -223,11 +310,7 @@ struct ProfilView: View {
 
                     Button {
 
-                        if let url = erstelleDossierPDF() {
-
-                            dossierPDF = ExportiertesDossier(url: url)
-
-                        }
+                        passwortExportAuswahlAnzeigen = true
 
                     } label: {
 
@@ -235,7 +318,7 @@ struct ProfilView: View {
 
                     }
 
-                    Text("Erzeugt ein PDF-Dossier mit den aktuell erfassten Informationen. Weitere Bereiche wie Wünsche, Finanzen, Dokumente sowie Abos & Profile können später ergänzt werden, sobald deren Daten zentral gespeichert sind.")
+                    Text("Erzeugt ein PDF-Dossier mit den aktuell erfassten Informationen aus Profil, Wünsche, Finanzen, Hinterbliebenen, Dokumenten sowie weiteren gespeicherten Bereichen.")
 
                         .font(.footnote)
 
@@ -246,21 +329,46 @@ struct ProfilView: View {
                 Section("Zugangsdaten") {
 
                     if registrierungsArt == "Google" {
-
                         LabeledContent("Registrierungsart", value: "Mit Google registriert")
                         LabeledContent("E-Mail-Adresse", value: gespeicherteEmail.isEmpty ? "Nicht erfasst" : gespeicherteEmail)
-
-                    } else if registrierungsArt == "Apple" {
-
+                    } else if registrierungsArt == "Apple" || registrierungsArt == "Apple ID" {
                         LabeledContent("Registrierungsart", value: "Mit Apple ID registriert")
                         LabeledContent("E-Mail-Adresse", value: gespeicherteEmail.isEmpty ? "Nicht erfasst" : gespeicherteEmail)
-
                     } else {
-
                         LabeledContent("Benutzername", value: gespeicherteEmail.isEmpty ? "Nicht erfasst" : gespeicherteEmail)
-                        LabeledContent("Passwort", value: gespeichertesPasswort.isEmpty ? "Nicht erfasst" : gespeichertesPasswort)
 
+                        HStack {
+                            Text("Passwort")
+
+                            Spacer()
+
+                            Text(angezeigtesRegistrierungsPasswort)
+                                .foregroundStyle(.secondary)
+
+                            Button {
+                                registrierungsPasswortAnzeigen.toggle()
+                            } label: {
+                                Image(systemName: registrierungsPasswortAnzeigen ? "eye.slash" : "eye")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(registrierungsPasswortAnzeigen ? "Passwort ausblenden" : "Passwort anzeigen")
+                        }
+
+                        Button {
+                            passwortAendernAnzeigen = true
+                        } label: {
+                            Label("Passwort ändern", systemImage: "key.fill")
+                        }
                     }
+
+                    Divider()
+
+                    Toggle("Biometrische Anmeldung verwenden", isOn: $biometrieAktiviert)
+
+                    Text("Wenn aktiviert, kann die App beim Öffnen Face ID oder Touch ID für die Anmeldung verwenden.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
 
                     Text("Diese Angaben stammen aus der Registrierung. Für eine produktive App sollten Passwörter nicht im Klartext gespeichert oder angezeigt werden, sondern sicher über die Keychain verwaltet werden.")
                         .font(.footnote)
@@ -329,25 +437,406 @@ struct ProfilView: View {
                 ShareSheet(activityItems: [dossier.url])
 
             }
+            .confirmationDialog(
+                "Sollen Passwörter im PDF mitgedruckt werden?",
+                isPresented: $passwortExportAuswahlAnzeigen,
+                titleVisibility: .visible
+            ) {
+                Button("Ja, Passwörter mitdrucken") {
+                    if let url = erstelleDossierPDF(passwoerterMitdrucken: true) {
+                        dossierPDF = ExportiertesDossier(url: url)
+                    }
+                }
 
-            .onChange(of: profilbildAuswahl) { _, neueAuswahl in
+                Button("Nein, ohne Passwörter exportieren") {
+                    if let url = erstelleDossierPDF(passwoerterMitdrucken: false) {
+                        dossierPDF = ExportiertesDossier(url: url)
+                    }
+                }
+
+                Button("Abbrechen", role: .cancel) { }
+            } message: {
+                Text("Aus Sicherheitsgründen kannst du entscheiden, ob Passwörter und Abo-Logins im Dossier erscheinen sollen.")
+            }
+
+            .sheet(isPresented: $passwortAendernAnzeigen) {
+                NavigationStack {
+                    Form {
+                        Section("Passwort ändern") {
+                            SecureField("Aktuelles Passwort", text: $aktuellesPasswort)
+                            SecureField("Neues Passwort", text: $neuesPasswort)
+                            SecureField("Neues Passwort wiederholen", text: $neuesPasswortWiederholen)
+                        }
+
+                        if !passwortAendernFehler.isEmpty {
+                            Section {
+                                Text(passwortAendernFehler)
+                                    .foregroundStyle(.red)
+                            }
+                        }
+
+                        if !passwortAendernErfolg.isEmpty {
+                            Section {
+                                Text(passwortAendernErfolg)
+                                    .foregroundStyle(.green)
+                            }
+                        }
+                    }
+                    .navigationTitle("Passwort ändern")
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Abbrechen") {
+                                schliessePasswortAendern()
+                            }
+                        }
+
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Speichern") {
+                                passwortAendern()
+                            }
+                        }
+                    }
+                }
+                .onAppear {
+                    passwortAendernFehler = ""
+                    passwortAendernErfolg = ""
+                    aktuellesPasswort = ""
+                    neuesPasswort = ""
+                    neuesPasswortWiederholen = ""
+                }
+            }
+            .onAppear {
+                ladeOderErstelleProfil()
+            }
+            .onChange(of: vorname) { _, _ in speichereProfil() }
+            .onChange(of: name) { _, _ in speichereProfil() }
+            .onChange(of: geburtsdatum) { _, _ in speichereProfil() }
+            .onChange(of: adresse) { _, _ in speichereProfil() }
+            .onChange(of: hausnummer) { _, _ in speichereProfil() }
+            .onChange(of: plz) { _, _ in speichereProfil() }
+            .onChange(of: stadt) { _, _ in speichereProfil() }
+            .onChange(of: land) { _, _ in speichereProfil() }
+            .onChange(of: telefon) { _, _ in speichereProfil() }
+            .onChange(of: email) { _, _ in speichereProfil() }
+            .onChange(of: adresse) { _, neueAdresse in
+                guard land == "Schweiz" else { return }
+
+                if adressSucheBeimLadenUnterdruecken {
+                    adressSucheBeimLadenUnterdruecken = false
+                    adressVorschlaege = []
+                    return
+                }
+
+                if adressVorschlagWurdeGewaehlt {
+                    adressVorschlagWurdeGewaehlt = false
+                    adressVorschlaege = []
+                    return
+                }
+
+                let bereinigteAdresse = neueAdresse.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                guard bereinigteAdresse.count >= 3 else {
+                    adressVorschlaege = []
+                    return
+                }
 
                 Task {
+                    try? await Task.sleep(nanoseconds: 350_000_000)
 
+                    guard bereinigteAdresse == adresse.trimmingCharacters(in: .whitespacesAndNewlines) else {
+                        return
+                    }
+
+                    await ladeSchweizerAdressVorschlaege(fuer: bereinigteAdresse)
+                }
+            }
+            .onChange(of: plz) { _, neuePLZ in
+                guard land == "Schweiz" else { return }
+
+                let bereinigtePLZ = neuePLZ.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                guard bereinigtePLZ.count == 4 else {
+                    stadt = ""
+                    return
+                }
+
+                Task {
+                    await ladeSchweizerOrtFuerPLZ(bereinigtePLZ)
+                }
+            }
+            .onChange(of: profilbildAuswahl) { _, neueAuswahl in
+                Task {
                     if let data = try? await neueAuswahl?.loadTransferable(type: Data.self),
                        let image = UIImage(data: data),
                        let jpegData = image.jpegData(compressionQuality: 0.85) {
-
                         profilbildData = jpegData
-
+                        speichereProfil()
                     }
-
                 }
-
             }
+            .onChange(of: biometrieAktiviert) { _, _ in speichereProfil() }
 
         }
 
+    }
+
+    private func ladeOderErstelleProfil() {
+        guard !profilGeladen else { return }
+
+        if let vorhandenesProfil = gespeicherteProfile.first {
+            vorname = vorhandenesProfil.vorname
+            name = vorhandenesProfil.name
+            geburtsdatum = vorhandenesProfil.geburtsdatum
+            adressSucheBeimLadenUnterdruecken = true
+            adresse = vorhandenesProfil.strasse
+            hausnummer = vorhandenesProfil.hausnummer
+            plz = vorhandenesProfil.plz
+            stadt = vorhandenesProfil.stadt
+            land = vorhandenesProfil.land
+            telefon = vorhandenesProfil.telefon
+            email = vorhandenesProfil.email
+            gespeicherteEmail = vorhandenesProfil.registrierungsEmail.isEmpty ? gespeicherteEmail : vorhandenesProfil.registrierungsEmail
+            registrierungsArt = vorhandenesProfil.registrierungsart.isEmpty ? registrierungsArt : vorhandenesProfil.registrierungsart
+            biometrieAktiviert = vorhandenesProfil.biometrieAktiviert
+            if let gespeichertesProfilbild = vorhandenesProfil.profilbildDaten {
+                profilbildData = gespeichertesProfilbild
+            }
+            if !vorhandenesProfil.registrierungsPasswort.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                gespeichertesPasswort = vorhandenesProfil.registrierungsPasswort
+            }
+        } else {
+            let neuesProfil = ProfilModell(
+                registrierungsart: registrierungsArt,
+                registrierungsEmail: gespeicherteEmail,
+                registrierungsPasswort: gespeichertesPasswort,
+                profilbildDaten: profilbildData
+            )
+            neuesProfil.biometrieAktiviert = biometrieAktiviert
+            modelContext.insert(neuesProfil)
+        }
+
+        profilGeladen = true
+    }
+
+    private func speichereProfil() {
+        guard profilGeladen else { return }
+
+        let profil: ProfilModell
+
+        if let vorhandenesProfil = gespeicherteProfile.first {
+            profil = vorhandenesProfil
+        } else {
+            let neuesProfil = ProfilModell()
+            modelContext.insert(neuesProfil)
+            profil = neuesProfil
+        }
+
+        profil.vorname = vorname
+        profil.name = name
+        profil.geburtsdatum = geburtsdatum
+        profil.strasse = adresse
+        profil.hausnummer = hausnummer
+        profil.plz = plz
+        profil.stadt = stadt
+        profil.land = land
+        profil.telefon = telefon
+        profil.email = email
+        profil.registrierungsart = registrierungsArt
+        profil.registrierungsEmail = gespeicherteEmail
+        profil.registrierungsPasswort = gespeichertesPasswort
+        profil.profilbildDaten = profilbildData
+        profil.biometrieAktiviert = biometrieAktiviert
+        synchronisiereAfterLifeDigitaleIdentitaet()
+    }
+
+    private func synchronisiereAfterLifeDigitaleIdentitaet(email: String? = nil, passwort: String? = nil) {
+        let zielEmail = (email ?? gespeicherteEmail).trimmingCharacters(in: .whitespacesAndNewlines)
+        let zielPasswort = passwort ?? gespeichertesPasswort
+
+        guard istEmailRegistrierung, !zielEmail.isEmpty else { return }
+
+        let aboModell: AboModell
+        if let vorhandenesModell = gespeicherteAboModelle.first {
+            aboModell = vorhandenesModell
+        } else {
+            let neuesModell = AboModell()
+            modelContext.insert(neuesModell)
+            aboModell = neuesModell
+        }
+
+        let eintrag = aboModell.abos.first { $0.istSystemEintrag && $0.anbieter == "AfterLife" } ?? AboEintrag()
+
+        if !aboModell.abos.contains(where: { $0.id == eintrag.id }) {
+            modelContext.insert(eintrag)
+            aboModell.abos.append(eintrag)
+        }
+
+        eintrag.aboTyp = "Software / Apps"
+        eintrag.anbieter = "AfterLife"
+        eintrag.digitaleIdentitaetAnbieter = ""
+        eintrag.bezeichnung = "AfterLife"
+        eintrag.benutzername = zielEmail
+        eintrag.passwort = zielPasswort
+        eintrag.istAktiv = true
+        eintrag.istSystemEintrag = true
+        eintrag.aktualisiertAm = Date()
+        aboModell.aktualisiertAm = Date()
+
+        do {
+            try modelContext.save()
+        } catch {
+            print("AfterLife Login konnte nicht synchronisiert werden: \(error.localizedDescription)")
+        }
+    }
+
+    private func schliessePasswortAendern() {
+        passwortAendernAnzeigen = false
+        aktuellesPasswort = ""
+        neuesPasswort = ""
+        neuesPasswortWiederholen = ""
+        passwortAendernFehler = ""
+        passwortAendernErfolg = ""
+        registrierungsPasswortAnzeigen = false
+    }
+
+    private func passwortAendern() {
+        passwortAendernFehler = ""
+        passwortAendernErfolg = ""
+
+        guard istEmailRegistrierung else {
+            passwortAendernFehler = "Das Passwort kann nur bei einer Registrierung mit E-Mail geändert werden."
+            return
+        }
+
+        let bereinigteEmail = gespeicherteEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !bereinigteEmail.isEmpty else {
+            passwortAendernFehler = "Es ist keine Registrierungs-E-Mail vorhanden."
+            return
+        }
+
+        guard !aktuellesPasswort.isEmpty, !neuesPasswort.isEmpty, !neuesPasswortWiederholen.isEmpty else {
+            passwortAendernFehler = "Bitte alle Passwortfelder ausfüllen."
+            return
+        }
+
+        guard neuesPasswort == neuesPasswortWiederholen else {
+            passwortAendernFehler = "Das neue Passwort stimmt nicht mit der Wiederholung überein."
+            return
+        }
+
+        guard neuesPasswort.count >= 6 else {
+            passwortAendernFehler = "Das neue Passwort muss mindestens 6 Zeichen lang sein."
+            return
+        }
+
+        do {
+            let gespeichertesKeychainPasswort = try KeychainHelper.shared.read(
+                service: "AfterLife.Login",
+                account: bereinigteEmail
+            )
+
+            guard aktuellesPasswort == gespeichertesKeychainPasswort || aktuellesPasswort == gespeichertesPasswort else {
+                passwortAendernFehler = "Das aktuelle Passwort ist nicht korrekt."
+                return
+            }
+
+            try KeychainHelper.shared.save(
+                neuesPasswort,
+                service: "AfterLife.Login",
+                account: bereinigteEmail
+            )
+
+            gespeichertesPasswort = neuesPasswort
+
+            if let profil = gespeicherteProfile.first {
+                profil.registrierungsPasswort = neuesPasswort
+                profil.registrierungsEmail = bereinigteEmail
+                profil.registrierungsart = "E-Mail"
+                try modelContext.save()
+            }
+
+            synchronisiereAfterLifeDigitaleIdentitaet(email: bereinigteEmail, passwort: neuesPasswort)
+
+            passwortAendernErfolg = "Passwort wurde geändert."
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                schliessePasswortAendern()
+            }
+        } catch {
+            passwortAendernFehler = "Passwort konnte nicht geändert werden."
+        }
+    }
+
+    @MainActor
+    private func ladeSchweizerAdressVorschlaege(fuer suchbegriff: String) async {
+        guard !adressSucheLaeuft else { return }
+
+        adressSucheLaeuft = true
+        defer { adressSucheLaeuft = false }
+
+        var components = URLComponents(string: "https://openplzapi.org/ch/Streets")
+        components?.queryItems = [
+            URLQueryItem(name: "name", value: "^\(suchbegriff)"),
+            URLQueryItem(name: "pageSize", value: "6")
+        ]
+
+        guard let url = components?.url else { return }
+
+        var request = URLRequest(url: url)
+        request.setValue("text/json", forHTTPHeaderField: "accept")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode) else {
+                adressVorschlaege = []
+                return
+            }
+
+            let strassen = try JSONDecoder().decode([SchweizerStrasse].self, from: data)
+            adressVorschlaege = Array(strassen.prefix(6))
+        } catch {
+            adressVorschlaege = []
+            print("Adressvorschläge konnten nicht geladen werden: \(error.localizedDescription)")
+        }
+    }
+
+    @MainActor
+    private func ladeSchweizerOrtFuerPLZ(_ postleitzahl: String) async {
+        guard !plzSucheLaeuft else { return }
+
+        plzSucheLaeuft = true
+        defer { plzSucheLaeuft = false }
+
+        var components = URLComponents(string: "https://openplzapi.org/ch/Localities")
+        components?.queryItems = [
+            URLQueryItem(name: "postalCode", value: postleitzahl),
+            URLQueryItem(name: "pageSize", value: "1")
+        ]
+
+        guard let url = components?.url else { return }
+
+        var request = URLRequest(url: url)
+        request.setValue("text/json", forHTTPHeaderField: "accept")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode) else {
+                return
+            }
+
+            let orte = try JSONDecoder().decode([SchweizerOrt].self, from: data)
+
+            if let ersterOrt = orte.first {
+                stadt = ersterOrt.name
+            }
+        } catch {
+            print("PLZ konnte nicht automatisch gefunden werden: \(error.localizedDescription)")
+        }
     }
 
     private func profilLoeschen() {
@@ -357,6 +846,13 @@ struct ProfilView: View {
         name = ""
 
         adresse = ""
+        hausnummer = ""
+        adressVorschlaege = []
+        adressSucheLaeuft = false
+        adressVorschlagWurdeGewaehlt = false
+        adressSucheBeimLadenUnterdruecken = false
+        plz = ""
+        stadt = ""
 
         land = "Schweiz"
 
@@ -368,11 +864,35 @@ struct ProfilView: View {
 
         profilbildAuswahl = nil
 
+        gespeichertesPasswort = ""
+        aktuellesPasswort = ""
+        neuesPasswort = ""
+        neuesPasswortWiederholen = ""
+        passwortAendernFehler = ""
+        passwortAendernErfolg = ""
+        registrierungsPasswortAnzeigen = false
+
         geburtsdatum = Calendar.current.date(from: DateComponents(year: 1978, month: 6, day: 1)) ?? Date()
 
+        gespeicherteAboModelle.forEach { aboModell in
+            aboModell.abos
+                .filter { $0.istSystemEintrag && $0.anbieter == "AfterLife" }
+                .forEach { systemEintrag in
+                    if let index = aboModell.abos.firstIndex(where: { $0.id == systemEintrag.id }) {
+                        aboModell.abos.remove(at: index)
+                    }
+                    modelContext.delete(systemEintrag)
+                }
+        }
+
+        gespeicherteProfile.forEach { profil in
+            modelContext.delete(profil)
+        }
+
+        profilGeladen = false
     }
 
-    private func erstelleDossierPDF() -> URL? {
+    private func erstelleDossierPDF(passwoerterMitdrucken: Bool) -> URL? {
 
         let pdfMetaData = [
 
@@ -412,9 +932,14 @@ struct ProfilView: View {
 
             try renderer.writePDF(to: url) { context in
 
-                context.beginPage()
-
                 var yPosition: CGFloat = 48
+
+                func beginPDFPage() {
+                    context.beginPage()
+                    yPosition = 48
+                }
+
+                beginPDFPage()
 
                 func drawProfileImageIfAvailable() {
 
@@ -463,54 +988,608 @@ struct ProfilView: View {
                     context.cgContext.strokeEllipse(in: imageRect)
                 }
 
+                func fittingSubstring(
+                    from text: String,
+                    attributes: [NSAttributedString.Key: Any],
+                    width: CGFloat,
+                    maxHeight: CGFloat
+                ) -> String {
+                    guard !text.isEmpty else { return "" }
+
+                    let words = text.split(separator: " ", omittingEmptySubsequences: false).map(String.init)
+                    var result = ""
+
+                    for word in words {
+                        let candidate = result.isEmpty ? word : result + " " + word
+                        let attributedCandidate = NSAttributedString(string: candidate, attributes: attributes)
+                        let rect = attributedCandidate.boundingRect(
+                            with: CGSize(width: width, height: .greatestFiniteMagnitude),
+                            options: [.usesLineFragmentOrigin, .usesFontLeading],
+                            context: nil
+                        )
+
+                        if ceil(rect.height) > maxHeight {
+                            break
+                        }
+
+                        result = candidate
+                    }
+
+                    if result.isEmpty {
+                        var fallback = ""
+
+                        for character in text {
+                            let candidate = fallback + String(character)
+                            let attributedCandidate = NSAttributedString(string: candidate, attributes: attributes)
+                            let rect = attributedCandidate.boundingRect(
+                                with: CGSize(width: width, height: .greatestFiniteMagnitude),
+                                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                                context: nil
+                            )
+
+                            if ceil(rect.height) > maxHeight {
+                                break
+                            }
+
+                            fallback = candidate
+                        }
+
+                        return fallback
+                    }
+
+                    return result
+                }
+
                 func drawText(_ text: String, font: UIFont = .systemFont(ofSize: 13), color: UIColor = .label, spacing: CGFloat = 24) {
-
                     let paragraphStyle = NSMutableParagraphStyle()
-
                     paragraphStyle.lineBreakMode = .byWordWrapping
 
                     let attributes: [NSAttributedString.Key: Any] = [
-
                         .font: font,
-
                         .foregroundColor: color,
-
                         .paragraphStyle: paragraphStyle
-
                     ]
 
-                    let textRect = CGRect(x: 48, y: yPosition, width: pageWidth - 96, height: pageHeight - yPosition - 48)
+                    let maxTextWidth = pageWidth - 96
+                    let availableHeight = pageHeight - yPosition - 48
+                    let attributedText = NSAttributedString(string: text, attributes: attributes)
+                    let boundingRect = attributedText.boundingRect(
+                        with: CGSize(width: maxTextWidth, height: .greatestFiniteMagnitude),
+                        options: [.usesLineFragmentOrigin, .usesFontLeading],
+                        context: nil
+                    )
 
+                    let textHeight = ceil(boundingRect.height)
+                    let requiredHeight = textHeight + spacing
+
+                    if requiredHeight <= availableHeight {
+                        attributedText.draw(in: CGRect(x: 48, y: yPosition, width: maxTextWidth, height: textHeight))
+                        yPosition += requiredHeight
+                        return
+                    }
+
+                    if textHeight <= pageHeight - 96 {
+                        beginPDFPage()
+                        attributedText.draw(in: CGRect(x: 48, y: yPosition, width: maxTextWidth, height: textHeight))
+                        yPosition += requiredHeight
+                        return
+                    }
+
+                    var remainingText = text
+
+                    while !remainingText.isEmpty {
+                        let remainingAvailableHeight = pageHeight - yPosition - 48
+
+                        if remainingAvailableHeight < 60 {
+                            beginPDFPage()
+                        }
+
+                        let fittingText = fittingSubstring(
+                            from: remainingText,
+                            attributes: attributes,
+                            width: maxTextWidth,
+                            maxHeight: pageHeight - yPosition - 48
+                        )
+
+                        guard !fittingText.isEmpty else {
+                            beginPDFPage()
+                            continue
+                        }
+
+                        let fittingAttributedText = NSAttributedString(string: fittingText, attributes: attributes)
+                        let fittingRect = fittingAttributedText.boundingRect(
+                            with: CGSize(width: maxTextWidth, height: .greatestFiniteMagnitude),
+                            options: [.usesLineFragmentOrigin, .usesFontLeading],
+                            context: nil
+                        )
+
+                        fittingAttributedText.draw(in: CGRect(x: 48, y: yPosition, width: maxTextWidth, height: ceil(fittingRect.height)))
+                        yPosition += ceil(fittingRect.height) + spacing
+
+                        remainingText.removeFirst(fittingText.count)
+                        remainingText = remainingText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                        if !remainingText.isEmpty {
+                            beginPDFPage()
+                        }
+                    }
+                }
+
+                func drawIndentedText(
+                    _ text: String,
+                    font: UIFont = .systemFont(ofSize: 12),
+                    color: UIColor = .label,
+                    spacing: CGFloat = 4
+                ) {
+                    let paragraphStyle = NSMutableParagraphStyle()
+                    paragraphStyle.lineBreakMode = .byWordWrapping
+
+                    let attributes: [NSAttributedString.Key: Any] = [
+                        .font: font,
+                        .foregroundColor: color,
+                        .paragraphStyle: paragraphStyle
+                    ]
+
+                    let xPosition: CGFloat = 76
+                    let maxTextWidth = pageWidth - xPosition - 48
                     let attributedText = NSAttributedString(string: text, attributes: attributes)
 
                     let boundingRect = attributedText.boundingRect(
-
-                        with: CGSize(width: textRect.width, height: .greatestFiniteMagnitude),
-
+                        with: CGSize(width: maxTextWidth, height: .greatestFiniteMagnitude),
                         options: [.usesLineFragmentOrigin, .usesFontLeading],
-
                         context: nil
-
                     )
 
-                    attributedText.draw(in: CGRect(x: textRect.minX, y: textRect.minY, width: textRect.width, height: ceil(boundingRect.height)))
+                    let textHeight = ceil(boundingRect.height)
+                    let requiredHeight = textHeight + spacing
 
-                    yPosition += ceil(boundingRect.height) + spacing
+                    if requiredHeight <= pageHeight - yPosition - 48 {
+                        attributedText.draw(in: CGRect(x: xPosition, y: yPosition, width: maxTextWidth, height: textHeight))
+                        yPosition += requiredHeight
+                        return
+                    }
 
-                }
+                    if textHeight <= pageHeight - 96 {
+                        beginPDFPage()
+                        attributedText.draw(in: CGRect(x: xPosition, y: yPosition, width: maxTextWidth, height: textHeight))
+                        yPosition += requiredHeight
+                        return
+                    }
 
-                func drawSectionTitle(_ title: String) {
+                    var remainingText = text
 
-                    drawText(title, font: .boldSystemFont(ofSize: 18), spacing: 14)
+                    while !remainingText.isEmpty {
+                        if pageHeight - yPosition - 48 < 60 {
+                            beginPDFPage()
+                        }
 
+                        let fittingText = fittingSubstring(
+                            from: remainingText,
+                            attributes: attributes,
+                            width: maxTextWidth,
+                            maxHeight: pageHeight - yPosition - 48
+                        )
+
+                        guard !fittingText.isEmpty else {
+                            beginPDFPage()
+                            continue
+                        }
+
+                        let fittingAttributedText = NSAttributedString(string: fittingText, attributes: attributes)
+                        let fittingRect = fittingAttributedText.boundingRect(
+                            with: CGSize(width: maxTextWidth, height: .greatestFiniteMagnitude),
+                            options: [.usesLineFragmentOrigin, .usesFontLeading],
+                            context: nil
+                        )
+
+                        fittingAttributedText.draw(in: CGRect(x: xPosition, y: yPosition, width: maxTextWidth, height: ceil(fittingRect.height)))
+                        yPosition += ceil(fittingRect.height) + spacing
+
+                        remainingText.removeFirst(fittingText.count)
+                        remainingText = remainingText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                        if !remainingText.isEmpty {
+                            beginPDFPage()
+                        }
+                    }
                 }
 
                 func drawField(_ label: String, _ value: String) {
-
                     let cleanValue = value.isEmpty ? "Nicht erfasst" : value
+                    beginNewPageIfNeeded(minimumSpace: 36)
+                    drawIndentedText("\(label): \(cleanValue)", font: .systemFont(ofSize: 12), spacing: 4)
+                }
 
-                    drawText("\(label): \(cleanValue)", font: .systemFont(ofSize: 13), spacing: 10)
+                func drawSectionTitle(_ title: String) {
+                    beginNewPageIfNeeded(minimumSpace: 70)
+                    drawText(title, font: .boldSystemFont(ofSize: 18), spacing: 16)
+                }
 
+                func beginNewPageIfNeeded(minimumSpace: CGFloat = 90) {
+                    if yPosition > pageHeight - minimumSpace {
+                        beginPDFPage()
+                    }
+                }
+
+                func drawDivider() {
+                    beginNewPageIfNeeded(minimumSpace: 36)
+                    let lineY = yPosition
+                    context.cgContext.setStrokeColor(UIColor.systemGray4.cgColor)
+                    context.cgContext.setLineWidth(0.8)
+                    context.cgContext.move(to: CGPoint(x: 48, y: lineY))
+                    context.cgContext.addLine(to: CGPoint(x: pageWidth - 48, y: lineY))
+                    context.cgContext.strokePath()
+                    yPosition += 18
+                }
+
+                func drawSubsectionTitle(_ title: String, color: UIColor = .label) {
+                    beginNewPageIfNeeded(minimumSpace: 58)
+                    drawText(title, font: .boldSystemFont(ofSize: 14), color: color, spacing: 6)
+                }
+
+                func drawEmpty(_ text: String = "Keine Angaben erfasst.") {
+                    drawIndentedText(text, font: .italicSystemFont(ofSize: 12), color: .secondaryLabel, spacing: 8)
+                }
+
+                func drawFieldIfNotEmpty(_ label: String, _ value: String) {
+                    let bereinigt = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !bereinigt.isEmpty else { return }
+                    guard !bereinigt.contains("_SwiftData") else { return }
+                    guard !bereinigt.contains("SwiftData") else { return }
+                    drawField(label, bereinigt)
+                }
+
+                func readableLabel(_ raw: String) -> String {
+                    raw
+                        .replacingOccurrences(of: "_", with: " ")
+                        .replacingOccurrences(of: "([a-zäöü])([A-ZÄÖÜ])", with: "$1 $2", options: .regularExpression)
+                        .capitalized
+                }
+
+                func readableValue(_ value: Any) -> String {
+                    if let string = value as? String {
+                        return string
+                    }
+
+                    if let bool = value as? Bool {
+                        return bool ? "Ja" : "Nein"
+                    }
+
+                    if let date = value as? Date {
+                        return dateFormatter.string(from: date)
+                    }
+
+                    if let double = value as? Double {
+                        return double == 0 ? "" : double.formatted(.number.precision(.fractionLength(0...2)))
+                    }
+
+                    if let int = value as? Int {
+                        return int == 0 ? "" : String(int)
+                    }
+
+                    if let uuid = value as? UUID {
+                        return uuid.uuidString
+                    }
+
+                    let mirror = Mirror(reflecting: value)
+                    if mirror.displayStyle == .optional {
+                        guard let optionalValue = mirror.children.first?.value else { return "" }
+                        return readableValue(optionalValue)
+                    }
+
+                    let text = String(describing: value)
+                    if text == "nil" { return "" }
+                    if text.contains("_SwiftData") { return "" }
+                    if text.contains("SwiftData") { return "" }
+                    if text.contains("PersistentIdentifier") { return "" }
+                    if text.contains("ObservationRegistrar") { return "" }
+                    if text.contains("BackingData") { return "" }
+                    return text
+                }
+
+                func drawSafeModelObject(_ object: Any, title: String) {
+                    beginNewPageIfNeeded(minimumSpace: 90)
+                    drawSubsectionTitle(title)
+
+                    let ignoredLabels: Set<String> = [
+                        "id",
+                        "persistentModelID",
+                        "_$backingData",
+                        "_$observationRegistrar",
+                        "$backingData",
+                        "$observationRegistrar"
+                    ]
+
+                    var hasContent = false
+
+                    for child in Mirror(reflecting: object).children {
+                        guard let label = child.label else { continue }
+                        guard !ignoredLabels.contains(label) else { continue }
+                        guard !label.contains("backing") else { continue }
+                        guard !label.contains("observation") else { continue }
+
+                        let value = readableValue(child.value)
+                        let bereinigt = value.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                        guard !bereinigt.isEmpty else { continue }
+                        guard !bereinigt.contains("_SwiftData") else { continue }
+                        guard !bereinigt.contains("SwiftData") else { continue }
+
+                        hasContent = true
+                        drawField(readableLabel(label), bereinigt)
+                    }
+
+                    if !hasContent {
+                        drawEmpty("Keine auslesbaren Angaben vorhanden.")
+                    }
+
+                    yPosition += 8
+                }
+
+                func drawWuensche() {
+                    drawDivider()
+                    drawSectionTitle("Meine Wünsche")
+
+                    guard !gespeicherteWuensche.isEmpty else {
+                        drawEmpty()
+                        return
+                    }
+
+                    for (index, wunsch) in gespeicherteWuensche.enumerated() {
+                        beginNewPageIfNeeded(minimumSpace: 160)
+                        drawSubsectionTitle(gespeicherteWuensche.count == 1 ? "Meine Wünsche" : "Wünsche \(index + 1)")
+
+                        drawField("Ich habe besondere Wünsche", wunsch.hatWuensche ? "Ja" : "Nein")
+
+                        drawSubsectionTitle("Beisetzung")
+                        drawField("Beisetzungsart", wunsch.beisetzungsArt)
+                        drawField("Hinweis zur Beisetzung", wunsch.beisetzungHinweis)
+                        drawField("Sonstige Bemerkungen", wunsch.sonstigeBemerkungen)
+
+                        drawSubsectionTitle("Musik")
+                        drawField("Besondere Musik", wunsch.besondereMusik ? "Ja" : "Nein")
+                        drawField("Musikwunsch", wunsch.musikWunsch)
+
+                        drawSubsectionTitle("Zeremonie")
+                        drawField("Zeremonie gewünscht", wunsch.zeremonieGewuenscht ? "Ja" : "Nein")
+                        drawField("Zeremonie Details", wunsch.zeremonieDetails)
+                        drawField("Zeremonie organisiert", wunsch.zeremonieOrganisiert ? "Ja" : "Nein")
+                        drawField("Finanziell abgesichert", wunsch.zeremonieFinanziellAbgesichert ? "Ja" : "Nein")
+
+                        let kontakteZuWuenschen = gespeicherteHinterbliebene
+                            .filter { $0.quelle == "WuenscheView" || $0.bemerkungen == "Quelle: WuenscheView" }
+                            .sorted { $0.erstelltAm < $1.erstelltAm }
+
+                        drawSubsectionTitle("Personen informieren / einladen")
+
+                        if kontakteZuWuenschen.isEmpty {
+                            drawEmpty()
+                        } else {
+                            for (kontaktIndex, kontakt) in kontakteZuWuenschen.enumerated() {
+                                beginNewPageIfNeeded(minimumSpace: 120)
+                                let kontaktTitel = [kontakt.vorname, kontakt.name]
+                                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                                    .filter { !$0.isEmpty }
+                                    .joined(separator: " ")
+
+                                drawSubsectionTitle(kontaktTitel.isEmpty ? "Kontakt \(kontaktIndex + 1)" : kontaktTitel)
+                                drawFieldIfNotEmpty("Vorname", kontakt.vorname)
+                                drawFieldIfNotEmpty("Name", kontakt.name)
+                                drawField("Informieren", kontakt.sollInformiertWerden ? "Ja" : "Nein")
+                                drawField("Einladen", kontakt.darfDokumenteErhalten ? "Ja" : "Nein")
+                                yPosition += 8
+                            }
+                        }
+
+                        drawSubsectionTitle("Letzte Worte")
+                        drawField("Ich möchte noch etwas sagen", wunsch.moechteNochEtwasSagen ? "Ja" : "Nein")
+                        drawField("Letzte Botschaft", wunsch.letzteBotschaft)
+
+                        drawSubsectionTitle("Nachruf")
+                        drawField("Nachruf gewünscht", wunsch.nachrufGewuenscht ? "Ja" : "Nein")
+                        drawField("Nachruf Text", wunsch.nachrufText)
+                        drawField("Nachruf Bild", wunsch.nachrufBildDateiName)
+
+                        drawSubsectionTitle("Testament")
+                        drawField("Testament vorhanden", wunsch.testamentVorhanden ? "Ja" : "Nein")
+                        drawField("Dateiname", wunsch.testamentDateiName)
+                        if let datum = wunsch.testamentHochgeladenAm {
+                            drawField("Hochgeladen am", dateFormatter.string(from: datum))
+                        }
+                        drawField("Erinnerung aktiv", wunsch.testamentErinnerungAktiv ? "Ja" : "Nein")
+                        if let datum = wunsch.testamentErinnerungAm {
+                            drawField("Erinnerung am", dateFormatter.string(from: datum))
+                        }
+
+                        drawSubsectionTitle("Patientenverfügung")
+                        drawField("Patientenverfügung vorhanden", wunsch.patientenverfuegungVorhanden ? "Ja" : "Nein")
+                        drawField("Dateiname", wunsch.patientenverfuegungDateiName)
+                        if let datum = wunsch.patientenverfuegungHochgeladenAm {
+                            drawField("Hochgeladen am", dateFormatter.string(from: datum))
+                        }
+                        drawField("Erinnerung aktiv", wunsch.patientenverfuegungErinnerungAktiv ? "Ja" : "Nein")
+                        if let datum = wunsch.patientenverfuegungErinnerungAm {
+                            drawField("Erinnerung am", dateFormatter.string(from: datum))
+                        }
+
+                        drawSubsectionTitle("Vorsorgeauftrag")
+                        drawField("Vorsorgeauftrag vorhanden", wunsch.vorsorgeauftragVorhanden ? "Ja" : "Nein")
+                        drawField("Dateiname", wunsch.vorsorgeauftragDateiName)
+                        if let datum = wunsch.vorsorgeauftragHochgeladenAm {
+                            drawField("Hochgeladen am", dateFormatter.string(from: datum))
+                        }
+                        drawField("Erinnerung aktiv", wunsch.vorsorgeauftragErinnerungAktiv ? "Ja" : "Nein")
+                        if let datum = wunsch.vorsorgeauftragErinnerungAm {
+                            drawField("Erinnerung am", dateFormatter.string(from: datum))
+                        }
+
+                        drawSubsectionTitle("Sterbebegleitung")
+                        drawField("Sterbebegleitung gewünscht", wunsch.sterbebegleitungGewuenscht ? "Ja" : "Nein")
+                        drawField("Dateiname", wunsch.sterbebegleitungDateiName)
+                        if let datum = wunsch.sterbebegleitungHochgeladenAm {
+                            drawField("Hochgeladen am", dateFormatter.string(from: datum))
+                        }
+                        drawField("Erinnerung aktiv", wunsch.sterbebegleitungErinnerungAktiv ? "Ja" : "Nein")
+                        if let datum = wunsch.sterbebegleitungErinnerungAm {
+                            drawField("Erinnerung am", dateFormatter.string(from: datum))
+                        }
+
+                        drawSubsectionTitle("Schwere Erkrankung / Lebensqualität")
+                        drawField("Schwere Erkrankung vorhanden", wunsch.schwereErkrankungVorhanden ? "Ja" : "Nein")
+                        drawField("Art der Erkrankung", wunsch.schwereErkrankungArt)
+                        drawField("Mir ist wichtig", wunsch.mirIstWichtig)
+                        drawField("Regelmässig beurteilen", wunsch.regelmaessigBeurteilen ? "Ja" : "Nein")
+
+                        yPosition += 8
+                    }
+                }
+
+                func drawFormattedAmount(_ label: String, amount: Double, currency: String) {
+                    guard amount != 0 else { return }
+                    let formattedAmount = amount.formatted(.number.precision(.fractionLength(0...2)))
+                    drawField(label, "\(formattedAmount) \(currency)")
+                }
+
+                func drawFinanzen() {
+                    drawDivider()
+                    drawSectionTitle("Finanzen")
+
+                    if gespeicherteBankkonten.isEmpty && gespeicherteSchulden.isEmpty && gespeicherteVersicherungen.isEmpty && gespeicherteLiegenschaften.isEmpty && gespeicherteWertsachen.isEmpty {
+                        drawEmpty()
+                        return
+                    }
+
+                    if !gespeicherteBankkonten.isEmpty {
+                        drawSubsectionTitle("Konten & Vermögen")
+
+                        for (index, bankkonto) in gespeicherteBankkonten.sorted(by: { $0.erstelltAm < $1.erstelltAm }).enumerated() {
+                            beginNewPageIfNeeded(minimumSpace: 120)
+                            drawSubsectionTitle("Konto \(index + 1)")
+                            drawFieldIfNotEmpty("Art des Kontos", bankkonto.kontoArt)
+                            drawFieldIfNotEmpty("IBAN / Konto-Nr.", bankkonto.iban)
+                            drawFieldIfNotEmpty("Name der Bank", bankkonto.bankname)
+                            drawFieldIfNotEmpty("Adresse der Bank", bankkonto.bankAdresse)
+                            drawFieldIfNotEmpty("Berater", bankkonto.berater)
+                            drawFormattedAmount("Vermögenswerte", amount: bankkonto.vermoegenswert, currency: bankkonto.waehrung)
+                            yPosition += 8
+                        }
+                    }
+
+                    if !gespeicherteSchulden.isEmpty {
+                        drawSubsectionTitle("Schulden")
+
+                        for (index, schuld) in gespeicherteSchulden.sorted(by: { $0.erstelltAm < $1.erstelltAm }).enumerated() {
+                            beginNewPageIfNeeded(minimumSpace: 100)
+                            drawSubsectionTitle("Schuld \(index + 1)")
+                            drawFieldIfNotEmpty("Art der Schuld", schuld.art)
+                            drawFieldIfNotEmpty("Name der Bank oder Person", schuld.glaeubiger)
+                            drawFormattedAmount("Betrag", amount: schuld.betrag, currency: schuld.waehrung)
+                            yPosition += 8
+                        }
+                    }
+
+                    if !gespeicherteVersicherungen.isEmpty {
+                        drawSubsectionTitle("Versicherungen")
+
+                        for (index, versicherung) in gespeicherteVersicherungen.sorted(by: { $0.erstelltAm < $1.erstelltAm }).enumerated() {
+                            beginNewPageIfNeeded(minimumSpace: 120)
+                            drawSubsectionTitle("Versicherung \(index + 1)")
+                            drawFieldIfNotEmpty("Art der Versicherung", versicherung.art)
+                            drawFieldIfNotEmpty("Name der Versicherung", versicherung.anbieter)
+                            drawFieldIfNotEmpty("Police-Nr. / Vertrags-Nr.", versicherung.policenNummer)
+                            drawFormattedAmount("Betrag / Versicherungssumme", amount: versicherung.praemie, currency: versicherung.waehrung)
+                            drawFieldIfNotEmpty("Bemerkungen", versicherung.bemerkungen)
+                            yPosition += 8
+                        }
+                    }
+
+                    if !gespeicherteLiegenschaften.isEmpty {
+                        drawSubsectionTitle("Liegenschaften")
+
+                        for (index, liegenschaft) in gespeicherteLiegenschaften.sorted(by: { $0.erstelltAm < $1.erstelltAm }).enumerated() {
+                            beginNewPageIfNeeded(minimumSpace: 100)
+                            drawSubsectionTitle("Liegenschaft \(index + 1)")
+                            drawFieldIfNotEmpty("Art", liegenschaft.art)
+                            drawFormattedAmount("Verkehrswert", amount: liegenschaft.verkehrswert, currency: liegenschaft.waehrung)
+                            drawFormattedAmount("Eigenmietwert", amount: liegenschaft.eigenmietwert, currency: liegenschaft.waehrung)
+                            yPosition += 8
+                        }
+                    }
+
+                    if !gespeicherteWertsachen.isEmpty {
+                        drawSubsectionTitle("Wertsachen")
+
+                        for (index, wertsache) in gespeicherteWertsachen.sorted(by: { $0.erstelltAm < $1.erstelltAm }).enumerated() {
+                            beginNewPageIfNeeded(minimumSpace: 90)
+                            drawSubsectionTitle("Wertsache \(index + 1)")
+                            drawFieldIfNotEmpty("Art", wertsache.art)
+                            drawFormattedAmount("Betrag", amount: wertsache.betrag, currency: wertsache.waehrung)
+                            yPosition += 8
+                        }
+                    }
+                }
+
+                func drawHinterbliebene() {
+                    drawDivider()
+                    drawSectionTitle("Hinterbliebene")
+
+                    guard !gespeicherteHinterbliebene.isEmpty else {
+                        drawEmpty()
+                        return
+                    }
+
+                    for (index, kontakt) in gespeicherteHinterbliebene.enumerated() {
+                        beginNewPageIfNeeded(minimumSpace: 120)
+
+                        let kontaktTitel = [kontakt.vorname, kontakt.name]
+                            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                            .filter { !$0.isEmpty }
+                            .joined(separator: " ")
+
+                        let stammtAusWuenschen = kontakt.quelle == "WuenscheView" || kontakt.bemerkungen == "Quelle: WuenscheView"
+                        let istRelevantFuerWuensche = stammtAusWuenschen && (kontakt.sollInformiertWerden || kontakt.darfDokumenteErhalten)
+
+                        drawSubsectionTitle(
+                            kontaktTitel.isEmpty ? "Kontakt \(index + 1)" : kontaktTitel,
+                            color: istRelevantFuerWuensche ? .systemGreen : .label
+                        )
+
+                        drawFieldIfNotEmpty("Vorname", kontakt.vorname)
+                        drawFieldIfNotEmpty("Name", kontakt.name)
+                        drawFieldIfNotEmpty("Beziehung", kontakt.beziehung)
+                        drawFieldIfNotEmpty("Telefon", kontakt.telefon)
+                        drawFieldIfNotEmpty("E-Mail", kontakt.email)
+                        drawFieldIfNotEmpty("Adresse", kontakt.adresse)
+
+                        if stammtAusWuenschen && kontakt.sollInformiertWerden {
+                            drawField("Informieren", "Ja")
+                        }
+
+                        if stammtAusWuenschen && kontakt.darfDokumenteErhalten {
+                            drawField("Einladen", "Ja")
+                        }
+
+                        yPosition += 8
+                    }
+                }
+
+                func drawDokumente() {
+                    drawDivider()
+                    drawSectionTitle("Dokumente")
+
+                    guard !gespeicherteSteuerdokumente.isEmpty else {
+                        drawEmpty()
+                        return
+                    }
+
+                    for (index, dokument) in gespeicherteSteuerdokumente.sorted(by: { $0.hochgeladenAm < $1.hochgeladenAm }).enumerated() {
+                        beginNewPageIfNeeded(minimumSpace: 90)
+                        drawSubsectionTitle(gespeicherteSteuerdokumente.count == 1 ? "Steuerdokument" : "Steuerdokument \(index + 1)")
+                        drawFieldIfNotEmpty("Dateiname", dokument.dateiName)
+                        drawFieldIfNotEmpty("Dokumentpfad", dokument.dokumentPfad)
+                        drawField("Hochgeladen am", dateFormatter.string(from: dokument.hochgeladenAm))
+                        yPosition += 8
+                    }
                 }
 
                 drawProfileImageIfAvailable()
@@ -527,7 +1606,16 @@ struct ProfilView: View {
 
                 drawField("Geburtsdatum", dateFormatter.string(from: geburtsdatum))
 
-                drawField("Adresse", adresse)
+                let vollstaendigeAdresse = [adresse, hausnummer]
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                    .joined(separator: " ")
+
+                drawField("Adresse", vollstaendigeAdresse)
+                drawField("Strasse", adresse)
+                drawField("Hausnummer", hausnummer)
+                drawField("PLZ", plz)
+                drawField("Stadt", stadt)
 
                 drawField("Land", land)
 
@@ -542,19 +1630,235 @@ struct ProfilView: View {
                 if registrierungsArt == "Google" {
                     drawField("Registrierungsart", "Mit Google registriert")
                     drawField("E-Mail-Adresse", gespeicherteEmail)
-                } else if registrierungsArt == "Apple" {
+                } else if registrierungsArt == "Apple" || registrierungsArt == "Apple ID" {
                     drawField("Registrierungsart", "Mit Apple ID registriert")
                     drawField("E-Mail-Adresse", gespeicherteEmail)
                 } else {
                     drawField("Benutzername", gespeicherteEmail)
-                    drawField("Passwort", gespeichertesPasswort)
+                    if passwoerterMitdrucken {
+                        drawField("Passwort", gespeichertesPasswort)
+                    } else {
+                        drawField("Passwort", "Nicht mitgedruckt")
+                    }
                 }
 
-                yPosition += 14
+                drawWuensche()
+                drawFinanzen()
+                drawHinterbliebene()
+                drawDokumente()
 
-                drawSectionTitle("Weitere Bereiche")
+                func aboTitelFuerExport(_ abo: AboEintrag, fallbackIndex: Int) -> String {
+                    let bezeichnung = abo.bezeichnung.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let unternehmen = abo.unternehmen.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let aboArt = abo.aboArt.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let anbieter = abo.anbieter.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let streamingAnbieter = abo.streamingAnbieter.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let socialMediaPlattform = abo.socialMediaPlattform.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let digitaleIdentitaetAnbieter = abo.digitaleIdentitaetAnbieter.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let emailAnbieter = abo.emailAnbieter.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let geraeteArt = abo.geraeteArt.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let geraeteBezeichnung = abo.geraeteBezeichnung.trimmingCharacters(in: .whitespacesAndNewlines)
 
-                drawText("Wünsche, Finanzen, Dokumente sowie Abos & Profile werden hier ergänzt, sobald diese Daten zentral gespeichert und für den Export verfügbar sind.", font: .systemFont(ofSize: 13), color: .secondaryLabel, spacing: 10)
+                    if (abo.aboTyp == "Meine Geräte" || abo.aboTyp == "Mein Mobile Telefon") && !geraeteBezeichnung.isEmpty {
+                        return geraeteBezeichnung
+                    }
+
+                    if (abo.aboTyp == "Meine Geräte" || abo.aboTyp == "Mein Mobile Telefon") && !bezeichnung.isEmpty && bezeichnung != "Bitte wählen" {
+                        return bezeichnung
+                    }
+
+                    if (abo.aboTyp == "Meine Geräte" || abo.aboTyp == "Mein Mobile Telefon") && !geraeteArt.isEmpty && geraeteArt != "Bitte wählen" {
+                        return geraeteArt
+                    }
+
+                    if abo.aboTyp == "Social Media" && !socialMediaPlattform.isEmpty && socialMediaPlattform != "Bitte wählen" {
+                        return socialMediaPlattform
+                    }
+
+                    if abo.aboTyp == "Digitale Identitäten" && !digitaleIdentitaetAnbieter.isEmpty && digitaleIdentitaetAnbieter != "Bitte wählen" {
+                        return digitaleIdentitaetAnbieter
+                    }
+
+                    if abo.aboTyp == "E-Mail-Konten" && !emailAnbieter.isEmpty && emailAnbieter != "Bitte wählen" {
+                        return emailAnbieter
+                    }
+
+                    if abo.aboTyp == "Streamingdienst" && !streamingAnbieter.isEmpty && streamingAnbieter != "Bitte wählen" {
+                        return streamingAnbieter
+                    }
+
+                    if !bezeichnung.isEmpty && bezeichnung != "Bitte wählen" {
+                        return bezeichnung
+                    }
+
+                    if !unternehmen.isEmpty && !aboArt.isEmpty {
+                        return "\(unternehmen) – \(aboArt)"
+                    }
+
+                    if !unternehmen.isEmpty {
+                        return unternehmen
+                    }
+
+                    if !anbieter.isEmpty && anbieter != "Bitte wählen" {
+                        return anbieter
+                    }
+
+                    if !aboArt.isEmpty {
+                        return aboArt
+                    }
+
+                    return "Eintrag \(fallbackIndex)"
+                }
+
+                func sollteFeldGedrucktWerden(_ value: String) -> Bool {
+                    let bereinigt = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !bereinigt.isEmpty else { return false }
+                    guard bereinigt != "Bitte wählen" else { return false }
+                    guard !bereinigt.contains("_SwiftData") else { return false }
+                    guard !bereinigt.contains("SwiftData") else { return false }
+                    return true
+                }
+
+                func drawAboFeld(_ label: String, _ value: String) {
+                    guard sollteFeldGedrucktWerden(value) else { return }
+                    drawField(label, value)
+                }
+
+
+                drawDivider()
+                drawSectionTitle("Abos & Profile")
+
+                let gespeicherteAbos = gespeicherteAboModelle.flatMap { $0.abos }
+
+                if gespeicherteAbos.isEmpty {
+                    drawEmpty()
+                } else {
+                    let reihenfolge = AboType.allCases.map(\.rawValue)
+                    let gruppierteAbos = Dictionary(grouping: gespeicherteAbos) { abo in
+                        abo.aboTyp.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Ohne Typ" : abo.aboTyp
+                    }
+                    .map { typ, abos in
+                        (
+                            typ: typ,
+                            abos: abos.sorted { $0.erstelltAm < $1.erstelltAm }
+                        )
+                    }
+                    .sorted { links, rechts in
+                        let linkerIndex = reihenfolge.firstIndex(of: links.typ) ?? Int.max
+                        let rechterIndex = reihenfolge.firstIndex(of: rechts.typ) ?? Int.max
+
+                        if linkerIndex == rechterIndex {
+                            return links.typ < rechts.typ
+                        }
+
+                        return linkerIndex < rechterIndex
+                    }
+
+                    for gruppe in gruppierteAbos {
+                        beginNewPageIfNeeded(minimumSpace: 90)
+                        drawSubsectionTitle(gruppe.typ)
+
+                        for (index, abo) in gruppe.abos.enumerated() {
+                            beginNewPageIfNeeded(minimumSpace: 130)
+                            drawSubsectionTitle(aboTitelFuerExport(abo, fallbackIndex: index + 1))
+
+                            switch abo.aboTyp {
+                            case "Streamingdienst":
+                                drawAboFeld("Anbieter", abo.streamingAnbieter.isEmpty ? abo.anbieter : abo.streamingAnbieter)
+                                drawAboFeld("Bezeichnung", abo.bezeichnung)
+
+                            case "Social Media":
+                                drawAboFeld("Plattform", abo.socialMediaPlattform.isEmpty ? abo.anbieter : abo.socialMediaPlattform)
+                                drawAboFeld("Bezeichnung", abo.bezeichnung)
+
+                            case "Digitale Identitäten":
+                                drawAboFeld("Anbieter", abo.digitaleIdentitaetAnbieter.isEmpty ? abo.anbieter : abo.digitaleIdentitaetAnbieter)
+                                drawAboFeld("Benutzername / E-Mail", abo.benutzername)
+
+                            case "E-Mail-Konten":
+                                drawAboFeld("Anbieter", abo.emailAnbieter.isEmpty ? abo.anbieter : abo.emailAnbieter)
+                                drawAboFeld("E-Mail-Adresse", abo.benutzername)
+
+                            case "Meine Geräte", "Mein Mobile Telefon":
+                                let geraeteArt = abo.geraeteArt.isEmpty ? abo.aboArt : abo.geraeteArt
+                                drawAboFeld("Geräteart", geraeteArt)
+                                drawAboFeld("Bezeichnung / Gerät", abo.geraeteBezeichnung.isEmpty ? abo.bezeichnung : abo.geraeteBezeichnung)
+
+                                if geraeteArt != "Mobile Telefon" {
+                                    drawAboFeld("Benutzername / Login", abo.benutzername)
+                                }
+
+                                if passwoerterMitdrucken {
+                                    drawAboFeld("PIN / Code", abo.geraetePIN.isEmpty ? abo.passwort : abo.geraetePIN)
+                                }
+
+                            case "Zeitschriften":
+                                drawAboFeld("Name der Zeitschrift", abo.bezeichnung)
+
+                            case "Öffentlicher Verkehr":
+                                drawAboFeld("ÖV-Unternehmen", abo.oevUnternehmen)
+                                drawAboFeld("ÖV-Abo-Typ", abo.oevAboTyp)
+                                drawAboFeld("Andere Bezeichnung", abo.andereBezeichnung)
+                                drawAboFeld("Abo-Nr.", abo.aboNummer)
+
+                            case "Software / Apps", "Software / App":
+                                drawAboFeld("Name", abo.bezeichnung)
+                                drawAboFeld("Anbieter", abo.anbieter)
+
+                                if abo.istSystemEintrag {
+                                    drawAboFeld("Benutzername", abo.benutzername)
+                                    drawAboFeld("Hinweis", "Automatisch aus der Registrierung")
+                                }
+
+                            case "Fitness / Sport":
+                                drawAboFeld("Um was handelt es sich?", abo.bezeichnung)
+                                drawAboFeld("Aboart", abo.aboArt)
+                                drawAboFeld("Unternehmen", abo.unternehmen)
+
+                            case "Online Zeitschriften", "Online-Zeitschrift":
+                                drawAboFeld("Um was handelt es sich?", abo.bezeichnung)
+                                drawAboFeld("Aboart", abo.aboArt)
+                                drawAboFeld("Unternehmen", abo.unternehmen)
+
+                            case "Mitgliedschaft":
+                                drawAboFeld("Aboart", abo.aboArt)
+                                drawAboFeld("Abo-Nr.", abo.aboNummer)
+                                drawAboFeld("Bezeichnung", abo.bezeichnung)
+
+                            default:
+                                drawAboFeld("Anbieter", abo.anbieter)
+                                drawAboFeld("Unternehmen", abo.unternehmen)
+                                drawAboFeld("Bezeichnung", abo.bezeichnung)
+                                drawAboFeld("Aboart", abo.aboArt)
+                                drawAboFeld("Abo-Nr.", abo.aboNummer)
+                            }
+
+                            if passwoerterMitdrucken
+                                && abo.aboTyp != "Meine Geräte"
+                                && abo.aboTyp != "Mein Mobile Telefon"
+                                && abo.aboTyp != "Digitale Identitäten"
+                                && abo.aboTyp != "E-Mail-Konten"
+                                && !(abo.istSystemEintrag && (abo.aboTyp == "Software / Apps" || abo.aboTyp == "Software / App")) {
+                                drawAboFeld("Benutzername", abo.benutzername)
+                                drawAboFeld("Passwort", abo.passwort)
+                            }
+
+                            if passwoerterMitdrucken && (abo.aboTyp == "Digitale Identitäten" || abo.aboTyp == "E-Mail-Konten" || ((abo.aboTyp == "Software / Apps" || abo.aboTyp == "Software / App") && abo.istSystemEintrag)) {
+                                drawAboFeld("Passwort", abo.passwort)
+                            }
+
+                            drawAboFeld("Bankkonto", abo.bankkontoName)
+                            drawAboFeld("Bankkonto-Art", abo.bankkontoArt)
+                            drawAboFeld("Notizen", abo.notizen)
+
+                            if !abo.istAktiv {
+                                drawField("Aktiv", "Nein")
+                            }
+
+                            yPosition += 8
+                        }
+                    }
+                }
 
             }
 
@@ -570,6 +1874,28 @@ struct ProfilView: View {
 
     }
 
+    private struct SchweizerOrt: Decodable {
+        let name: String
+        let postalCode: String
+
+        enum CodingKeys: String, CodingKey {
+            case name
+            case postalCode
+        }
+    }
+
+    private struct SchweizerStrasse: Decodable, Identifiable {
+        let id = UUID()
+        let name: String
+        let postalCode: String
+        let locality: String
+
+        enum CodingKeys: String, CodingKey {
+            case name
+            case postalCode
+            case locality
+        }
+    }
 }
 
 struct ExportiertesDossier: Identifiable {
@@ -597,5 +1923,18 @@ struct ShareSheet: UIViewControllerRepresentable {
 #Preview {
 
     ProfilView()
+        .modelContainer(for: [
+            ProfilModell.self,
+            WuenscheModell.self,
+            HinterbliebeneModell.self,
+            BankkontoModell.self,
+            SchuldenModell.self,
+            VersicherungModell.self,
+            LiegenschaftModell.self,
+            WertsacheModell.self,
+            SteuerdokumentModell.self,
+            AboModell.self,
+            AboEintrag.self
+        ], inMemory: true)
 
 }

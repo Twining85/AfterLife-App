@@ -1,12 +1,11 @@
 import SwiftUI
+import SwiftData
 import ContactsUI
 
 struct HinterbliebeneView: View {
 
-    @State private var partnerKontakte: [HinterbliebeneKontakt] = []
-    @State private var familieKontakte: [HinterbliebeneKontakt] = []
-    @State private var freundeKontakte: [HinterbliebeneKontakt] = []
-    @State private var beguenstigteKontakte: [HinterbliebeneKontakt] = []
+    @Environment(\.modelContext) private var modelContext
+    @Query private var gespeicherteKontakte: [HinterbliebeneModell]
 
     @State private var aktiveKategorie: VertrauenspersonKategorie = .partner
     @State private var showKontaktPicker = false
@@ -18,25 +17,25 @@ struct HinterbliebeneView: View {
                 vertrauenspersonSection(
                     titel: "Partner",
                     kategorie: .partner,
-                    kontakte: $partnerKontakte
+                    kontakte: kontakteFuerKategorie(.partner)
                 )
 
                 vertrauenspersonSection(
                     titel: "Familie",
                     kategorie: .familie,
-                    kontakte: $familieKontakte
+                    kontakte: kontakteFuerKategorie(.familie)
                 )
 
                 vertrauenspersonSection(
                     titel: "Freunde",
                     kategorie: .freunde,
-                    kontakte: $freundeKontakte
+                    kontakte: kontakteFuerKategorie(.freunde)
                 )
 
                 vertrauenspersonSection(
-                    titel: "Begünstigte",
+                    titel: "Andere",
                     kategorie: .beguenstigte,
-                    kontakte: $beguenstigteKontakte
+                    kontakte: kontakteFuerKategorie(.beguenstigte)
                 )
             }
             .navigationTitle("Hinterbliebene")
@@ -54,7 +53,7 @@ struct HinterbliebeneView: View {
     private func vertrauenspersonSection(
         titel: String,
         kategorie: VertrauenspersonKategorie,
-        kontakte: Binding<[HinterbliebeneKontakt]>
+        kontakte: [HinterbliebeneModell]
     ) -> some View {
         Section(titel) {
             Button {
@@ -64,22 +63,25 @@ struct HinterbliebeneView: View {
                 Label("Kontakt hinzufügen", systemImage: "person.crop.circle.badge.plus")
             }
 
-            if kontakte.wrappedValue.isEmpty {
+            if kontakte.isEmpty {
                 Text("Noch kein Kontakt hinterlegt.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
                 let istEingeklappt = eingeklappteKategorien.contains(kategorie)
-                let sichtbareKontakte = istEingeklappt ? Array(kontakte.wrappedValue.prefix(2)) : kontakte.wrappedValue
+                let sichtbareKontakte = istEingeklappt ? Array(kontakte.prefix(2)) : kontakte
 
                 ForEach(sichtbareKontakte) { kontakt in
                     kontaktZeile(kontakt)
                 }
                 .onDelete { indexSet in
-                    kontakte.wrappedValue.remove(atOffsets: indexSet)
+                    let zuLoeschendeKontakte = indexSet.map { sichtbareKontakte[$0] }
+                    zuLoeschendeKontakte.forEach { kontakt in
+                        modelContext.delete(kontakt)
+                    }
                 }
 
-                if kontakte.wrappedValue.count > 2 {
+                if kontakte.count > 2 {
                     Button {
                         toggleKategorie(kategorie)
                     } label: {
@@ -94,13 +96,21 @@ struct HinterbliebeneView: View {
         }
     }
 
-    private func kontaktZeile(_ kontakt: HinterbliebeneKontakt) -> some View {
+    private func kontaktZeile(_ kontakt: HinterbliebeneModell) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(kontakt.anzeigename)
+            Text(anzeigenameFuerKontakt(kontakt))
                 .font(.headline)
 
-            if !kontakt.adresse.isEmpty || !kontakt.plz.isEmpty || !kontakt.ort.isEmpty {
-                Text([kontakt.adresse, kontakt.plzOrt].filter { !$0.isEmpty }.joined(separator: ", "))
+            let angezeigteRolle = angezeigteRolleFuerKontakt(kontakt)
+
+            if !angezeigteRolle.isEmpty {
+                Text(angezeigteRolle)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            if !kontakt.adresse.isEmpty || !kontakt.plz.isEmpty || !kontakt.stadt.isEmpty {
+                Text([kontakt.adresse, plzOrtFuerKontakt(kontakt)].filter { !$0.isEmpty }.joined(separator: ", "))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -121,16 +131,58 @@ struct HinterbliebeneView: View {
     }
 
     private func kontaktHinzufuegen(_ kontakt: HinterbliebeneKontakt, zu kategorie: VertrauenspersonKategorie) {
-        switch kategorie {
-        case .partner:
-            partnerKontakte.append(kontakt)
-        case .familie:
-            familieKontakte.append(kontakt)
-        case .freunde:
-            freundeKontakte.append(kontakt)
-        case .beguenstigte:
-            beguenstigteKontakte.append(kontakt)
+        let neuerKontakt = HinterbliebeneModell(
+            vorname: kontakt.vorname,
+            name: kontakt.name,
+            rolle: kategorie.anzeigetitel,
+            beziehung: kategorie.rawValue,
+            telefon: kontakt.telefon,
+            email: kontakt.email,
+            adresse: kontakt.adresse,
+            plz: kontakt.plz,
+            stadt: kontakt.ort,
+            istVertrauensperson: true,
+            sollInformiertWerden: true
+        )
+
+        modelContext.insert(neuerKontakt)
+    }
+
+    private func kontakteFuerKategorie(_ kategorie: VertrauenspersonKategorie) -> [HinterbliebeneModell] {
+        gespeicherteKontakte
+            .filter { $0.beziehung == kategorie.rawValue }
+            .sorted { anzeigenameFuerKontakt($0) < anzeigenameFuerKontakt($1) }
+    }
+
+    private func anzeigenameFuerKontakt(_ kontakt: HinterbliebeneModell) -> String {
+        let name = [kontakt.vorname, kontakt.name]
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+
+        return name.isEmpty ? "Unbenannter Kontakt" : name
+    }
+
+    private func angezeigteRolleFuerKontakt(_ kontakt: HinterbliebeneModell) -> String {
+        let roheRolle = kontakt.rolle.components(separatedBy: "|").first ?? kontakt.rolle
+
+        switch roheRolle.lowercased() {
+        case VertrauenspersonKategorie.partner.rawValue:
+            return "Partner"
+        case VertrauenspersonKategorie.familie.rawValue:
+            return "Familie"
+        case VertrauenspersonKategorie.freunde.rawValue:
+            return "Freunde"
+        case VertrauenspersonKategorie.beguenstigte.rawValue:
+            return "Andere"
+        default:
+            return roheRolle
         }
+    }
+
+    private func plzOrtFuerKontakt(_ kontakt: HinterbliebeneModell) -> String {
+        [kontakt.plz, kontakt.stadt]
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
     }
 
     private func toggleKategorie(_ kategorie: VertrauenspersonKategorie) {
@@ -168,6 +220,19 @@ enum VertrauenspersonKategorie: String, Identifiable, Hashable {
     case beguenstigte
 
     var id: String { rawValue }
+
+    var anzeigetitel: String {
+        switch self {
+        case .partner:
+            return "Partner"
+        case .familie:
+            return "Familie"
+        case .freunde:
+            return "Freunde"
+        case .beguenstigte:
+            return "Begünstigte"
+        }
+    }
 }
 
 struct HinterbliebeneKontaktPicker: UIViewControllerRepresentable {
@@ -228,4 +293,5 @@ struct HinterbliebeneKontaktPicker: UIViewControllerRepresentable {
 
 #Preview {
     HinterbliebeneView()
+        .modelContainer(for: HinterbliebeneModell.self, inMemory: true)
 }

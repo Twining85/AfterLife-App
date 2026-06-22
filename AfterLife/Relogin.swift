@@ -6,24 +6,52 @@
 //
 
 import SwiftUI
+import SwiftData
 import LocalAuthentication
+import AuthenticationServices
 
 struct ReloginView: View {
 
+    @Query private var gespeicherteProfile: [ProfilModell]
+
     @AppStorage("profilIstVorhanden") private var profilIstVorhanden = false
-    @AppStorage("gespeicherteEmail") private var gespeicherteEmail = ""
-    @AppStorage("gespeichertesPasswort") private var gespeichertesPasswort = ""
+    @AppStorage("gespeicherteEmail") private var appStorageEmail = ""
 
     @State private var email = ""
     @State private var passwort = ""
     @State private var fehlermeldung = ""
-    private let loginFuerTestsUeberspringen = false
-
     @State private var istEingeloggt = false
     @State private var zeigtEmailLogin = true
+    @State private var biometrieWurdeVersucht = false
+    @State private var showPassword = false
+
+    private let loginFuerTestsUeberspringen = false
+
+    private var profil: ProfilModell? {
+        gespeicherteProfile.first
+    }
+
+    private var registrierungsEmail: String {
+        let emailAusProfil = profil?.registrierungsEmail.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let profilEmail = profil?.email.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let appEmail = appStorageEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if !emailAusProfil.isEmpty { return emailAusProfil }
+        if !profilEmail.isEmpty { return profilEmail }
+        return appEmail
+    }
+
+    private var registrierungsArt: String {
+        let art = profil?.registrierungsart.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return art.isEmpty ? "E-Mail" : art
+    }
+
+    private var biometrieAktiviert: Bool {
+        profil?.biometrieAktiviert ?? false
+    }
 
     private var hatBestehendenLogin: Bool {
-        profilIstVorhanden || (!gespeicherteEmail.isEmpty && !gespeichertesPasswort.isEmpty)
+        profilIstVorhanden || !registrierungsEmail.isEmpty || profil != nil
     }
 
     var body: some View {
@@ -65,34 +93,22 @@ struct ReloginView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
 
-            if zeigtEmailLogin {
-                VStack(spacing: 16) {
-                    TextField("E-Mail", text: $email)
-                        .keyboardType(.emailAddress)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .textFieldStyle(.roundedBorder)
-
-                    SecureField("Passwort", text: $passwort)
-                        .textFieldStyle(.roundedBorder)
-
-                    Button("Mit E-Mail und Passwort anmelden") {
-                        loginMitEmailUndPasswort()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .frame(maxWidth: .infinity)
+            if biometrieAktiviert {
+                Button {
+                    loginMitFaceID()
+                } label: {
+                    Label("Mit Face ID anmelden", systemImage: "faceid")
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.borderedProminent)
                 .padding(.horizontal)
             }
 
-            Button {
-                loginMitFaceID()
-            } label: {
-                Label("Alternativ mit Face ID anmelden", systemImage: "faceid")
-                    .frame(maxWidth: .infinity)
+            if zeigtEmailLogin {
+                emailLoginBereich
             }
-            .buttonStyle(.bordered)
-            .padding(.horizontal)
+
+            alternativeLoginBereiche
 
             if !fehlermeldung.isEmpty {
                 Text(fehlermeldung)
@@ -107,53 +123,168 @@ struct ReloginView: View {
         .navigationTitle("Login")
     }
 
+    private var emailLoginBereich: some View {
+        VStack(spacing: 16) {
+            TextField("E-Mail", text: $email)
+                .keyboardType(.emailAddress)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .textFieldStyle(.roundedBorder)
+
+            HStack {
+                if showPassword {
+                    TextField("Passwort", text: $passwort)
+                } else {
+                    SecureField("Passwort", text: $passwort)
+                }
+
+                Button {
+                    showPassword.toggle()
+                } label: {
+                    Image(systemName: showPassword ? "eye.slash" : "eye")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.secondary.opacity(0.35))
+            )
+
+            Button("Mit E-Mail und Passwort anmelden") {
+                loginMitEmailUndPasswort()
+            }
+            .buttonStyle(.bordered)
+            .frame(maxWidth: .infinity)
+        }
+        .padding(.horizontal)
+    }
+
+    private var alternativeLoginBereiche: some View {
+        VStack(spacing: 12) {
+            if registrierungsArt == "Apple" || registrierungsArt == "Apple ID" {
+                SignInWithAppleButton(.signIn) { request in
+                    request.requestedScopes = [.email]
+                } onCompletion: { result in
+                    switch result {
+                    case .success:
+                        istEingeloggt = true
+                        fehlermeldung = ""
+                    case .failure:
+                        fehlermeldung = "Apple Login konnte nicht abgeschlossen werden."
+                    }
+                }
+                .signInWithAppleButtonStyle(.black)
+                .frame(height: 48)
+                .padding(.horizontal)
+            }
+
+            if registrierungsArt == "Google" {
+                Button {
+                    loginMitGoogle()
+                } label: {
+                    Label("Mit Google anmelden", systemImage: "g.circle")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .padding(.horizontal)
+            }
+        }
+    }
+
     private func bereiteLoginBeimStartVor() {
         guard hatBestehendenLogin else {
             zeigtEmailLogin = false
             return
         }
 
-        email = gespeicherteEmail
+        email = registrierungsEmail
         passwort = ""
         zeigtEmailLogin = true
         fehlermeldung = ""
+
+        if biometrieAktiviert && !biometrieWurdeVersucht {
+            biometrieWurdeVersucht = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                loginMitFaceID(zeigeFehlerBeiAbbruch: false)
+            }
+        }
     }
 
-    private func loginMitFaceID() {
+    private func loginMitFaceID(zeigeFehlerBeiAbbruch: Bool = true) {
+        guard biometrieAktiviert else {
+            zeigtEmailLogin = true
+            if zeigeFehlerBeiAbbruch {
+                fehlermeldung = "Biometrische Anmeldung ist nicht aktiviert."
+            }
+            return
+        }
         let context = LAContext()
         var error: NSError?
 
         guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
             zeigtEmailLogin = true
-            fehlermeldung = "Face ID ist nicht verfügbar. Bitte melde dich mit E-Mail und Passwort an."
+            if zeigeFehlerBeiAbbruch {
+                fehlermeldung = "Face ID ist nicht verfügbar. Bitte melde dich mit E-Mail und Passwort an."
+            }
             return
         }
 
         context.evaluatePolicy(
             .deviceOwnerAuthenticationWithBiometrics,
             localizedReason: "Melde dich sicher mit Face ID bei AfterLife an."
-        ) { success, authenticationError in
+        ) { success, _ in
             DispatchQueue.main.async {
                 if success {
                     istEingeloggt = true
                     fehlermeldung = ""
                 } else {
                     zeigtEmailLogin = true
-                    fehlermeldung = "Face ID konnte nicht bestätigt werden. Bitte melde dich mit E-Mail und Passwort an."
+                    if zeigeFehlerBeiAbbruch {
+                        fehlermeldung = "Face ID konnte nicht bestätigt werden. Bitte melde dich mit E-Mail und Passwort an."
+                    }
                 }
             }
         }
     }
 
     private func loginMitEmailUndPasswort() {
-        guard !email.isEmpty, !passwort.isEmpty else {
+        let bereinigteEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let gespeicherteBereinigteEmail = registrierungsEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        guard !bereinigteEmail.isEmpty, !passwort.isEmpty else {
             fehlermeldung = "Bitte E-Mail und Passwort eingeben."
             return
         }
 
-        guard email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == gespeicherteEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
-              passwort == gespeichertesPasswort else {
+        guard bereinigteEmail == gespeicherteBereinigteEmail else {
             fehlermeldung = "E-Mail oder Passwort ist nicht korrekt."
+            return
+        }
+
+        do {
+            let gespeichertesKeychainPasswort = try KeychainHelper.shared.read(
+                service: "AfterLife.Login",
+                account: registrierungsEmail
+            )
+
+            guard passwort == gespeichertesKeychainPasswort else {
+                fehlermeldung = "E-Mail oder Passwort ist nicht korrekt."
+                return
+            }
+
+            fehlermeldung = ""
+            istEingeloggt = true
+        } catch {
+            fehlermeldung = "Login-Daten konnten nicht sicher gelesen werden. Bitte registriere dich erneut."
+        }
+    }
+
+    private func loginMitGoogle() {
+        guard registrierungsArt == "Google" else {
+            fehlermeldung = "Dieses Profil wurde nicht mit Google registriert."
             return
         }
 
@@ -164,4 +295,5 @@ struct ReloginView: View {
 
 #Preview {
     ReloginView()
+        .modelContainer(for: [ProfilModell.self], inMemory: true)
 }

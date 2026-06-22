@@ -12,7 +12,19 @@ import SwiftData
 struct AfterLifeApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self
+            ProfilModell.self,
+            WuenscheModell.self,
+            HinterbliebeneModell.self,
+            BankkontoModell.self,
+            SchuldenModell.self,
+            VersicherungModell.self,
+            LiegenschaftModell.self,
+            WertsacheModell.self,
+            SteuerdokumentModell.self,
+            AboModell.self,
+            AboEintrag.self,
+            FotoalbumBildModell.self,
+            DokumenteModell.self
         ])
 
         let modelConfiguration = ModelConfiguration(
@@ -32,10 +44,29 @@ struct AfterLifeApp: App {
 
     var body: some Scene {
         WindowGroup {
-
-            Home()
-
+            AppStartView()
         }
         .modelContainer(sharedModelContainer)
+    }
+}
+
+struct AppStartView: View {
+    @Query private var gespeicherteProfile: [ProfilModell]
+
+    private var istBereitsRegistriert: Bool {
+        guard let profil = gespeicherteProfile.first else { return false }
+
+        let registrierungsEmail = profil.registrierungsEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        let profilEmail = profil.email.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return !registrierungsEmail.isEmpty || !profilEmail.isEmpty
+    }
+
+    var body: some View {
+        if istBereitsRegistriert {
+            ReloginView()
+        } else {
+            Registrierung()
+        }
     }
 }

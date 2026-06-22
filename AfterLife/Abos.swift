@@ -1,12 +1,23 @@
 import SwiftUI
+import SwiftData
 
 struct AbosView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query private var gespeicherteAboModelle: [AboModell]
+
     @State private var showAddAboSheet = false
-    @State private var abos: [AboEntry] = []
-    @State private var selectedAboIndex: Int?
+    @State private var sheetID = UUID()
+    @State private var selectedAboID: UUID?
+    @State private var selectedAbo: AboEintrag?
+    @State private var wurdeInitialisiert = false
+    @State private var ausgeklappteAboSektionen: Set<String> = []
+  
 
     @State private var selectedAboType: AboType = .pleaseSelect
     @State private var selectedStreamingProvider: StreamingProvider = .pleaseSelect
+    @State private var selectedSocialMediaProvider: SocialMediaProvider = .pleaseSelect
+    @State private var selectedDigitalIdentityProvider: DigitalIdentityProvider = .pleaseSelect
+    @State private var selectedEmailProvider: EmailProvider = .pleaseSelect
     @State private var username = ""
     @State private var password = ""
     @State private var magazineName = ""
@@ -14,6 +25,8 @@ struct AbosView: View {
     @State private var publicTransportCompany: PublicTransportCompany = .pleaseSelect
     @State private var customPublicTransportCompany = ""
     @State private var publicTransportAboNumber = ""
+    @State private var selectedDeviceType: DeviceType = .pleaseSelect
+    @State private var devicePIN = ""
     @State private var softwareName = ""
     @State private var fitnessAboType = ""
     @State private var fitnessCompany = ""
@@ -30,8 +43,15 @@ struct AbosView: View {
                 Spacer()
 
                 Button {
+                    showAddAboSheet = false
+                    selectedAboID = nil
+                    selectedAbo = nil
                     resetInputFields()
-                    showAddAboSheet = true
+
+                    DispatchQueue.main.async {
+                        sheetID = UUID()
+                        showAddAboSheet = true
+                    }
                 } label: {
                     Image(systemName: "plus.circle.fill")
                         .font(.system(size: 82))
@@ -43,40 +63,45 @@ struct AbosView: View {
                     .font(.title3)
                     .fontWeight(.semibold)
 
-                if abos.isEmpty {
-                    Text("Hier kannst du Abonnemente, Profile,  Streamingdienste, ÖV-Abos o.ä erfassen.")
+                if aktuellesAboModell?.abos.isEmpty ?? true {
+                    Text("Hier kannst du digitale Abonnemente, Online-Profile, Streamingdienste, ÖV-Abos o.ä erfassen.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
                 } else {
                     List {
-                        ForEach(Array(abos.enumerated()), id: \.element.id) { index, abo in
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(abo.title)
-                                    .fontWeight(.semibold)
-
-                                Text(abo.type.rawValue)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                        ForEach(gruppierteAbos, id: \.typ) { gruppe in
+                            Section {
+                                if istSektionAusgeklappt(gruppe) {
+                                    ForEach(gruppe.abos) { abo in
+                                        aboKarte(abo)
+                                            .listRowSeparator(.hidden)
+                                            .listRowBackground(Color.clear)
+                                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                                Button(role: .destructive) {
+                                                    loescheAbo(abo)
+                                                } label: {
+                                                    Label("Löschen", systemImage: "trash")
+                                                }
+                                            }
+                                    }
+                                }
+                            } header: {
+                                sektionHeader(gruppe)
                             }
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                loadAbo(abos[index])
-                                selectedAboIndex = index
-                                showAddAboSheet = true
-                            }
-                        }
-                        .onDelete { indexSet in
-                            abos.remove(atOffsets: indexSet)
                         }
                     }
                     .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
                 }
 
                 Spacer()
             }
             .navigationTitle("Abos & Profile")
+            .task {
+                ladeOderErstelleAboModellFallsNoetig()
+            }
             .sheet(isPresented: $showAddAboSheet) {
                 NavigationStack {
                     Form {
@@ -97,6 +122,48 @@ struct AbosView: View {
                                 }
 
                                 labelledTextField("Benutzername", text: $username)
+
+                                passwordField(title: "Passwort", text: $password)
+                            }
+                        }
+
+                        if selectedAboType == .socialMedia {
+                            Section("Social Media") {
+                                Picker("Plattform", selection: $selectedSocialMediaProvider) {
+                                    ForEach(SocialMediaProvider.allCases) { provider in
+                                        Text(provider.rawValue).tag(provider)
+                                    }
+                                }
+
+                                labelledTextField("Benutzername", text: $username)
+
+                                passwordField(title: "Passwort", text: $password)
+                            }
+                        }
+
+                        if selectedAboType == .digitalIdentity {
+                            Section("Digitale Identität") {
+                                Picker("Anbieter", selection: $selectedDigitalIdentityProvider) {
+                                    ForEach(DigitalIdentityProvider.allCases) { provider in
+                                        Text(provider.rawValue).tag(provider)
+                                    }
+                                }
+
+                                labelledTextField("Benutzername / E-Mail", text: $username)
+
+                                passwordField(title: "Passwort", text: $password)
+                            }
+                        }
+
+                        if selectedAboType == .emailAccount {
+                            Section("E-Mail-Konto") {
+                                Picker("Anbieter", selection: $selectedEmailProvider) {
+                                    ForEach(EmailProvider.allCases) { provider in
+                                        Text(provider.rawValue).tag(provider)
+                                    }
+                                }
+
+                                labelledTextField("E-Mail-Adresse", text: $username)
 
                                 passwordField(title: "Passwort", text: $password)
                             }
@@ -129,6 +196,24 @@ struct AbosView: View {
 
                                     labelledTextField("Abo-Nummer", text: $publicTransportAboNumber)
                                 }
+                            }
+                        }
+
+                        if selectedAboType == .devices {
+                            Section("Meine Geräte") {
+                                Picker("Geräteart", selection: $selectedDeviceType) {
+                                    ForEach(DeviceType.allCases) { type in
+                                        Text(type.rawValue).tag(type)
+                                    }
+                                }
+
+                                labelledTextField("Bezeichnung / Gerät", text: $customAboName)
+
+                                if selectedDeviceType != .mobilePhone {
+                                    labelledTextField("Benutzername / Login", text: $username)
+                                }
+
+                                labelledTextField("PIN / Code", text: $devicePIN, keyboardType: .numberPad)
                             }
                         }
 
@@ -175,6 +260,8 @@ struct AbosView: View {
                         ToolbarItem(placement: .cancellationAction) {
                             Button("Abbrechen") {
                                 showAddAboSheet = false
+                                selectedAbo = nil
+                                selectedAboID = nil
                             }
                         }
 
@@ -182,12 +269,145 @@ struct AbosView: View {
                             Button("Speichern") {
                                 saveAbo()
                                 showAddAboSheet = false
+                                selectedAbo = nil
+                                selectedAboID = nil
                             }
                             .disabled(!canSaveAbo)
                         }
                     }
                 }
+                .id(sheetID)
+                .onAppear {
+                    DispatchQueue.main.async {
+                        ladeSelectedAboDetailsFallsVorhanden()
+                    }
+                }
+                .onChange(of: selectedAboID) { _, _ in
+                    DispatchQueue.main.async {
+                        ladeSelectedAboDetailsFallsVorhanden()
+                    }
+                }
             }
+        }
+    }
+
+    private var gruppierteAbos: [(typ: String, abos: [AboEintrag])] {
+        guard let aboModell = aktuellesAboModell else { return [] }
+
+        let gruppiert = Dictionary(grouping: aboModell.abos) { abo in
+            abo.aboTyp.isEmpty ? "Ohne Typ" : abo.aboTyp
+        }
+
+        let reihenfolge = AboType.allCases.map(\.rawValue)
+
+        return gruppiert
+            .map { typ, abos in
+                (
+                    typ: typ,
+                    abos: abos.sorted { $0.erstelltAm < $1.erstelltAm }
+                )
+            }
+            .sorted { links, rechts in
+                let linkerIndex = reihenfolge.firstIndex(of: links.typ) ?? Int.max
+                let rechterIndex = reihenfolge.firstIndex(of: rechts.typ) ?? Int.max
+
+                if linkerIndex == rechterIndex {
+                    return links.typ < rechts.typ
+                }
+
+                return linkerIndex < rechterIndex
+            }
+    }
+
+    private func istSektionAusgeklappt(_ gruppe: (typ: String, abos: [AboEintrag])) -> Bool {
+        if gruppe.abos.count <= 3 { return true }
+        return ausgeklappteAboSektionen.contains(gruppe.typ)
+    }
+
+    private func sektionHeader(_ gruppe: (typ: String, abos: [AboEintrag])) -> some View {
+        Button {
+            guard gruppe.abos.count > 3 else { return }
+
+            if ausgeklappteAboSektionen.contains(gruppe.typ) {
+                ausgeklappteAboSektionen.remove(gruppe.typ)
+            } else {
+                ausgeklappteAboSektionen.insert(gruppe.typ)
+            }
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(gruppe.typ)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+
+                    Text("\(gruppe.abos.count) Eintrag\(gruppe.abos.count == 1 ? "" : "e")")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                if gruppe.abos.count > 3 {
+                    Image(systemName: istSektionAusgeklappt(gruppe) ? "chevron.up" : "chevron.down")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.vertical, 6)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func aboKarte(_ abo: AboEintrag) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(aboTitel(abo))
+                .font(.headline)
+                .foregroundStyle(.primary)
+
+            if !abo.unternehmen.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(abo.unternehmen)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            if !abo.aboArt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(abo.aboArt)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 3)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            oeffneAboZumBearbeiten(abo)
+        }
+    }
+
+    private func ladeSelectedAboDetailsFallsVorhanden() {
+        guard let selectedAboID else { return }
+
+        let alleAbos = gespeicherteAboModelle.flatMap { $0.abos }
+        guard let aktuellesAbo = alleAbos.first(where: { $0.id == selectedAboID }) ?? selectedAbo else { return }
+
+        selectedAbo = aktuellesAbo
+        loadAbo(aktuellesAbo)
+    }
+
+    private func oeffneAboZumBearbeiten(_ abo: AboEintrag) {
+        showAddAboSheet = false
+        selectedAboID = abo.id
+        selectedAbo = abo
+        resetInputFields()
+        selectedAboID = abo.id
+        selectedAbo = abo
+        sheetID = UUID()
+
+        DispatchQueue.main.async {
+            showAddAboSheet = true
         }
     }
 
@@ -197,6 +417,12 @@ struct AbosView: View {
             return false
         case .streaming:
             return selectedStreamingProvider != .pleaseSelect
+        case .socialMedia:
+            return selectedSocialMediaProvider != .pleaseSelect
+        case .digitalIdentity:
+            return selectedDigitalIdentityProvider != .pleaseSelect
+        case .emailAccount:
+            return selectedEmailProvider != .pleaseSelect
         case .magazine:
             return !magazineName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .publicTransport:
@@ -219,6 +445,9 @@ struct AbosView: View {
                 && !onlineMagazineCompany.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .membership:
             return !membershipAboType.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .devices:
+            return selectedDeviceType != .pleaseSelect
+                && !devicePIN.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .cloudStorage:
             return true
         case .other:
@@ -227,84 +456,152 @@ struct AbosView: View {
     }
 
     private func saveAbo() {
-        let title: String
+        guard let aboModell = aktuellesAboModell else { return }
+
+        let alleAbos = gespeicherteAboModelle.flatMap { $0.abos }
+        let istNeuerEintrag = selectedAboID == nil && selectedAbo == nil
+
+        let abo = selectedAboID.flatMap { id in
+            alleAbos.first(where: { $0.id == id })
+        } ?? selectedAbo ?? AboEintrag()
+
+        if istNeuerEintrag {
+            modelContext.insert(abo)
+
+            if !aboModell.abos.contains(where: { $0.id == abo.id }) {
+                aboModell.abos.append(abo)
+            }
+        }
+
+        if istNeuerEintrag && aboModell.abos.filter({ $0.aboTyp == selectedAboType.rawValue }).count > 3 {
+            ausgeklappteAboSektionen.remove(selectedAboType.rawValue)
+        }
+
+        abo.aboTyp = selectedAboType.rawValue
+        abo.anbieter = anbieterWert
+        abo.unternehmen = unternehmenWert
+        abo.bezeichnung = bezeichnungWert
+        abo.aboArt = aboArtWert
+        abo.aboNummer = aboNummerWert
+        abo.benutzername = username
+        abo.passwort = password
+        abo.streamingAnbieter = selectedAboType == .streaming ? selectedStreamingProvider.rawValue : "Bitte wählen"
+        abo.socialMediaPlattform = selectedAboType == .socialMedia ? selectedSocialMediaProvider.rawValue : "Bitte wählen"
+        abo.digitaleIdentitaetAnbieter = selectedAboType == .digitalIdentity ? selectedDigitalIdentityProvider.rawValue : "Bitte wählen"
+        abo.emailAnbieter = selectedAboType == .emailAccount ? selectedEmailProvider.rawValue : "Bitte wählen"
+        if selectedAboType == .devices && selectedDeviceType == .mobilePhone {
+            abo.benutzername = ""
+        }
+        if selectedAboType == .devices {
+            abo.passwort = ""
+            abo.geraeteArt = selectedDeviceType.rawValue
+            abo.geraeteBezeichnung = bezeichnungWert
+            abo.geraetePIN = devicePIN
+        } else {
+            abo.geraeteArt = "Bitte wählen"
+            abo.geraeteBezeichnung = ""
+            abo.geraetePIN = ""
+        }
+        if selectedAboType == .publicTransport {
+            abo.oevUnternehmen = publicTransportCompany.rawValue
+            abo.oevAboTyp = publicTransportType.rawValue
+            abo.andereBezeichnung = customPublicTransportCompany
+        } else {
+            abo.oevUnternehmen = "Bitte wählen"
+            abo.oevAboTyp = "Bitte wählen"
+            abo.andereBezeichnung = ""
+        }
+        abo.bankkontoName = ""
+        abo.bankkontoArt = ""
+        abo.aktualisiertAm = Date()
+
+        aboModell.aktualisiertAm = Date()
+        selectedAboID = nil
+        selectedAbo = nil
+        speichereAenderung()
+    }
+
+    private func loadAbo(_ abo: AboEintrag) {
+        let bereinigterTyp = abo.aboTyp.trimmingCharacters(in: .whitespacesAndNewlines)
+        selectedAboType = AboType(rawValue: bereinigterTyp) ?? (bereinigterTyp == "Mein Mobile Telefon" ? .devices : .pleaseSelect)
+
+        if selectedAboType == .pleaseSelect,
+           let typAusBezeichnung = AboType.allCases.first(where: { $0.rawValue == bereinigterTyp }) {
+            selectedAboType = typAusBezeichnung
+        }
+
+        if selectedAboType == .pleaseSelect {
+            if !abo.streamingAnbieter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && abo.streamingAnbieter != "Bitte wählen" {
+                selectedAboType = .streaming
+            } else if !abo.socialMediaPlattform.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && abo.socialMediaPlattform != "Bitte wählen" {
+                selectedAboType = .socialMedia
+            } else if !abo.digitaleIdentitaetAnbieter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && abo.digitaleIdentitaetAnbieter != "Bitte wählen" {
+                selectedAboType = .digitalIdentity
+            } else if !abo.emailAnbieter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && abo.emailAnbieter != "Bitte wählen" {
+                selectedAboType = .emailAccount
+            } else if !abo.geraeteArt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && abo.geraeteArt != "Bitte wählen" {
+                selectedAboType = .devices
+            }
+        }
+
+        selectedStreamingProvider = .pleaseSelect
+        selectedSocialMediaProvider = .pleaseSelect
+        selectedDigitalIdentityProvider = .pleaseSelect
+        selectedEmailProvider = .pleaseSelect
 
         switch selectedAboType {
         case .streaming:
-            title = selectedStreamingProvider.rawValue
-        case .magazine:
-            title = magazineName
-        case .publicTransport:
-            let companyName = publicTransportCompany == .other
-                ? customPublicTransportCompany.trimmingCharacters(in: .whitespacesAndNewlines)
-                : publicTransportCompany.rawValue
-            title = "\(companyName) – \(publicTransportType.rawValue)"
-        case .software:
-            title = softwareName
-        case .fitness:
-            title = "\(fitnessCompany) – \(fitnessAboType)"
-        case .news:
-            title = "\(onlineMagazineCompany) – \(onlineMagazineAboType)"
-        case .membership:
-            title = membershipAboType
-        case .other:
-            title = customAboName
+            selectedStreamingProvider = StreamingProvider(rawValue: abo.streamingAnbieter.isEmpty || abo.streamingAnbieter == "Bitte wählen" ? abo.anbieter : abo.streamingAnbieter) ?? .pleaseSelect
+        case .socialMedia:
+            selectedSocialMediaProvider = SocialMediaProvider(rawValue: abo.socialMediaPlattform.isEmpty || abo.socialMediaPlattform == "Bitte wählen" ? abo.anbieter : abo.socialMediaPlattform) ?? .pleaseSelect
+        case .digitalIdentity:
+            selectedDigitalIdentityProvider = DigitalIdentityProvider(rawValue: abo.digitaleIdentitaetAnbieter.isEmpty || abo.digitaleIdentitaetAnbieter == "Bitte wählen" ? abo.anbieter : abo.digitaleIdentitaetAnbieter) ?? .pleaseSelect
+        case .emailAccount:
+            selectedEmailProvider = EmailProvider(rawValue: abo.emailAnbieter.isEmpty || abo.emailAnbieter == "Bitte wählen" ? abo.anbieter : abo.emailAnbieter) ?? .pleaseSelect
         default:
-            title = selectedAboType.rawValue
+            break
         }
 
-        let abo = AboEntry(
-            type: selectedAboType,
-            title: title,
-            streamingProvider: selectedStreamingProvider,
-            username: username,
-            password: password,
-            magazineName: magazineName,
-            publicTransportType: publicTransportType,
-            publicTransportCompany: publicTransportCompany,
-            customPublicTransportCompany: customPublicTransportCompany,
-            publicTransportAboNumber: publicTransportAboNumber,
-            softwareName: softwareName,
-            fitnessAboType: fitnessAboType,
-            fitnessCompany: fitnessCompany,
-            onlineMagazineAboType: onlineMagazineAboType,
-            onlineMagazineCompany: onlineMagazineCompany,
-            membershipAboType: membershipAboType,
-            membershipNumber: membershipNumber,
-            customAboName: customAboName
-        )
+        username = abo.benutzername
+        password = abo.passwort
 
-        if let selectedAboIndex {
-            abos[selectedAboIndex] = abo
-            self.selectedAboIndex = nil
-        } else {
-            abos.append(abo)
+        if selectedAboType == .devices {
+            username = abo.geraeteArt == "Mobile Telefon" ? "" : abo.benutzername
         }
-    }
 
-    private func loadAbo(_ abo: AboEntry) {
-        selectedAboType = abo.type
-        selectedStreamingProvider = abo.streamingProvider
-        username = abo.username
-        password = abo.password
-        magazineName = abo.magazineName
-        publicTransportType = abo.publicTransportType
-        publicTransportCompany = abo.publicTransportCompany
-        customPublicTransportCompany = abo.customPublicTransportCompany
-        publicTransportAboNumber = abo.publicTransportAboNumber
-        softwareName = abo.softwareName
-        fitnessAboType = abo.fitnessAboType
-        fitnessCompany = abo.fitnessCompany
-        onlineMagazineAboType = abo.onlineMagazineAboType
-        onlineMagazineCompany = abo.onlineMagazineCompany
-        membershipAboType = abo.membershipAboType
-        membershipNumber = abo.membershipNumber
-        customAboName = abo.customAboName
+        magazineName = selectedAboType == .magazine ? abo.bezeichnung : ""
+        publicTransportType = selectedAboType == .publicTransport ? (PublicTransportAboType(rawValue: abo.oevAboTyp.isEmpty ? abo.aboArt : abo.oevAboTyp) ?? .pleaseSelect) : .pleaseSelect
+        publicTransportCompany = selectedAboType == .publicTransport ? (PublicTransportCompany(rawValue: abo.oevUnternehmen.isEmpty ? abo.unternehmen : abo.oevUnternehmen) ?? .pleaseSelect) : .pleaseSelect
+        customPublicTransportCompany = selectedAboType == .publicTransport ? abo.andereBezeichnung : ""
+        publicTransportAboNumber = selectedAboType == .publicTransport ? abo.aboNummer : ""
+        selectedDeviceType = selectedAboType == .devices ? (DeviceType(rawValue: abo.geraeteArt.isEmpty ? abo.aboArt : abo.geraeteArt) ?? .pleaseSelect) : .pleaseSelect
+        devicePIN = selectedAboType == .devices ? (abo.geraetePIN.isEmpty ? abo.passwort : abo.geraetePIN) : ""
+        softwareName = selectedAboType == .software ? abo.bezeichnung : ""
+        fitnessAboType = selectedAboType == .fitness ? abo.aboArt : ""
+        fitnessCompany = selectedAboType == .fitness ? abo.unternehmen : ""
+        onlineMagazineAboType = selectedAboType == .news ? abo.aboArt : ""
+        onlineMagazineCompany = selectedAboType == .news ? abo.unternehmen : ""
+        membershipAboType = selectedAboType == .membership ? abo.aboArt : ""
+        membershipNumber = selectedAboType == .membership ? abo.aboNummer : ""
+        customAboName = selectedAboType == .other ? abo.bezeichnung : (selectedAboType == .devices ? (abo.geraeteBezeichnung.isEmpty ? abo.bezeichnung : abo.geraeteBezeichnung) : "")
+
+        if selectedAboType == .digitalIdentity && selectedDigitalIdentityProvider == .pleaseSelect,
+           let fallbackProvider = DigitalIdentityProvider(rawValue: abo.bezeichnung) {
+            selectedDigitalIdentityProvider = fallbackProvider
+        }
+
+        if selectedAboType == .emailAccount && selectedEmailProvider == .pleaseSelect,
+           let fallbackProvider = EmailProvider(rawValue: abo.bezeichnung) {
+            selectedEmailProvider = fallbackProvider
+        }
     }
 
     private func resetInputFields() {
         selectedAboType = .pleaseSelect
         selectedStreamingProvider = .pleaseSelect
+        selectedSocialMediaProvider = .pleaseSelect
+        selectedDigitalIdentityProvider = .pleaseSelect
+        selectedEmailProvider = .pleaseSelect
         username = ""
         password = ""
         magazineName = ""
@@ -312,6 +609,8 @@ struct AbosView: View {
         publicTransportCompany = .pleaseSelect
         customPublicTransportCompany = ""
         publicTransportAboNumber = ""
+        selectedDeviceType = .pleaseSelect
+        devicePIN = ""
         softwareName = ""
         fitnessAboType = ""
         fitnessCompany = ""
@@ -320,7 +619,7 @@ struct AbosView: View {
         membershipAboType = ""
         membershipNumber = ""
         customAboName = ""
-        selectedAboIndex = nil
+        showPassword = false
     }
 
     private func passwordField(title: String, text: Binding<String>) -> some View {
@@ -357,40 +656,177 @@ struct AbosView: View {
                 .keyboardType(keyboardType)
         }
     }
-}
 
-struct AboEntry: Identifiable {
-    let id = UUID()
-    var type: AboType
-    var title: String
-    var streamingProvider: StreamingProvider
-    var username: String
-    var password: String
-    var magazineName: String
-    var publicTransportType: PublicTransportAboType
-    var publicTransportCompany: PublicTransportCompany
-    var customPublicTransportCompany: String
-    var publicTransportAboNumber: String
-    var softwareName: String
-    var fitnessAboType: String
-    var fitnessCompany: String
-    var onlineMagazineAboType: String
-    var onlineMagazineCompany: String
-    var membershipAboType: String
-    var membershipNumber: String
-    var customAboName: String
+    private var alleAboEintraege: [AboEintrag] {
+        gespeicherteAboModelle.flatMap { $0.abos }
+    }
+
+    private var aktuellesAboModell: AboModell? {
+        gespeicherteAboModelle.first
+    }
+
+    private var unternehmenWert: String {
+        switch selectedAboType {
+        case .fitness:
+            return fitnessCompany
+        case .news:
+            return onlineMagazineCompany
+        case .publicTransport:
+            return publicTransportCompany == .other ? customPublicTransportCompany : publicTransportCompany.rawValue
+        default:
+            return ""
+        }
+    }
+
+    private var bezeichnungWert: String {
+        switch selectedAboType {
+        case .streaming:
+            return selectedStreamingProvider.rawValue
+        case .socialMedia:
+            return selectedSocialMediaProvider.rawValue
+        case .digitalIdentity:
+            return selectedDigitalIdentityProvider.rawValue
+        case .emailAccount:
+            return selectedEmailProvider.rawValue
+        case .devices:
+            return customAboName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? selectedDeviceType.rawValue : customAboName
+        case .magazine:
+            return magazineName
+        case .software:
+            return softwareName
+        case .other:
+            return customAboName
+        default:
+            return ""
+        }
+    }
+
+    private var anbieterWert: String {
+        switch selectedAboType {
+        case .streaming:
+            return selectedStreamingProvider.rawValue
+        case .socialMedia:
+            return selectedSocialMediaProvider.rawValue
+        case .digitalIdentity:
+            return selectedDigitalIdentityProvider.rawValue
+        case .emailAccount:
+            return selectedEmailProvider.rawValue
+        default:
+            return ""
+        }
+    }
+
+    private var aboArtWert: String {
+        switch selectedAboType {
+        case .fitness:
+            return fitnessAboType
+        case .news:
+            return onlineMagazineAboType
+        case .membership:
+            return membershipAboType
+        case .publicTransport:
+            return publicTransportType.rawValue
+        case .devices:
+            return selectedDeviceType.rawValue
+        default:
+            return ""
+        }
+    }
+
+    private var aboNummerWert: String {
+        switch selectedAboType {
+        case .publicTransport:
+            return publicTransportAboNumber
+        case .membership:
+            return membershipNumber
+        case .devices:
+            return ""
+        default:
+            return ""
+        }
+    }
+
+    private func ladeOderErstelleAboModellFallsNoetig() {
+        guard !wurdeInitialisiert else { return }
+        wurdeInitialisiert = true
+
+        guard gespeicherteAboModelle.isEmpty else { return }
+
+        let neuesModell = AboModell()
+        modelContext.insert(neuesModell)
+        speichereAenderung()
+    }
+
+    private func speichereAenderung() {
+        do {
+            try modelContext.save()
+        } catch {
+            print("Abos konnten nicht gespeichert werden: \(error.localizedDescription)")
+        }
+    }
+
+    private func loescheAbo(_ abo: AboEintrag) {
+        guard let aboModell = aktuellesAboModell else { return }
+
+        if let index = aboModell.abos.firstIndex(where: { $0.id == abo.id }) {
+            aboModell.abos.remove(at: index)
+        }
+
+        modelContext.delete(abo)
+        aboModell.aktualisiertAm = Date()
+        speichereAenderung()
+    }
+
+    private func aboTitel(_ abo: AboEintrag) -> String {
+        if abo.aboTyp == "Meine Geräte" || abo.aboTyp == "Mein Mobile Telefon" {
+            let bezeichnung = (abo.geraeteBezeichnung.isEmpty ? abo.bezeichnung : abo.geraeteBezeichnung).trimmingCharacters(in: .whitespacesAndNewlines)
+            let art = (abo.geraeteArt.isEmpty ? abo.aboArt : abo.geraeteArt).trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if !bezeichnung.isEmpty && !art.isEmpty {
+                return "\(bezeichnung) – \(art)"
+            }
+
+            if !bezeichnung.isEmpty {
+                return bezeichnung
+            }
+
+            if !art.isEmpty {
+                return art
+            }
+        }
+        if !abo.bezeichnung.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return abo.bezeichnung
+        }
+
+        if !abo.unternehmen.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if !abo.aboArt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return "\(abo.unternehmen) – \(abo.aboArt)"
+            }
+            return abo.unternehmen
+        }
+
+        if !abo.aboArt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return abo.aboArt
+        }
+
+        return abo.aboTyp
+    }
 }
 
 enum AboType: String, CaseIterable, Identifiable {
     case pleaseSelect = "Bitte wählen"
+    case digitalIdentity = "Digitale Identitäten"
+    case devices = "Meine Geräte"
+    case emailAccount = "E-Mail-Konten"
+    case fitness = "Fitness / Sport"
+    case membership = "Mitgliedschaft"
+    case news = "Online Zeitschriften"
+    case publicTransport = "Öffentlicher Verkehr"
+    case socialMedia = "Social Media"
+    case software = "Software / Apps"
     case streaming = "Streamingdienst"
     case magazine = "Zeitschriften"
-    case publicTransport = "Öffentlicher Verkehr"
-    case software = "Software / Apps"
-    case fitness = "Fitness / Sport"
     case cloudStorage = "Cloud-Speicher"
-    case news = "Online Zeitschriften"
-    case membership = "Mitgliedschaft"
     case other = "Andere"
 
     var id: String { rawValue }
@@ -398,17 +834,67 @@ enum AboType: String, CaseIterable, Identifiable {
 
 enum StreamingProvider: String, CaseIterable, Identifiable {
     case pleaseSelect = "Bitte wählen"
-    case netflix = "Netflix"
-    case disneyPlus = "Disney+"
     case amazonPrime = "Amazon Prime Video"
     case appleTV = "Apple TV+"
-    case sky = "Sky"
+    case disneyPlus = "Disney+"
     case hbo = "HBO / Max"
-    case youtube = "YouTube Premium"
-    case spotify = "Spotify"
-    case instagram = "Instagram"
-    case snapchat = "Snapchat"
+    case netflix = "Netflix"
     case paramount = "Paramount+"
+    case sky = "Sky"
+    case spotify = "Spotify"
+    case youtube = "YouTube Premium"
+    case other = "Andere"
+
+    var id: String { rawValue }
+}
+
+
+enum SocialMediaProvider: String, CaseIterable, Identifiable {
+    case pleaseSelect = "Bitte wählen"
+    case bluesky = "Bluesky"
+    case facebook = "Facebook"
+    case instagram = "Instagram"
+    case linkedin = "LinkedIn"
+    case mastodon = "Mastodon"
+    case pinterest = "Pinterest"
+    case reddit = "Reddit"
+    case snapchat = "Snapchat"
+    case threads = "Threads"
+    case tiktok = "TikTok"
+    case twitch = "Twitch"
+    case x = "X / Twitter"
+    case youtube = "YouTube"
+    case other = "Andere"
+
+    var id: String { rawValue }
+}
+
+enum DigitalIdentityProvider: String, CaseIterable, Identifiable {
+    case pleaseSelect = "Bitte wählen"
+    case adobe = "Adobe"
+    case apple = "Apple ID"
+    case bitwarden = "Bitwarden"
+    case dropbox = "Dropbox"
+    case google = "Google"
+    case meta = "Meta"
+    case microsoft = "Microsoft"
+    case onePassword = "1Password"
+    case samsung = "Samsung"
+    case other = "Andere"
+
+    var id: String { rawValue }
+}
+
+enum EmailProvider: String, CaseIterable, Identifiable {
+    case pleaseSelect = "Bitte wählen"
+    case bluewin = "Bluewin"
+    case ownDomain = "Eigene Domain"
+    case gmail = "Gmail"
+    case gmx = "GMX"
+    case icloud = "iCloud Mail"
+    case outlook = "Outlook / Hotmail"
+    case proton = "Proton Mail"
+    case yahoo = "Yahoo Mail"
     case other = "Andere"
 
     var id: String { rawValue }
@@ -416,12 +902,12 @@ enum StreamingProvider: String, CaseIterable, Identifiable {
 
 enum PublicTransportAboType: String, CaseIterable, Identifiable {
     case pleaseSelect = "Bitte wählen"
-    case swissPass = "SwissPass"
     case ga = "Generalabonnement"
     case halfFare = "Halbtax"
     case regional = "Regionalabo / Verbundabo"
-    case pointToPoint = "Streckenabo"
+    case swissPass = "SwissPass"
     case city = "Stadtabo"
+    case pointToPoint = "Streckenabo"
     case other = "Andere"
 
     var id: String { rawValue }
@@ -429,25 +915,24 @@ enum PublicTransportAboType: String, CaseIterable, Identifiable {
 
 enum PublicTransportCompany: String, CaseIterable, Identifiable {
     case pleaseSelect = "Bitte wählen"
-    case sbb = "SBB"
-    case zb = "Zentralbahn"
-    case postAuto = "PostAuto"
-    case zvv = "ZVV"
-    case vbz = "VBZ"
-    case zvvBonusPass = "ZVV BonusPass"
-    case tpg = "TPG"
-    case tl = "TL Lausanne"
-    case bls = "BLS"
-    case rhb = "Rhätische Bahn"
-    case sob = "Südostbahn"
-    case tpf = "TPF Fribourg"
-    case libero = "Libero Tarifverbund"
-    case ostwind = "Ost-Wind"
     case aWelle = "A-Welle"
-    case zug = "Kanton Zug / Tarifverbund Zug"
-    case passepartout = "Passepartout"
+    case bls = "BLS"
+    case libero = "Libero Tarifverbund"
     case mobilis = "Mobilis"
+    case ostwind = "Ost-Wind"
+    case passepartout = "Passepartout"
+    case postAuto = "PostAuto"
+    case rhb = "Rhätische Bahn"
+    case sbb = "SBB"
+    case sob = "Südostbahn"
+    case tl = "TL Lausanne"
+    case tpf = "TPF Fribourg"
+    case tpg = "TPG"
     case unireso = "Unireso"
+    case vbz = "VBZ"
+    case zug = "Kanton Zug / Tarifverbund Zug"
+    case zvv = "ZVV"
+    case zvvBonusPass = "ZVV BonusPass"
     case other = "Andere"
 
     var id: String { rawValue }
@@ -455,4 +940,24 @@ enum PublicTransportCompany: String, CaseIterable, Identifiable {
 
 #Preview {
     AbosView()
+        .modelContainer(for: [AboModell.self, AboEintrag.self], inMemory: true)
+}
+
+enum DeviceType: String, CaseIterable, Identifiable {
+    case pleaseSelect = "Bitte wählen"
+    case eReader = "eReader"
+    case externalHardDrive = "Externe Festplatte"
+    case camera = "Kamera"
+    case computerNotebook = "Computer / Notebook"
+    case mobilePhone = "Mobile Telefon"
+    case nas = "NAS / Heimserver"
+    case router = "Router / WLAN"
+    case smartSpeaker = "Smart Speaker"
+    case smartTV = "Smart TV"
+    case smartwatch = "Smartwatch"
+    case gamingConsole = "Spielkonsole"
+    case tablet = "Tablet"
+    case other = "Andere"
+
+    var id: String { rawValue }
 }

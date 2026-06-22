@@ -2,6 +2,7 @@ import SwiftUI
 
 struct Home: View {
     private let kachelFarbe = Color(red: 0.92, green: 0.92, blue: 0.94)
+    @State private var bildIstSichtbar = false
 
     var body: some View {
         NavigationStack {
@@ -33,6 +34,11 @@ struct Home: View {
                                     endPoint: .bottom
                                 )
                             )
+                            .opacity(bildIstSichtbar ? 1 : 0)
+                            .animation(.easeInOut(duration: 1.4), value: bildIstSichtbar)
+                            .onAppear {
+                                bildIstSichtbar = true
+                            }
 
                         ersteKachelReihe
                             .padding(.horizontal, 24)
@@ -45,6 +51,7 @@ struct Home: View {
                 }
             }
             .background(Color(.systemBackground))
+            .navigationBarBackButtonHidden(true)
         }
     }
 
@@ -72,7 +79,8 @@ struct Home: View {
                 WuenscheView()
             } label: {
                 HomeKachel(
-                    icon: "heart.fill",
+                    //icon: "heart.fill",
+                    icon: "sparkles",
                     titel: "Meine Wünsche",
                     farbe: kachelFarbe
                 )
@@ -116,7 +124,7 @@ struct Home: View {
             } label: {
                 HomeKachel(
                     icon: "folder.fill",
-                    titel: "Dokumente",
+                    titel: "Dokumente & Fotoalbum",
                     farbe: kachelFarbe
                 )
             }
