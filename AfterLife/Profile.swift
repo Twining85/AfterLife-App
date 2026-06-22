@@ -29,10 +29,9 @@ struct ProfilView: View {
 
     @State private var adresse = ""
     @State private var hausnummer = ""
-    @State private var adressVorschlaege: [SchweizerStrasse] = []
+    @State private var adressVorschlaege: [PostAdressVorschlag] = []
     @State private var adressSucheLaeuft = false
     @State private var adressVorschlagWurdeGewaehlt = false
-    @State private var adressSucheBeimLadenUnterdruecken = false
 
     @State private var plz = ""
 
@@ -61,6 +60,11 @@ struct ProfilView: View {
         "Neuseeland",
         "Andere"
     ]
+    // Vercel Proxy für Schweizer Post Adressservices.
+    // Nicht durch direkte Post URLs ersetzen, sonst wären Zugangsdaten in der App erforderlich.
+    private let postAutocompleteURL = "https://afterlife-address-proxy.vercel.app/api/autocomplete"
+    private let postBuildingVerificationURL = "https://afterlife-address-proxy.vercel.app/api/building-verification"
+
 
     @State private var telefon = ""
 
@@ -178,35 +182,25 @@ struct ProfilView: View {
                 Section("Persönliche Angaben") {
 
                     TextField("Vorname", text: $vorname)
-
                         .textContentType(.name)
                     
                     TextField("Name", text: $name)
-
                         .textContentType(.name)
 
                     DatePicker(
-
                         "Geburtsdatum",
-
                         selection: $geburtsdatum,
-
                         displayedComponents: .date
-
                     )
-
                     .environment(\.locale, Locale(identifier: "de_CH"))
 
                     TextField("Strasse", text: $adresse)
                         .textContentType(.streetAddressLine1)
 
-                    TextField("Hausnummer", text: $hausnummer)
-                        .textContentType(.streetAddressLine2)
-
                     if adressSucheLaeuft {
                         HStack(spacing: 8) {
                             ProgressView()
-                            Text("Adresse wird gesucht …")
+                            Text("Adressvorschläge werden gesucht …")
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
@@ -217,17 +211,21 @@ struct ProfilView: View {
                             ForEach(adressVorschlaege) { vorschlag in
                                 Button {
                                     adressVorschlagWurdeGewaehlt = true
-                                    adresse = vorschlag.name
-                                    hausnummer = ""
-                                    plz = vorschlag.postalCode
-                                    stadt = vorschlag.locality
+                                    adresse = vorschlag.streetName
+                                    hausnummer = vorschlag.vollstaendigeHausnummer
+                                    plz = vorschlag.zipCode
+                                    stadt = vorschlag.townName
                                     adressVorschlaege = []
+
+                                    Task {
+                                        await verifizierePostAdresse(vorschlag)
+                                    }
                                 } label: {
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(vorschlag.name)
+                                        Text(vorschlag.anzeigeTitel)
                                             .foregroundStyle(.primary)
 
-                                        Text("\(vorschlag.postalCode) \(vorschlag.locality)")
+                                        Text(vorschlag.anzeigeUntertitel)
                                             .font(.footnote)
                                             .foregroundStyle(.secondary)
                                     }
@@ -239,14 +237,13 @@ struct ProfilView: View {
                         .padding(.vertical, 4)
                     }
 
+                    TextField("Hausnummer", text: $hausnummer)
+                        .textContentType(.streetAddressLine2)
+
                     HStack {
-
                         TextField("PLZ", text: $plz)
-
                             .keyboardType(.numberPad)
-
                         TextField("Stadt", text: $stadt)
-
                     }
 
                     Picker("Land", selection: $land) {
@@ -256,35 +253,22 @@ struct ProfilView: View {
                     }
 
                     TextField("Telefon", text: $telefon)
-
                         .keyboardType(.phonePad)
-
                         .textContentType(.telephoneNumber)
 
                     VStack(alignment: .leading, spacing: 6) {
-
                         TextField("E-Mail", text: $email)
-
                             .keyboardType(.emailAddress)
-
                             .textInputAutocapitalization(.never)
-
                             .autocorrectionDisabled()
-
                             .textContentType(.emailAddress)
 
                         if !istEmailGueltig {
-
                             Text("Bitte gib eine gültige E-Mail-Adresse ein.")
-
                                 .font(.footnote)
-
                                 .foregroundStyle(.red)
-
                         }
-
                     }
-
                 }
 
                 Section("Zugriff im Notfall") {
@@ -521,12 +505,6 @@ struct ProfilView: View {
             .onChange(of: adresse) { _, neueAdresse in
                 guard land == "Schweiz" else { return }
 
-                if adressSucheBeimLadenUnterdruecken {
-                    adressSucheBeimLadenUnterdruecken = false
-                    adressVorschlaege = []
-                    return
-                }
-
                 if adressVorschlagWurdeGewaehlt {
                     adressVorschlagWurdeGewaehlt = false
                     adressVorschlaege = []
@@ -547,7 +525,7 @@ struct ProfilView: View {
                         return
                     }
 
-                    await ladeSchweizerAdressVorschlaege(fuer: bereinigteAdresse)
+                    await ladePostAdressVorschlaege(fuer: bereinigteAdresse)
                 }
             }
             .onChange(of: plz) { _, neuePLZ in
@@ -587,7 +565,6 @@ struct ProfilView: View {
             vorname = vorhandenesProfil.vorname
             name = vorhandenesProfil.name
             geburtsdatum = vorhandenesProfil.geburtsdatum
-            adressSucheBeimLadenUnterdruecken = true
             adresse = vorhandenesProfil.strasse
             hausnummer = vorhandenesProfil.hausnummer
             plz = vorhandenesProfil.plz
@@ -768,26 +745,51 @@ struct ProfilView: View {
         }
     }
 
+    // MARK: - Schweizer Post Adressservice
+    //
+    // Die App spricht niemals direkt mit der Post API.
+    // Stattdessen werden alle Anfragen über den Vercel Proxy geleitet:
+    //
+    // /api/autocomplete
+    // → liefert Strassenvorschläge
+    //
+    // /api/building-verification
+    // → verifiziert Strasse, Hausnummer, PLZ und Ort
+    //
+    // Die Zugangsdaten der Post liegen ausschliesslich als
+    // Vercel Environment Variables:
+    //
+    // POST_API_USERNAME (gem. Geschäfts-Account rxxx.exxx.@
+    // POST_API_PASSWORD
+    //
+    // Falls die Post Zugangsdaten geändert werden müssen,
+    // nur die Vercel Environment Variables anpassen.
+    // In der iOS App sind keine Post Zugangsdaten gespeichert.
+    
+    private func postAPIRequest(url: URL) -> URLRequest {
+    private func postAPIRequest(url: URL) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        return request
+    }
+
     @MainActor
-    private func ladeSchweizerAdressVorschlaege(fuer suchbegriff: String) async {
+    private func ladePostAdressVorschlaege(fuer suchbegriff: String) async {
         guard !adressSucheLaeuft else { return }
 
         adressSucheLaeuft = true
         defer { adressSucheLaeuft = false }
 
-        var components = URLComponents(string: "https://openplzapi.org/ch/Streets")
+        var components = URLComponents(string: postAutocompleteURL)
         components?.queryItems = [
-            URLQueryItem(name: "name", value: "^\(suchbegriff)"),
-            URLQueryItem(name: "pageSize", value: "6")
+            URLQueryItem(name: "streetname", value: suchbegriff)
         ]
 
         guard let url = components?.url else { return }
 
-        var request = URLRequest(url: url)
-        request.setValue("text/json", forHTTPHeaderField: "accept")
-
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.data(for: postAPIRequest(url: url))
 
             guard let httpResponse = response as? HTTPURLResponse,
                   (200...299).contains(httpResponse.statusCode) else {
@@ -795,11 +797,46 @@ struct ProfilView: View {
                 return
             }
 
-            let strassen = try JSONDecoder().decode([SchweizerStrasse].self, from: data)
-            adressVorschlaege = Array(strassen.prefix(6))
+            let antwort = try JSONDecoder().decode(PostAutocompleteAntwort.self, from: data)
+            adressVorschlaege = Array(antwort.vorschlaege.prefix(8))
         } catch {
             adressVorschlaege = []
-            print("Adressvorschläge konnten nicht geladen werden: \(error.localizedDescription)")
+            print("Post Adressvorschläge konnten nicht geladen werden: \(error.localizedDescription)")
+        }
+    }
+
+    @MainActor
+    private func verifizierePostAdresse(_ vorschlag: PostAdressVorschlag) async {
+        var components = URLComponents(string: postBuildingVerificationURL)
+        components?.queryItems = [
+            URLQueryItem(name: "streetname", value: vorschlag.streetName),
+            URLQueryItem(name: "houseno", value: vorschlag.houseNo),
+            URLQueryItem(name: "housenoaddition", value: vorschlag.houseNoAddition),
+            URLQueryItem(name: "zipcode", value: vorschlag.zipCode),
+            URLQueryItem(name: "townname", value: vorschlag.townName)
+        ]
+
+        guard let url = components?.url else { return }
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: postAPIRequest(url: url))
+
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode) else {
+                return
+            }
+
+            let antwort = try JSONDecoder().decode(PostBuildingVerificationAntwort.self, from: data)
+            guard let verifizierteAdresse = antwort.verifizierteAdresse else { return }
+
+            adressVorschlagWurdeGewaehlt = true
+            adresse = verifizierteAdresse.streetName
+            hausnummer = verifizierteAdresse.vollstaendigeHausnummer
+            plz = verifizierteAdresse.zipCode
+            stadt = verifizierteAdresse.townName
+            speichereProfil()
+        } catch {
+            print("Post Adresse konnte nicht verifiziert werden: \(error.localizedDescription)")
         }
     }
 
@@ -850,7 +887,6 @@ struct ProfilView: View {
         adressVorschlaege = []
         adressSucheLaeuft = false
         adressVorschlagWurdeGewaehlt = false
-        adressSucheBeimLadenUnterdruecken = false
         plz = ""
         stadt = ""
 
@@ -1874,6 +1910,170 @@ struct ProfilView: View {
 
     }
 
+    private struct PostAutocompleteAntwort: Decodable {
+        let vorschlaege: [PostAdressVorschlag]
+
+        enum CodingKeys: String, CodingKey {
+            case result = "QueryAutoComplete4Result"
+            case directAutoCompleteResult = "AutoCompleteResult"
+            case directAutoCompleteData = "AutoCompleteData"
+            case directSuggestions = "Suggestions"
+        }
+
+        enum ResultCodingKeys: String, CodingKey {
+            case autoCompleteResult = "AutoCompleteResult"
+            case autoCompleteData = "AutoCompleteData"
+            case suggestions = "Suggestions"
+            case buildingData = "BuildingData"
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+
+            if let resultContainer = try? container.nestedContainer(keyedBy: ResultCodingKeys.self, forKey: .result) {
+                if let values = try? resultContainer.decode([PostAdressVorschlag].self, forKey: .autoCompleteResult) {
+                    vorschlaege = values
+                    return
+                }
+
+                if let values = try? resultContainer.decode([PostAdressVorschlag].self, forKey: .autoCompleteData) {
+                    vorschlaege = values
+                    return
+                }
+
+                if let values = try? resultContainer.decode([PostAdressVorschlag].self, forKey: .suggestions) {
+                    vorschlaege = values
+                    return
+                }
+
+                if let values = try? resultContainer.decode([PostAdressVorschlag].self, forKey: .buildingData) {
+                    vorschlaege = values
+                    return
+                }
+            }
+
+            if let values = try? container.decode([PostAdressVorschlag].self, forKey: .directAutoCompleteResult) {
+                vorschlaege = values
+                return
+            }
+
+            if let values = try? container.decode([PostAdressVorschlag].self, forKey: .directAutoCompleteData) {
+                vorschlaege = values
+                return
+            }
+
+            if let values = try? container.decode([PostAdressVorschlag].self, forKey: .directSuggestions) {
+                vorschlaege = values
+                return
+            }
+
+            vorschlaege = []
+        }
+    }
+
+    private struct PostBuildingVerificationAntwort: Decodable {
+        let verifizierteAdresse: PostAdressVorschlag?
+
+        enum CodingKeys: String, CodingKey {
+            case result4 = "QueryBuildingVerification4Result"
+            case result2 = "QueryBuildingVerification2Result"
+            case directData = "BuildingVerificationData"
+        }
+
+        enum ResultCodingKeys: String, CodingKey {
+            case data = "BuildingVerificationData"
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+
+            if let resultContainer = try? container.nestedContainer(keyedBy: ResultCodingKeys.self, forKey: .result4),
+               let data = try? resultContainer.decode(PostAdressVorschlag.self, forKey: .data) {
+                verifizierteAdresse = data
+                return
+            }
+
+            if let resultContainer = try? container.nestedContainer(keyedBy: ResultCodingKeys.self, forKey: .result2),
+               let data = try? resultContainer.decode(PostAdressVorschlag.self, forKey: .data) {
+                verifizierteAdresse = data
+                return
+            }
+
+            if let directData = try? container.decode(PostAdressVorschlag.self, forKey: .directData) {
+                verifizierteAdresse = directData
+                return
+            }
+
+            verifizierteAdresse = nil
+        }
+    }
+
+    private struct PostAdressVorschlag: Decodable, Identifiable {
+        let id = UUID()
+        let canton: String
+        let countryCode: String
+        let houseKey: String
+        let houseNo: String
+        let houseNoAddition: String
+        let streetName: String
+        let townName: String
+        let zipCode: String
+
+        var vollstaendigeHausnummer: String {
+            [houseNo, houseNoAddition]
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+        }
+
+        var anzeigeTitel: String {
+            let hausnummerText = vollstaendigeHausnummer
+            return hausnummerText.isEmpty ? streetName : "\(streetName) \(hausnummerText)"
+        }
+
+        var anzeigeUntertitel: String {
+            [zipCode, townName]
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case canton = "Canton"
+            case countryCode = "CountryCode"
+            case houseKey = "HouseKey"
+            case houseNo = "HouseNo"
+            case houseNoAddition = "HouseNoAddition"
+            case streetName = "StreetName"
+            case townName = "TownName"
+            case zipCode = "ZipCode"
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            canton = try container.decodeIfPresent(String.self, forKey: .canton) ?? ""
+            countryCode = try container.decodeIfPresent(String.self, forKey: .countryCode) ?? ""
+            houseKey = try PostAdressVorschlag.decodeStringOrInt(from: container, forKey: .houseKey)
+            houseNo = try PostAdressVorschlag.decodeStringOrInt(from: container, forKey: .houseNo)
+            houseNoAddition = try container.decodeIfPresent(String.self, forKey: .houseNoAddition) ?? ""
+            streetName = try container.decodeIfPresent(String.self, forKey: .streetName) ?? ""
+            townName = try container.decodeIfPresent(String.self, forKey: .townName) ?? ""
+            zipCode = try PostAdressVorschlag.decodeStringOrInt(from: container, forKey: .zipCode)
+        }
+
+        private static func decodeStringOrInt(from container: KeyedDecodingContainer<CodingKeys>, forKey key: CodingKeys) throws -> String {
+            if let stringValue = try container.decodeIfPresent(String.self, forKey: key) {
+                return stringValue
+            }
+
+            if let intValue = try container.decodeIfPresent(Int.self, forKey: key) {
+                return String(intValue)
+            }
+
+            return ""
+        }
+    }
+
     private struct SchweizerOrt: Decodable {
         let name: String
         let postalCode: String
@@ -1884,18 +2084,6 @@ struct ProfilView: View {
         }
     }
 
-    private struct SchweizerStrasse: Decodable, Identifiable {
-        let id = UUID()
-        let name: String
-        let postalCode: String
-        let locality: String
-
-        enum CodingKeys: String, CodingKey {
-            case name
-            case postalCode
-            case locality
-        }
-    }
 }
 
 struct ExportiertesDossier: Identifiable {

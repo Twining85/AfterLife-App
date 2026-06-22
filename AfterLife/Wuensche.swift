@@ -83,13 +83,17 @@ struct WuenscheView: View {
     @State private var aktiverDokumentTyp: DokumentTyp?
     @State private var dokumentVorschauURL: URL?
 
+
     private var kontakteSpeicherSignatur: String {
         kontakte.map { kontakt in
             [
                 kontakt.id.uuidString,
                 kontakt.vorname,
                 kontakt.name,
-                kontakt.adresse,
+                kontakt.strasse,
+                kontakt.hausnummer,
+                kontakt.plz,
+                kontakt.ort,
                 kontakt.telefon,
                 kontakt.email,
                 kontakt.art.rawValue,
@@ -361,12 +365,6 @@ struct WuenscheView: View {
                 kontaktEintragView(kontakt: $kontakt)
             }
             .onDelete(perform: kontaktLoeschen)
-
-            Button {
-                kontaktHinzufuegen()
-            } label: {
-                Label("Kontakt manuell hinzufügen", systemImage: "plus.circle.fill")
-            }
 
             Button {
                 kontaktPickerAnzeigen = true
@@ -704,10 +702,6 @@ struct WuenscheView: View {
         wuensche.regelmaessigBeurteilen = lebensqualitaetRegelmaessigBeurteilen
     }
 
-    private func kontaktHinzufuegen() {
-        kontakte.append(BeisetzungsKontakt())
-        synchronisiereKontakteMitHinterbliebenen()
-    }
 
     private func kontaktLoeschen(at offsets: IndexSet) {
         for index in offsets {
@@ -720,11 +714,6 @@ struct WuenscheView: View {
         synchronisiereKontakteMitHinterbliebenen()
     }
 
-    private func kontaktEntfernen(_ kontakt: BeisetzungsKontakt) {
-        ausgeklappteKontaktIDs.remove(kontakt.id)
-        kontakte.removeAll { $0.id == kontakt.id }
-        synchronisiereKontakteMitHinterbliebenen()
-    }
 
 
     private func ladeKontakteAusHinterbliebenen() {
@@ -735,11 +724,16 @@ struct WuenscheView: View {
             .sorted { $0.erstelltAm < $1.erstelltAm }
 
         kontakte = gespeicherteWuenscheKontakte.map { gespeicherterKontakt in
-            BeisetzungsKontakt(
+            let adressTeile = getrennteAdresseAusText(gespeicherterKontakt.adresse)
+
+            return BeisetzungsKontakt(
                 id: UUID(uuidString: gespeicherterKontakt.rolle.components(separatedBy: "|").last ?? "") ?? UUID(),
                 vorname: gespeicherterKontakt.vorname,
                 name: gespeicherterKontakt.name,
-                adresse: gespeicherterKontakt.adresse,
+                strasse: adressTeile.strasse,
+                hausnummer: adressTeile.hausnummer,
+                plz: adressTeile.plz,
+                ort: adressTeile.ort,
                 telefon: gespeicherterKontakt.telefon,
                 email: gespeicherterKontakt.email,
                 art: kontaktArtAusBeziehung(gespeicherterKontakt.beziehung),
@@ -757,7 +751,10 @@ struct WuenscheView: View {
         let gueltigeKontakte = kontakte.filter { kontakt in
             !kontakt.vorname.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
             !kontakt.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-            !kontakt.adresse.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+            !kontakt.strasse.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+            !kontakt.hausnummer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+            !kontakt.plz.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+            !kontakt.ort.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
             !kontakt.telefon.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
             !kontakt.email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
@@ -815,7 +812,7 @@ struct WuenscheView: View {
             zielKontakt.beziehung = beziehungFuerKontaktArt(kontakt.art)
             zielKontakt.telefon = kontakt.telefon
             zielKontakt.email = kontakt.email
-            zielKontakt.adresse = kontakt.adresse
+            zielKontakt.adresse = kontakt.vollstaendigeAdresse
             zielKontakt.quelle = zielKontakt.quelle.isEmpty ? "WuenscheView" : zielKontakt.quelle
             zielKontakt.istVertrauensperson = zielKontakt.istVertrauensperson
             zielKontakt.sollInformiertWerden = kontakt.informieren
@@ -850,7 +847,7 @@ struct WuenscheView: View {
         }
 
         let gespeicherteAdresse = gespeicherterKontakt.adresse.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let kontaktAdresse = kontakt.adresse.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let kontaktAdresse = kontakt.vollstaendigeAdresse.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
         if !gespeicherterName.isEmpty,
            gespeicherterName == kontaktName,
@@ -871,6 +868,26 @@ struct WuenscheView: View {
 
     private func normalisierteTelefonnummer(_ telefon: String) -> String {
         telefon.filter { $0.isNumber }
+    }
+
+    private func getrennteAdresseAusText(_ adresse: String) -> (strasse: String, hausnummer: String, plz: String, ort: String) {
+        let zeilen = adresse
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        let ersteZeile = zeilen.first ?? ""
+        let zweiteZeile = zeilen.dropFirst().first ?? ""
+
+        let ersteZeileKomponenten = ersteZeile.components(separatedBy: " ").filter { !$0.isEmpty }
+        let hausnummer = ersteZeileKomponenten.last?.rangeOfCharacter(from: .decimalDigits) != nil ? ersteZeileKomponenten.last ?? "" : ""
+        let strasse = hausnummer.isEmpty ? ersteZeile : ersteZeileKomponenten.dropLast().joined(separator: " ")
+
+        let zweiteZeileKomponenten = zweiteZeile.components(separatedBy: " ").filter { !$0.isEmpty }
+        let plz = zweiteZeileKomponenten.first?.allSatisfy(\.isNumber) == true ? zweiteZeileKomponenten.first ?? "" : ""
+        let ort = plz.isEmpty ? zweiteZeile : zweiteZeileKomponenten.dropFirst().joined(separator: " ")
+
+        return (strasse, hausnummer, plz, ort)
     }
 
     private func beziehungFuerKontaktArt(_ art: KontaktArt) -> String {
@@ -908,31 +925,39 @@ struct WuenscheView: View {
                 }
             }
 
-            TextField("Vorname", text: kontakt.vorname)
-                .textContentType(.givenName)
-
-            TextField("Name", text: kontakt.name)
-                .textContentType(.familyName)
-
-            TextField("Adresse", text: kontakt.adresse, axis: .vertical)
-                .textContentType(.fullStreetAddress)
-                .lineLimit(2...4)
-
-            TextField("Telefonnummer", text: kontakt.telefon)
-                .keyboardType(.phonePad)
-                .textContentType(.telephoneNumber)
-
-            TextField("E-Mail", text: kontakt.email)
-                .keyboardType(.emailAddress)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .textContentType(.emailAddress)
+            kontaktAnzeigeZeile(titel: "Vorname", wert: kontakt.wrappedValue.vorname)
+            kontaktAnzeigeZeile(titel: "Name", wert: kontakt.wrappedValue.name)
+            kontaktAnzeigeZeile(titel: "Strasse", wert: kontakt.wrappedValue.strasse)
+            kontaktAnzeigeZeile(titel: "Hausnummer", wert: kontakt.wrappedValue.hausnummer)
+            kontaktAnzeigeZeile(titel: "PLZ", wert: kontakt.wrappedValue.plz)
+            kontaktAnzeigeZeile(titel: "Ort", wert: kontakt.wrappedValue.ort)
+            kontaktAnzeigeZeile(titel: "Telefonnummer", wert: kontakt.wrappedValue.telefon)
+            kontaktAnzeigeZeile(titel: "E-Mail", wert: kontakt.wrappedValue.email)
 
             Toggle("Informieren", isOn: kontakt.informieren)
             Toggle("Zur Beisetzung einladen", isOn: kontakt.einladen)
         }
         .padding(.vertical, 6)
     }
+
+    @ViewBuilder
+    private func kontaktAnzeigeZeile(titel: String, wert: String) -> some View {
+        let bereinigterWert = wert.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if !bereinigterWert.isEmpty {
+            HStack(alignment: .top) {
+                Text(titel)
+                    .foregroundStyle(.secondary)
+
+                Spacer(minLength: 16)
+
+                Text(bereinigterWert)
+                    .multilineTextAlignment(.trailing)
+            }
+            .font(.subheadline)
+        }
+    }
+
 
     private func nachrufBildEntfernen() {
         nachrufBildData = nil
@@ -1114,7 +1139,10 @@ struct BeisetzungsKontakt: Identifiable, Codable, Equatable {
     var id = UUID()
     var vorname = ""
     var name = ""
-    var adresse = ""
+    var strasse = ""
+    var hausnummer = ""
+    var plz = ""
+    var ort = ""
     var telefon = ""
     var email = ""
     var art: KontaktArt = .familie
@@ -1124,6 +1152,22 @@ struct BeisetzungsKontakt: Identifiable, Codable, Equatable {
     var anzeigename: String {
         let nameTeile = [vorname, name].filter { !$0.isEmpty }
         return nameTeile.isEmpty ? "Unbenannter Kontakt" : nameTeile.joined(separator: " ")
+    }
+
+    var vollstaendigeAdresse: String {
+        let strasseUndHausnummer = [strasse, hausnummer]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+
+        let plzUndOrt = [plz, ort]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+
+        return [strasseUndHausnummer, plzUndOrt]
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
     }
 }
 
@@ -1157,14 +1201,17 @@ struct KontaktPicker: UIViewControllerRepresentable {
         }
 
         func contactPicker(_ picker: CNContactPickerViewController, didSelect contact: CNContact) {
-            let adresse = contact.postalAddresses.first.map { adresseFormatieren($0.value) } ?? ""
+            let adressTeile = contact.postalAddresses.first.map { adresseAufteilen($0.value) } ?? (strasse: "", hausnummer: "", plz: "", ort: "")
             let telefon = contact.phoneNumbers.first?.value.stringValue ?? ""
             let email = contact.emailAddresses.first.map { String($0.value) } ?? ""
 
             let beisetzungsKontakt = BeisetzungsKontakt(
                 vorname: contact.givenName,
                 name: contact.familyName,
-                adresse: adresse,
+                strasse: adressTeile.strasse,
+                hausnummer: adressTeile.hausnummer,
+                plz: adressTeile.plz,
+                ort: adressTeile.ort,
                 telefon: telefon,
                 email: email
             )
@@ -1172,18 +1219,22 @@ struct KontaktPicker: UIViewControllerRepresentable {
             kontaktAusgewaehlt(beisetzungsKontakt)
         }
 
-        private func adresseFormatieren(_ adresse: CNPostalAddress) -> String {
-            [
-                adresse.street,
-                "\(adresse.postalCode) \(adresse.city)",
-                adresse.country
-            ]
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .joined(separator: "\n")
+        private func adresseAufteilen(_ adresse: CNPostalAddress) -> (strasse: String, hausnummer: String, plz: String, ort: String) {
+            let strassenKomponenten = adresse.street.components(separatedBy: " ").filter { !$0.isEmpty }
+            let hausnummer = strassenKomponenten.last?.rangeOfCharacter(from: .decimalDigits) != nil ? strassenKomponenten.last ?? "" : ""
+            let strasse = hausnummer.isEmpty ? adresse.street : strassenKomponenten.dropLast().joined(separator: " ")
+
+            return (
+                strasse: strasse,
+                hausnummer: hausnummer,
+                plz: adresse.postalCode,
+                ort: adresse.city
+            )
         }
     }
 }
+
+
 
 struct DetailBox<Content: View>: View {
     @ViewBuilder let content: Content
