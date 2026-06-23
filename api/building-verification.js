@@ -11,9 +11,19 @@ export default async function handler(req, res) {
 
     const auth = Buffer.from(`${username}:${password}`).toString("base64");
 
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+
     const url = new URL("https://webservices.post.ch:17023/IN_SYNSYN_EXT/REST/v1/buildingverification2");
 
-    ["streetname", "houseno", "housenoaddition", "zipcode", "townname"].forEach((key) => {
+    [
+      "streetname",
+      "houseno",
+      "housenoaddition",
+      "zipcode",
+      "townname",
+      "onrp",
+      "strid"
+    ].forEach((key) => {
       if (req.query[key]) {
         url.searchParams.set(key, req.query[key]);
       }
@@ -21,13 +31,18 @@ export default async function handler(req, res) {
 
     const response = await fetch(url, {
       method: "GET",
+      cache: "no-store",
       headers: {
         Authorization: `Basic ${auth}`,
-        Accept: "application/json"
+        Accept: "application/json",
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache"
       }
     });
 
     const data = await response.text();
+    console.log(data);
+
     return res.status(response.status).send(data);
   } catch (error) {
     return res.status(500).json({
