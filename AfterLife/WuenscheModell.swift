@@ -26,18 +26,20 @@ final class WuenscheModell {
     // Letzte Worte
     var moechteNochEtwasSagen: Bool
     var letzteBotschaft: String
+    var letzteBotschaftVideoName: String
+    @Attribute(.externalStorage) var letzteBotschaftVideoData: Data?
 
     // Nachruf
     var nachrufGewuenscht: Bool
     var nachrufText: String
     var nachrufBildDateiName: String
-    var nachrufBildData: Data?
+    @Attribute(.externalStorage) var nachrufBildData: Data?
 
     // Testament
     var testamentVorhanden: Bool
     var testamentAblageort: String
     var testamentDateiName: String
-    var testamentDateiData: Data?
+    @Attribute(.externalStorage) var testamentDateiData: Data?
     var testamentHochgeladenAm: Date?
     var testamentErinnerungAktiv: Bool
     var testamentErinnerungAm: Date?
@@ -45,7 +47,7 @@ final class WuenscheModell {
     // Patientenverfügung
     var patientenverfuegungVorhanden: Bool
     var patientenverfuegungDateiName: String
-    var patientenverfuegungDateiData: Data?
+    @Attribute(.externalStorage) var patientenverfuegungDateiData: Data?
     var patientenverfuegungHochgeladenAm: Date?
     var patientenverfuegungErinnerungAktiv: Bool
     var patientenverfuegungErinnerungAm: Date?
@@ -53,7 +55,7 @@ final class WuenscheModell {
     // Vorsorgeauftrag
     var vorsorgeauftragVorhanden: Bool
     var vorsorgeauftragDateiName: String
-    var vorsorgeauftragDateiData: Data?
+    @Attribute(.externalStorage) var vorsorgeauftragDateiData: Data?
     var vorsorgeauftragHochgeladenAm: Date?
     var vorsorgeauftragErinnerungAktiv: Bool
     var vorsorgeauftragErinnerungAm: Date?
@@ -61,7 +63,7 @@ final class WuenscheModell {
     // Sterbebegleitung
     var sterbebegleitungGewuenscht: Bool
     var sterbebegleitungDateiName: String
-    var sterbebegleitungDateiData: Data?
+    @Attribute(.externalStorage) var sterbebegleitungDateiData: Data?
     var sterbebegleitungHochgeladenAm: Date?
     var sterbebegleitungErinnerungAktiv: Bool
     var sterbebegleitungErinnerungAm: Date?
@@ -86,6 +88,8 @@ final class WuenscheModell {
         zeremonieFinanziellAbgesichert: Bool = false,
         moechteNochEtwasSagen: Bool = false,
         letzteBotschaft: String = "",
+        letzteBotschaftVideoName: String = "",
+        letzteBotschaftVideoData: Data? = nil,
         nachrufGewuenscht: Bool = false,
         nachrufText: String = "",
         nachrufBildDateiName: String = "",
@@ -133,6 +137,8 @@ final class WuenscheModell {
         self.zeremonieFinanziellAbgesichert = zeremonieFinanziellAbgesichert
         self.moechteNochEtwasSagen = moechteNochEtwasSagen
         self.letzteBotschaft = letzteBotschaft
+        self.letzteBotschaftVideoName = letzteBotschaftVideoName
+        self.letzteBotschaftVideoData = letzteBotschaftVideoData
         self.nachrufGewuenscht = nachrufGewuenscht
         self.nachrufText = nachrufText
         self.nachrufBildDateiName = nachrufBildDateiName

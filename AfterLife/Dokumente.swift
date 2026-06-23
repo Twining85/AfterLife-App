@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 import QuickLook
 import PhotosUI
 import UIKit
+import PDFKit
 
 struct DokumenteView: View {
     @Environment(\.modelContext) private var modelContext
@@ -18,236 +19,28 @@ struct DokumenteView: View {
     @State private var photoBundleURL: URL?
     @State private var showDocumentPicker = false
     @State private var selectedDocument: UploadedDocument?
+    @State private var exportURL: URL?
 
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    let dokumente = wuenscheDokumente
-
-                    if !wuenscheDokumenteEingeklappt {
-                        if dokumente.isEmpty {
-                            Text("Noch keine Dokumente vorhanden.")
-                                .foregroundStyle(.secondary)
-                        } else {
-                            ForEach(dokumente) { document in
-                                readOnlyDocumentRow(document) {
-                                    if let previewURL = previewURL(for: document) {
-                                        selectedDocument = UploadedDocument(
-                                            fileName: document.fileName,
-                                            uploadDate: document.uploadDate ?? Date(),
-                                            fileURL: previewURL
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } header: {
-                    Button {
-                        withAnimation {
-                            wuenscheDokumenteEingeklappt.toggle()
-                        }
-                    } label: {
-                        HStack {
-                            Text("Dokumente - Meine Wünsche")
-                            Spacer()
-                            Text("\(wuenscheDokumente.count)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Image(systemName: wuenscheDokumenteEingeklappt ? "chevron.right" : "chevron.down")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                Section {
-                    let dokumente = finanzDokumente
-
-                    if !finanzenDokumenteEingeklappt {
-                        if dokumente.isEmpty {
-                            Text("Noch keine Dokumente vorhanden.")
-                                .foregroundStyle(.secondary)
-                        } else {
-                            ForEach(dokumente) { document in
-                                readOnlyDocumentRow(document) {
-                                    if let previewURL = previewURL(for: document) {
-                                        selectedDocument = UploadedDocument(
-                                            fileName: document.fileName,
-                                            uploadDate: document.uploadDate ?? Date(),
-                                            fileURL: previewURL
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } header: {
-                    Button {
-                        withAnimation {
-                            finanzenDokumenteEingeklappt.toggle()
-                        }
-                    } label: {
-                        HStack {
-                            Text("Dokumente - Finanzen")
-                            Spacer()
-                            Text("\(finanzDokumente.count)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Image(systemName: finanzenDokumenteEingeklappt ? "chevron.right" : "chevron.down")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                Section {
-                    if gespeicherteFotos.isEmpty {
-                        Text("Noch keine Fotos zugeordnet.")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        VStack(spacing: 8) {
-                            TabView(selection: $selectedPhotoID) {
-                                ForEach(Array(gespeicherteFotos.enumerated()), id: \.element.id) { _, photo in
-                                    ZStack(alignment: .topTrailing) {
-                                        if let image = UIImage(data: photo.bildDaten) {
-                                            imageCarouselItem(image: image, photo: photo)
-                                        } else {
-                                            RoundedRectangle(cornerRadius: 16)
-                                                .fill(.gray.opacity(0.15))
-                                                .frame(maxWidth: .infinity)
-                                                .frame(height: 260)
-                                                .overlay {
-                                                    Label("Foto kann nicht geladen werden", systemImage: "exclamationmark.triangle")
-                                                        .font(.caption)
-                                                        .foregroundStyle(.secondary)
-                                                }
-                                                .overlay(alignment: .topTrailing) {
-                                                    deletePhotoButton(for: photo)
-                                                        .padding(8)
-                                                }
-                                                .padding(.horizontal, 4)
-                                        }
-                                    }
-                                    .tag(photo.id)
-                                }
-                            }
-                            .tabViewStyle(.page(indexDisplayMode: .never))
-                            .frame(height: 260)
-
-                            if gespeicherteFotos.count > 1 {
-                                carouselDots
-                            }
-                        }
-                        .frame(height: gespeicherteFotos.count > 1 ? 294 : 260)
-                        .onAppear {
-                            if selectedPhotoID == nil {
-                                selectedPhotoID = gespeicherteFotos.first?.id
-                            }
-                        }
-                        .onChange(of: gespeicherteFotos.map(\.id)) { _, neueIDs in
-                            if selectedPhotoID == nil || !neueIDs.contains(where: { $0 == selectedPhotoID }) {
-                                selectedPhotoID = neueIDs.first
-                            }
-                        }
-
-                        HStack {
-                            Text("\(gespeicherteFotos.count) Foto\(gespeicherteFotos.count == 1 ? "" : "s") ausgewählt")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-
-                            Spacer()
-
-                            if let photoBundleURL {
-                                ShareLink(item: photoBundleURL) {
-                                    Label("Album teilen", systemImage: "square.and.arrow.up")
-                                }
-                                .font(.caption)
-                            } else {
-                                Button {
-                                    photoBundleURL = erstelleFotoBundle()
-                                } label: {
-                                    Label("Album bereitstellen", systemImage: "tray.and.arrow.down")
-                                }
-                                .font(.caption)
-                            }
-                        }
-
-                        Button(role: .destructive) {
-                            for photo in gespeicherteFotos {
-                                modelContext.delete(photo)
-                            }
-                            photoBundleURL = nil
-                            try? modelContext.save()
-                        } label: {
-                            Label("Fotoalbum leeren", systemImage: "trash")
-                        }
-                        .font(.caption)
-                    }
-                } header: {
-                    HStack {
-                        Text("Mein persönliches Fotoalbum")
-
-                        Spacer()
-
-                        PhotosPicker(
-                            selection: $selectedPhotoItems,
-                            maxSelectionCount: 20,
-                            matching: .images
-                        ) {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.title3)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-
-                Section {
-                    let dokumente = weitereDokumente
-
-                    if dokumente.isEmpty {
-                        Text("Noch keine weiteren Dokumente hochgeladen.")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(dokumente) { document in
-                            readOnlyDocumentRow(document) {
-                                if let previewURL = previewURL(for: document) {
-                                    selectedDocument = UploadedDocument(
-                                        fileName: document.fileName,
-                                        uploadDate: document.uploadDate ?? Date(),
-                                        fileURL: previewURL
-                                    )
-                                }
-                            }
-                        }
-                        .onDelete { indexSet in
-                            for index in indexSet {
-                                let dokument = gespeicherteWeitereDokumente[index]
-                                modelContext.delete(dokument)
-                            }
-                            try? modelContext.save()
-                        }
-                    }
-                } header: {
-                    HStack {
-                        Text("Weitere Dokumente hochladen")
-
-                        Spacer()
-
-                        Button {
-                            showDocumentPicker = true
-                        } label: {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.title3)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
+                wuenscheDokumenteSection
+                finanzenDokumenteSection
+                fotoalbumSection
+                weitereDokumenteSection
             }
             .navigationTitle("Dokumente")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        exportiereDokumenteUndOeffneVorschau()
+                    } label: {
+                        Image(systemName: "doc.richtext")
+                    }
+                    .disabled(alleExportierbarenDokumente.isEmpty)
+                    .accessibilityLabel("Dokumente als PDF exportieren")
+                }
+            }
             .sheet(isPresented: $showDocumentPicker) {
                 DocumentPicker { urls in
                     for url in urls {
@@ -274,6 +67,14 @@ struct DokumenteView: View {
             .sheet(item: $selectedDocument) { document in
                 DocumentPreview(url: document.fileURL)
             }
+            .sheet(isPresented: Binding(
+                get: { exportURL != nil },
+                set: { if !$0 { exportURL = nil } }
+            )) {
+                if let exportURL {
+                    ShareSheet(activityItems: [exportURL])
+                }
+            }
             .onChange(of: selectedPhotoItems) { _, newItems in
                 Task {
                     await fotosAusMediathekLaden(newItems)
@@ -282,6 +83,237 @@ struct DokumenteView: View {
         }
     }
 
+    private var wuenscheDokumenteSection: some View {
+        Section {
+            if !wuenscheDokumenteEingeklappt {
+                dokumenteListe(wuenscheDokumente)
+            }
+        } header: {
+            einklappHeader(
+                titel: "Dokumente - Meine Wünsche",
+                anzahl: wuenscheDokumente.count,
+                eingeklappt: wuenscheDokumenteEingeklappt
+            ) {
+                withAnimation {
+                    wuenscheDokumenteEingeklappt.toggle()
+                }
+            }
+        }
+    }
+
+    private var finanzenDokumenteSection: some View {
+        Section {
+            if !finanzenDokumenteEingeklappt {
+                dokumenteListe(finanzDokumente)
+            }
+        } header: {
+            einklappHeader(
+                titel: "Dokumente - Finanzen",
+                anzahl: finanzDokumente.count,
+                eingeklappt: finanzenDokumenteEingeklappt
+            ) {
+                withAnimation {
+                    finanzenDokumenteEingeklappt.toggle()
+                }
+            }
+        }
+    }
+
+    private var fotoalbumSection: some View {
+        Section {
+            if gespeicherteFotos.isEmpty {
+                Text("Noch keine Fotos zugeordnet.")
+                    .foregroundStyle(.secondary)
+            } else {
+                fotoalbumInhalt
+            }
+        } header: {
+            HStack {
+                Text("Mein persönliches Fotoalbum")
+
+                Spacer()
+
+                PhotosPicker(
+                    selection: $selectedPhotoItems,
+                    maxSelectionCount: 20,
+                    matching: .images
+                ) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title3)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var weitereDokumenteSection: some View {
+        Section {
+            if weitereDokumente.isEmpty {
+                Text("Noch keine Dokumente vorhanden.")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(Array(weitereDokumente.enumerated()), id: \.element.id) { index, document in
+                    readOnlyDocumentRow(document) {
+                        if let previewURL = previewURL(for: document) {
+                            selectedDocument = UploadedDocument(
+                                fileName: document.fileName,
+                                uploadDate: document.uploadDate ?? Date(),
+                                fileURL: previewURL
+                            )
+                        }
+                    }
+                }
+                .onDelete { indexSet in
+                    for index in indexSet {
+                        let dokument = gespeicherteWeitereDokumente[index]
+                        modelContext.delete(dokument)
+                    }
+                    try? modelContext.save()
+                }
+            }
+        } header: {
+            HStack {
+                Text("Weitere Dokumente hochladen")
+
+                Spacer()
+
+                Button {
+                    showDocumentPicker = true
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title3)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var fotoalbumInhalt: some View {
+        VStack(spacing: 12) {
+            VStack(spacing: 8) {
+                TabView(selection: $selectedPhotoID) {
+                    ForEach(Array(gespeicherteFotos.enumerated()), id: \.element.id) { _, photo in
+                        ZStack(alignment: .topTrailing) {
+                            if let image = UIImage(data: photo.bildDaten) {
+                                imageCarouselItem(image: image, photo: photo)
+                            } else {
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(.gray.opacity(0.15))
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 260)
+                                    .overlay {
+                                        Label("Foto kann nicht geladen werden", systemImage: "exclamationmark.triangle")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .overlay(alignment: .topTrailing) {
+                                        deletePhotoButton(for: photo)
+                                            .padding(8)
+                                    }
+                                    .padding(.horizontal, 4)
+                            }
+                        }
+                        .tag(photo.id)
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .frame(height: 260)
+
+                if gespeicherteFotos.count > 1 {
+                    carouselDots
+                }
+            }
+            .frame(height: gespeicherteFotos.count > 1 ? 294 : 260)
+            .onAppear {
+                if selectedPhotoID == nil {
+                    selectedPhotoID = gespeicherteFotos.first?.id
+                }
+            }
+            .onChange(of: gespeicherteFotos.map(\.id)) { _, neueIDs in
+                if selectedPhotoID == nil || !neueIDs.contains(where: { $0 == selectedPhotoID }) {
+                    selectedPhotoID = neueIDs.first
+                }
+            }
+
+            HStack {
+                Text("\(gespeicherteFotos.count) Foto\(gespeicherteFotos.count == 1 ? "" : "s") ausgewählt")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                if let photoBundleURL {
+                    ShareLink(item: photoBundleURL) {
+                        Label("Album teilen", systemImage: "square.and.arrow.up")
+                    }
+                    .font(.caption)
+                } else {
+                    Button {
+                        photoBundleURL = erstelleFotoBundle()
+                    } label: {
+                        Label("Album bereitstellen", systemImage: "tray.and.arrow.down")
+                    }
+                    .font(.caption)
+                }
+            }
+
+            Button(role: .destructive) {
+                for photo in gespeicherteFotos {
+                    modelContext.delete(photo)
+                }
+                photoBundleURL = nil
+                try? modelContext.save()
+            } label: {
+                Label("Fotoalbum leeren", systemImage: "trash")
+            }
+            .font(.caption)
+        }
+    }
+
+    @ViewBuilder
+    private func dokumenteListe(_ dokumente: [ReadOnlyDocument]) -> some View {
+        if dokumente.isEmpty {
+            Text("Noch keine Dokumente vorhanden.")
+                .foregroundStyle(.secondary)
+        } else {
+            ForEach(dokumente) { document in
+                readOnlyDocumentRow(document) {
+                    if let previewURL = previewURL(for: document) {
+                        selectedDocument = UploadedDocument(
+                            fileName: document.fileName,
+                            uploadDate: document.uploadDate ?? Date(),
+                            fileURL: previewURL
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private func einklappHeader(
+        titel: String,
+        anzahl: Int,
+        eingeklappt: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(titel)
+                Spacer()
+                Text("\(anzahl)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Image(systemName: eingeklappt ? "chevron.right" : "chevron.down")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var alleExportierbarenDokumente: [ReadOnlyDocument] {
+        wuenscheDokumente + finanzDokumente + weitereDokumente
+    }
 
     private var weitereDokumente: [ReadOnlyDocument] {
         gespeicherteWeitereDokumente
@@ -520,6 +552,172 @@ struct DokumenteView: View {
         }
     }
 
+    private func exportiereDokumenteUndOeffneVorschau() {
+        guard let pdfURL = erstelleDokumenteExportPDF() else {
+            print("PDF Export fehlgeschlagen")
+            return
+        }
+
+        guard FileManager.default.fileExists(atPath: pdfURL.path) else {
+            print("PDF Datei wurde nicht erstellt: \(pdfURL.path)")
+            return
+        }
+
+        print("PDF erstellt: \(pdfURL.path)")
+
+        exportURL = pdfURL
+    }
+
+    private func erstelleDokumenteExportPDF() -> URL? {
+        let dokumente = alleExportierbarenDokumente
+        guard !dokumente.isEmpty else { return nil }
+
+        let exportURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("AfterLife_Dokumente_Export_\(UUID().uuidString).pdf")
+
+        let pageRect = CGRect(x: 0, y: 0, width: 595.2, height: 841.8)
+        let renderer = UIGraphicsPDFRenderer(bounds: pageRect)
+
+        do {
+            try renderer.writePDF(to: exportURL) { context in
+                var yPosition: CGFloat = 48
+                let leftMargin: CGFloat = 44
+                let contentWidth: CGFloat = pageRect.width - 88
+
+                context.beginPage()
+                yPosition = drawPDFText(
+                    "AfterLife Dokumentenexport",
+                    at: CGPoint(x: leftMargin, y: yPosition),
+                    width: contentWidth,
+                    font: .boldSystemFont(ofSize: 22),
+                    color: .label
+                ) + 16
+
+                yPosition = drawPDFText(
+                    "Erstellt am \(Date().formatted(date: .abbreviated, time: .shortened))",
+                    at: CGPoint(x: leftMargin, y: yPosition),
+                    width: contentWidth,
+                    font: .systemFont(ofSize: 11),
+                    color: .secondaryLabel
+                ) + 28
+
+                for dokument in dokumente {
+                    if yPosition > pageRect.height - 150 {
+                        context.beginPage()
+                        yPosition = 48
+                    }
+
+                    yPosition = drawPDFText(
+                        dokument.title,
+                        at: CGPoint(x: leftMargin, y: yPosition),
+                        width: contentWidth,
+                        font: .boldSystemFont(ofSize: 16),
+                        color: .label
+                    ) + 4
+
+                    yPosition = drawPDFText(
+                        dokument.fileName,
+                        at: CGPoint(x: leftMargin, y: yPosition),
+                        width: contentWidth,
+                        font: .systemFont(ofSize: 11),
+                        color: .secondaryLabel
+                    ) + 10
+
+                    yPosition = drawDocumentPreview(
+                        dokument,
+                        pageRect: pageRect,
+                        startY: yPosition,
+                        leftMargin: leftMargin,
+                        contentWidth: contentWidth
+                    ) + 24
+                }
+            }
+
+            return exportURL
+        } catch {
+            print("PDF Fehler: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    private func drawDocumentPreview(
+        _ dokument: ReadOnlyDocument,
+        pageRect: CGRect,
+        startY: CGFloat,
+        leftMargin: CGFloat,
+        contentWidth: CGFloat
+    ) -> CGFloat {
+        guard let data = dokument.fileData ?? dokument.existingFileURL.flatMap({ try? Data(contentsOf: $0) }) else {
+            return drawPDFText(
+                "Inhalt konnte nicht eingebettet werden.",
+                at: CGPoint(x: leftMargin, y: startY),
+                width: contentWidth,
+                font: .systemFont(ofSize: 10),
+                color: .secondaryLabel
+            )
+        }
+
+        let maxHeight = pageRect.height - startY - 60
+
+        if let image = UIImage(data: data) {
+            let scale = min(contentWidth / image.size.width, maxHeight / image.size.height)
+            let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+            let rect = CGRect(x: leftMargin + (contentWidth - size.width) / 2, y: startY, width: size.width, height: size.height)
+            image.draw(in: rect)
+            return rect.maxY
+        }
+
+        if dokument.fileName.lowercased().hasSuffix(".pdf"),
+           let pdf = PDFDocument(data: data),
+           let page = pdf.page(at: 0),
+           let cgContext = UIGraphicsGetCurrentContext() {
+            let bounds = page.bounds(for: .mediaBox)
+            let scale = min(contentWidth / bounds.width, maxHeight / bounds.height)
+            let size = CGSize(width: bounds.width * scale, height: bounds.height * scale)
+            let rect = CGRect(x: leftMargin + (contentWidth - size.width) / 2, y: startY, width: size.width, height: size.height)
+
+            cgContext.saveGState()
+            cgContext.translateBy(x: rect.minX, y: rect.maxY)
+            cgContext.scaleBy(x: scale, y: -scale)
+            page.draw(with: .mediaBox, to: cgContext)
+            cgContext.restoreGState()
+
+            return rect.maxY
+        }
+
+        return drawPDFText(
+            "Datei ist im Export aufgeführt, kann aber nicht direkt dargestellt werden.",
+            at: CGPoint(x: leftMargin, y: startY),
+            width: contentWidth,
+            font: .systemFont(ofSize: 10),
+            color: .secondaryLabel
+        )
+    }
+
+    private func drawPDFText(
+        _ text: String,
+        at point: CGPoint,
+        width: CGFloat,
+        font: UIFont,
+        color: UIColor
+    ) -> CGFloat {
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: color
+        ]
+
+        let rect = text.boundingRect(
+            with: CGSize(width: width, height: 500),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: attributes,
+            context: nil
+        )
+
+        let drawRect = CGRect(x: point.x, y: point.y, width: width, height: ceil(rect.height))
+        text.draw(in: drawRect, withAttributes: attributes)
+        return drawRect.maxY
+    }
+
     // Erstellt einen temporären Ordner mit allen Fotos.
     // FileManager besitzt keine native zipItem-Funktion.
     // Für echtes ZIP-Exportieren müsste zusätzlich ZIPFoundation eingebunden werden.
@@ -550,6 +748,9 @@ struct UploadedDocument: Identifiable {
     var uploadDate: Date
     var fileURL: URL
 }
+
+
+
 
 struct ReadOnlyDocument: Identifiable {
     let id = UUID()
@@ -634,10 +835,14 @@ struct DocumentPreview: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> QLPreviewController {
         let controller = QLPreviewController()
         controller.dataSource = context.coordinator
+        controller.currentPreviewItemIndex = 0
         return controller
     }
 
-    func updateUIViewController(_ uiViewController: QLPreviewController, context: Context) {}
+    func updateUIViewController(_ uiViewController: QLPreviewController, context: Context) {
+        uiViewController.dataSource = context.coordinator
+        uiViewController.reloadData()
+    }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(url: url)
@@ -659,3 +864,4 @@ struct DocumentPreview: UIViewControllerRepresentable {
         }
     }
 }
+

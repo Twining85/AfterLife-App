@@ -31,6 +31,9 @@ struct WuenscheView: View {
 
     @State private var moechteNochWasSagen = false
     @State private var letzteWorteText = ""
+    @State private var letzteWorteVideoAuswahl: PhotosPickerItem?
+    @State private var letzteWorteVideoData: Data?
+    @State private var letzteWorteVideoName: String?
 
     @State private var nachrufVorstellung = false
     @State private var nachrufText = ""
@@ -122,6 +125,8 @@ struct WuenscheView: View {
             String(zeremonieFinanziellAbgesichert),
             String(moechteNochWasSagen),
             letzteWorteText,
+            letzteWorteVideoName ?? "",
+            letzteWorteVideoData?.count.description ?? "",
             String(nachrufVorstellung),
             nachrufText,
             nachrufBildData?.base64EncodedString() ?? "",
@@ -193,6 +198,19 @@ struct WuenscheView: View {
                     if let data = try? await neueAuswahl?.loadTransferable(type: Data.self) {
                         await MainActor.run {
                             nachrufBildData = data
+                            speichereWuensche()
+                        }
+                    }
+                }
+            }
+            .onChange(of: letzteWorteVideoAuswahl) { _, neueAuswahl in
+                Task {
+                    guard let neueAuswahl else { return }
+
+                    if let data = try? await neueAuswahl.loadTransferable(type: Data.self) {
+                        await MainActor.run {
+                            letzteWorteVideoData = data
+                            letzteWorteVideoName = "Persönliche Botschaft.mov"
                             speichereWuensche()
                         }
                     }
@@ -295,6 +313,58 @@ struct WuenscheView: View {
                 DetailBox {
                     TextField("Was möchtest du noch sagen?", text: $letzteWorteText, axis: .vertical)
                         .lineLimit(3...8)
+
+                    Divider()
+
+                    VStack(spacing: 12) {
+                        if let letzteWorteVideoName {
+                            HStack(spacing: 10) {
+                                Image(systemName: "video.fill")
+                                    .foregroundStyle(.secondary)
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(letzteWorteVideoName)
+                                        .font(.footnote)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+
+                                    Text("Video zur persönlichen Botschaft hochgeladen")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Spacer()
+                            }
+                            .padding(12)
+                            .background(Color(.systemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        } else {
+                            Image(systemName: "video.badge.plus")
+                                .font(.system(size: 44))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        PhotosPicker(
+                            selection: $letzteWorteVideoAuswahl,
+                            matching: .videos,
+                            photoLibrary: .shared()
+                        ) {
+                            Label(letzteWorteVideoData == nil ? "Video hochladen" : "Video ändern", systemImage: "video.badge.plus")
+                        }
+                        .buttonStyle(.borderless)
+
+                        if letzteWorteVideoData != nil {
+                            Button(role: .destructive) {
+                                letzteWorteVideoEntfernen()
+                            } label: {
+                                Label("Video entfernen", systemImage: "trash")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.borderless)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
                 }
             }
 
@@ -584,6 +654,8 @@ struct WuenscheView: View {
 
             moechteNochWasSagen = vorhandeneWuensche.moechteNochEtwasSagen
             letzteWorteText = vorhandeneWuensche.letzteBotschaft
+            letzteWorteVideoName = vorhandeneWuensche.letzteBotschaftVideoName.isEmpty ? nil : vorhandeneWuensche.letzteBotschaftVideoName
+            letzteWorteVideoData = vorhandeneWuensche.letzteBotschaftVideoData
 
             nachrufVorstellung = vorhandeneWuensche.nachrufGewuenscht
             nachrufText = vorhandeneWuensche.nachrufText
@@ -663,6 +735,8 @@ struct WuenscheView: View {
         wuensche.zeremonieFinanziellAbgesichert = zeremonieFinanziellAbgesichert
         wuensche.moechteNochEtwasSagen = moechteNochWasSagen
         wuensche.letzteBotschaft = letzteWorteText
+        wuensche.letzteBotschaftVideoName = letzteWorteVideoName ?? ""
+        wuensche.letzteBotschaftVideoData = letzteWorteVideoData
         wuensche.nachrufGewuenscht = nachrufVorstellung
         wuensche.nachrufText = nachrufText
         wuensche.nachrufBildData = nachrufBildData
@@ -965,23 +1039,22 @@ struct WuenscheView: View {
         speichereWuensche()
     }
 
+    private func letzteWorteVideoEntfernen() {
+        letzteWorteVideoData = nil
+        letzteWorteVideoName = nil
+        letzteWorteVideoAuswahl = nil
+        speichereWuensche()
+    }
+
     private func dokumentVorschauAnzeigen(_ url: URL?, dateiName: String?, dateiData: Data?) {
         if let url {
-            dokumentVorschauURL = nil
-            DispatchQueue.main.async {
-                dokumentVorschauURL = url
-            }
+            dokumentVorschauURL = url
             return
         }
-
         guard let dateiName,
               let dateiData,
               let tempURL = temporaereDateiURL(dateiName: dateiName, dateiData: dateiData) else { return }
-
-        dokumentVorschauURL = nil
-        DispatchQueue.main.async {
-            dokumentVorschauURL = tempURL
-        }
+        dokumentVorschauURL = tempURL
     }
 
     private func temporaereDateiURL(dateiName: String, dateiData: Data) -> URL? {
