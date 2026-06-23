@@ -32,8 +32,8 @@ export default async function handler(req, res) {
           STRID: 0,
           StreetName: streetname,
           HouseKey: 0,
-            HouseNo: houseno,
-            HouseNoAddition: ""
+            HouseNumber: houseno,
+            HouseNumberAddition: ""
         },
         zipOrderMode: 0,
         zipFilterMode: 0
