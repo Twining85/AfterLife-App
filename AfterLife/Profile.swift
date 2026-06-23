@@ -32,6 +32,7 @@ struct ProfilView: View {
     @State private var adressVorschlaege: [PostAdressVorschlag] = []
     @State private var adressSucheLaeuft = false
     @State private var adressVorschlagWurdeGewaehlt = false
+    @State private var adresseManuellBearbeitet = false
 
     @State private var plz = ""
 
@@ -197,6 +198,10 @@ struct ProfilView: View {
 
                     TextField("Strasse", text: $adresse)
                         .textContentType(.streetAddressLine1)
+                        .onChange(of: adresse) { _, _ in
+                            guard profilGeladen else { return }
+                            adresseManuellBearbeitet = true
+                        }
 
                     if adressSucheLaeuft {
                         HStack(spacing: 8) {
@@ -526,10 +531,20 @@ struct ProfilView: View {
             .onChange(of: telefon) { _, _ in speichereProfil() }
             .onChange(of: email) { _, _ in speichereProfil() }
             .onChange(of: adresse) { _, neueAdresse in
-                guard land == "Schweiz" else { return }
+                guard land == "Schweiz" else {
+                    adressVorschlaege = []
+                    adresseManuellBearbeitet = false
+                    return
+                }
 
                 if adressVorschlagWurdeGewaehlt {
                     adressVorschlagWurdeGewaehlt = false
+                    adresseManuellBearbeitet = false
+                    adressVorschlaege = []
+                    return
+                }
+
+                guard adresseManuellBearbeitet else {
                     adressVorschlaege = []
                     return
                 }
@@ -543,6 +558,8 @@ struct ProfilView: View {
 
                 Task {
                     try? await Task.sleep(nanoseconds: 350_000_000)
+
+                    guard adresseManuellBearbeitet else { return }
 
                     guard bereinigteAdresse == adresse.trimmingCharacters(in: .whitespacesAndNewlines) else {
                         return
@@ -585,6 +602,7 @@ struct ProfilView: View {
 
     private func ladeOderErstelleProfil() {
         guard !profilGeladen else { return }
+        adresseManuellBearbeitet = false
 
         if let vorhandenesProfil = gespeicherteProfile.first {
             vorname = vorhandenesProfil.vorname
@@ -618,6 +636,7 @@ struct ProfilView: View {
         }
 
         profilGeladen = true
+        adresseManuellBearbeitet = false
     }
 
     private func speichereProfil() {
@@ -854,6 +873,7 @@ struct ProfilView: View {
             guard let verifizierteAdresse = antwort.verifizierteAdresse else { return }
 
             adressVorschlagWurdeGewaehlt = true
+            adresseManuellBearbeitet = false
             adresse = verifizierteAdresse.streetName
             hausnummer = verifizierteAdresse.vollstaendigeHausnummer
             plz = verifizierteAdresse.zipCode
@@ -911,6 +931,7 @@ struct ProfilView: View {
         adressVorschlaege = []
         adressSucheLaeuft = false
         adressVorschlagWurdeGewaehlt = false
+        adresseManuellBearbeitet = false
         plz = ""
         stadt = ""
 
