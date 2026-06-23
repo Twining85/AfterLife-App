@@ -40,7 +40,8 @@ export default async function handler(req, res) {
     });
 
     const data = await response.text();
-    return res.status(response.status).send(data);
+      console.log(data);
+      return res.status(response.status).send(data);
   } catch (error) {
     return res.status(500).json({
       error: "Autocomplete Proxy Fehler",
