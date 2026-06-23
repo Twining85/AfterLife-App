@@ -1,7 +1,7 @@
 export default async function handler(req, res) {
   try {
-    const streetname = req.query.streetname;const streetname = req.query.streetname;
-      const houseno = req.query.houseno || "";
+    const streetname = req.query.streetname;
+    const houseno = req.query.houseno || "";
 
     if (!streetname) {
       return res.status(400).json({ error: "streetname fehlt" });
@@ -16,17 +16,16 @@ export default async function handler(req, res) {
 
     const auth = Buffer.from(`${username}:${password}`).toString("base64");
 
-    const response = await
-      res.setHeader("Cache-Control", "no-store, max-age=0");
+    res.setHeader("Cache-Control", "no-store, max-age=0");
 
-      const response = await fetch("https://webservices.post.ch:17023/IN_SYNSYN_EXT/REST/v1/autocomplete4", {
-        method: "POST",
-        cache: "no-store",
-        headers: {
-          Authorization: `Basic ${auth}`,
-          Accept: "application/json",
-          "Content-Type": "application/json"
-        },
+    const response = await fetch("https://webservices.post.ch:17023/IN_SYNSYN_EXT/REST/v1/autocomplete4", {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        Authorization: `Basic ${auth}`,
+        Accept: "application/json",
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify({
         request: {
           ONRP: 0,
@@ -36,8 +35,8 @@ export default async function handler(req, res) {
           STRID: 0,
           StreetName: streetname,
           HouseKey: 0,
-            HouseNumber: houseno,
-            HouseNumberAddition: ""
+          HouseNo: houseno,
+          HouseNoAddition: ""
         },
         zipOrderMode: 0,
         zipFilterMode: 0
@@ -45,8 +44,9 @@ export default async function handler(req, res) {
     });
 
     const data = await response.text();
-      console.log(data);
-      return res.status(response.status).send(data);
+    console.log(data);
+
+    return res.status(response.status).send(data);
   } catch (error) {
     return res.status(500).json({
       error: "Autocomplete Proxy Fehler",
