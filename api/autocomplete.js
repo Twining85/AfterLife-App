@@ -16,13 +16,17 @@ export default async function handler(req, res) {
 
     const auth = Buffer.from(`${username}:${password}`).toString("base64");
 
-    const response = await fetch("https://webservices.post.ch:17023/IN_SYNSYN_EXT/REST/v1/autocomplete4", {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${auth}`,
-        Accept: "application/json",
-        "Content-Type": "application/json"
-      },
+    const response = await
+      res.setHeader("Cache-Control", "no-store, max-age=0");
+
+      const response = await fetch("https://webservices.post.ch:17023/IN_SYNSYN_EXT/REST/v1/autocomplete4", {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          Authorization: `Basic ${auth}`,
+          Accept: "application/json",
+          "Content-Type": "application/json"
+        },
       body: JSON.stringify({
         request: {
           ONRP: 0,
