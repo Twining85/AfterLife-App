@@ -106,7 +106,7 @@ struct AbosView: View {
                 NavigationStack {
                     Form {
                         Section("Typ") {
-                            Picker("Art des Abos bzw. Profils", selection: $selectedAboType) {
+                            styledPicker("Art des Abos bzw. Profils", selection: $selectedAboType) {
                                 ForEach(AboType.allCases) { type in
                                     Text(type.rawValue).tag(type)
                                 }
@@ -115,7 +115,7 @@ struct AbosView: View {
 
                         if selectedAboType == .streaming {
                             Section("Streamingdienst") {
-                                Picker("Anbieter", selection: $selectedStreamingProvider) {
+                                styledPicker("Anbieter", selection: $selectedStreamingProvider) {
                                     ForEach(StreamingProvider.allCases) { provider in
                                         Text(provider.rawValue).tag(provider)
                                     }
@@ -129,7 +129,7 @@ struct AbosView: View {
 
                         if selectedAboType == .socialMedia {
                             Section("Social Media") {
-                                Picker("Plattform", selection: $selectedSocialMediaProvider) {
+                                styledPicker("Plattform", selection: $selectedSocialMediaProvider) {
                                     ForEach(SocialMediaProvider.allCases) { provider in
                                         Text(provider.rawValue).tag(provider)
                                     }
@@ -143,7 +143,7 @@ struct AbosView: View {
 
                         if selectedAboType == .digitalIdentity {
                             Section("Digitale Identität") {
-                                Picker("Anbieter", selection: $selectedDigitalIdentityProvider) {
+                                styledPicker("Anbieter", selection: $selectedDigitalIdentityProvider) {
                                     ForEach(DigitalIdentityProvider.allCases) { provider in
                                         Text(provider.rawValue).tag(provider)
                                     }
@@ -157,7 +157,7 @@ struct AbosView: View {
 
                         if selectedAboType == .emailAccount {
                             Section("E-Mail-Konto") {
-                                Picker("Anbieter", selection: $selectedEmailProvider) {
+                                styledPicker("Anbieter", selection: $selectedEmailProvider) {
                                     ForEach(EmailProvider.allCases) { provider in
                                         Text(provider.rawValue).tag(provider)
                                     }
@@ -177,14 +177,14 @@ struct AbosView: View {
 
                         if selectedAboType == .publicTransport {
                             Section("Öffentlicher Verkehr") {
-                                Picker("Art des Abos", selection: $publicTransportType) {
+                                styledPicker("Art des Abos", selection: $publicTransportType) {
                                     ForEach(PublicTransportAboType.allCases) { type in
                                         Text(type.rawValue).tag(type)
                                     }
                                 }
 
                                 if publicTransportType != .pleaseSelect {
-                                    Picker("Unternehmen", selection: $publicTransportCompany) {
+                                    styledPicker("Unternehmen", selection: $publicTransportCompany) {
                                         ForEach(PublicTransportCompany.allCases) { company in
                                             Text(company.rawValue).tag(company)
                                         }
@@ -201,7 +201,7 @@ struct AbosView: View {
 
                         if selectedAboType == .devices {
                             Section("Meine Geräte") {
-                                Picker("Geräteart", selection: $selectedDeviceType) {
+                                styledPicker("Geräteart", selection: $selectedDeviceType) {
                                     ForEach(DeviceType.allCases) { type in
                                         Text(type.rawValue).tag(type)
                                     }
@@ -377,10 +377,8 @@ struct AbosView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 3)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
         .contentShape(Rectangle())
         .onTapGesture {
             oeffneAboZumBearbeiten(abo)
@@ -655,6 +653,18 @@ struct AbosView: View {
             TextField(title, text: text)
                 .keyboardType(keyboardType)
         }
+    }
+
+    @ViewBuilder
+    private func styledPicker<SelectionValue: Hashable, Content: View>(
+        _ title: String,
+        selection: Binding<SelectionValue>,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        Picker(title, selection: selection) {
+            content()
+        }
+        .pickerStyle(.menu)
     }
 
     private var alleAboEintraege: [AboEintrag] {
