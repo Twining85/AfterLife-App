@@ -1,6 +1,7 @@
 export default async function handler(req, res) {
   try {
-    const streetname = req.query.streetname;
+    const streetname = req.query.streetname;const streetname = req.query.streetname;
+      const houseno = req.query.houseno || "";
 
     if (!streetname) {
       return res.status(400).json({ error: "streetname fehlt" });
@@ -31,8 +32,8 @@ export default async function handler(req, res) {
           STRID: 0,
           StreetName: streetname,
           HouseKey: 0,
-          HouseNo: „42“,
-          HouseNoAddition: ""
+            HouseNo: houseno,
+            HouseNoAddition: ""
         },
         zipOrderMode: 0,
         zipFilterMode: 0
