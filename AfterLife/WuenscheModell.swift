@@ -74,6 +74,10 @@ final class WuenscheModell {
     var mirIstWichtig: String
     var regelmaessigBeurteilen: Bool
 
+    // Haustiere
+    var hatHaustiere: Bool = false
+    var haustiereData: Data? = nil
+
     init(
         hatWuensche: Bool = true,
         beisetzungsArt: String = "",
@@ -122,7 +126,9 @@ final class WuenscheModell {
         schwereErkrankungVorhanden: Bool = false,
         schwereErkrankungArt: String = "",
         mirIstWichtig: String = "",
-        regelmaessigBeurteilen: Bool = true
+        regelmaessigBeurteilen: Bool = true,
+        hatHaustiere: Bool = false,
+        haustiereData: Data? = nil
     ) {
         self.hatWuensche = hatWuensche
         self.beisetzungsArt = beisetzungsArt
@@ -172,5 +178,7 @@ final class WuenscheModell {
         self.schwereErkrankungArt = schwereErkrankungArt
         self.mirIstWichtig = mirIstWichtig
         self.regelmaessigBeurteilen = regelmaessigBeurteilen
+        self.hatHaustiere = hatHaustiere
+        self.haustiereData = haustiereData
     }
 }

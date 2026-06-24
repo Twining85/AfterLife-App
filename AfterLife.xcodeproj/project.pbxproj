@@ -29,9 +29,22 @@
 		93EB7C7B2FE2EA930082E303 /* AfterLifeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AfterLifeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		93BC64982FEBC4E600E90FC1 /* Exceptions for "AfterLife" folder in "AfterLife" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 93EB7C612FE2EA910082E303 /* AfterLife */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		93EB7C642FE2EA910082E303 /* AfterLife */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				93BC64982FEBC4E600E90FC1 /* Exceptions for "AfterLife" folder in "AfterLife" target */,
+			);
 			path = AfterLife;
 			sourceTree = "<group>";
 		};
@@ -408,6 +421,9 @@
 				DEVELOPMENT_TEAM = 9CG3FS7D56;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AfterLife/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "AfterLife verwendet Face ID, um dein Dossier sicher zu schützen.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -440,6 +456,9 @@
 				DEVELOPMENT_TEAM = 9CG3FS7D56;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AfterLife/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "AfterLife verwendet Face ID, um dein Dossier sicher zu schützen.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

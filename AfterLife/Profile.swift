@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import PhotosUI
 import UIKit
+import LocalAuthentication
 
 
 struct ProfilView: View {
@@ -94,6 +95,8 @@ struct ProfilView: View {
     @State private var dossierPDF: ExportiertesDossier?
     @State private var passwortExportAuswahlAnzeigen = false
     @State private var profilGeladen = false
+    @State private var biometriePruefungLaeuft = false
+    @State private var biometrieFehlermeldung = ""
 
 
 
@@ -377,7 +380,36 @@ struct ProfilView: View {
 
                     Divider()
 
-                    Toggle("Biometrische Anmeldung verwenden", isOn: $biometrieAktiviert)
+                    Toggle("Biometrische Anmeldung verwenden", isOn: Binding(
+                        get: {
+                            biometrieAktiviert
+                        },
+                        set: { neuerWert in
+                            if neuerWert {
+                                pruefeUndAktiviereBiometrie()
+                            } else {
+                                biometrieAktiviert = false
+                                biometrieFehlermeldung = ""
+                                speichereProfil()
+                            }
+                        }
+                    ))
+                    .disabled(biometriePruefungLaeuft)
+
+                    if biometriePruefungLaeuft {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                            Text("Face ID wird geprüft …")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    if !biometrieFehlermeldung.isEmpty {
+                        Text(biometrieFehlermeldung)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    }
 
                     Text("Wenn aktiviert, kann die App beim Öffnen Face ID oder Touch ID für die Anmeldung verwenden.")
                         .font(.footnote)
@@ -593,12 +625,62 @@ struct ProfilView: View {
                     }
                 }
             }
-            .onChange(of: biometrieAktiviert) { _, _ in speichereProfil() }
+        }
+    }
 
+    private func pruefeUndAktiviereBiometrie() {
+        guard !biometriePruefungLaeuft else { return }
+
+        biometriePruefungLaeuft = true
+        biometrieFehlermeldung = ""
+
+        let context = LAContext()
+        context.localizedCancelTitle = "Abbrechen"
+        var error: NSError?
+
+        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
+            biometriePruefungLaeuft = false
+            biometrieAktiviert = false
+            biometrieFehlermeldung = "Face ID oder Touch ID ist auf diesem Gerät nicht verfügbar oder noch nicht eingerichtet."
+            speichereProfil()
+            return
         }
 
-        
+        context.evaluatePolicy(
+            .deviceOwnerAuthenticationWithBiometrics,
+            localizedReason: "Bestätige, um die biometrische Anmeldung zu aktivieren."
+        ) { success, authenticationError in
+            DispatchQueue.main.async {
+                biometriePruefungLaeuft = false
 
+                if success {
+                    biometrieAktiviert = true
+                    biometrieFehlermeldung = ""
+                    speichereProfil()
+                    return
+                }
+
+                biometrieAktiviert = false
+                speichereProfil()
+
+                if let laError = authenticationError as? LAError {
+                    switch laError.code {
+                    case .userCancel, .systemCancel, .appCancel:
+                        biometrieFehlermeldung = ""
+                    case .biometryLockout:
+                        biometrieFehlermeldung = "Face ID oder Touch ID ist vorübergehend gesperrt. Bitte entsperre dein Gerät und versuche es danach erneut."
+                    case .biometryNotAvailable:
+                        biometrieFehlermeldung = "Face ID oder Touch ID ist auf diesem Gerät nicht verfügbar."
+                    case .biometryNotEnrolled:
+                        biometrieFehlermeldung = "Face ID oder Touch ID ist auf diesem Gerät noch nicht eingerichtet."
+                    default:
+                        biometrieFehlermeldung = "Die biometrische Anmeldung konnte nicht bestätigt werden."
+                    }
+                } else {
+                    biometrieFehlermeldung = "Die biometrische Anmeldung konnte nicht bestätigt werden."
+                }
+            }
+        }
     }
 
     private func ladeOderErstelleProfil() {
@@ -1463,6 +1545,27 @@ struct ProfilView: View {
                             }
                         }
 
+                        drawSubsectionTitle("Haustiere")
+                        drawField("Ich habe Haustiere", wunsch.hatHaustiere ? "Ja" : "Nein")
+
+                        if wunsch.hatHaustiere,
+                           let haustiereData = wunsch.haustiereData,
+                           let haustiere = try? JSONDecoder().decode([PDFHaustierEintrag].self, from: haustiereData),
+                           !haustiere.isEmpty {
+                            for (haustierIndex, haustier) in haustiere.enumerated() {
+                                beginNewPageIfNeeded(minimumSpace: 110)
+                                let titel = haustier.anzeigename.isEmpty ? "Haustier \(haustierIndex + 1)" : haustier.anzeigename
+                                drawSubsectionTitle(titel)
+                                drawField("Art", haustier.art)
+                                drawFieldIfNotEmpty("Name", haustier.name)
+                                drawFieldIfNotEmpty("Tierarzt", haustier.tierarzt)
+                                drawFieldIfNotEmpty("Bemerkungen", haustier.bemerkungen)
+                                yPosition += 8
+                            }
+                        } else if wunsch.hatHaustiere {
+                            drawEmpty("Keine Haustiere erfasst.")
+                        }
+
                         drawSubsectionTitle("Letzte Worte")
                         drawField("Ich möchte noch etwas sagen", wunsch.moechteNochEtwasSagen ? "Ja" : "Nein")
                         drawField("Letzte Botschaft", wunsch.letzteBotschaft)
@@ -2210,18 +2313,29 @@ struct ExportiertesDossier: Identifiable {
 
 }
 
+#if canImport(UIKit)
 struct ShareSheet: UIViewControllerRepresentable {
 
     let activityItems: [Any]
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
-
         UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
-
     }
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) { }
+}
+#endif
 
+private struct PDFHaustierEintrag: Decodable {
+    let art: String
+    let name: String
+    let tierarzt: String
+    let bemerkungen: String
+
+    var anzeigename: String {
+        let bereinigterName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return bereinigterName.isEmpty ? "Unbenanntes Haustier" : bereinigterName
+    }
 }
 
 #Preview {

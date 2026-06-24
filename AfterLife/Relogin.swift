@@ -16,14 +16,15 @@ struct ReloginView: View {
 
     @AppStorage("profilIstVorhanden") private var profilIstVorhanden = false
     @AppStorage("gespeicherteEmail") private var appStorageEmail = ""
+    @AppStorage("direktNachRegistrierungEingeloggt") private var direktNachRegistrierungEingeloggt = false
 
     @State private var email = ""
     @State private var passwort = ""
     @State private var fehlermeldung = ""
     @State private var istEingeloggt = false
     @State private var zeigtEmailLogin = true
-    @State private var biometrieWurdeVersucht = false
     @State private var showPassword = false
+    @State private var biometrieLoginLaeuft = false
 
     private let loginFuerTestsUeberspringen = false
 
@@ -66,6 +67,12 @@ struct ReloginView: View {
                 }
             }
             .onAppear {
+                if direktNachRegistrierungEingeloggt {
+                    direktNachRegistrierungEingeloggt = false
+                    istEingeloggt = true
+                    return
+                }
+
                 if loginFuerTestsUeberspringen {
                     istEingeloggt = true
                 } else {
@@ -204,13 +211,6 @@ struct ReloginView: View {
         passwort = ""
         zeigtEmailLogin = true
         fehlermeldung = ""
-
-        if biometrieAktiviert && !biometrieWurdeVersucht {
-            biometrieWurdeVersucht = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                loginMitFaceID(zeigeFehlerBeiAbbruch: false)
-            }
-        }
     }
 
     private func loginMitFaceID(zeigeFehlerBeiAbbruch: Bool = true) {
@@ -221,10 +221,16 @@ struct ReloginView: View {
             }
             return
         }
+
+        guard !biometrieLoginLaeuft else { return }
+        biometrieLoginLaeuft = true
+
         let context = LAContext()
+        context.localizedCancelTitle = "E-Mail Login verwenden"
         var error: NSError?
 
         guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
+            biometrieLoginLaeuft = false
             zeigtEmailLogin = true
             if zeigeFehlerBeiAbbruch {
                 fehlermeldung = "Face ID ist nicht verfügbar. Bitte melde dich mit E-Mail und Passwort an."
@@ -235,16 +241,37 @@ struct ReloginView: View {
         context.evaluatePolicy(
             .deviceOwnerAuthenticationWithBiometrics,
             localizedReason: "Melde dich sicher mit Face ID bei AfterLife an."
-        ) { success, _ in
+        ) { success, authenticationError in
             DispatchQueue.main.async {
+                biometrieLoginLaeuft = false
+
                 if success {
                     istEingeloggt = true
                     fehlermeldung = ""
-                } else {
-                    zeigtEmailLogin = true
-                    if zeigeFehlerBeiAbbruch {
+                    return
+                }
+
+                zeigtEmailLogin = true
+
+                guard zeigeFehlerBeiAbbruch else { return }
+
+                if let laError = authenticationError as? LAError {
+                    switch laError.code {
+                    case .userCancel, .systemCancel, .appCancel:
+                        fehlermeldung = ""
+                    case .userFallback:
+                        fehlermeldung = "Bitte melde dich mit E-Mail und Passwort an."
+                    case .biometryLockout:
+                        fehlermeldung = "Face ID ist vorübergehend gesperrt. Bitte entsperre dein Gerät und melde dich danach erneut an."
+                    case .biometryNotAvailable:
+                        fehlermeldung = "Face ID ist auf diesem Gerät nicht verfügbar."
+                    case .biometryNotEnrolled:
+                        fehlermeldung = "Face ID ist auf diesem Gerät noch nicht eingerichtet."
+                    default:
                         fehlermeldung = "Face ID konnte nicht bestätigt werden. Bitte melde dich mit E-Mail und Passwort an."
                     }
+                } else {
+                    fehlermeldung = "Face ID konnte nicht bestätigt werden. Bitte melde dich mit E-Mail und Passwort an."
                 }
             }
         }

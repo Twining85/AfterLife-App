@@ -9,6 +9,7 @@ struct Registrierung: View {
     @AppStorage("gespeicherteEmail") private var gespeicherteEmail = ""
     @AppStorage("gespeichertesPasswort") private var gespeichertesPasswort = ""
     @AppStorage("registrierungsArt") private var registrierungsArt = "E-Mail"
+    @AppStorage("direktNachRegistrierungEingeloggt") private var direktNachRegistrierungEingeloggt = false
     @State private var email = ""
     @State private var passwort = ""
     @State private var fehlermeldung = ""
@@ -57,7 +58,7 @@ struct Registrierung: View {
                     .multilineTextAlignment(.leading)
 
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Verifizeriung, ich bin ein Mensch")
+                        Text("Verifizierung, ich bin ein Mensch")
                             .font(.caption)
                             .fontWeight(.semibold)
 
@@ -106,9 +107,13 @@ struct Registrierung: View {
                         gespeicherteEmail = appleEmail
                         gespeichertesPasswort = ""
                         registrierungsArt = "Apple ID"
-                        profilIstVorhanden = true
                         speichereRegistrierungsdaten(art: "Apple ID", email: appleEmail)
                         showHome = true
+
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                            direktNachRegistrierungEingeloggt = true
+                            profilIstVorhanden = true
+                        }
                     case .failure:
                         fehlermeldung = "Apple Login konnte nicht abgeschlossen werden."
                     }
@@ -183,11 +188,14 @@ struct Registrierung: View {
             gespeicherteEmail = bereinigteEmail
             gespeichertesPasswort = passwort
             registrierungsArt = "E-Mail"
-            profilIstVorhanden = true
 
             speichereRegistrierungsdaten(art: "E-Mail", email: bereinigteEmail)
-            // Hier folgt später die echte Registrierung über Firebase, Supabase oder dein Backend.
             showHome = true
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                direktNachRegistrierungEingeloggt = true
+                profilIstVorhanden = true
+            }
         } catch {
             fehlermeldung = "Das Passwort konnte nicht sicher gespeichert werden. Bitte versuche es erneut."
         }
@@ -211,11 +219,14 @@ struct Registrierung: View {
         gespeicherteEmail = bereinigteEmail
         gespeichertesPasswort = ""
         registrierungsArt = "Google"
-        profilIstVorhanden = true
 
         speichereRegistrierungsdaten(art: "Google", email: bereinigteEmail)
-        // Hier folgt später die echte Google-Login-Integration.
         showHome = true
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            direktNachRegistrierungEingeloggt = true
+            profilIstVorhanden = true
+        }
     }
 
     private func speichereRegistrierungsdaten(art: String, email: String) {
@@ -232,7 +243,7 @@ struct Registrierung: View {
 
         profil.registrierungsart = art
         profil.registrierungsEmail = bereinigteEmail
-        profilIstVorhanden = true
+        direktNachRegistrierungEingeloggt = true
         gespeicherteEmail = bereinigteEmail
         registrierungsArt = art
 

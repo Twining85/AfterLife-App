@@ -4,6 +4,7 @@ import ContactsUI
 import PhotosUI
 import UniformTypeIdentifiers
 import QuickLook
+import AVKit
 
 struct WuenscheView: View {
     @Environment(\.modelContext) private var modelContext
@@ -34,6 +35,9 @@ struct WuenscheView: View {
     @State private var letzteWorteVideoAuswahl: PhotosPickerItem?
     @State private var letzteWorteVideoData: Data?
     @State private var letzteWorteVideoName: String?
+    @State private var letzteWorteVideoURL: URL?
+    @State private var letzteWorteVideoVorschauAnzeigen = false
+    @State private var letzteWorteVideoPlayer: AVPlayer?
 
     @State private var nachrufVorstellung = false
     @State private var nachrufText = ""
@@ -43,6 +47,11 @@ struct WuenscheView: View {
     @State private var kontakte: [BeisetzungsKontakt] = []
     @State private var ausgeklappteKontaktIDs: Set<UUID> = []
     @State private var kontaktPickerAnzeigen = false
+
+    @State private var hatHaustiere = false
+    @State private var haustiere: [WuenschePetEntry] = []
+    @State private var ausgeklappteHaustierIDs: Set<UUID> = []
+    @State private var haustierPopupAnzeigen = false
 
     @State private var hatTestament = false
     @State private var testamentAblageort = ""
@@ -158,7 +167,9 @@ struct WuenscheView: View {
             String(hatSchwereGesundheitlicheErkrankung),
             schwereErkrankung?.rawValue ?? "",
             sterbebegleitungWichtig,
-            String(lebensqualitaetRegelmaessigBeurteilen)
+            String(lebensqualitaetRegelmaessigBeurteilen),
+            String(hatHaustiere),
+            (try? JSONEncoder().encode(haustiere))?.base64EncodedString() ?? ""
         ].joined(separator: "|")
     }
 
@@ -171,6 +182,7 @@ struct WuenscheView: View {
                     beisetzungSection
                     beisetzungsWuenscheSection
                     kontakteSection
+                    haustiereSection
                     nachlassSection
                     patientenverfuegungSection
                     vorsorgeauftragSection
@@ -183,6 +195,12 @@ struct WuenscheView: View {
                     kontakte.append(kontakt)
                     synchronisiereKontakteMitHinterbliebenen()
                     kontaktPickerAnzeigen = false
+                }
+            }
+            .sheet(isPresented: $haustierPopupAnzeigen) {
+                HaustierErfassungView { haustier in
+                    haustiere.append(haustier)
+                    haustierPopupAnzeigen = false
                 }
             }
             .fileImporter(
@@ -211,7 +229,7 @@ struct WuenscheView: View {
                         await MainActor.run {
                             letzteWorteVideoData = data
                             letzteWorteVideoName = "Persönliche Botschaft.mov"
-                            speichereWuensche()
+                            bereiteLetzteWorteVideoVorschauVor(sichtbar: true)
                         }
                     }
                 }
@@ -227,6 +245,73 @@ struct WuenscheView: View {
                 synchronisiereKontakteMitHinterbliebenen()
             }
         }
+    }
+
+    private var haustiereSection: some View {
+        Section("Haustiere") {
+            Toggle("Ich habe Haustiere", isOn: $hatHaustiere)
+
+            if hatHaustiere {
+                if haustiere.isEmpty {
+                    Text("Noch keine Haustiere erfasst.")
+                        .foregroundStyle(.secondary)
+                }
+
+                ForEach($haustiere) { haustier in
+                    if haustiere.count > 2 {
+                        DisclosureGroup(
+                            isExpanded: Binding(
+                                get: { ausgeklappteHaustierIDs.contains(haustier.wrappedValue.id) },
+                                set: { istOffen in
+                                    if istOffen {
+                                        ausgeklappteHaustierIDs.insert(haustier.wrappedValue.id)
+                                    } else {
+                                        ausgeklappteHaustierIDs.remove(haustier.wrappedValue.id)
+                                    }
+                                }
+                            )
+                        ) {
+                            haustierDetailFormular(haustier: haustier)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(haustier.wrappedValue.anzeigename)
+                                    .font(.headline)
+
+                                Text(haustier.wrappedValue.art.rawValue)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    } else {
+                        haustierDetailFormular(haustier: haustier)
+                    }
+                }
+                .onDelete(perform: haustierLoeschen)
+
+                Button {
+                    haustierPopupAnzeigen = true
+                } label: {
+                    Label("Haustier erfassen", systemImage: "plus.circle.fill")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func haustierDetailFormular(haustier: Binding<WuenschePetEntry>) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Picker("Art", selection: haustier.art) {
+                ForEach(HaustierArt.allCases) { art in
+                    Text(art.rawValue).tag(art)
+                }
+            }
+
+            TextField("Name", text: haustier.name)
+            TextField("Tierarzt", text: haustier.tierarzt)
+            TextField("Bemerkungen", text: haustier.bemerkungen, axis: .vertical)
+                .lineLimit(2...6)
+        }
+        .padding(.vertical, 6)
     }
 
     private var hauptToggleSection: some View {
@@ -317,27 +402,12 @@ struct WuenscheView: View {
                     Divider()
 
                     VStack(spacing: 12) {
-                        if let letzteWorteVideoName {
-                            HStack(spacing: 10) {
-                                Image(systemName: "video.fill")
-                                    .foregroundStyle(.secondary)
-
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(letzteWorteVideoName)
-                                        .font(.footnote)
-                                        .lineLimit(1)
-                                        .truncationMode(.middle)
-
-                                    Text("Video zur persönlichen Botschaft hochgeladen")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-
-                                Spacer()
+                        if letzteWorteVideoData != nil {
+                            if letzteWorteVideoVorschauAnzeigen, let letzteWorteVideoPlayer {
+                                VideoPlayer(player: letzteWorteVideoPlayer)
+                                    .frame(height: 240)
+                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                             }
-                            .padding(12)
-                            .background(Color(.systemBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         } else {
                             Image(systemName: "video.badge.plus")
                                 .font(.system(size: 44))
@@ -694,6 +764,11 @@ struct WuenscheView: View {
             schwereErkrankung = SchwereErkrankung(rawValue: vorhandeneWuensche.schwereErkrankungArt)
             sterbebegleitungWichtig = vorhandeneWuensche.mirIstWichtig
             lebensqualitaetRegelmaessigBeurteilen = vorhandeneWuensche.regelmaessigBeurteilen
+
+            hatHaustiere = vorhandeneWuensche.hatHaustiere
+            if let data = vorhandeneWuensche.haustiereData {
+                haustiere = (try? JSONDecoder().decode([WuenschePetEntry].self, from: data)) ?? []
+            }
         } else {
             let neueWuensche = WuenscheModell()
             modelContext.insert(neueWuensche)
@@ -774,6 +849,18 @@ struct WuenscheView: View {
         wuensche.schwereErkrankungArt = schwereErkrankung?.rawValue ?? ""
         wuensche.mirIstWichtig = sterbebegleitungWichtig
         wuensche.regelmaessigBeurteilen = lebensqualitaetRegelmaessigBeurteilen
+        wuensche.hatHaustiere = hatHaustiere
+        wuensche.haustiereData = try? JSONEncoder().encode(haustiere)
+    }
+
+    private func haustierLoeschen(at offsets: IndexSet) {
+        for index in offsets {
+            if haustiere.indices.contains(index) {
+                ausgeklappteHaustierIDs.remove(haustiere[index].id)
+            }
+        }
+
+        haustiere.remove(atOffsets: offsets)
     }
 
 
@@ -1043,7 +1130,38 @@ struct WuenscheView: View {
         letzteWorteVideoData = nil
         letzteWorteVideoName = nil
         letzteWorteVideoAuswahl = nil
+        letzteWorteVideoURL = nil
+        letzteWorteVideoVorschauAnzeigen = false
         speichereWuensche()
+    }
+
+    private func oeffneLetzteWorteVideo() {
+        if letzteWorteVideoVorschauAnzeigen {
+            letzteWorteVideoPlayer?.pause()
+            letzteWorteVideoVorschauAnzeigen = false
+        } else {
+            bereiteLetzteWorteVideoVorschauVor(sichtbar: true)
+        }
+    }
+
+    private func bereiteLetzteWorteVideoVorschauVor(sichtbar: Bool) {
+        guard let letzteWorteVideoData else { return }
+
+        let dateiname = letzteWorteVideoName?.isEmpty == false
+            ? letzteWorteVideoName!
+            : "Persönliche_Botschaft.mov"
+
+        let videoURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(dateiname)
+
+        do {
+            try letzteWorteVideoData.write(to: videoURL, options: .atomic)
+            letzteWorteVideoURL = videoURL
+            letzteWorteVideoPlayer = AVPlayer(url: videoURL)
+            letzteWorteVideoVorschauAnzeigen = sichtbar
+        } catch {
+            print("Video konnte nicht vorbereitet werden: \(error.localizedDescription)")
+        }
     }
 
     private func dokumentVorschauAnzeigen(_ url: URL?, dateiName: String?, dateiData: Data?) {
@@ -1424,3 +1542,83 @@ struct DokumentUploadBox: View {
         .modelContainer(for: [WuenscheModell.self, HinterbliebeneModell.self], inMemory: true)
 }
 
+
+
+struct WuenschePetEntry: Identifiable, Codable, Equatable {
+    var id = UUID()
+    var art: HaustierArt = .hund
+    var name = ""
+    var tierarzt = ""
+    var bemerkungen = ""
+
+    var anzeigename: String {
+        let bereinigterName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return bereinigterName.isEmpty ? "Unbenanntes Haustier" : bereinigterName
+    }
+}
+
+enum HaustierArt: String, CaseIterable, Identifiable, Codable {
+    case hund = "Hund"
+    case katze = "Katze"
+    case pferd = "Pferd"
+    case vogel = "Vogel"
+    case kaninchen = "Kaninchen"
+    case meerschweinchen = "Meerschweinchen"
+    case hamster = "Hamster"
+    case reptil = "Reptil"
+    case fisch = "Fisch"
+    case anderes = "Anderes"
+
+    var id: String { rawValue }
+}
+
+struct HaustierErfassungView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var art: HaustierArt = .hund
+    @State private var name = ""
+    @State private var tierarzt = ""
+    @State private var bemerkungen = ""
+
+    let onSave: (WuenschePetEntry) -> Void
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Picker("Art", selection: $art) {
+                    ForEach(HaustierArt.allCases) { art in
+                        Text(art.rawValue).tag(art)
+                    }
+                }
+
+                TextField("Name", text: $name)
+                TextField("Tierarzt", text: $tierarzt)
+                TextField("Bemerkungen", text: $bemerkungen, axis: .vertical)
+                    .lineLimit(2...6)
+            }
+            .navigationTitle("Haustier erfassen")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") {
+                        dismiss()
+                    }
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Speichern") {
+                        onSave(
+                            WuenschePetEntry(
+                                art: art,
+                                name: name,
+                                tierarzt: tierarzt,
+                                bemerkungen: bemerkungen
+                            )
+                        )
+                        dismiss()
+                    }
+                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+    }
+}
