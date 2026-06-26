@@ -26,8 +26,8 @@ final class WuenscheModell {
     // Letzte Worte
     var moechteNochEtwasSagen: Bool
     var letzteBotschaft: String
-    var letzteBotschaftVideoName: String
-    @Attribute(.externalStorage) var letzteBotschaftVideoData: Data?
+    var letzteBotschaftVideoName: String = ""
+    @Attribute(.externalStorage) var letzteBotschaftVideoData: Data? = nil
 
     // Nachruf
     var nachrufGewuenscht: Bool
@@ -76,7 +76,7 @@ final class WuenscheModell {
 
     // Haustiere
     var hatHaustiere: Bool = false
-    var haustiereData: Data? = nil
+    @Attribute(.externalStorage) var haustiereData: Data? = nil
 
     init(
         hatWuensche: Bool = true,

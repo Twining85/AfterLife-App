@@ -335,25 +335,29 @@ struct AbosView: View {
             }
         } label: {
             HStack {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text(gruppe.typ)
-                        .font(.headline)
-                        .foregroundStyle(.primary)
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.black)
 
                     Text("\(gruppe.abos.count) Eintrag\(gruppe.abos.count == 1 ? "" : "e")")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.footnote)
+                        .foregroundStyle(.black.opacity(0.75))
                 }
 
                 Spacer()
 
                 if gruppe.abos.count > 3 {
                     Image(systemName: istSektionAusgeklappt(gruppe) ? "chevron.up" : "chevron.down")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.subheadline)
+                        .foregroundStyle(.black.opacity(0.75))
                 }
             }
-            .padding(.vertical, 6)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .background(Color(.systemGray5))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.plain)
     }
@@ -362,18 +366,18 @@ struct AbosView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(aboTitel(abo))
                 .font(.headline)
-                .foregroundStyle(.primary)
+                .foregroundStyle(.gray)
 
             if !abo.unternehmen.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(abo.unternehmen)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.gray)
             }
 
             if !abo.aboArt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(abo.aboArt)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.gray)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

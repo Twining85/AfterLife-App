@@ -136,6 +136,14 @@ struct Registrierung: View {
                 .disabled(!registrierungErlaubt)
 
                 Spacer()
+
+                Image("Icon1_trans")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 70)
+                    .opacity(0.55)
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 20)
             }
             .padding()
             .navigationDestination(isPresented: $showHome) {

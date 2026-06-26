@@ -24,7 +24,9 @@ struct AfterLifeApp: App {
             AboModell.self,
             AboEintrag.self,
             FotoalbumBildModell.self,
-            DokumenteModell.self
+            DokumenteModell.self,
+            VertrauenspersonModell.self,
+            VertrauenspersonEinladungsHistorieModell.self
         ])
 
         let modelConfiguration = ModelConfiguration(
@@ -43,10 +45,15 @@ struct AfterLifeApp: App {
     }()
 
     var body: some Scene {
+
         WindowGroup {
-            AppStartView()
+
+            Home()
+
         }
+
         .modelContainer(sharedModelContainer)
+
     }
 }
 

@@ -723,10 +723,18 @@ struct WuenscheView: View {
             zeremonieFinanziellAbgesichert = vorhandeneWuensche.zeremonieFinanziellAbgesichert
 
             moechteNochWasSagen = vorhandeneWuensche.moechteNochEtwasSagen
+
             letzteWorteText = vorhandeneWuensche.letzteBotschaft
+
             letzteWorteVideoName = vorhandeneWuensche.letzteBotschaftVideoName.isEmpty ? nil : vorhandeneWuensche.letzteBotschaftVideoName
+
             letzteWorteVideoData = vorhandeneWuensche.letzteBotschaftVideoData
 
+            if letzteWorteVideoData != nil {
+
+                bereiteLetzteWorteVideoVorschauVor(sichtbar: true)
+
+            }
             nachrufVorstellung = vorhandeneWuensche.nachrufGewuenscht
             nachrufText = vorhandeneWuensche.nachrufText
             nachrufBildData = vorhandeneWuensche.nachrufBildData

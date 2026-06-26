@@ -16,6 +16,14 @@ struct Logout: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
+            
+            Spacer()
+
+            Image("Icon1_trans")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 70)
+                .opacity(0.55)
         }
         .navigationTitle("Logout")
         .navigationBarBackButtonHidden(true)

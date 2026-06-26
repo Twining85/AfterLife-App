@@ -3,6 +3,7 @@ import SwiftUI
 struct Home: View {
     private let kachelFarbe = Color(red: 0.92, green: 0.92, blue: 0.94)
     @State private var bildIstSichtbar = false
+    @State private var kachelnSindSichtbar = false
 
     var body: some View {
         NavigationStack {
@@ -16,38 +17,38 @@ struct Home: View {
                         .padding(.top, 24)
                         .padding(.bottom, 8)
 
-                    ZStack(alignment: .bottom) {
-                        Image("Hand2")
-                            .resizable()
-                            .scaledToFill()
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 250)
-                            .clipped()
-                            .overlay(
-                                LinearGradient(
-                                    colors: [
-                                        Color.clear,
-                                        Color(.systemBackground).opacity(0.20),
-                                        Color(.systemBackground)
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
+                    Image("Hand2")
+                        .resizable()
+                        .scaledToFill()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 250)
+                        .clipped()
+                        .overlay(
+                            LinearGradient(
+                                colors: [
+                                    Color.clear,
+                                    Color(.systemBackground).opacity(0.20),
+                                    Color(.systemBackground)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
                             )
-                            .opacity(bildIstSichtbar ? 1 : 0)
-                            .animation(.easeInOut(duration: 1.4), value: bildIstSichtbar)
-                            .onAppear {
-                                bildIstSichtbar = true
+                        )
+                        .opacity(bildIstSichtbar ? 1 : 0)
+                        .animation(.easeInOut(duration: 1.4), value: bildIstSichtbar)
+                        .onAppear {
+                            bildIstSichtbar = true
+
+                            withAnimation(.easeOut(duration: 0.8).delay(0.25)) {
+                                kachelnSindSichtbar = true
                             }
+                        }
 
-                        ersteKachelReihe
-                            .padding(.horizontal, 24)
-                            .offset(y: 90)
-                    }
-                    .padding(.bottom, 110)
-
-                    restlicheKacheln
+                    alleKacheln
                         .padding(.horizontal, 24)
+                        .padding(.top, -40)
+                        .offset(y: kachelnSindSichtbar ? 0 : 20)
+                        .opacity(kachelnSindSichtbar ? 1 : 0)
                 }
             }
             .background(Color(.systemBackground))
@@ -55,7 +56,7 @@ struct Home: View {
         }
     }
 
-    private var ersteKachelReihe: some View {
+    private var alleKacheln: some View {
         LazyVGrid(
             columns: [
                 GridItem(.flexible(), spacing: 20),
@@ -63,7 +64,6 @@ struct Home: View {
             ],
             spacing: 20
         ) {
-            
             NavigationLink {
                 ProfilView()
             } label: {
@@ -79,24 +79,13 @@ struct Home: View {
                 WuenscheView()
             } label: {
                 HomeKachel(
-                    //icon: "heart.fill",
                     icon: "sparkles",
                     titel: "Meine Wünsche",
                     farbe: kachelFarbe
                 )
             }
             .buttonStyle(.plain)
-        }
-    }
 
-    private var restlicheKacheln: some View {
-        LazyVGrid(
-            columns: [
-                GridItem(.flexible(), spacing: 20),
-                GridItem(.flexible(), spacing: 20)
-            ],
-            spacing: 20
-        ) {
             NavigationLink {
                 FinanzenView()
             } label: {

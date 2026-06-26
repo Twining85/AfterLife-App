@@ -17,6 +17,7 @@ struct ProfilView: View {
     @Query private var gespeicherteWertsachen: [WertsacheModell]
     @Query private var gespeicherteSteuerdokumente: [SteuerdokumentModell]
     @Query private var gespeicherteAboModelle: [AboModell]
+    @Query private var gespeicherteVertrauenspersonen: [VertrauenspersonModell]
 
     @AppStorage("gespeicherteEmail") private var gespeicherteEmail = ""
     @AppStorage("gespeichertesPasswort") private var gespeichertesPasswort = ""
@@ -91,6 +92,8 @@ struct ProfilView: View {
     @State private var neuesPasswortWiederholen = ""
     @State private var passwortAendernFehler = ""
     @State private var passwortAendernErfolg = ""
+
+
 
     @State private var dossierPDF: ExportiertesDossier?
     @State private var passwortExportAuswahlAnzeigen = false
@@ -305,20 +308,19 @@ struct ProfilView: View {
 
                 Section("Zugriff im Notfall") {
 
-                    Button {
-
-                        // Platzhalter: Funktion wird später ergänzt
-
+                    NavigationLink {
+                        VertrauenspersonView()
                     } label: {
-
-                        Label("Vertrauensperson Zugriff geben", systemImage: "person.badge.key.fill")
-
+                        Label(
+                            gespeicherteVertrauenspersonen.isEmpty
+                                ? "Vertrauensperson Zugriff geben"
+                                : "Vertrauensperson verwalten",
+                            systemImage: "person.badge.key.fill"
+                        )
                     }
 
                     Text("Hier kannst du später einer Vertrauensperson Zugriff auf deine Daten geben, damit sie im Notfall abrufbar sind.")
-
                         .font(.footnote)
-
                         .foregroundStyle(.secondary)
 
                 }
@@ -627,6 +629,7 @@ struct ProfilView: View {
             }
         }
     }
+
 
     private func pruefeUndAktiviereBiometrie() {
         guard !biometriePruefungLaeuft else { return }
@@ -2339,7 +2342,6 @@ private struct PDFHaustierEintrag: Decodable {
 }
 
 #Preview {
-
     ProfilView()
         .modelContainer(for: [
             ProfilModell.self,
@@ -2352,7 +2354,9 @@ private struct PDFHaustierEintrag: Decodable {
             WertsacheModell.self,
             SteuerdokumentModell.self,
             AboModell.self,
-            AboEintrag.self
+            AboEintrag.self,
+            VertrauenspersonModell.self,
+            VertrauenspersonEinladungsHistorieModell.self
         ], inMemory: true)
-
 }
+
