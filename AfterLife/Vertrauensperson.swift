@@ -14,6 +14,7 @@ struct VertrauenspersonView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var gespeicherteVertrauenspersonen: [VertrauenspersonModell]
     @Query private var gespeicherteProfile: [ProfilModell]
+    @Query private var gespeicherteDossierZugriffe: [DossierZugriffModell]
     @AppStorage("profilIstVorhanden") private var profilIstVorhanden = false
     @AppStorage("direktNachRegistrierungEingeloggt") private var direktNachRegistrierungEingeloggt = false
     @AppStorage("gespeicherteEmail") private var gespeicherteEmail = ""
@@ -42,6 +43,7 @@ struct VertrauenspersonView: View {
     @State private var einladungsToken: String?
     @State private var einladungsEmail: String?
     @State private var einladungsLinkErstelltAm: Date?
+    @State private var simulierterEinladungsLink = ""
 
     private var kontaktIstAusgewaehlt: Bool {
         !vorname.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
@@ -54,12 +56,28 @@ struct VertrauenspersonView: View {
         !einladungsHistorie.isEmpty
     }
 
+    private var aktuellerDossierZugriff: DossierZugriffModell? {
+        guard let einladungsToken else { return nil }
+
+        return gespeicherteDossierZugriffe.first { zugriff in
+            zugriff.einladungsToken == einladungsToken
+        }
+    }
+
     private var aktiveUserUUID: UUID? {
         if let uuid = UUID(uuidString: aktiveUserID) {
             return uuid
         }
 
         return gespeicherteProfile.first?.userID
+    }
+
+    private var aktivesDossierUUID: UUID? {
+        if let uuid = UUID(uuidString: aktivesDossierID) {
+            return uuid
+        }
+
+        return gespeicherteProfile.first?.dossierID
     }
 
     // Vorbereitung: später können hier mehrere Vertrauenspersonen pro aktivem Dossier angezeigt werden.
@@ -271,12 +289,49 @@ struct VertrauenspersonView: View {
                             .font(.footnote)
                     }
 
+                    Text("Status")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Text(aktuellerDossierZugriff?.status.capitalized ?? "Noch nicht erstellt")
+                        .font(.footnote)
+                        .foregroundStyle(aktuellerDossierZugriff?.status == DossierZugriffStatus.erstellt ? .green : .secondary)
+
+                    Text("Gültig bis")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if let gueltigBis = aktuellerDossierZugriff?.einladungGueltigBis {
+                        Text(gueltigBis.formatted(date: .abbreviated, time: .standard))
+                            .font(.footnote)
+                    } else {
+                        Text("Noch nicht gesetzt")
+                            .font(.footnote)
+                    }
+
+                    Text("Link verwendet")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Text(aktuellerDossierZugriff?.einladungsLinkVerwendet == true ? "Ja" : "Nein")
+                        .font(.footnote)
+                        .foregroundStyle(aktuellerDossierZugriff?.einladungsLinkVerwendet == true ? .orange : .secondary)
+
+                    if let verwendetAm = aktuellerDossierZugriff?.einladungsLinkVerwendetAm {
+                        Text("Verwendet am")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Text(verwendetAm.formatted(date: .abbreviated, time: .standard))
+                            .font(.footnote)
+                    }
+
                     if let einladungsToken {
                         Text("Simulierter Link")
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
-                        Text("afterlife://invite/\(einladungsToken)")
+                        Text(simulierterEinladungsLink.isEmpty ? "Noch kein Link erzeugt" : simulierterEinladungsLink)
                             .font(.footnote.monospaced())
                             .textSelection(.enabled)
 
@@ -359,20 +414,47 @@ struct VertrauenspersonView: View {
     }
 
     private func stelleEinladungsTokenSicher(fuer empfaengerEmail: String) {
-        if einladungsToken == nil {
-            einladungsToken = UUID().uuidString
-            einladungsEmail = empfaengerEmail
-            einladungsLinkErstelltAm = Date()
+        if let einladungsToken {
+            einladungsEmail = einladungsEmail ?? empfaengerEmail
+            einladungsLinkErstelltAm = einladungsLinkErstelltAm ?? Date()
+
+            if simulierterEinladungsLink.isEmpty {
+                simulierterEinladungsLink = "afterlife://registrierung?token=\(einladungsToken)"
+            }
+
             return
         }
 
-        if einladungsEmail == nil {
-            einladungsEmail = empfaengerEmail
+        guard let dossierID = aktivesDossierUUID else {
+            fehlermeldung = "Es konnte kein aktives Dossier gefunden werden. Bitte öffne zuerst dein Profil oder erstelle ein Dossier."
+            return
         }
 
-        if einladungsLinkErstelltAm == nil {
-            einladungsLinkErstelltAm = Date()
+        guard let vorsorgendeUserID = aktiveUserUUID else {
+            fehlermeldung = "Es konnte kein aktiver Nutzer gefunden werden. Bitte melde dich erneut an."
+            return
         }
+
+        let service = DossierZugriffService()
+        let zugriff = service.erstelleEinladung(
+            dossierID: dossierID,
+            vorsorgendeUserID: vorsorgendeUserID,
+            eingeladeneEmail: empfaengerEmail
+        )
+
+        modelContext.insert(zugriff)
+
+        do {
+            try modelContext.save()
+        } catch {
+            fehlermeldung = "Der Einladungslink konnte nicht gespeichert werden."
+            return
+        }
+
+        einladungsToken = zugriff.einladungsToken
+        einladungsEmail = zugriff.eingeladeneEmail
+        einladungsLinkErstelltAm = zugriff.erstelltAm
+        simulierterEinladungsLink = service.registrierungsLink(fuer: zugriff)
     }
 
     private func einladungPerMailVorbereiten() {
@@ -393,6 +475,8 @@ struct VertrauenspersonView: View {
 
         stelleEinladungsTokenSicher(fuer: empfaengerEmail)
 
+        guard fehlermeldung.isEmpty else { return }
+
         let empfaengerName = [vorname, name]
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
@@ -411,7 +495,7 @@ struct VertrauenspersonView: View {
         Aktuell ist dies eine Vorabinformation. Bitte bewahre diese E-Mail auf und melde dich bei mir, falls sich deine Kontaktdaten ändern.
 
         Dein persönlicher Einladungslink lautet:
-        afterlife://invite/\(einladungsToken ?? "")
+        \(simulierterEinladungsLink)
 
         Liebe Grüsse
         """
@@ -462,6 +546,7 @@ struct VertrauenspersonView: View {
         einladungsToken = nil
         einladungsEmail = nil
         einladungsLinkErstelltAm = nil
+        simulierterEinladungsLink = ""
         fehlermeldung = ""
         erfolgsmeldung = "Kontakt wurde entfernt."
 
@@ -491,6 +576,10 @@ struct VertrauenspersonView: View {
             einladungsToken = gespeicherteVertrauensperson.einladungsToken
             einladungsEmail = gespeicherteVertrauensperson.einladungsEmail
             einladungsLinkErstelltAm = gespeicherteVertrauensperson.einladungsLinkErstelltAm
+            if let einladungsToken {
+                simulierterEinladungsLink = "afterlife://registrierung?token=\(einladungsToken)"
+                korrigiereEinladungsGueltigkeitFallsNoetig()
+            }
             einladungsHistorie = gespeicherteVertrauensperson.einladungsHistorie
                 .sorted { $0.datum > $1.datum }
                 .map { eintrag in
@@ -502,6 +591,24 @@ struct VertrauenspersonView: View {
         }
 
         datenGeladen = true
+    }
+
+    private func korrigiereEinladungsGueltigkeitFallsNoetig() {
+        guard let zugriff = aktuellerDossierZugriff else { return }
+
+        let erstelltAm = zugriff.erstelltAm
+        let erwartetesGueltigBis = Calendar.current.date(byAdding: .day, value: 30, to: erstelltAm) ?? erstelltAm.addingTimeInterval(30 * 24 * 60 * 60)
+
+        if zugriff.einladungGueltigBis == nil || Calendar.current.isDate(zugriff.einladungGueltigBis ?? erstelltAm, inSameDayAs: erstelltAm) {
+            zugriff.einladungGueltigBis = erwartetesGueltigBis
+            zugriff.aktualisiertAm = Date()
+
+            do {
+                try modelContext.save()
+            } catch {
+                fehlermeldung = "Die Gültigkeit des Einladungslinks konnte nicht korrigiert werden."
+            }
+        }
     }
 
     private func speichereVertrauensperson() {
