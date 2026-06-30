@@ -27,6 +27,9 @@ final class DossierZugriffModell {
     /// E-Mail-Adresse, an welche die Einladung verschickt wurde.
     var eingeladeneEmail: String
 
+    /// E-Mail-Adresse, mit der sich die Vertrauensperson tatsächlich registriert hat.
+    var registrierungsEmail: String?
+
     /// Name der eingeladenen Vertrauensperson, falls bereits bekannt.
     var eingeladenePersonName: String?
 
@@ -88,6 +91,7 @@ final class DossierZugriffModell {
         zugriffID: UUID = UUID(),
         einladungsToken: String? = nil,
         eingeladeneEmail: String,
+        registrierungsEmail: String? = nil,
         eingeladenePersonName: String? = nil,
         einladungGueltigBis: Date? = nil,
         einladungsLinkVerwendet: Bool = false,
@@ -111,6 +115,7 @@ final class DossierZugriffModell {
         self.zugriffID = zugriffID
         self.einladungsToken = einladungsToken
         self.eingeladeneEmail = eingeladeneEmail
+        self.registrierungsEmail = registrierungsEmail
         self.eingeladenePersonName = eingeladenePersonName
         self.einladungGueltigBis = einladungGueltigBis
         self.einladungsLinkVerwendet = einladungsLinkVerwendet
@@ -138,8 +143,9 @@ final class DossierZugriffModell {
         aktualisiertAm = Date()
     }
 
-    func einladungAnnehmen(vertrauenspersonUserID: UUID) {
+    func einladungAnnehmen(vertrauenspersonUserID: UUID, registrierungsEmail: String? = nil) {
         self.vertrauenspersonUserID = vertrauenspersonUserID
+        self.registrierungsEmail = registrierungsEmail
         status = DossierZugriffStatus.angenommen
         angenommenAm = Date()
         abgelehntAm = nil
@@ -152,6 +158,7 @@ final class DossierZugriffModell {
         abgelehntAm = Date()
         angenommenAm = nil
         vertrauenspersonUserID = nil
+        registrierungsEmail = nil
         istAktiv = false
         aktualisiertAm = Date()
     }

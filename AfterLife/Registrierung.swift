@@ -6,6 +6,11 @@ struct Registrierung: View {
     init(einladungsToken: String? = nil) {
         _einladungsToken = State(initialValue: einladungsToken)
     }
+
+    private enum Eingabefeld {
+        case email
+        case passwort
+    }
     @Environment(\.modelContext) private var modelContext
     @Query private var gespeicherteProfile: [ProfilModell]
     @Query private var gespeicherteDossierZugriffe: [DossierZugriffModell]
@@ -25,6 +30,11 @@ struct Registrierung: View {
     @State private var captchaZahl1 = Int.random(in: 2...9)
     @State private var captchaZahl2 = Int.random(in: 2...9)
     @State private var einladungsToken: String?
+    @State private var eingeladeneEmailVerifiziert = false
+    @State private var emailVerifizierungCode = ""
+    @State private var emailVerifizierungAntwort = ""
+    @State private var emailVerifizierungWurdeGestartet = false
+    @FocusState private var aktivesEingabefeld: Eingabefeld?
 
     var body: some View {
         NavigationStack {
@@ -40,15 +50,70 @@ struct Registrierung: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .textFieldStyle(.roundedBorder)
+                        .focused($aktivesEingabefeld, equals: .email)
 
                     SecureField("Passwort", text: $passwort)
                         .textFieldStyle(.roundedBorder)
+                        .focused($aktivesEingabefeld, equals: .passwort)
                 }
 
                 if !fehlermeldung.isEmpty {
                     Text(fehlermeldung)
                         .foregroundStyle(.red)
                         .font(.footnote)
+                }
+
+                if let zugriff = aktuellerDossierZugriff,
+                   emailAbweichungSollAngezeigtWerden,
+                   !eingeladeneEmailVerifiziert {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Sicherheitsprüfung erforderlich")
+                            .font(.headline)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Text("Du kannst für die Registrierung grundsätzlich eine andere E-Mail-Adresse verwenden. Aus Sicherheitsgründen müssen wir jedoch kurz prüfen, dass wirklich die richtige Person diese persönliche Einladung annimmt.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Text("Die Einladung wurde ursprünglich an \(zugriff.eingeladeneEmail) gesendet. Bitte bestätige kurz den Zugriff auf diese E-Mail-Adresse.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        if emailVerifizierungWurdeGestartet {
+                            #if DEBUG
+                            Text("Testcode: \(emailVerifizierungCode)")
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                            #endif
+
+                            TextField("Verifizierungscode", text: $emailVerifizierungAntwort)
+                                .keyboardType(.numberPad)
+                                .textFieldStyle(.roundedBorder)
+
+                            Button("E-Mail-Adresse verifizieren") {
+                                verifiziereEingeladeneEmail()
+                            }
+                            .buttonStyle(.bordered)
+                        } else {
+                            Button("Code an eingeladene E-Mail senden") {
+                                starteEingeladeneEmailVerifizierung()
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(.systemGray6))
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+
+                if eingeladeneEmailVerifiziert {
+                    Text("Eingeladene E-Mail-Adresse wurde verifiziert. Du kannst mit dieser Registrierungs-E-Mail fortfahren.")
+                        .font(.footnote)
+                        .foregroundStyle(.green)
                 }
 
                 VStack(alignment: .leading, spacing: 12) {
@@ -175,6 +240,31 @@ struct Registrierung: View {
         }
     }
 
+    private var bereinigteRegistrierungsEmail: String {
+        email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private var registrierungsEmailIstFormalGueltig: Bool {
+        bereinigteRegistrierungsEmail.contains("@") && bereinigteRegistrierungsEmail.contains(".")
+    }
+
+    private var bereinigteEingeladeneEmail: String? {
+        aktuellerDossierZugriff?.eingeladeneEmail
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+
+    private var registrierungsEmailWeichtVonEinladungAb: Bool {
+        guard let bereinigteEingeladeneEmail, !bereinigteRegistrierungsEmail.isEmpty else { return false }
+        return bereinigteRegistrierungsEmail != bereinigteEingeladeneEmail
+    }
+
+    private var emailAbweichungSollAngezeigtWerden: Bool {
+        registrierungsEmailIstFormalGueltig &&
+        registrierungsEmailWeichtVonEinladungAb &&
+        (aktivesEingabefeld == .passwort || !passwort.isEmpty || emailVerifizierungWurdeGestartet)
+    }
+
     private func registrierenMitEmail() {
         fehlermeldung = ""
 
@@ -200,8 +290,13 @@ struct Registrierung: View {
         }
 
         if let zugriff = aktuellerDossierZugriff {
-            guard zugriff.kannRegistrierungFortsetzen else {
-                fehlermeldung = "Diese Einladung ist ungültig oder bereits verwendet worden."
+            if registrierungsEmailWeichtVonEinladungAb && !eingeladeneEmailVerifiziert {
+                fehlermeldung = "Bitte verifiziere zuerst die ursprünglich eingeladene E-Mail-Adresse \(zugriff.eingeladeneEmail). Danach kannst du dich mit der aktuell eingegebenen E-Mail-Adresse registrieren."
+
+                if !emailVerifizierungWurdeGestartet {
+                    starteEingeladeneEmailVerifizierung()
+                }
+
                 return
             }
         }
@@ -229,6 +324,23 @@ struct Registrierung: View {
         } catch {
             fehlermeldung = "Das Passwort konnte nicht sicher gespeichert werden. Bitte versuche es erneut."
         }
+    }
+
+    private func starteEingeladeneEmailVerifizierung() {
+        emailVerifizierungCode = String(Int.random(in: 100000...999999))
+        emailVerifizierungAntwort = ""
+        emailVerifizierungWurdeGestartet = true
+        fehlermeldung = ""
+    }
+
+    private func verifiziereEingeladeneEmail() {
+        guard emailVerifizierungAntwort.trimmingCharacters(in: .whitespacesAndNewlines) == emailVerifizierungCode else {
+            fehlermeldung = "Der Verifizierungscode ist nicht korrekt."
+            return
+        }
+
+        eingeladeneEmailVerifiziert = true
+        fehlermeldung = ""
     }
 
     private func googleLogin() {

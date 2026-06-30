@@ -81,6 +81,22 @@ struct VertrauenspersonView: View {
         return gespeicherteProfile.first?.dossierID
     }
 
+    private var vorsorgendePersonName: String {
+        if let aktiveUserUUID,
+           let profil = gespeicherteProfile.first(where: { $0.userID == aktiveUserUUID }) {
+            let name = [profil.vorname, profil.name]
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+
+            if !name.isEmpty {
+                return name
+            }
+        }
+
+        return gespeicherteEmail.isEmpty ? "Vorsorgende Person" : gespeicherteEmail
+    }
+
     // Vorbereitung: später können hier mehrere Vertrauenspersonen pro aktivem Dossier angezeigt werden.
     private var vertrauenspersonenFuerAktivenUser: [VertrauenspersonModell] {
         guard let aktiveUserUUID else { return [] }
@@ -117,9 +133,70 @@ struct VertrauenspersonView: View {
         return "Keine Vertrauensperson ausgewählt"
     }
 
+    private var einladungIstErstellt: Bool {
+        einladungsToken != nil
+    }
+
+    private var einladungIstAngenommen: Bool {
+        aktuellerDossierZugriff?.status == DossierZugriffStatus.angenommen
+    }
+
+    private var einladungIstAbgelehnt: Bool {
+        aktuellerDossierZugriff?.status == DossierZugriffStatus.abgelehnt
+    }
+
+    private var naechsterSchrittText: String {
+        if !kontaktIstAusgewaehlt {
+            return "Wähle zuerst eine Vertrauensperson aus deinen Kontakten aus."
+        }
+
+        if !einladungIstErstellt {
+            return "Bereite danach die Einladung per E-Mail vor. Dabei wird automatisch ein persönlicher Einladungslink erzeugt."
+        }
+
+        if einladungIstAngenommen {
+            return "Die Einladung wurde angenommen. Der Link kann nicht erneut verwendet werden."
+        }
+
+        if einladungIstAbgelehnt {
+            return "Die Einladung wurde abgelehnt. Erstelle bei Bedarf eine neue Einladung."
+        }
+
+        return "Die Einladung ist bereit. Sende die E-Mail oder teste den Link im Testbereich."
+    }
+
     var body: some View {
         Form {
-            Section("Vertrauensperson") {
+            Section {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Vertrauensperson einladen")
+                        .font(.headline)
+
+                    Text("Führe den Prozess Schritt für Schritt durch. Die App zeigt dir jeweils, was als Nächstes zu tun ist.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label(kontaktIstAusgewaehlt ? "1. Kontakt ausgewählt" : "1. Kontakt auswählen", systemImage: kontaktIstAusgewaehlt ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(kontaktIstAusgewaehlt ? .green : .primary)
+
+                        Label(einladungIstErstellt ? "2. Einladung vorbereitet" : "2. Einladung vorbereiten", systemImage: einladungIstErstellt ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(einladungIstErstellt ? .green : .primary)
+
+                        Label(einladungIstAngenommen ? "3. Einladung angenommen" : einladungIstAbgelehnt ? "3. Einladung abgelehnt" : "3. Rückmeldung abwarten", systemImage: einladungIstAngenommen ? "checkmark.circle.fill" : einladungIstAbgelehnt ? "xmark.circle.fill" : "circle")
+                            .foregroundStyle(einladungIstAngenommen ? .green : einladungIstAbgelehnt ? .red : .primary)
+                    }
+                    .font(.footnote)
+
+                    Text(naechsterSchrittText)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 4)
+                }
+                .padding(.vertical, 4)
+            }
+
+            Section("Schritt 1: Vertrauensperson auswählen") {
                 if kontaktIstAusgewaehlt {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(kontaktAnzeigename)
@@ -156,13 +233,27 @@ struct VertrauenspersonView: View {
                 }
             }
 
-            Section("Einladung") {
+            Section("Schritt 2: Einladung vorbereiten") {
                 Button {
                     einladungPerMailVorbereiten()
                 } label: {
-                    Label("Einladung per E-Mail vorbereiten", systemImage: "envelope.fill")
+                    Label(einladungIstErstellt ? "Einladung erneut in Mail öffnen" : "Einladung per E-Mail vorbereiten", systemImage: "envelope.fill")
                 }
                 .disabled(email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                if !kontaktIstAusgewaehlt {
+                    Text("Wähle zuerst eine Vertrauensperson aus. Danach kannst du die Einladung vorbereiten.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else if !einladungIstErstellt {
+                    Text("Beim Vorbereiten wird ein persönlicher Link erzeugt, der 30 Tage gültig ist und nur einmal verwendet werden kann.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Die Einladung wurde vorbereitet. Du kannst die E-Mail in deiner Mail-App prüfen und senden.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
 
                 if einladungWurdeVorbereitet {
                     HStack(spacing: 10) {
@@ -190,7 +281,7 @@ struct VertrauenspersonView: View {
             }
 
             if einladungWurdeVorbereitet {
-                Section("Vorsorgeprozess") {
+                Section("Schritt 3: Rückmeldung verfolgen") {
                     HStack(spacing: 10) {
                         if vorsorgeprozessStatus == .gestartet {
                             Image(systemName: "checkmark.circle.fill")
@@ -231,7 +322,7 @@ struct VertrauenspersonView: View {
                 }
             }
 
-            Section("Einladungshistorie") {
+            Section("Protokoll") {
                 if einladungsHistorie.isEmpty {
                     Text("Noch keine Einladung verschickt oder vorbereitet.")
                         .font(.footnote)
@@ -360,7 +451,7 @@ struct VertrauenspersonView: View {
         .navigationTitle("Vertrauensperson")
         .fullScreenCover(isPresented: $einladungsSimulationStarten) {
             EinladungAngenommen(
-                einladenderName: "René Engeler",
+                einladenderName: vorsorgendePersonName,
                 eingeladeneEmail: einladungsEmail ?? email,
                 einladungsToken: einladungsToken ?? ""
             )
@@ -494,6 +585,8 @@ struct VertrauenspersonView: View {
         Hallo\(anredeName)
 
         Ich möchte dich als Vertrauensperson in meiner Vorsorge-App hinterlegen.
+
+        Diese Einladung wurde von \(vorsorgendePersonName) erstellt.
 
         In der App erfasse ich wichtige Informationen, Wünsche und Dokumente, damit im Ereignisfall alles geordnet verfügbar ist.
 
