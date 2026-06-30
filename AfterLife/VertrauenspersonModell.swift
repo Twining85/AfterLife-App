@@ -21,6 +21,17 @@ final class VertrauenspersonModell {
     var einladungsToken: String?
     var einladungsEmail: String?
     var einladungsLinkErstelltAm: Date?
+    /// Referenz auf das zugehörige Vorsorgedossier.
+    var dossierID: UUID?
+    // Beziehung zwischen vorsorgender Person und Vertrauensperson
+    var vorsorgendeUserID: UUID?
+    var vertrauenspersonUserID: UUID?
+    var einladungAngenommenAm: Date?
+    var einladungAbgelehntAm: Date?
+
+    // Vorbereitung für mehrere Vertrauenspersonen pro Dossier
+    var istPrimaereVertrauensperson: Bool
+    var reihenfolge: Int
 
     @Relationship(deleteRule: .cascade)
     var einladungsHistorie: [VertrauenspersonEinladungsHistorieModell]
@@ -39,6 +50,13 @@ final class VertrauenspersonModell {
         einladungsToken: String? = nil,
         einladungsEmail: String? = nil,
         einladungsLinkErstelltAm: Date? = nil,
+        dossierID: UUID? = nil,
+        vorsorgendeUserID: UUID? = nil,
+        vertrauenspersonUserID: UUID? = nil,
+        einladungAngenommenAm: Date? = nil,
+        einladungAbgelehntAm: Date? = nil,
+        istPrimaereVertrauensperson: Bool = true,
+        reihenfolge: Int = 0,
         einladungsHistorie: [VertrauenspersonEinladungsHistorieModell] = [],
         erstelltAm: Date = Date(),
         geaendertAm: Date = Date()
@@ -53,6 +71,13 @@ final class VertrauenspersonModell {
         self.einladungsToken = einladungsToken
         self.einladungsEmail = einladungsEmail
         self.einladungsLinkErstelltAm = einladungsLinkErstelltAm
+        self.dossierID = dossierID
+        self.vorsorgendeUserID = vorsorgendeUserID
+        self.vertrauenspersonUserID = vertrauenspersonUserID
+        self.einladungAngenommenAm = einladungAngenommenAm
+        self.einladungAbgelehntAm = einladungAbgelehntAm
+        self.istPrimaereVertrauensperson = istPrimaereVertrauensperson
+        self.reihenfolge = reihenfolge
         self.einladungsHistorie = einladungsHistorie
         self.erstelltAm = erstelltAm
         self.geaendertAm = geaendertAm

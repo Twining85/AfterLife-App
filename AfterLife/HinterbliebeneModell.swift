@@ -3,6 +3,8 @@ import SwiftData
 
 @Model
 final class HinterbliebeneModell {
+    /// Referenz auf das zugehörige Vorsorgedossier.
+    var dossierID: UUID?
     var vorname: String
     var name: String
     var rolle: String
@@ -22,6 +24,7 @@ final class HinterbliebeneModell {
     var aktualisiertAm: Date
 
     init(
+        dossierID: UUID? = nil,
         vorname: String = "",
         name: String = "",
         rolle: String = "",
@@ -40,6 +43,7 @@ final class HinterbliebeneModell {
         erstelltAm: Date = Date(),
         aktualisiertAm: Date = Date()
     ) {
+        self.dossierID = dossierID
         self.vorname = vorname
         self.name = name
         self.rolle = rolle

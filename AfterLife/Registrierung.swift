@@ -10,6 +10,8 @@ struct Registrierung: View {
     @AppStorage("gespeichertesPasswort") private var gespeichertesPasswort = ""
     @AppStorage("registrierungsArt") private var registrierungsArt = "E-Mail"
     @AppStorage("direktNachRegistrierungEingeloggt") private var direktNachRegistrierungEingeloggt = false
+    @AppStorage("aktiveUserID") private var aktiveUserID = ""
+    @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
     @State private var email = ""
     @State private var passwort = ""
     @State private var fehlermeldung = ""
@@ -239,18 +241,13 @@ struct Registrierung: View {
 
     private func speichereRegistrierungsdaten(art: String, email: String) {
         let bereinigteEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
-        let profil: ProfilModell
-
-        if let vorhandenesProfil = gespeicherteProfile.first {
-            profil = vorhandenesProfil
-        } else {
-            let neuesProfil = ProfilModell()
-            modelContext.insert(neuesProfil)
-            profil = neuesProfil
-        }
+        let profil = ProfilModell()
+        modelContext.insert(profil)
 
         profil.registrierungsart = art
         profil.registrierungsEmail = bereinigteEmail
+        erstelleDossierFallsNoetig(fuer: profil, email: bereinigteEmail)
+        aktiveUserID = profil.userID.uuidString
         direktNachRegistrierungEingeloggt = true
         gespeicherteEmail = bereinigteEmail
         registrierungsArt = art
@@ -258,6 +255,23 @@ struct Registrierung: View {
         if profil.email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             profil.email = bereinigteEmail
         }
+    }
+
+    private func erstelleDossierFallsNoetig(fuer profil: ProfilModell, email: String) {
+        if let vorhandeneDossierID = profil.dossierID {
+            aktivesDossierID = vorhandeneDossierID.uuidString
+            return
+        }
+
+        let titelName = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let neuesDossier = DossierModell(
+            besitzerUserID: profil.userID,
+            vorsorgendePersonName: titelName.isEmpty ? "mir" : titelName
+        )
+
+        modelContext.insert(neuesDossier)
+        profil.dossierID = neuesDossier.dossierID
+        aktivesDossierID = neuesDossier.dossierID.uuidString
     }
 
     private func appleEmailAusAuthorization(_ authorization: ASAuthorization) -> String {
@@ -281,5 +295,5 @@ struct Registrierung: View {
 
 #Preview {
     Registrierung()
-        .modelContainer(for: [ProfilModell.self], inMemory: true)
+        .modelContainer(for: [ProfilModell.self, DossierModell.self], inMemory: true)
 }

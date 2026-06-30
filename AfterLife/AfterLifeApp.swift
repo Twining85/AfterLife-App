@@ -26,7 +26,9 @@ struct AfterLifeApp: App {
             FotoalbumBildModell.self,
             DokumenteModell.self,
             VertrauenspersonModell.self,
-            VertrauenspersonEinladungsHistorieModell.self
+            VertrauenspersonEinladungsHistorieModell.self,
+            DossierModell.self,
+            DossierZugriffModell.self
         ])
 
         let modelConfiguration = ModelConfiguration(
@@ -48,7 +50,7 @@ struct AfterLifeApp: App {
 
         WindowGroup {
 
-            Home()
+            AppStartView()
 
         }
 
@@ -60,6 +62,9 @@ struct AfterLifeApp: App {
 struct AppStartView: View {
     @Query private var gespeicherteProfile: [ProfilModell]
 
+    // Testschalter für den Einladungs-Use-Case
+    private let einladungsSimulationAktiv = false
+
     private var istBereitsRegistriert: Bool {
         guard let profil = gespeicherteProfile.first else { return false }
 
@@ -70,7 +75,12 @@ struct AppStartView: View {
     }
 
     var body: some View {
-        if istBereitsRegistriert {
+        if einladungsSimulationAktiv {
+            EinladungAngenommen(
+                einladenderName: "René Engeler",
+                eingeladeneEmail: "vertrauensperson@mail.ch"
+            )
+        } else if istBereitsRegistriert {
             ReloginView()
         } else {
             Registrierung()

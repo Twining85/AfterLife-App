@@ -11,6 +11,8 @@ import SwiftData
 @Model
 final class WeiteresModell {
     var id: UUID
+    /// Referenz auf das zugehörige Vorsorgedossier.
+    var dossierID: UUID?
     var erstelltAm: Date
     var aktualisiertAm: Date
 
@@ -39,6 +41,7 @@ final class WeiteresModell {
 
     init(
         id: UUID = UUID(),
+        dossierID: UUID? = nil,
         erstelltAm: Date = Date(),
         aktualisiertAm: Date = Date(),
         allgemeineNotizen: String = "",
@@ -52,6 +55,7 @@ final class WeiteresModell {
         weitereInformationen: [WeitereInformationEintrag] = []
     ) {
         self.id = id
+        self.dossierID = dossierID
         self.erstelltAm = erstelltAm
         self.aktualisiertAm = aktualisiertAm
         self.allgemeineNotizen = allgemeineNotizen
@@ -69,6 +73,8 @@ final class WeiteresModell {
 @Model
 final class HaustierEintrag {
     var id: UUID
+    /// Referenz auf das zugehörige Vorsorgedossier.
+    var dossierID: UUID?
     var name: String
     var tierart: String
     var wichtigeInformationen: String
@@ -80,6 +86,7 @@ final class HaustierEintrag {
 
     init(
         id: UUID = UUID(),
+        dossierID: UUID? = nil,
         name: String = "",
         tierart: String = "Bitte wählen",
         wichtigeInformationen: String = "",
@@ -90,6 +97,7 @@ final class HaustierEintrag {
         aktualisiertAm: Date = Date()
     ) {
         self.id = id
+        self.dossierID = dossierID
         self.name = name
         self.tierart = tierart
         self.wichtigeInformationen = wichtigeInformationen
@@ -104,6 +112,8 @@ final class HaustierEintrag {
 @Model
 final class FahrzeugEintrag {
     var id: UUID
+    /// Referenz auf das zugehörige Vorsorgedossier.
+    var dossierID: UUID?
     var fahrzeugart: String
     var markeModell: String
     var kennzeichen: String
@@ -114,6 +124,7 @@ final class FahrzeugEintrag {
 
     init(
         id: UUID = UUID(),
+        dossierID: UUID? = nil,
         fahrzeugart: String = "Bitte wählen",
         markeModell: String = "",
         kennzeichen: String = "",
@@ -123,6 +134,7 @@ final class FahrzeugEintrag {
         aktualisiertAm: Date = Date()
     ) {
         self.id = id
+        self.dossierID = dossierID
         self.fahrzeugart = fahrzeugart
         self.markeModell = markeModell
         self.kennzeichen = kennzeichen
@@ -136,6 +148,8 @@ final class FahrzeugEintrag {
 @Model
 final class SchluesselZugangEintrag {
     var id: UUID
+    /// Referenz auf das zugehörige Vorsorgedossier.
+    var dossierID: UUID?
     var bezeichnung: String
     var ort: String
     var zugangscodeOderHinweis: String
@@ -145,6 +159,7 @@ final class SchluesselZugangEintrag {
 
     init(
         id: UUID = UUID(),
+        dossierID: UUID? = nil,
         bezeichnung: String = "",
         ort: String = "",
         zugangscodeOderHinweis: String = "",
@@ -153,6 +168,7 @@ final class SchluesselZugangEintrag {
         aktualisiertAm: Date = Date()
     ) {
         self.id = id
+        self.dossierID = dossierID
         self.bezeichnung = bezeichnung
         self.ort = ort
         self.zugangscodeOderHinweis = zugangscodeOderHinweis
@@ -165,6 +181,8 @@ final class SchluesselZugangEintrag {
 @Model
 final class WeitereInformationEintrag {
     var id: UUID
+    /// Referenz auf das zugehörige Vorsorgedossier.
+    var dossierID: UUID?
     var kategorie: String
     var titel: String
     var beschreibung: String
@@ -174,6 +192,7 @@ final class WeitereInformationEintrag {
 
     init(
         id: UUID = UUID(),
+        dossierID: UUID? = nil,
         kategorie: String = "Bitte wählen",
         titel: String = "",
         beschreibung: String = "",
@@ -182,6 +201,7 @@ final class WeitereInformationEintrag {
         aktualisiertAm: Date = Date()
     ) {
         self.id = id
+        self.dossierID = dossierID
         self.kategorie = kategorie
         self.titel = titel
         self.beschreibung = beschreibung

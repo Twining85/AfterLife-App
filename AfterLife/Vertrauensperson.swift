@@ -13,6 +13,17 @@ import UIKit
 struct VertrauenspersonView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var gespeicherteVertrauenspersonen: [VertrauenspersonModell]
+    @Query private var gespeicherteProfile: [ProfilModell]
+    @AppStorage("profilIstVorhanden") private var profilIstVorhanden = false
+    @AppStorage("direktNachRegistrierungEingeloggt") private var direktNachRegistrierungEingeloggt = false
+    @AppStorage("gespeicherteEmail") private var gespeicherteEmail = ""
+    @AppStorage("gespeichertesPasswort") private var gespeichertesPasswort = ""
+    @AppStorage("registrierungsArt") private var registrierungsArt = "E-Mail"
+    @AppStorage("aktiveUserID") private var aktiveUserID = ""
+    @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
+
+    @State private var einladungsSimulationStarten = false
+    @State private var logoutFuerEinladungstestAnzeigen = false
 
     @State private var kontaktPickerAnzeigen = false
     @State private var name = ""
@@ -41,6 +52,33 @@ struct VertrauenspersonView: View {
 
     private var einladungWurdeVorbereitet: Bool {
         !einladungsHistorie.isEmpty
+    }
+
+    private var aktiveUserUUID: UUID? {
+        if let uuid = UUID(uuidString: aktiveUserID) {
+            return uuid
+        }
+
+        return gespeicherteProfile.first?.userID
+    }
+
+    // Vorbereitung: später können hier mehrere Vertrauenspersonen pro aktivem Dossier angezeigt werden.
+    private var vertrauenspersonenFuerAktivenUser: [VertrauenspersonModell] {
+        guard let aktiveUserUUID else { return [] }
+
+        return gespeicherteVertrauenspersonen
+            .filter { $0.vorsorgendeUserID == aktiveUserUUID }
+            .sorted {
+                if $0.istPrimaereVertrauensperson != $1.istPrimaereVertrauensperson {
+                    return $0.istPrimaereVertrauensperson && !$1.istPrimaereVertrauensperson
+                }
+
+                return $0.reihenfolge < $1.reihenfolge
+            }
+    }
+
+    private var vertrauenspersonFuerAktivenUser: VertrauenspersonModell? {
+        vertrauenspersonenFuerAktivenUser.first
     }
 
     private var kontaktAnzeigename: String {
@@ -242,10 +280,10 @@ struct VertrauenspersonView: View {
                             .font(.footnote.monospaced())
                             .textSelection(.enabled)
 
-                        NavigationLink {
-                            Registrierung()
+                        Button {
+                            logoutFuerEinladungstestAnzeigen = true
                         } label: {
-                            Label("Registrierungslink simulieren", systemImage: "link")
+                            Label("Einladungslink simulieren", systemImage: "link")
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
@@ -264,7 +302,23 @@ struct VertrauenspersonView: View {
             #endif
         }
         .navigationTitle("Vertrauensperson")
-        
+        .fullScreenCover(isPresented: $einladungsSimulationStarten) {
+            EinladungAngenommen(
+                einladenderName: "René Engeler",
+                eingeladeneEmail: einladungsEmail ?? email
+            )
+        }
+        .alert("Für Test ausloggen?", isPresented: $logoutFuerEinladungstestAnzeigen) {
+            Button("Abbrechen", role: .cancel) {
+                logoutFuerEinladungstestAnzeigen = false
+            }
+
+            Button("Ausloggen und Test starten") {
+                starteEinladungsSimulation()
+            }
+        } message: {
+            Text("Für diesen Test wirst du aus der aktuellen Sitzung ausgeloggt. Danach öffnet sich direkt die simulierte Einladung als Vertrauensperson.")
+        }
         .onAppear {
             ladeOderErstelleVertrauensperson()
         }
@@ -272,6 +326,18 @@ struct VertrauenspersonView: View {
             VertrauenspersonKontaktPicker { kontakt in
                 uebernehmeKontakt(kontakt)
             }
+        }
+    }
+
+    private func starteEinladungsSimulation() {
+        // Simulation: aktuelle Sitzung verlassen, damit der Einladungsprozess wie ein externer Link getestet werden kann.
+        direktNachRegistrierungEingeloggt = false
+
+        fehlermeldung = ""
+        erfolgsmeldung = "Einladungslink wird simuliert. Die aktuelle Sitzung wurde für diesen Test beendet, deine Login-Daten bleiben erhalten."
+
+        DispatchQueue.main.async {
+            einladungsSimulationStarten = true
         }
     }
 
@@ -399,7 +465,7 @@ struct VertrauenspersonView: View {
         fehlermeldung = ""
         erfolgsmeldung = "Kontakt wurde entfernt."
 
-        gespeicherteVertrauenspersonen.forEach { vertrauensperson in
+        if let vertrauensperson = vertrauenspersonFuerAktivenUser {
             modelContext.delete(vertrauensperson)
         }
 
@@ -414,7 +480,7 @@ struct VertrauenspersonView: View {
     private func ladeOderErstelleVertrauensperson() {
         guard !datenGeladen else { return }
 
-        if let gespeicherteVertrauensperson = gespeicherteVertrauenspersonen.first {
+        if let gespeicherteVertrauensperson = vertrauenspersonFuerAktivenUser {
             vorname = gespeicherteVertrauensperson.vorname
             name = gespeicherteVertrauensperson.name
             email = gespeicherteVertrauensperson.email
@@ -443,13 +509,20 @@ struct VertrauenspersonView: View {
 
         let vertrauensperson: VertrauenspersonModell
 
-        if let vorhandeneVertrauensperson = gespeicherteVertrauenspersonen.first {
+        if let vorhandeneVertrauensperson = vertrauenspersonFuerAktivenUser {
             vertrauensperson = vorhandeneVertrauensperson
         } else {
             let neueVertrauensperson = VertrauenspersonModell()
             modelContext.insert(neueVertrauensperson)
             vertrauensperson = neueVertrauensperson
         }
+
+        if let aktiveUserUUID {
+            vertrauensperson.vorsorgendeUserID = aktiveUserUUID
+        }
+        // Aktuell wird nur eine Vertrauensperson erfasst. Diese wird deshalb als primär markiert.
+        vertrauensperson.istPrimaereVertrauensperson = true
+        vertrauensperson.reihenfolge = 0
 
         vertrauensperson.vorname = vorname
         vertrauensperson.name = name
@@ -543,6 +616,9 @@ private struct VertrauenspersonKontaktPicker: UIViewControllerRepresentable {
     }
     .modelContainer(for: [
         VertrauenspersonModell.self,
-        VertrauenspersonEinladungsHistorieModell.self
+        VertrauenspersonEinladungsHistorieModell.self,
+        ProfilModell.self,
+        DossierModell.self,
+        DossierZugriffModell.self
     ], inMemory: true)
 }

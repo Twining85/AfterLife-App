@@ -11,6 +11,8 @@ import SwiftData
 @Model
 final class AboModell {
     var id: UUID
+    /// Referenz auf das zugehörige Vorsorgedossier.
+    var dossierID: UUID?
     var erstelltAm: Date
     var aktualisiertAm: Date
 
@@ -19,11 +21,13 @@ final class AboModell {
 
     init(
         id: UUID = UUID(),
+        dossierID: UUID? = nil,
         erstelltAm: Date = Date(),
         aktualisiertAm: Date = Date(),
         abos: [AboEintrag] = []
     ) {
         self.id = id
+        self.dossierID = dossierID
         self.erstelltAm = erstelltAm
         self.aktualisiertAm = aktualisiertAm
         self.abos = abos
@@ -33,6 +37,8 @@ final class AboModell {
 @Model
 final class AboEintrag {
     var id: UUID
+    /// Referenz auf das zugehörige Vorsorgedossier.
+    var dossierID: UUID?
     var erstelltAm: Date
     var aktualisiertAm: Date
 
@@ -73,6 +79,7 @@ final class AboEintrag {
 
     init(
         id: UUID = UUID(),
+        dossierID: UUID? = nil,
         erstelltAm: Date = Date(),
         aktualisiertAm: Date = Date(),
         aboTyp: String = "Bitte wählen",
@@ -100,6 +107,7 @@ final class AboEintrag {
         istSystemEintrag: Bool = false
     ) {
         self.id = id
+        self.dossierID = dossierID
         self.erstelltAm = erstelltAm
         self.aktualisiertAm = aktualisiertAm
         self.aboTyp = aboTyp

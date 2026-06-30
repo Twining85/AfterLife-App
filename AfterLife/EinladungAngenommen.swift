@@ -10,6 +10,11 @@ import SwiftUI
 struct EinladungAngenommen: View {
     let einladenderName: String
     let eingeladeneEmail: String
+    // TEST: später aus dem echten Einladungslink / Token ersetzen
+    let einladungsToken: String = UUID().uuidString
+    @State private var einladungWurdeAngenommen = false
+    @State private var einladungWurdeAbgelehnt = false
+    @State private var bestaetigungAblehnenAnzeigen = false
 
     var body: some View {
         NavigationStack {
@@ -58,22 +63,97 @@ struct EinladungAngenommen: View {
                     .padding(.top, 0)
                     .padding(.bottom, 6)
 
-                HStack(alignment: .top, spacing: 10) {
+                if einladungWurdeAbgelehnt {
+                    VStack(spacing: 14) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 44))
+                            .foregroundStyle(.secondary)
 
-                    VStack(spacing: 12) {
-                        Text("Neues Profil")
+                        Text("Einladung abgelehnt")
                             .font(.headline)
 
-                        Text("Falls du die App zum ersten Mal nutzt.")
-                            .font(.caption)
+                        Text("Die Einladung wurde erfolgreich abgelehnt. Der Einladungslink wurde ungültig gemacht. Die vorsorgende Person wird über die Ablehnung informiert.")
+                            .font(.body)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
-                            .frame(minHeight: 40)
+                    }
+                    .padding(.top, 8)
+                } else if einladungWurdeAngenommen {
+                    VStack(spacing: 24) {
+                        Text("Wie möchtest du fortfahren?")
+                            .font(.title3.bold())
 
-                        NavigationLink {
-                            VertrauenspersonRegistrierung()
+                        VStack(alignment: .leading, spacing: 16) {
+                            Label("Ich habe bereits ein Profil", systemImage: "person.crop.circle")
+                                .font(.headline)
+
+                            Text("Melde dich mit deinem bestehenden Profil an, um die Einladung anzunehmen.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+
+                            NavigationLink {
+                                // TODO: Einladungs-Kontext übergeben: eingeladeneEmail, einladungsToken
+                                ReloginEinladung()
+                            } label: {
+                                Text("Anmelden")
+                                    .font(.headline)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.black)
+                                    .foregroundStyle(.white)
+                                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                            }
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(.systemGray6))
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+
+                        VStack(alignment: .leading, spacing: 16) {
+                            Label("Ich bin neu bei AfterLife", systemImage: "person.badge.plus")
+                                .font(.headline)
+
+                            Text("Erstelle ein neues Profil, um diese Einladung als Vertrauensperson anzunehmen.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+
+                            NavigationLink {
+                                // TODO: Einladungs-Kontext übergeben: eingeladeneEmail, einladungsToken
+                                VertrauenspersonRegistrierung()
+                            } label: {
+                                Text("Profil erstellen")
+                                    .font(.headline)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color(.systemGray5))
+                                    .foregroundStyle(.black)
+                                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                            }
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(.systemGray6))
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                    }
+                    .padding(.top, 8)
+                } else {
+                    VStack(spacing: 12) {
+                        Button {
+                            einladungWurdeAngenommen = true
                         } label: {
-                            Text("Erstellen")
+                            Text("Einladung annehmen und fortfahren")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.black)
+                                .foregroundStyle(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 14))
+                        }
+
+                        Button {
+                            bestaetigungAblehnenAnzeigen = true
+                        } label: {
+                            Text("Ablehnen")
                                 .font(.headline)
                                 .frame(maxWidth: .infinity)
                                 .padding()
@@ -82,34 +162,10 @@ struct EinladungAngenommen: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 14))
                         }
                     }
-                    .frame(maxWidth: .infinity)
-
-                    VStack(spacing: 12) {
-                        Text("Bestehendes Profil")
-                            .font(.headline)
-
-                        Text("Falls du bereits ein Profil besitzt.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                            .frame(minHeight: 40)
-
-                        NavigationLink {
-                            ReloginView()
-                        } label: {
-                            Text("Anmelden")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.black)
-                                .foregroundStyle(.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 14))
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
+                    .padding(.top, 8)
                 }
 
-                    Text("🔒 Diese Einladung ist persönlich und kann nur einmal verwendet werden.")
+                    Text("🔒 Diese Einladung ist persönlich, an die angezeigte E-Mail-Adresse gebunden und kann nur einmal verwendet werden.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -118,6 +174,20 @@ struct EinladungAngenommen: View {
 
                 }
                 .padding(24)
+            }
+            .alert("Einladung ablehnen?", isPresented: $bestaetigungAblehnenAnzeigen) {
+                Button("Abbrechen", role: .cancel) {
+                    bestaetigungAblehnenAnzeigen = false
+                }
+
+                Button("Einladung ablehnen", role: .destructive) {
+                    // TODO: Token ungültig machen: einladungsToken
+                    // TODO: EinladungStatus auf abgelehnt setzen
+                    // TODO: Vorsorgende Person benachrichtigen
+                    einladungWurdeAbgelehnt = true
+                }
+            } message: {
+                Text("Möchtest du die Einladung als Vertrauensperson wirklich ablehnen? Danach verliert der Einladungslink seine Gültigkeit. Die vorsorgende Person wird über die Ablehnung informiert.")
             }
             .navigationBarBackButtonHidden(true)
         }

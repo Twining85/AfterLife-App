@@ -4,6 +4,9 @@ import SwiftData
 @Model
 final class WuenscheModell {
 
+    /// Referenz auf das zugehörige Vorsorgedossier.
+    var dossierID: UUID?
+
     // Allgemein
     var hatWuensche: Bool
 
@@ -79,6 +82,7 @@ final class WuenscheModell {
     @Attribute(.externalStorage) var haustiereData: Data? = nil
 
     init(
+        dossierID: UUID? = nil,
         hatWuensche: Bool = true,
         beisetzungsArt: String = "",
         beisetzungHinweis: String = "",
@@ -130,6 +134,7 @@ final class WuenscheModell {
         hatHaustiere: Bool = false,
         haustiereData: Data? = nil
     ) {
+        self.dossierID = dossierID
         self.hatWuensche = hatWuensche
         self.beisetzungsArt = beisetzungsArt
         self.beisetzungHinweis = beisetzungHinweis

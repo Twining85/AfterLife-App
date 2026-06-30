@@ -686,11 +686,22 @@ struct ProfilView: View {
         }
     }
 
+    @AppStorage("aktiveUserID") private var aktiveUserID = ""
+
+    private var aktivesProfil: ProfilModell? {
+        if !aktiveUserID.isEmpty,
+           let profil = gespeicherteProfile.first(where: { $0.userID.uuidString == aktiveUserID }) {
+            return profil
+        }
+
+        return gespeicherteProfile.first
+    }
+
     private func ladeOderErstelleProfil() {
         guard !profilGeladen else { return }
         adresseManuellBearbeitet = false
 
-        if let vorhandenesProfil = gespeicherteProfile.first {
+        if let vorhandenesProfil = aktivesProfil {
             vorname = vorhandenesProfil.vorname
             name = vorhandenesProfil.name
             geburtsdatum = vorhandenesProfil.geburtsdatum
@@ -704,6 +715,9 @@ struct ProfilView: View {
             gespeicherteEmail = vorhandenesProfil.registrierungsEmail.isEmpty ? gespeicherteEmail : vorhandenesProfil.registrierungsEmail
             registrierungsArt = vorhandenesProfil.registrierungsart.isEmpty ? registrierungsArt : vorhandenesProfil.registrierungsart
             biometrieAktiviert = vorhandenesProfil.biometrieAktiviert
+            if vorhandenesProfil.istVertrauensperson {
+                print("Aktives Profil ist Vertrauensperson:", vorhandenesProfil.userID.uuidString)
+            }
             if let gespeichertesProfilbild = vorhandenesProfil.profilbildDaten {
                 profilbildData = gespeichertesProfilbild
             }
@@ -730,7 +744,7 @@ struct ProfilView: View {
 
         let profil: ProfilModell
 
-        if let vorhandenesProfil = gespeicherteProfile.first {
+        if let vorhandenesProfil = aktivesProfil {
             profil = vorhandenesProfil
         } else {
             let neuesProfil = ProfilModell()
@@ -856,7 +870,7 @@ struct ProfilView: View {
 
             gespeichertesPasswort = neuesPasswort
 
-            if let profil = gespeicherteProfile.first {
+            if let profil = aktivesProfil {
                 profil.registrierungsPasswort = neuesPasswort
                 profil.registrierungsEmail = bereinigteEmail
                 profil.registrierungsart = "E-Mail"

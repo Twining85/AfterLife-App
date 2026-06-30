@@ -10,6 +10,10 @@ import SwiftData
 
 @Model
 final class ProfilModell {
+    var userID: UUID
+    /// Referenz auf das eigene Vorsorgedossier.
+    var dossierID: UUID?
+    var istVertrauensperson: Bool
     var vorname: String
     var name: String
     var geburtsdatum: Date
@@ -29,8 +33,19 @@ final class ProfilModell {
     var biometrieAktiviert: Bool
 
     var profilbildDaten: Data?
+    /// Zeitpunkt der Profilerstellung.
+    var erstelltAm: Date
+
+    /// Zeitpunkt der letzten Profiländerung.
+    var aktualisiertAm: Date
+
+    /// Kennzeichnet das aktuell bevorzugte Profil für diesen Benutzer.
+    var istAktiv: Bool
 
     init(
+        userID: UUID = UUID(),
+        dossierID: UUID? = nil,
+        istVertrauensperson: Bool = false,
         vorname: String = "",
         name: String = "",
         geburtsdatum: Date = Calendar.current.date(from: DateComponents(year: 1978, month: 6, day: 1)) ?? Date(),
@@ -46,8 +61,14 @@ final class ProfilModell {
         registrierungsEmail: String = "",
         registrierungsPasswort: String = "",
         biometrieAktiviert: Bool = false,
-        profilbildDaten: Data? = nil
+        profilbildDaten: Data? = nil,
+        erstelltAm: Date = Date(),
+        aktualisiertAm: Date = Date(),
+        istAktiv: Bool = true
     ) {
+        self.userID = userID
+        self.dossierID = dossierID
+        self.istVertrauensperson = istVertrauensperson
         self.vorname = vorname
         self.name = name
         self.geburtsdatum = geburtsdatum
@@ -64,5 +85,8 @@ final class ProfilModell {
         self.registrierungsPasswort = registrierungsPasswort
         self.biometrieAktiviert = biometrieAktiviert
         self.profilbildDaten = profilbildDaten
+        self.erstelltAm = erstelltAm
+        self.aktualisiertAm = aktualisiertAm
+        self.istAktiv = istAktiv
     }
 }

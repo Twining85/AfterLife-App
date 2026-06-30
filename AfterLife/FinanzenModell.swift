@@ -4,6 +4,8 @@ import SwiftData
 @Model
 final class BankkontoModell {
     @Attribute(.unique) var eintragsID: String
+    /// Referenz auf das zugehörige Vorsorgedossier.
+    var dossierID: UUID?
     var bankname: String
     var bankAdresse: String
     var iban: String
@@ -18,6 +20,7 @@ final class BankkontoModell {
 
     init(
         eintragsID: String = UUID().uuidString,
+        dossierID: UUID? = nil,
         bankname: String = "",
         bankAdresse: String = "",
         iban: String = "",
@@ -31,6 +34,7 @@ final class BankkontoModell {
         aktualisiertAm: Date = Date()
     ) {
         self.eintragsID = eintragsID
+        self.dossierID = dossierID
         self.bankname = bankname
         self.bankAdresse = bankAdresse
         self.iban = iban
@@ -53,6 +57,8 @@ final class BankkontoModell {
 @Model
 final class SchuldenModell {
     @Attribute(.unique) var eintragsID: String
+    /// Referenz auf das zugehörige Vorsorgedossier.
+    var dossierID: UUID?
     var art: String
     var betrag: Double
     var waehrung: String
@@ -65,6 +71,7 @@ final class SchuldenModell {
 
     init(
         eintragsID: String = UUID().uuidString,
+        dossierID: UUID? = nil,
         art: String = "Bitte wählen",
         betrag: Double = 0,
         waehrung: String = "CHF",
@@ -76,6 +83,7 @@ final class SchuldenModell {
         aktualisiertAm: Date = Date()
     ) {
         self.eintragsID = eintragsID
+        self.dossierID = dossierID
         self.art = art
         self.betrag = betrag
         self.waehrung = waehrung
@@ -96,6 +104,8 @@ final class SchuldenModell {
 @Model
 final class VersicherungModell {
     @Attribute(.unique) var eintragsID: String
+    /// Referenz auf das zugehörige Vorsorgedossier.
+    var dossierID: UUID?
     var art: String
     var anbieter: String
     var policenNummer: String
@@ -109,6 +119,7 @@ final class VersicherungModell {
 
     init(
         eintragsID: String = UUID().uuidString,
+        dossierID: UUID? = nil,
         art: String = "Bitte wählen",
         anbieter: String = "",
         policenNummer: String = "",
@@ -121,6 +132,7 @@ final class VersicherungModell {
         aktualisiertAm: Date = Date()
     ) {
         self.eintragsID = eintragsID
+        self.dossierID = dossierID
         self.art = art
         self.anbieter = anbieter
         self.policenNummer = policenNummer
@@ -142,6 +154,8 @@ final class VersicherungModell {
 @Model
 final class LiegenschaftModell {
     @Attribute(.unique) var eintragsID: String
+    /// Referenz auf das zugehörige Vorsorgedossier.
+    var dossierID: UUID?
     var art: String
     var adresse: String
     var plz: String
@@ -159,6 +173,7 @@ final class LiegenschaftModell {
 
     init(
         eintragsID: String = UUID().uuidString,
+        dossierID: UUID? = nil,
         art: String = "Bitte wählen",
         adresse: String = "",
         plz: String = "",
@@ -175,6 +190,7 @@ final class LiegenschaftModell {
         aktualisiertAm: Date = Date()
     ) {
         self.eintragsID = eintragsID
+        self.dossierID = dossierID
         self.art = art
         self.adresse = adresse
         self.plz = plz
@@ -200,6 +216,8 @@ final class LiegenschaftModell {
 @Model
 final class WertsacheModell {
     @Attribute(.unique) var eintragsID: String
+    /// Referenz auf das zugehörige Vorsorgedossier.
+    var dossierID: UUID?
     var art: String
     var beschreibung: String
     var betrag: Double
@@ -213,6 +231,7 @@ final class WertsacheModell {
 
     init(
         eintragsID: String = UUID().uuidString,
+        dossierID: UUID? = nil,
         art: String = "Bitte wählen",
         beschreibung: String = "",
         betrag: Double = 0,
@@ -225,6 +244,7 @@ final class WertsacheModell {
         aktualisiertAm: Date = Date()
     ) {
         self.eintragsID = eintragsID
+        self.dossierID = dossierID
         self.art = art
         self.beschreibung = beschreibung
         self.betrag = betrag
@@ -246,6 +266,8 @@ final class WertsacheModell {
 @Model
 final class SteuerdokumentModell {
     @Attribute(.unique) var eintragsID: String
+    /// Referenz auf das zugehörige Vorsorgedossier.
+    var dossierID: UUID?
     var titel: String
     var jahr: Int
     var dateiName: String
@@ -256,6 +278,7 @@ final class SteuerdokumentModell {
 
     init(
         eintragsID: String = UUID().uuidString,
+        dossierID: UUID? = nil,
         titel: String = "Alte Steuerunterlagen",
         jahr: Int = Calendar.current.component(.year, from: Date()),
         dateiName: String = "",
@@ -265,6 +288,7 @@ final class SteuerdokumentModell {
         bemerkungen: String = ""
     ) {
         self.eintragsID = eintragsID
+        self.dossierID = dossierID
         self.titel = titel
         self.jahr = jahr
         self.dateiName = dateiName

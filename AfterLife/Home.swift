@@ -2,8 +2,13 @@ import SwiftUI
 
 struct Home: View {
     private let kachelFarbe = Color(red: 0.92, green: 0.92, blue: 0.94)
+    // TEST: später durch echte Beziehungen aus dem Einladungs-/VertrauenspersonModell ersetzen
+    private let verknuepfteVorsorgedossiers = ["René Engeler"]
     @State private var bildIstSichtbar = false
     @State private var kachelnSindSichtbar = false
+    @State private var vorsorgedossierAuswahlAnzeigen = false
+    @State private var direktesVorsorgedossierOeffnen = false
+    @State private var ausgewaehltesVorsorgedossier = ""
 
     var body: some View {
         NavigationStack {
@@ -49,10 +54,69 @@ struct Home: View {
                         .padding(.top, -40)
                         .offset(y: kachelnSindSichtbar ? 0 : 20)
                         .opacity(kachelnSindSichtbar ? 1 : 0)
+
+                    if !verknuepfteVorsorgedossiers.isEmpty {
+                        vorsorgedossierWechselAktion
+                            .padding(.horizontal, 24)
+                            .padding(.top, 18)
+                            .padding(.bottom, 28)
+                            .offset(y: kachelnSindSichtbar ? 0 : 20)
+                            .opacity(kachelnSindSichtbar ? 1 : 0)
+                    }
                 }
             }
             .background(Color(.systemBackground))
+            .navigationDestination(isPresented: $direktesVorsorgedossierOeffnen) {
+                VorsorgedossierPlatzhalter(name: ausgewaehltesVorsorgedossier)
+            }
+            .confirmationDialog(
+                "Vorsorgedossier auswählen",
+                isPresented: $vorsorgedossierAuswahlAnzeigen,
+                titleVisibility: .visible
+            ) {
+                ForEach(verknuepfteVorsorgedossiers, id: \.self) { name in
+                    Button(name) {
+                        ausgewaehltesVorsorgedossier = name
+                        direktesVorsorgedossierOeffnen = true
+                    }
+                }
+
+                Button("Abbrechen", role: .cancel) { }
+            } message: {
+                Text("Wähle aus, welches Vorsorgedossier du öffnen möchtest.")
+            }
             .navigationBarBackButtonHidden(true)
+        }
+    }
+
+    private var vorsorgedossierWechselAktion: some View {
+        HStack {
+            Spacer()
+
+            Button {
+                vorsorgedossierWechseln()
+            } label: {
+                HStack(spacing: 8) {
+                    Text("Zum Vorsorgedossier wechseln")
+                        .font(.footnote.weight(.semibold))
+
+                    Image(systemName: "arrow.right.circle.fill")
+                        .font(.title3)
+                }
+                .foregroundStyle(.orange)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func vorsorgedossierWechseln() {
+        guard !verknuepfteVorsorgedossiers.isEmpty else { return }
+
+        if verknuepfteVorsorgedossiers.count == 1 {
+            ausgewaehltesVorsorgedossier = verknuepfteVorsorgedossiers[0]
+            direktesVorsorgedossierOeffnen = true
+        } else {
+            vorsorgedossierAuswahlAnzeigen = true
         }
     }
 
@@ -159,4 +223,31 @@ struct HomeKachel: View {
 
 #Preview {
     Home()
+}
+
+struct VorsorgedossierPlatzhalter: View {
+    let name: String
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "folder.badge.person.crop")
+                .font(.system(size: 52))
+                .foregroundStyle(.orange)
+
+            Text("Vorsorgedossier")
+                .font(.largeTitle.bold())
+
+            Text(name)
+                .font(.title3)
+                .foregroundStyle(.secondary)
+
+            Text("Diese Ansicht wird später das freigegebene Dossier der vorsorgenden Person anzeigen.")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+        }
+        .padding()
+        .navigationTitle("Vorsorgedossier")
+    }
 }
