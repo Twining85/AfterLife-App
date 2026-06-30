@@ -3,8 +3,12 @@ import SwiftData
 import AuthenticationServices
 
 struct Registrierung: View {
+    init(einladungsToken: String? = nil) {
+        _einladungsToken = State(initialValue: einladungsToken)
+    }
     @Environment(\.modelContext) private var modelContext
     @Query private var gespeicherteProfile: [ProfilModell]
+    @Query private var gespeicherteDossierZugriffe: [DossierZugriffModell]
     @AppStorage("profilIstVorhanden") private var profilIstVorhanden = false
     @AppStorage("gespeicherteEmail") private var gespeicherteEmail = ""
     @AppStorage("gespeichertesPasswort") private var gespeichertesPasswort = ""
@@ -20,6 +24,7 @@ struct Registrierung: View {
     @State private var captchaAntwort = ""
     @State private var captchaZahl1 = Int.random(in: 2...9)
     @State private var captchaZahl2 = Int.random(in: 2...9)
+    @State private var einladungsToken: String?
 
     var body: some View {
         NavigationStack {
@@ -162,6 +167,14 @@ struct Registrierung: View {
         Int(captchaAntwort.trimmingCharacters(in: .whitespacesAndNewlines)) == captchaZahl1 + captchaZahl2
     }
 
+    private var aktuellerDossierZugriff: DossierZugriffModell? {
+        guard let einladungsToken else { return nil }
+
+        return gespeicherteDossierZugriffe.first {
+            $0.einladungsToken == einladungsToken
+        }
+    }
+
     private func registrierenMitEmail() {
         fehlermeldung = ""
 
@@ -184,6 +197,13 @@ struct Registrierung: View {
         guard passwort.count >= 8 else {
             fehlermeldung = "Das Passwort muss mindestens 8 Zeichen lang sein."
             return
+        }
+
+        if let zugriff = aktuellerDossierZugriff {
+            guard zugriff.kannRegistrierungFortsetzen else {
+                fehlermeldung = "Diese Einladung ist ungültig oder bereits verwendet worden."
+                return
+            }
         }
 
         let bereinigteEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -246,6 +266,11 @@ struct Registrierung: View {
 
         profil.registrierungsart = art
         profil.registrierungsEmail = bereinigteEmail
+
+        if let zugriff = aktuellerDossierZugriff {
+            zugriff.einladungAnnehmen(vertrauenspersonUserID: profil.userID)
+        }
+
         erstelleDossierFallsNoetig(fuer: profil, email: bereinigteEmail)
         aktiveUserID = profil.userID.uuidString
         direktNachRegistrierungEingeloggt = true
@@ -295,5 +320,5 @@ struct Registrierung: View {
 
 #Preview {
     Registrierung()
-        .modelContainer(for: [ProfilModell.self, DossierModell.self], inMemory: true)
+        .modelContainer(for: [ProfilModell.self, DossierModell.self, DossierZugriffModell.self], inMemory: true)
 }

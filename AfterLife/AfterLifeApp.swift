@@ -78,7 +78,8 @@ struct AppStartView: View {
         if einladungsSimulationAktiv {
             EinladungAngenommen(
                 einladenderName: "René Engeler",
-                eingeladeneEmail: "vertrauensperson@mail.ch"
+                eingeladeneEmail: "vertrauensperson@mail.ch",
+                einladungsToken: "test-token-123"
             )
         } else if istBereitsRegistriert {
             ReloginView()

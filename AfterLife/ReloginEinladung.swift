@@ -19,6 +19,13 @@ import LocalAuthentication
 import AuthenticationServices
 
 struct ReloginEinladung: View {
+    let eingeladeneEmail: String
+    let einladungsToken: String
+
+    init(eingeladeneEmail: String = "", einladungsToken: String = "") {
+        self.eingeladeneEmail = eingeladeneEmail
+        self.einladungsToken = einladungsToken
+    }
 
     @Query private var gespeicherteProfile: [ProfilModell]
 
@@ -343,6 +350,9 @@ struct ReloginEinladung: View {
 }
 
 #Preview {
-    ReloginEinladung()
-        .modelContainer(for: [ProfilModell.self], inMemory: true)
+    ReloginEinladung(
+        eingeladeneEmail: "vertrauensperson@mail.ch",
+        einladungsToken: "test-token-123"
+    )
+    .modelContainer(for: [ProfilModell.self, DossierZugriffModell.self], inMemory: true)
 }

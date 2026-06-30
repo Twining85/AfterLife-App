@@ -151,6 +151,8 @@ final class DossierZugriffModell {
         status = DossierZugriffStatus.abgelehnt
         abgelehntAm = Date()
         angenommenAm = nil
+        vertrauenspersonUserID = nil
+        istAktiv = false
         aktualisiertAm = Date()
     }
 

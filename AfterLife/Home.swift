@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 struct Home: View {
     private let kachelFarbe = Color(red: 0.92, green: 0.92, blue: 0.94)
@@ -63,6 +64,13 @@ struct Home: View {
                             .offset(y: kachelnSindSichtbar ? 0 : 20)
                             .opacity(kachelnSindSichtbar ? 1 : 0)
                     }
+
+#if DEBUG
+                    HomeDebugTestPanel()
+                        .padding(.horizontal, 24)
+                        .padding(.top, 8)
+                        .padding(.bottom, 32)
+#endif
                 }
             }
             .background(Color(.systemBackground))
@@ -251,3 +259,118 @@ struct VorsorgedossierPlatzhalter: View {
         .navigationTitle("Vorsorgedossier")
     }
 }
+
+
+#if DEBUG
+private struct HomeDebugTestPanel: View {
+    @AppStorage("aktiveUserID") private var aktiveUserID = ""
+    @AppStorage("gespeicherteEmail") private var gespeicherteEmail = ""
+    @AppStorage("profilIstVorhanden") private var profilIstVorhanden = false
+    @AppStorage("direktNachRegistrierungEingeloggt") private var direktNachRegistrierungEingeloggt = false
+
+    @Query private var profile: [ProfilModell]
+    @Query private var dossiers: [DossierModell]
+    @Query private var dossierZugriffe: [DossierZugriffModell]
+
+    private var aktivesProfil: ProfilModell? {
+        guard let uuid = UUID(uuidString: aktiveUserID) else { return nil }
+        return profile.first { $0.userID == uuid }
+    }
+
+    private var aktivesDossier: DossierModell? {
+        if let profil = aktivesProfil {
+            return dossiers.first { $0.dossierID == profil.dossierID }
+        }
+
+        return dossiers.first
+    }
+
+    var body: some View {
+        GroupBox("🧪 Developer Testcenter") {
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Aktiver Benutzer")
+                        .font(.headline)
+
+                    Text("Profil vorhanden: \(profilIstVorhanden ? "Ja" : "Nein")")
+                    Text("Direkt eingeloggt: \(direktNachRegistrierungEingeloggt ? "Ja" : "Nein")")
+                    Text("E-Mail: \(gespeicherteEmail.isEmpty ? "-" : gespeicherteEmail)")
+                    Text("User-ID: \(aktiveUserID.isEmpty ? "-" : aktiveUserID)")
+                        .font(.caption.monospaced())
+                        .textSelection(.enabled)
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Dossier")
+                        .font(.headline)
+
+                    if let aktivesDossier {
+                        Text("Dossier-ID: \(aktivesDossier.dossierID.uuidString)")
+                            .font(.caption.monospaced())
+                            .textSelection(.enabled)
+                        Text("Aktiv: \(aktivesDossier.istAktiv ? "Ja" : "Nein")")
+                        Text("Freigegeben: \(aktivesDossier.istFreigegeben ? "Ja" : "Nein")")
+                        Text("Schreibgeschützt: \(aktivesDossier.istSchreibgeschuetzt ? "Ja" : "Nein")")
+                    } else {
+                        Text("Kein Dossier gefunden.")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Einladungen")
+                        .font(.headline)
+
+                    if dossierZugriffe.isEmpty {
+                        Text("Noch keine Einladungen vorhanden.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(dossierZugriffe) { zugriff in
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(zugriff.eingeladeneEmail)
+                                    .font(.subheadline.bold())
+
+                                Text("Token: \(zugriff.einladungsToken ?? "-")")
+                                    .font(.caption.monospaced())
+                                    .textSelection(.enabled)
+
+                                Text("Registrierung möglich: \(zugriff.kannRegistrierungFortsetzen ? "Ja" : "Nein")")
+                                Text("Statusbeurteilung: \(zugriff.kannRegistrierungFortsetzen ? "Link kann noch verwendet werden" : "Link bereits verwendet oder nicht mehr gültig")")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+
+                                Text("Status: \(zugriff.status)")
+                                Text("Aktiv: \(zugriff.istAktiv ? "Ja" : "Nein")")
+                                Text("Link verwendet: \(zugriff.einladungsLinkVerwendet ? "Ja" : "Nein")")
+
+                                if let gueltigBis = zugriff.einladungGueltigBis {
+                                    Text("Gültig bis: \(gueltigBis.formatted(date: .abbreviated, time: .shortened))")
+                                }
+
+                                if let verwendetAm = zugriff.einladungsLinkVerwendetAm {
+                                    Text("Verwendet am: \(verwendetAm.formatted(date: .abbreviated, time: .shortened))")
+                                }
+
+                                if let userID = zugriff.vertrauenspersonUserID {
+                                    Text("Vertrauensperson-ID: \(userID.uuidString)")
+                                        .font(.caption2.monospaced())
+                                        .textSelection(.enabled)
+                                }
+                            }
+                            .padding(.vertical, 4)
+
+                            Divider()
+                        }
+                    }
+                }
+            }
+            .font(.footnote)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+#endif

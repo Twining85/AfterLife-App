@@ -15,6 +15,7 @@ struct VertrauenspersonView: View {
     @Query private var gespeicherteVertrauenspersonen: [VertrauenspersonModell]
     @Query private var gespeicherteProfile: [ProfilModell]
     @Query private var gespeicherteDossierZugriffe: [DossierZugriffModell]
+    // No changes needed here for test panel in this file
     @AppStorage("profilIstVorhanden") private var profilIstVorhanden = false
     @AppStorage("direktNachRegistrierungEingeloggt") private var direktNachRegistrierungEingeloggt = false
     @AppStorage("gespeicherteEmail") private var gespeicherteEmail = ""
@@ -326,7 +327,7 @@ struct VertrauenspersonView: View {
                             .font(.footnote)
                     }
 
-                    if let einladungsToken {
+                    if einladungsToken != nil {
                         Text("Simulierter Link")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -360,7 +361,8 @@ struct VertrauenspersonView: View {
         .fullScreenCover(isPresented: $einladungsSimulationStarten) {
             EinladungAngenommen(
                 einladenderName: "René Engeler",
-                eingeladeneEmail: einladungsEmail ?? email
+                eingeladeneEmail: einladungsEmail ?? email,
+                einladungsToken: einladungsToken ?? ""
             )
         }
         .alert("Für Test ausloggen?", isPresented: $logoutFuerEinladungstestAnzeigen) {
@@ -422,6 +424,7 @@ struct VertrauenspersonView: View {
                 simulierterEinladungsLink = "afterlife://registrierung?token=\(einladungsToken)"
             }
 
+            speichereVertrauensperson()
             return
         }
 
@@ -455,6 +458,8 @@ struct VertrauenspersonView: View {
         einladungsEmail = zugriff.eingeladeneEmail
         einladungsLinkErstelltAm = zugriff.erstelltAm
         simulierterEinladungsLink = service.registrierungsLink(fuer: zugriff)
+
+        speichereVertrauensperson()
     }
 
     private func einladungPerMailVorbereiten() {
@@ -729,3 +734,5 @@ private struct VertrauenspersonKontaktPicker: UIViewControllerRepresentable {
         DossierZugriffModell.self
     ], inMemory: true)
 }
+
+
