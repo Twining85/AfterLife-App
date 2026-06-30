@@ -290,6 +290,11 @@ struct Registrierung: View {
         }
 
         if let zugriff = aktuellerDossierZugriff {
+            guard zugriff.kannRegistrierungFortsetzen else {
+                fehlermeldung = "Diese Einladung ist ungültig oder wurde bereits verwendet."
+                return
+            }
+
             if registrierungsEmailWeichtVonEinladungAb && !eingeladeneEmailVerifiziert {
                 fehlermeldung = "Bitte verifiziere zuerst die ursprünglich eingeladene E-Mail-Adresse \(zugriff.eingeladeneEmail). Danach kannst du dich mit der aktuell eingegebenen E-Mail-Adresse registrieren."
 
@@ -380,7 +385,10 @@ struct Registrierung: View {
         profil.registrierungsEmail = bereinigteEmail
 
         if let zugriff = aktuellerDossierZugriff {
-            zugriff.einladungAnnehmen(vertrauenspersonUserID: profil.userID)
+            zugriff.einladungAnnehmen(
+                vertrauenspersonUserID: profil.userID,
+                registrierungsEmail: bereinigteEmail
+            )
         }
 
         erstelleDossierFallsNoetig(fuer: profil, email: bereinigteEmail)

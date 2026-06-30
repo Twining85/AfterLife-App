@@ -334,14 +334,24 @@ private struct HomeDebugTestPanel: View {
                                 Text(zugriff.eingeladeneEmail)
                                     .font(.subheadline.bold())
 
+                                Text("Eingeladen an: \(zugriff.eingeladeneEmail)")
+
+                                Text("Registriert mit: \((zugriff.registrierungsEmail?.isEmpty == false) ? (zugriff.registrierungsEmail ?? "-") : "-")")
+
+                                if let registrierungsEmail = zugriff.registrierungsEmail,
+                                   !registrierungsEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                                   registrierungsEmail.lowercased() != zugriff.eingeladeneEmail.lowercased() {
+                                    Text("Hinweis: Registrierung erfolgte mit abweichender E-Mail-Adresse.")
+                                        .font(.caption)
+                                        .foregroundStyle(.orange)
+                                }
+
                                 Text("Token: \(zugriff.einladungsToken ?? "-")")
                                     .font(.caption.monospaced())
                                     .textSelection(.enabled)
 
-                                Text("Registrierung möglich: \(zugriff.kannRegistrierungFortsetzen ? "Ja" : "Nein")")
-                                Text("Statusbeurteilung: \(zugriff.kannRegistrierungFortsetzen ? "Link kann noch verwendet werden" : "Link bereits verwendet oder nicht mehr gültig")")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                Text("Einladungslink: \(zugriff.kannRegistrierungFortsetzen ? "Noch verwendbar" : "Bereits verwendet")")
+                                    .foregroundStyle(zugriff.kannRegistrierungFortsetzen ? .green : .orange)
 
                                 Text("Status: \(zugriff.status)")
                                 Text("Aktiv: \(zugriff.istAktiv ? "Ja" : "Nein")")
