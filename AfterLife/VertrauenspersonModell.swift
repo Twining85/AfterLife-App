@@ -10,26 +10,30 @@ import SwiftData
 
 @Model
 final class VertrauenspersonModell {
+    // MARK: - Personendaten
+
+    var personenID: UUID
     var vorname: String
     var name: String
     var email: String
     var telefon: String
     var beziehung: String
 
+    /// Referenz auf das zugehörige Vorsorgedossier.
+    var dossierID: UUID?
+
+    // MARK: - Legacy-Felder
+    // Diese Felder bleiben vorerst bestehen, damit bestehende Views und gespeicherte Daten nicht brechen.
+    // Die fachliche Zugriffslogik soll schrittweise ins DossierZugriffModell wandern.
     var einladungsStatus: String
     var vorsorgeprozessStatus: String
     var einladungsToken: String?
     var einladungsEmail: String?
     var einladungsLinkErstelltAm: Date?
-    /// Referenz auf das zugehörige Vorsorgedossier.
-    var dossierID: UUID?
-    // Beziehung zwischen vorsorgender Person und Vertrauensperson
     var vorsorgendeUserID: UUID?
     var vertrauenspersonUserID: UUID?
     var einladungAngenommenAm: Date?
     var einladungAbgelehntAm: Date?
-
-    // Vorbereitung für mehrere Vertrauenspersonen pro Dossier
     var istPrimaereVertrauensperson: Bool
     var reihenfolge: Int
 
@@ -40,6 +44,7 @@ final class VertrauenspersonModell {
     var geaendertAm: Date
 
     init(
+        personenID: UUID = UUID(),
         vorname: String = "",
         name: String = "",
         email: String = "",
@@ -61,6 +66,7 @@ final class VertrauenspersonModell {
         erstelltAm: Date = Date(),
         geaendertAm: Date = Date()
     ) {
+        self.personenID = personenID
         self.vorname = vorname
         self.name = name
         self.email = email
@@ -81,6 +87,94 @@ final class VertrauenspersonModell {
         self.einladungsHistorie = einladungsHistorie
         self.erstelltAm = erstelltAm
         self.geaendertAm = geaendertAm
+    }
+
+    var vollerName: String {
+        let nameTeile = [vorname, name]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        if !nameTeile.isEmpty {
+            return nameTeile.joined(separator: " ")
+        }
+
+        if !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return email
+        }
+
+        return "Unbekannte Vertrauensperson"
+    }
+
+    var hatKontaktangaben: Bool {
+        !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        !telefon.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var normalisierteEmail: String {
+        email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    var normalisierteTelefonnummer: String {
+        telefon.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var kontaktUntertitel: String {
+        if !normalisierteEmail.isEmpty && !normalisierteTelefonnummer.isEmpty {
+            return "\(normalisierteEmail) · \(normalisierteTelefonnummer)"
+        }
+
+        if !normalisierteEmail.isEmpty {
+            return normalisierteEmail
+        }
+
+        if !normalisierteTelefonnummer.isEmpty {
+            return normalisierteTelefonnummer
+        }
+
+        return "Keine Kontaktangaben erfasst"
+    }
+
+    var beziehungsAnzeige: String {
+        let bereinigteBeziehung = beziehung.trimmingCharacters(in: .whitespacesAndNewlines)
+        return bereinigteBeziehung.isEmpty ? "Beziehung nicht erfasst" : bereinigteBeziehung
+    }
+
+    func hatGleicheEmail(wie andereEmail: String) -> Bool {
+        normalisierteEmail == andereEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    var hatGueltigeEmailStruktur: Bool {
+        let emailRegex = #"^[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"#
+        return normalisierteEmail.range(of: emailRegex, options: .regularExpression) != nil
+    }
+
+    var istVollstaendigErfasst: Bool {
+        !vorname.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        hatKontaktangaben
+    }
+
+    func istDieselbePerson(wie anderePerson: VertrauenspersonModell) -> Bool {
+        personenID == anderePerson.personenID
+    }
+
+    func kontaktangabenAktualisieren(
+        vorname: String,
+        name: String,
+        email: String,
+        telefon: String,
+        beziehung: String
+    ) {
+        self.vorname = vorname.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.email = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.telefon = telefon.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.beziehung = beziehung.trimmingCharacters(in: .whitespacesAndNewlines)
+        markiereAlsGeaendert()
+    }
+
+    func markiereAlsGeaendert() {
+        geaendertAm = Date()
     }
 }
 

@@ -179,6 +179,7 @@ final class DossierZugriffModell {
 
     func archivieren() {
         istAktiv = false
+        notiz = (notiz?.isEmpty == false ? notiz! + "\n" : "") + "Archiviert am \(Date().formatted(date: .abbreviated, time: .shortened))."
         aktualisiertAm = Date()
     }
 
@@ -208,9 +209,26 @@ final class DossierZugriffModell {
     }
 
     var hatAbweichendeRegistrierungsEmail: Bool {
-        guard let registrierungsEmail else { return false }
-        return eingeladeneEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            != registrierungsEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard let normalisierteRegistrierungsEmail else { return false }
+        return normalisierteEingeladeneEmail != normalisierteRegistrierungsEmail
+    }
+
+    var normalisierteEingeladeneEmail: String {
+        eingeladeneEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    var normalisierteRegistrierungsEmail: String? {
+        registrierungsEmail?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+
+    var istOffeneEinladung: Bool {
+        status == DossierZugriffStatus.erstellt && istAktiv
+    }
+
+    var istAbgeschlossen: Bool {
+        wurdeAbgelehnt || istFreigegeben || istWiderrufen
     }
 
     var anzeigename: String {

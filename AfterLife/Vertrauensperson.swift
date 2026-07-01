@@ -57,6 +57,21 @@ struct VertrauenspersonView: View {
         !einladungsHistorie.isEmpty
     }
 
+    private var bereinigteEmail: String {
+        email.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var bereinigterEmpfaengerName: String {
+        [vorname, name]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+    }
+
+    private var dossierZugriffService: DossierZugriffService {
+        DossierZugriffService()
+    }
+
     private var aktuellerDossierZugriff: DossierZugriffModell? {
         guard let einladungsToken else { return nil }
 
@@ -79,6 +94,35 @@ struct VertrauenspersonView: View {
         }
 
         return gespeicherteProfile.first?.dossierID
+    }
+
+    private var dossierZugriffeFuerAktivesDossier: [DossierZugriffModell] {
+        guard let aktivesDossierUUID else { return [] }
+
+        let gefilterteZugriffe: [DossierZugriffModell] = gespeicherteDossierZugriffe.filter { zugriff in
+            zugriff.dossierID == aktivesDossierUUID
+        }
+
+        return gefilterteZugriffe.sorted { ersterZugriff, zweiterZugriff in
+            ersterZugriff.erstelltAm > zweiterZugriff.erstelltAm
+        }
+    }
+
+    private func statusFarbe(fuer zugriff: DossierZugriffModell) -> Color {
+        if zugriff.istEinladungAbgelaufen && zugriff.status == DossierZugriffStatus.erstellt {
+            return .orange
+        }
+
+        switch zugriff.status {
+        case DossierZugriffStatus.angenommen,
+             DossierZugriffStatus.freigegeben:
+            return .green
+        case DossierZugriffStatus.abgelehnt,
+             DossierZugriffStatus.widerrufen:
+            return .red
+        default:
+            return .blue
+        }
     }
 
     private var vorsorgendePersonName: String {
@@ -117,17 +161,12 @@ struct VertrauenspersonView: View {
     }
 
     private var kontaktAnzeigename: String {
-        let vollerName = [vorname, name]
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-
-        if !vollerName.isEmpty {
-            return vollerName
+        if !bereinigterEmpfaengerName.isEmpty {
+            return bereinigterEmpfaengerName
         }
 
-        if !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return email.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !bereinigteEmail.isEmpty {
+            return bereinigteEmail
         }
 
         return "Keine Vertrauensperson ausgewählt"
@@ -143,6 +182,19 @@ struct VertrauenspersonView: View {
 
     private var einladungIstAbgelehnt: Bool {
         aktuellerDossierZugriff?.status == DossierZugriffStatus.abgelehnt
+    }
+
+    private var einladungKannManuellAngenommenWerden: Bool {
+        aktuellerDossierZugriff?.kannRegistrierungFortsetzen == true
+    }
+
+    private var zugriffKannFreigegebenWerden: Bool {
+        guard let zugriff = aktuellerDossierZugriff else { return false }
+
+        return zugriff.status == DossierZugriffStatus.angenommen &&
+        zugriff.istAktiv &&
+        zugriff.freigegebenAm == nil &&
+        zugriff.widerrufenAm == nil
     }
 
     private var naechsterSchrittText: String {
@@ -196,14 +248,72 @@ struct VertrauenspersonView: View {
                 .padding(.vertical, 4)
             }
 
-            Section("Schritt 1: Vertrauensperson auswählen") {
+            if !dossierZugriffeFuerAktivesDossier.isEmpty {
+                Section("Aktuelle Zugriffe") {
+                    ForEach(dossierZugriffeFuerAktivesDossier, id: \.einladungsToken) { zugriff in
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(alignment: .top, spacing: 12) {
+                                Image(systemName: "person.crop.circle.badge.checkmark")
+                                    .font(.title2)
+                                    .foregroundStyle(statusFarbe(fuer: zugriff))
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(zugriff.anzeigename)
+                                        .font(.headline)
+
+                                    Text(zugriff.eingeladeneEmail)
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+
+                                    HStack(spacing: 6) {
+                                        Text(zugriff.statusAnzeige)
+                                            .font(.caption)
+                                            .fontWeight(.semibold)
+                                            .foregroundStyle(statusFarbe(fuer: zugriff))
+                                            .padding(.horizontal, 9)
+                                            .padding(.vertical, 5)
+                                            .background(statusFarbe(fuer: zugriff).opacity(0.12))
+                                            .clipShape(Capsule())
+                                    }
+                                }
+                            }
+
+                            if let gueltigBis = zugriff.einladungGueltigBis,
+                               zugriff.status == DossierZugriffStatus.erstellt {
+                                Text("Einladung gültig bis \(gueltigBis.formatted(date: .abbreviated, time: .shortened))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if zugriff.hatAbweichendeRegistrierungsEmail,
+                               let registrierungsEmail = zugriff.registrierungsEmail {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Label("Registrierung erfolgte mit abweichender E-Mail", systemImage: "exclamationmark.triangle.fill")
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(.orange)
+
+                                    Text(registrierungsEmail)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .textSelection(.enabled)
+                                }
+                                .padding(.top, 2)
+                            }
+                        }
+                        .padding(.vertical, 8)
+                    }
+                }
+            }
+
+            Section("Vertrauensperson") {
                 if kontaktIstAusgewaehlt {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(kontaktAnzeigename)
                             .font(.headline)
 
-                        if !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            Text(email)
+                        if !bereinigteEmail.isEmpty {
+                            Text(bereinigteEmail)
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
@@ -233,13 +343,13 @@ struct VertrauenspersonView: View {
                 }
             }
 
-            Section("Schritt 2: Einladung vorbereiten") {
+            Section("Einladung") {
                 Button {
                     einladungPerMailVorbereiten()
                 } label: {
                     Label(einladungIstErstellt ? "Einladung erneut in Mail öffnen" : "Einladung per E-Mail vorbereiten", systemImage: "envelope.fill")
                 }
-                .disabled(email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(bereinigteEmail.isEmpty)
 
                 if !kontaktIstAusgewaehlt {
                     Text("Wähle zuerst eine Vertrauensperson aus. Danach kannst du die Einladung vorbereiten.")
@@ -257,52 +367,58 @@ struct VertrauenspersonView: View {
 
                 if einladungWurdeVorbereitet {
                     HStack(spacing: 10) {
-                        if einladungsStatus == .angenommen {
+                        if einladungIstAngenommen {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundStyle(.green)
                             Text("Einladung angenommen")
-                        } else {
+                        } else if einladungIstAbgelehnt {
                             Image(systemName: "xmark.circle.fill")
                                 .foregroundStyle(.red)
-                            Text("Einladung noch nicht angenommen")
+                            Text("Einladung abgelehnt")
+                        } else {
+                            Image(systemName: "clock.fill")
+                                .foregroundStyle(.orange)
+                            Text("Einladung offen")
                         }
                     }
 
+                    #if DEBUG
                     Button {
-                        einladungsStatus = .angenommen
-                        erfolgsmeldung = "Einladung wurde als angenommen markiert."
-                        fehlermeldung = ""
-                        speichereVertrauensperson()
+                        markiereEinladungImTestAlsAngenommen()
                     } label: {
-                        Label("Als angenommen markieren", systemImage: "checkmark.circle")
+                        Label("Test: Einladung als angenommen markieren", systemImage: "checkmark.circle")
                     }
-                    .disabled(einladungsStatus == .angenommen)
+                    .disabled(!einladungKannManuellAngenommenWerden)
+                    #endif
                 }
             }
 
             if einladungWurdeVorbereitet {
-                Section("Schritt 3: Rückmeldung verfolgen") {
+                Section("Rückmeldung") {
                     HStack(spacing: 10) {
-                        if vorsorgeprozessStatus == .gestartet {
+                        if aktuellerDossierZugriff?.istFreigegeben == true {
+                            Image(systemName: "lock.open.fill")
+                                .foregroundStyle(.green)
+                            Text("Zugriff freigegeben")
+                        } else if einladungIstAngenommen {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundStyle(.green)
-                            Text("Vorsorgeprozess gestartet")
+                            Text("Einladung angenommen, Freigabe offen")
                         } else {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.red)
-                            Text("Vorsorgeprozess noch nicht gestartet")
+                            Image(systemName: "clock.fill")
+                                .foregroundStyle(.orange)
+                            Text("Noch keine Freigabe möglich")
                         }
                     }
 
+                    #if DEBUG
                     Button {
-                        vorsorgeprozessStatus = .gestartet
-                        erfolgsmeldung = "Vorsorgeprozess wurde als gestartet markiert."
-                        fehlermeldung = ""
-                        speichereVertrauensperson()
+                        gebeZugriffImTestFrei()
                     } label: {
-                        Label("Als gestartet markieren", systemImage: "play.circle")
+                        Label("Test: Zugriff freigeben", systemImage: "lock.open")
                     }
-                    .disabled(vorsorgeprozessStatus == .gestartet)
+                    .disabled(!zugriffKannFreigegebenWerden)
+                    #endif
                 }
             }
 
@@ -387,7 +503,7 @@ struct VertrauenspersonView: View {
 
                     Text(aktuellerDossierZugriff?.status.capitalized ?? "Noch nicht erstellt")
                         .font(.footnote)
-                        .foregroundStyle(aktuellerDossierZugriff?.status == DossierZugriffStatus.erstellt ? .green : .secondary)
+                        .foregroundStyle((aktuellerDossierZugriff?.status == DossierZugriffStatus.erstellt) ? Color.green : Color.secondary)
 
                     Text("Gültig bis")
                         .font(.caption)
@@ -448,7 +564,7 @@ struct VertrauenspersonView: View {
             .listRowBackground(Color.orange.opacity(0.12))
             #endif
         }
-        .navigationTitle("Vertrauensperson")
+        .navigationTitle("Zugriff im Notfall")
         .fullScreenCover(isPresented: $einladungsSimulationStarten) {
             EinladungAngenommen(
                 einladenderName: vorsorgendePersonName,
@@ -474,6 +590,51 @@ struct VertrauenspersonView: View {
             VertrauenspersonKontaktPicker { kontakt in
                 uebernehmeKontakt(kontakt)
             }
+        }
+    }
+
+    private func markiereEinladungImTestAlsAngenommen() {
+        guard let zugriff = aktuellerDossierZugriff else {
+            fehlermeldung = "Es wurde kein passender Dossierzugriff gefunden."
+            erfolgsmeldung = ""
+            return
+        }
+
+        let testUserID = UUID()
+        zugriff.einladungAnnehmen(
+            vertrauenspersonUserID: testUserID,
+            registrierungsEmail: zugriff.eingeladeneEmail
+        )
+
+        einladungsStatus = .angenommen
+        fehlermeldung = ""
+        erfolgsmeldung = "Einladung wurde im Test als angenommen markiert."
+
+        do {
+            try modelContext.save()
+        } catch {
+            fehlermeldung = "Die angenommene Einladung konnte nicht gespeichert werden."
+            erfolgsmeldung = ""
+        }
+    }
+
+    private func gebeZugriffImTestFrei() {
+        guard let zugriff = aktuellerDossierZugriff else {
+            fehlermeldung = "Es wurde kein passender Dossierzugriff gefunden."
+            erfolgsmeldung = ""
+            return
+        }
+
+        zugriff.zugriffFreigeben()
+        vorsorgeprozessStatus = .gestartet
+        fehlermeldung = ""
+        erfolgsmeldung = "Zugriff wurde im Test freigegeben."
+
+        do {
+            try modelContext.save()
+        } catch {
+            fehlermeldung = "Die Freigabe konnte nicht gespeichert werden."
+            erfolgsmeldung = ""
         }
     }
 
@@ -529,11 +690,11 @@ struct VertrauenspersonView: View {
             return
         }
 
-        let service = DossierZugriffService()
-        let zugriff = service.erstelleEinladung(
+        let zugriff = dossierZugriffService.erstelleEinladung(
             dossierID: dossierID,
             vorsorgendeUserID: vorsorgendeUserID,
-            eingeladeneEmail: empfaengerEmail
+            eingeladeneEmail: empfaengerEmail,
+            eingeladenePersonName: bereinigterEmpfaengerName
         )
 
         modelContext.insert(zugriff)
@@ -548,7 +709,7 @@ struct VertrauenspersonView: View {
         einladungsToken = zugriff.einladungsToken
         einladungsEmail = zugriff.eingeladeneEmail
         einladungsLinkErstelltAm = zugriff.erstelltAm
-        simulierterEinladungsLink = service.registrierungsLink(fuer: zugriff)
+        simulierterEinladungsLink = dossierZugriffService.registrierungsLink(fuer: zugriff)
 
         speichereVertrauensperson()
     }
@@ -557,7 +718,7 @@ struct VertrauenspersonView: View {
         fehlermeldung = ""
         erfolgsmeldung = ""
 
-        let empfaengerEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let empfaengerEmail = bereinigteEmail
 
         guard kontaktIstAusgewaehlt else {
             fehlermeldung = "Bitte wähle zuerst eine Vertrauensperson aus."
@@ -573,12 +734,7 @@ struct VertrauenspersonView: View {
 
         guard fehlermeldung.isEmpty else { return }
 
-        let empfaengerName = [vorname, name]
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-
-        let anredeName = empfaengerName.isEmpty ? "" : " \(empfaengerName)"
+        let anredeName = bereinigterEmpfaengerName.isEmpty ? "" : " \(bereinigterEmpfaengerName)"
 
         let betreff = "Einladung als Vertrauensperson"
         let nachricht = """
@@ -729,17 +885,18 @@ struct VertrauenspersonView: View {
         vertrauensperson.istPrimaereVertrauensperson = true
         vertrauensperson.reihenfolge = 0
 
-        vertrauensperson.vorname = vorname
-        vertrauensperson.name = name
-        vertrauensperson.email = email
-        vertrauensperson.telefon = telefon
-        vertrauensperson.beziehung = beziehung
+        vertrauensperson.kontaktangabenAktualisieren(
+            vorname: vorname,
+            name: name,
+            email: email,
+            telefon: telefon,
+            beziehung: beziehung
+        )
         vertrauensperson.einladungsStatus = einladungsStatus.rawValue
         vertrauensperson.vorsorgeprozessStatus = vorsorgeprozessStatus.rawValue
         vertrauensperson.einladungsToken = einladungsToken
         vertrauensperson.einladungsEmail = einladungsEmail
         vertrauensperson.einladungsLinkErstelltAm = einladungsLinkErstelltAm
-        vertrauensperson.geaendertAm = Date()
 
         vertrauensperson.einladungsHistorie.forEach { historienEintrag in
             modelContext.delete(historienEintrag)
@@ -815,17 +972,99 @@ private struct VertrauenspersonKontaktPicker: UIViewControllerRepresentable {
     }
 }
 
-#Preview {
+
+
+#Preview("Vertrauensperson – Layout") {
     NavigationStack {
-        VertrauenspersonView()
+        Form {
+            Section {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Vertrauensperson einladen")
+                        .font(.headline)
+
+                    Text("Führe den Prozess Schritt für Schritt durch. Die App zeigt dir jeweils, was als Nächstes zu tun ist.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("1. Kontakt ausgewählt", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+
+                        Label("2. Einladung vorbereitet", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+
+                        Label("3. Rückmeldung abwarten", systemImage: "circle")
+                            .foregroundStyle(.primary)
+                    }
+                    .font(.footnote)
+
+                    Text("Die Einladung ist bereit. Sende die E-Mail oder teste den Link im Testbereich.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 4)
+                }
+                .padding(.vertical, 4)
+            }
+
+            Section("Aktuelle Zugriffe") {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: "person.crop.circle.badge.checkmark")
+                            .font(.title3)
+                            .foregroundStyle(Color.blue)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Max Muster")
+                                .font(.headline)
+
+                            Text("max.muster@example.com")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+
+                            Text("Eingeladen")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(.thinMaterial)
+                                .clipShape(Capsule())
+                        }
+                    }
+
+                    Text("Einladung gültig bis 31.07.2026, 10:00")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 6)
+            }
+
+            Section("Schritt 1: Vertrauensperson auswählen") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Max Muster")
+                        .font(.headline)
+
+                    Text("max.muster@example.com")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    Text("+41 79 000 00 00")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
+                Label("Kontakt ändern", systemImage: "person.crop.circle.badge.plus")
+            }
+
+            Section("Schritt 2: Einladung vorbereiten") {
+                Label("Einladung erneut in Mail öffnen", systemImage: "envelope.fill")
+
+                Text("Die Einladung wurde vorbereitet. Du kannst die E-Mail in deiner Mail-App prüfen und senden.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .navigationTitle("Vertrauensperson")
     }
-    .modelContainer(for: [
-        VertrauenspersonModell.self,
-        VertrauenspersonEinladungsHistorieModell.self,
-        ProfilModell.self,
-        DossierModell.self,
-        DossierZugriffModell.self
-    ], inMemory: true)
 }
 
 

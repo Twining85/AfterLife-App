@@ -7,15 +7,19 @@ struct DossierZugriffService {
     func erstelleEinladung(
         dossierID: UUID,
         vorsorgendeUserID: UUID,
-        eingeladeneEmail: String
+        eingeladeneEmail: String,
+        eingeladenePersonName: String? = nil
     ) -> DossierZugriffModell {
 
         let token = UUID().uuidString.lowercased()
         let gueltigBis = Calendar.current.date(byAdding: .day, value: 30, to: Date()) ?? Date()
+        let bereinigteEmail = eingeladeneEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let bereinigterName = eingeladenePersonName?.trimmingCharacters(in: .whitespacesAndNewlines)
 
         return DossierZugriffModell(
             einladungsToken: token,
-            eingeladeneEmail: eingeladeneEmail,
+            eingeladeneEmail: bereinigteEmail,
+            eingeladenePersonName: bereinigterName?.isEmpty == false ? bereinigterName : nil,
             einladungGueltigBis: gueltigBis,
             dossierID: dossierID,
             vorsorgendeUserID: vorsorgendeUserID
