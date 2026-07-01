@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import AuthenticationServices
 
 struct Registrierung: View {
     init(einladungsToken: String? = nil) {
@@ -159,53 +158,12 @@ struct Registrierung: View {
                 .frame(maxWidth: .infinity)
                 .disabled(!registrierungErlaubt)
 
-                SignInWithAppleButton(.signUp) { request in
-                    request.requestedScopes = [.fullName, .email]
-                } onCompletion: { result in
-                    guard akzeptiertDisclaimer else {
-                        fehlermeldung = "Bitte akzeptiere zuerst den Haftungsausschluss."
-                        return
-                    }
 
-                    guard captchaIstGueltig else {
-                        fehlermeldung = "Bitte löse das Captcha korrekt."
-                        captchaNeuLaden()
-                        return
-                    }
-
-                    switch result {
-                    case .success(let authorization):
-                        let appleEmail = appleEmailAusAuthorization(authorization)
-                        gespeicherteEmail = appleEmail
-                        gespeichertesPasswort = ""
-                        registrierungsArt = "Apple ID"
-                        speichereRegistrierungsdaten(art: "Apple ID", email: appleEmail)
-                        showHome = true
-
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                            direktNachRegistrierungEingeloggt = true
-                            profilIstVorhanden = true
-                        }
-                    case .failure:
-                        fehlermeldung = "Apple Login konnte nicht abgeschlossen werden."
-                    }
-                }
-                .signInWithAppleButtonStyle(.black)
-                .frame(height: 50)
-                .disabled(!registrierungErlaubt)
-
-                Button {
-                    googleLogin()
-                } label: {
-                    HStack {
-                        Image(systemName: "g.circle.fill")
-                        Text("Mit Google anmelden")
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .frame(height: 50)
-                .disabled(!registrierungErlaubt)
+                Text("Weitere Anmeldemöglichkeiten wie Apple oder Google werden in einer späteren Version ergänzt.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
 
                 Spacer()
 
@@ -244,14 +202,24 @@ struct Registrierung: View {
         email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
+    private var bereinigteEmailOriginalschreibweise: String {
+        email.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var bereinigtesPasswort: String {
+        passwort.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var dossierZugriffService: DossierZugriffService {
+        DossierZugriffService()
+    }
+
     private var registrierungsEmailIstFormalGueltig: Bool {
         bereinigteRegistrierungsEmail.contains("@") && bereinigteRegistrierungsEmail.contains(".")
     }
 
     private var bereinigteEingeladeneEmail: String? {
-        aktuellerDossierZugriff?.eingeladeneEmail
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
+        aktuellerDossierZugriff?.normalisierteEingeladeneEmail
     }
 
     private var registrierungsEmailWeichtVonEinladungAb: Bool {
@@ -279,12 +247,12 @@ struct Registrierung: View {
             return
         }
 
-        guard email.contains("@"), email.contains(".") else {
+        guard registrierungsEmailIstFormalGueltig else {
             fehlermeldung = "Bitte gib eine gültige E-Mail-Adresse ein."
             return
         }
 
-        guard passwort.count >= 8 else {
+        guard bereinigtesPasswort.count >= 8 else {
             fehlermeldung = "Das Passwort muss mindestens 8 Zeichen lang sein."
             return
         }
@@ -306,17 +274,17 @@ struct Registrierung: View {
             }
         }
 
-        let bereinigteEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let bereinigteEmail = bereinigteEmailOriginalschreibweise
 
         do {
             try KeychainHelper.shared.save(
-                passwort,
+                bereinigtesPasswort,
                 service: "AfterLife.Login",
                 account: bereinigteEmail
             )
 
             gespeicherteEmail = bereinigteEmail
-            gespeichertesPasswort = passwort
+            gespeichertesPasswort = bereinigtesPasswort
             registrierungsArt = "E-Mail"
 
             speichereRegistrierungsdaten(art: "E-Mail", email: bereinigteEmail)
@@ -348,33 +316,6 @@ struct Registrierung: View {
         fehlermeldung = ""
     }
 
-    private func googleLogin() {
-        fehlermeldung = ""
-
-        guard akzeptiertDisclaimer else {
-            fehlermeldung = "Bitte akzeptiere zuerst den Haftungsausschluss."
-            return
-        }
-
-        guard captchaIstGueltig else {
-            fehlermeldung = "Bitte löse das Captcha korrekt."
-            captchaNeuLaden()
-            return
-        }
-
-        let bereinigteEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
-        gespeicherteEmail = bereinigteEmail
-        gespeichertesPasswort = ""
-        registrierungsArt = "Google"
-
-        speichereRegistrierungsdaten(art: "Google", email: bereinigteEmail)
-        showHome = true
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            direktNachRegistrierungEingeloggt = true
-            profilIstVorhanden = true
-        }
-    }
 
     private func speichereRegistrierungsdaten(art: String, email: String) {
         let bereinigteEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -419,17 +360,6 @@ struct Registrierung: View {
         aktivesDossierID = neuesDossier.dossierID.uuidString
     }
 
-    private func appleEmailAusAuthorization(_ authorization: ASAuthorization) -> String {
-        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
-            return email.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-
-        if let appleEmail = credential.email, !appleEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return appleEmail
-        }
-
-        return email.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
 
     private func captchaNeuLaden() {
         captchaAntwort = ""

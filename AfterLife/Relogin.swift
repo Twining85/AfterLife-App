@@ -8,7 +8,6 @@
 import SwiftUI
 import SwiftData
 import LocalAuthentication
-import AuthenticationServices
 
 struct ReloginView: View {
 
@@ -40,11 +39,6 @@ struct ReloginView: View {
         if !emailAusProfil.isEmpty { return emailAusProfil }
         if !profilEmail.isEmpty { return profilEmail }
         return appEmail
-    }
-
-    private var registrierungsArt: String {
-        let art = profil?.registrierungsart.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return art.isEmpty ? "E-Mail" : art
     }
 
     private var biometrieAktiviert: Bool {
@@ -115,8 +109,6 @@ struct ReloginView: View {
                 emailLoginBereich
             }
 
-            alternativeLoginBereiche
-
             if !fehlermeldung.isEmpty {
                 Text(fehlermeldung)
                     .font(.footnote)
@@ -167,38 +159,6 @@ struct ReloginView: View {
             .frame(maxWidth: .infinity)
         }
         .padding(.horizontal)
-    }
-
-    private var alternativeLoginBereiche: some View {
-        VStack(spacing: 12) {
-            if registrierungsArt == "Apple" || registrierungsArt == "Apple ID" {
-                SignInWithAppleButton(.signIn) { request in
-                    request.requestedScopes = [.email]
-                } onCompletion: { result in
-                    switch result {
-                    case .success:
-                        istEingeloggt = true
-                        fehlermeldung = ""
-                    case .failure:
-                        fehlermeldung = "Apple Login konnte nicht abgeschlossen werden."
-                    }
-                }
-                .signInWithAppleButtonStyle(.black)
-                .frame(height: 48)
-                .padding(.horizontal)
-            }
-
-            if registrierungsArt == "Google" {
-                Button {
-                    loginMitGoogle()
-                } label: {
-                    Label("Mit Google anmelden", systemImage: "g.circle")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .padding(.horizontal)
-            }
-        }
     }
 
     private func bereiteLoginBeimStartVor() {
@@ -307,16 +267,6 @@ struct ReloginView: View {
         } catch {
             fehlermeldung = "Login-Daten konnten nicht sicher gelesen werden. Bitte registriere dich erneut."
         }
-    }
-
-    private func loginMitGoogle() {
-        guard registrierungsArt == "Google" else {
-            fehlermeldung = "Dieses Profil wurde nicht mit Google registriert."
-            return
-        }
-
-        fehlermeldung = ""
-        istEingeloggt = true
     }
 }
 
