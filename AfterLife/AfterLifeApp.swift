@@ -13,6 +13,7 @@ struct AfterLifeApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             ProfilModell.self,
+            GesundheitModell.self,
             WuenscheModell.self,
             HinterbliebeneModell.self,
             BankkontoModell.self,

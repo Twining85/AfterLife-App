@@ -1,22 +1,118 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 struct Home: View {
     private let kachelFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
     private let schluessliAkzent = Color(red: 0.16, green: 0.36, blue: 0.42)
     // TEST: später durch echte Beziehungen aus dem Einladungs-/VertrauenspersonModell ersetzen
     private let verknuepfteVorsorgedossiers = ["René Engeler"]
+    @AppStorage("aktiveUserID") private var aktiveUserID = ""
+    @AppStorage("dossierZuletztGeprueftAmISO") private var dossierZuletztGeprueftAmISO = ""
+    @Query private var gespeicherteProfile: [ProfilModell]
+    @Query private var gespeicherteGesundheitsdaten: [GesundheitModell]
+    @Query private var gespeicherteDossierZugriffe: [DossierZugriffModell]
+    @Query private var gespeicherteBankkonten: [BankkontoModell]
+    @Query private var gespeicherteVersicherungen: [VersicherungModell]
+    @Query private var gespeicherteWertsachen: [WertsacheModell]
+    @Query private var gespeicherteDokumente: [DokumenteModell]
+    @Query private var gespeicherteAbos: [AboModell]
     @State private var kachelnSindSichtbar = false
     @State private var vorsorgedossierAuswahlAnzeigen = false
     @State private var direktesVorsorgedossierOeffnen = false
     @State private var ausgewaehltesVorsorgedossier = ""
+
+    private var tageszeitBegruessung: String {
+        let kalender = Calendar.current
+        let jetzt = Date()
+
+        let stunde = kalender.component(.hour, from: jetzt)
+        let minute = kalender.component(.minute, from: jetzt)
+        let minutenSeitMitternacht = stunde * 60 + minute
+
+        if minutenSeitMitternacht <= (12 * 60 + 30) {
+            return "Guten Morgen,"
+        } else if minutenSeitMitternacht <= (17 * 60 + 45) {
+            return "Guten Nachmittag,"
+        } else {
+            return "Guten Abend,"
+        }
+    }
+
+    private var aktivesProfil: ProfilModell? {
+        if let aktiveUserUUID = UUID(uuidString: aktiveUserID),
+           let profil = gespeicherteProfile.first(where: { $0.userID == aktiveUserUUID }) {
+            return profil
+        }
+
+        return gespeicherteProfile.first
+    }
+
+    private var aktiveGesundheitsdaten: GesundheitModell? {
+        if let aktiveUserUUID = UUID(uuidString: aktiveUserID),
+           let gesundheit = gespeicherteGesundheitsdaten.first(where: { $0.userID == aktiveUserUUID }) {
+            return gesundheit
+        }
+
+        if let dossierID = aktivesProfil?.dossierID,
+           let gesundheit = gespeicherteGesundheitsdaten.first(where: { $0.dossierID == dossierID }) {
+            return gesundheit
+        }
+
+        return gespeicherteGesundheitsdaten.first
+    }
+
+    private var homeAnzeigename: String {
+        let vorname = aktivesProfil?.vorname.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return vorname.isEmpty ? "Willkommen" : vorname
+    }
+
+    private var dossierWurdeGeprueft: Bool {
+        guard let datum = ISO8601DateFormatter().date(from: dossierZuletztGeprueftAmISO) else {
+            return false
+        }
+
+        guard let naechstePruefung = Calendar.current.date(byAdding: .year, value: 1, to: datum) else {
+            return false
+        }
+
+        return Date() < naechstePruefung
+    }
+
+    private var dossierZuletztGeprueftText: String {
+        guard let datum = ISO8601DateFormatter().date(from: dossierZuletztGeprueftAmISO) else {
+            return dossierFortschritt.aktionsText
+        }
+
+        if dossierWurdeGeprueft {
+            return "Zuletzt überprüft am \(datum.formatted(date: .abbreviated, time: .omitted))"
+        }
+
+        return "Erneut überprüfen"
+    }
+
+    // TODO: Fortschrittsberechnung fachlich weiter verfeinern.
+    // Aktuell werden erste robuste Kriterien aus bestehenden Modellen gezählt.
+    private var dossierFortschritt: DossierFortschritt {
+        DossierFortschrittService.berechne(
+            profil: aktivesProfil,
+            gesundheit: aktiveGesundheitsdaten,
+            wurdeVomUserGeprueft: dossierWurdeGeprueft,
+            anzahlDossierZugriffe: gespeicherteDossierZugriffe.count,
+            anzahlBankkonten: gespeicherteBankkonten.count,
+            anzahlVersicherungen: gespeicherteVersicherungen.count,
+            anzahlWertsachen: gespeicherteWertsachen.count,
+            anzahlDokumente: gespeicherteDokumente.count,
+            anzahlAbos: gespeicherteAbos.count
+        )
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
 
-                    Text("Willkommen")
+                    Text("Home")
                         .font(.largeTitle)
                         .fontWeight(.bold)
                         .padding(.horizontal, 24)
@@ -24,61 +120,171 @@ struct Home: View {
                         .padding(.bottom, 8)
 
 
-                    NavigationLink {
-                        ProfilView()
-                    } label: {
-                        VStack(alignment: .leading, spacing: 18) {
-                            HStack(alignment: .top, spacing: 14) {
-                                ZStack {
+                    VStack(alignment: .leading, spacing: 18) {
+                        HStack(alignment: .top) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(tageszeitBegruessung)
+                                    .font(.title3.weight(.medium))
+                                    .foregroundStyle(.secondary)
+
+                                Text("\(homeAnzeigename) 👋")
+                                    .font(.system(size: 46, weight: .bold, design: .rounded))
+                                    .foregroundStyle(Color(red: 0.08, green: 0.12, blue: 0.18))
+
+                                Text("Schön, dass du heute an deine Vorsorge denkst.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            Spacer()
+
+                            NavigationLink {
+                                ProfilView()
+                            } label: {
+                                ZStack(alignment: .bottomTrailing) {
                                     Circle()
-                                        .fill(schluessliAkzent.opacity(0.14))
-                                        .frame(width: 56, height: 56)
+                                        .fill(Color(red: 0.96, green: 0.95, blue: 0.92))
+                                        .frame(width: 96, height: 96)
+                                        .overlay {
+                                            Group {
+                                                if let bildDaten = aktivesProfil?.profilbildDaten,
+                                                   let uiImage = UIImage(data: bildDaten) {
+                                                    Image(uiImage: uiImage)
+                                                        .resizable()
+                                                        .scaledToFill()
+                                                        .frame(width: 96, height: 96)
+                                                        .clipShape(Circle())
+                                                } else {
+                                                    Image(systemName: "person.crop.circle.fill")
+                                                        .font(.system(size: 88))
+                                                        .foregroundStyle(schluessliAkzent.opacity(0.55))
+                                                }
+                                            }
+                                        }
+                                        .overlay(
+                                            Circle()
+                                                .stroke(Color.white.opacity(0.85), lineWidth: 3)
+                                        )
+                                        .shadow(color: schluessliAkzent.opacity(0.13), radius: 14, x: 0, y: 8)
 
-                                    Image(systemName: "heart.text.square.fill")
-                                        .font(.system(size: 27, weight: .semibold))
-                                        .foregroundStyle(schluessliAkzent)
+                                    ZStack {
+                                        Circle()
+                                            .fill(Color.white)
+                                            .frame(width: 32, height: 32)
+                                            .shadow(color: .black.opacity(0.10), radius: 8, x: 0, y: 4)
+
+                                        Image(systemName: "gearshape.fill")
+                                            .font(.system(size: 15, weight: .semibold))
+                                            .foregroundStyle(schluessliAkzent)
+                                    }
+                                    .offset(y: 8)
                                 }
-
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text("Schön, dass du vorsorgst.")
-                                        .font(.title3.weight(.bold))
-                                        .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
-
-                                    Text("Deine wichtigsten Bereiche sind hier gesammelt. Du kannst dein Dossier jederzeit ergänzen und Schritt für Schritt vervollständigen.")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
+                                .padding(.bottom, 8)
+                                .accessibilityLabel("Profil öffnen")
                             }
-
-                            HStack(spacing: 8) {
-                                Text("Weiter am Dossier")
-                                    .font(.headline.weight(.semibold))
-
-                                Image(systemName: "arrow.right")
-                                    .font(.headline.weight(.semibold))
-                            }
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 11)
-                            .background(schluessliAkzent)
-                            .clipShape(Capsule())
+                            .buttonStyle(.plain)
                         }
-                        .padding(20)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                                .fill(Color(red: 0.98, green: 0.97, blue: 0.94))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                                .stroke(Color.white.opacity(0.78), lineWidth: 1)
-                        )
-                        .shadow(color: schluessliAkzent.opacity(0.13), radius: 18, x: 0, y: 10)
+                        .padding(.horizontal, 24)
+                        .padding(.top, 10)
+
+                        // TODO: Fortschrittslogik fachlich definieren.
+                        // Aktuell ist der Fortschritt ein statischer Design-Platzhalter.
+                        VStack(alignment: .leading, spacing: 0) {
+                            VStack(alignment: .leading, spacing: 18) {
+                                HStack(alignment: .center, spacing: 18) {
+                                    ZStack {
+                                        Circle()
+                                            .stroke(Color.white.opacity(0.18), lineWidth: 10)
+                                            .frame(width: 90, height: 90)
+
+                                        Circle()
+                                            .trim(from: 0, to: dossierFortschritt.kreisFortschritt)
+                                            .stroke(
+                                                dossierFortschritt.farbe,
+                                                style: StrokeStyle(lineWidth: 10, lineCap: .round)
+                                            )
+                                            .frame(width: 90, height: 90)
+                                            .rotationEffect(.degrees(-90))
+
+                                        Text(dossierFortschritt.prozentText)
+                                            .font(.title2.weight(.bold))
+                                            .foregroundStyle(.white)
+                                    }
+
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text("Dein Vorsorge-Dossier")
+                                            .font(.title3.weight(.bold))
+                                            .foregroundStyle(.white)
+
+                                        Text(dossierFortschritt.titel)
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(dossierFortschritt.farbe)
+
+                                        Text(dossierFortschritt.beschreibung)
+                                            .font(.caption)
+                                            .foregroundStyle(.white.opacity(0.82))
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                }
+
+                                Button {
+                                    if dossierWurdeGeprueft {
+                                        dossierZuletztGeprueftAmISO = ""
+                                    } else {
+                                        dossierZuletztGeprueftAmISO = ISO8601DateFormatter().string(from: Date())
+                                    }
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        Text(dossierZuletztGeprueftText)
+                                            .font(.footnote.weight(.semibold))
+
+                                        Image(systemName: dossierWurdeGeprueft ? "arrow.clockwise.circle.fill" : dossierFortschritt.aktionsIcon)
+                                            .font(.footnote.weight(.semibold))
+                                    }
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 10)
+                                    .background(Color.white.opacity(0.14))
+                                    .clipShape(Capsule())
+                                    .overlay(
+                                        Capsule()
+                                            .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(20)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(
+                                ZStack(alignment: .bottomTrailing) {
+                                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [
+                                                    Color(red: 0.04, green: 0.22, blue: 0.29),
+                                                    Color(red: 0.02, green: 0.33, blue: 0.42)
+                                                ],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
+
+                                    Image(systemName: "leaf.fill")
+                                        .font(.system(size: 120))
+                                        .foregroundStyle(Color.white.opacity(0.05))
+                                        .offset(x: 18, y: 32)
+                                }
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                            )
+                            .shadow(color: schluessliAkzent.opacity(0.20), radius: 22, x: 0, y: 12)
+                        }
+                        .padding(.horizontal, 24)
                     }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 24)
-                    .padding(.top, 10)
+                    .padding(.top, 2)
 
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 12) {
@@ -165,27 +371,54 @@ struct Home: View {
             .navigationBarBackButtonHidden(true)
         }
     }
-
+    // TODO: Fachliche Funktion noch fertig definieren.
+    // Aktuell wird mit Testdaten gearbeitet.
     private var vorsorgedossierWechselAktion: some View {
-        HStack {
-            Spacer()
+        Button {
+            vorsorgedossierWechseln()
+        } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(Color.orange.opacity(0.14))
+                        .frame(width: 46, height: 46)
 
-            Button {
-                vorsorgedossierWechseln()
-            } label: {
-                HStack(spacing: 8) {
-                    Text("Zum Vorsorgedossier wechseln")
-                        .font(.footnote.weight(.semibold))
-
-                    Image(systemName: "arrow.right.circle.fill")
-                        .font(.title3)
+                    Image(systemName: "folder.badge.person.crop")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(.orange)
                 }
-                .foregroundStyle(.orange)
-            }
-            .buttonStyle(.plain)
-        }
-    }
 
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Freigegebene Dossiers")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+
+                    Text("Öffne ein Dossier, für das du als Vertrauensperson berechtigt bist.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(Color(red: 0.99, green: 0.96, blue: 0.91))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(Color.orange.opacity(0.18), lineWidth: 1)
+            )
+            .shadow(color: Color.orange.opacity(0.10), radius: 14, x: 0, y: 8)
+        }
+        .buttonStyle(.plain)
+    }
     private func vorsorgedossierWechseln() {
         guard !verknuepfteVorsorgedossiers.isEmpty else { return }
 
@@ -209,12 +442,26 @@ struct Home: View {
                 ProfilView()
             } label: {
                 HomeKachel(
-                    icon: "person.fill",
+                    icon: "person.text.rectangle.fill",
                     titel: "Mein Profil",
                     untertitel: "Persönliche Angaben",
-                    details: "Kontaktdaten und Einstellungen, Vertrauensperson verwalten",
+                    details: "Kontaktdaten, Einstellungen und Sicherheit verwalten",
                     farbe: kachelFarbe,
                     akzentFarbe: schluessliAkzent
+                )
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink {
+                GesundheitView()
+            } label: {
+                HomeKachel(
+                    icon: "heart.text.square.fill",
+                    titel: "Gesundheit",
+                    untertitel: "Für den Ernstfall",
+                    details: "Hausarzt, Medikamente, Allergien und wichtige medizinische Informationen",
+                    farbe: kachelFarbe,
+                    akzentFarbe: Color(red: 0.76, green: 0.24, blue: 0.30)
                 )
             }
             .buttonStyle(.plain)
@@ -326,12 +573,13 @@ struct Home: View {
                     Text(details)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(4)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(height: 202)
+            .frame(minHeight: 202, alignment: .topLeading)
             .background(
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
                     .fill(farbe.opacity(0.98))
@@ -342,6 +590,169 @@ struct Home: View {
             )
             .shadow(color: akzentFarbe.opacity(0.12), radius: 16, x: 0, y: 8)
         }
+    }
+}
+
+struct DossierFortschritt {
+    let prozent: Int
+    let farbe: Color
+    let titel: String
+    let beschreibung: String
+    let aktionsText: String
+    let aktionsIcon: String
+
+    var prozentText: String {
+        "\(prozent)%"
+    }
+
+    var kreisFortschritt: Double {
+        min(max(Double(prozent) / 100.0, 0), 1)
+    }
+}
+
+struct DossierFortschrittService {
+    static func berechne(
+        profil: ProfilModell?,
+        gesundheit: GesundheitModell?,
+        wurdeVomUserGeprueft: Bool,
+        anzahlDossierZugriffe: Int,
+        anzahlBankkonten: Int,
+        anzahlVersicherungen: Int,
+        anzahlWertsachen: Int,
+        anzahlDokumente: Int,
+        anzahlAbos: Int
+    ) -> DossierFortschritt {
+        var punkte = 0
+
+
+        if profil != nil {
+            punkte += 5
+        }
+
+        if let profil {
+            if !profil.vorname.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty {
+                punkte += 5
+            }
+
+            if !profil.name.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty {
+                punkte += 5
+            }
+
+            if !profil.telefon.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty {
+                punkte += 5
+            }
+
+            if let profilbildDaten = profil.profilbildDaten,
+               !profilbildDaten.isEmpty {
+                punkte += 2
+            }
+        }
+
+        if let gesundheit {
+            if gesundheit.hatHausarzt {
+                punkte += 8
+            }
+
+            if gesundheit.blutgruppe != GesundheitBlutgruppe.unbekannt {
+                punkte += 2
+            }
+
+            if gesundheit.organspende != GesundheitOrganspendeStatus.nichtAngegeben {
+                punkte += 2
+            }
+
+            if gesundheit.hatAllergien,
+               !gesundheit.allergien.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty {
+                punkte += 2
+            }
+
+            if gesundheit.nimmtMedikamente,
+               !gesundheit.medikamente.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty {
+                punkte += 2
+            }
+
+            if !gesundheit.gesundheitlicheHinweise.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty {
+                punkte += 2
+            }
+        }
+
+        if anzahlDossierZugriffe > 0 {
+            punkte += 15
+        }
+
+        if anzahlBankkonten > 0 {
+            punkte += 10
+        }
+
+        if anzahlVersicherungen > 0 {
+            punkte += 5
+        }
+
+        if anzahlWertsachen > 0 {
+            punkte += 2
+        }
+
+        if anzahlDokumente > 1 {
+            punkte += 15
+        }
+
+        if anzahlAbos >= 2 {
+            punkte += 5
+        } else if anzahlAbos == 1 {
+            punkte += 3
+        }
+
+        if wurdeVomUserGeprueft {
+            punkte = max(punkte, 100)
+        }
+        return berechne(statischerProzentwert: punkte)
+    }
+
+    static func berechne(statischerProzentwert: Int) -> DossierFortschritt {
+        let prozent = min(max(statischerProzentwert, 0), 100)
+
+        if prozent >= 100 {
+            return DossierFortschritt(
+                prozent: 100,
+                farbe: Color(red: 0.45, green: 0.82, blue: 0.62),
+                titel: "Dein Vorsorge-Dossier ist ausgefüllt",
+                beschreibung: "Super, du hast dir die Zeit genommen, die wichtigsten Informationen zu dir und deiner Lebenssituation festzuhalten. Damit schaffst du eine wertvolle Grundlage, die deinen Hinterbliebenen im Ernstfall Orientierung und Unterstützung bietet. Das nennt sich vorausschauende Vorsorge - top!",
+                aktionsText: "Dossier vollständig",
+                aktionsIcon: "checkmark.seal.fill"
+            )
+        }
+
+        if prozent <= 30 {
+            return DossierFortschritt(
+                prozent: prozent,
+                farbe: Color(red: 0.86, green: 0.32, blue: 0.28),
+                titel: "Du bist noch am Anfang.",
+                beschreibung: "Damit deine Hinterbliebenen wissen, was dir wichtig ist und wie deine Situation aussieht, erfasse weitere Informationen.",
+                aktionsText: "Das Dossier habe ich ausreichend ausgefüllt und ist für mich vollständig.",
+                aktionsIcon: "checkmark.circle.fill"
+            )
+        }
+
+        if prozent <= 60 {
+            return DossierFortschritt(
+                prozent: prozent,
+                farbe: Color(red: 0.92, green: 0.56, blue: 0.22),
+                titel: "Du bist auf gutem Weg.",
+                beschreibung: "Zusätzliche Angaben zu deinen Wünschen, Finanzen und Dokumenten helfen deinen Hinterbliebenen im Ernstfall erheblich.",
+                aktionsText: "Ich habe mein Dossier aus meiner Sicht vervollständigt",
+                aktionsIcon: "checkmark.circle.fill"
+            )
+        }
+
+        return DossierFortschritt(
+            prozent: prozent,
+            farbe: Color(red: 0.45, green: 0.82, blue: 0.62),
+            titel: "Du bist sehr gut vorbereitet.",
+            beschreibung: "Ergänze alles, was dir noch in den Sinn kommt. Jede zusätzliche Information kann deinen Hinterbliebenen helfen.",
+            aktionsText: "Dossier als vollständig bestätigen",
+            aktionsIcon: "checkmark.circle.fill"
+        )
+        
     }
 }
 
