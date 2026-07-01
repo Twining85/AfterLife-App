@@ -17,7 +17,7 @@ struct ProfilView: View {
     @Query private var gespeicherteWertsachen: [WertsacheModell]
     @Query private var gespeicherteSteuerdokumente: [SteuerdokumentModell]
     @Query private var gespeicherteAboModelle: [AboModell]
-    @Query private var gespeicherteVertrauenspersonen: [VertrauenspersonModell]
+    @Query private var gespeicherteDossierZugriffe: [DossierZugriffModell]
 
     @AppStorage("gespeicherteEmail") private var gespeicherteEmail = ""
     @AppStorage("gespeichertesPasswort") private var gespeichertesPasswort = ""
@@ -312,14 +312,14 @@ struct ProfilView: View {
                         VertrauenspersonView()
                     } label: {
                         Label(
-                            gespeicherteVertrauenspersonen.isEmpty
+                            gespeicherteDossierZugriffe.isEmpty
                                 ? "Vertrauensperson Zugriff geben"
-                                : "Vertrauensperson verwalten",
+                                : "Vertrauenspersonen verwalten",
                             systemImage: "person.badge.key.fill"
                         )
                     }
 
-                    Text("Hier kannst du später einer Vertrauensperson Zugriff auf deine Daten geben, damit sie im Notfall abrufbar sind.")
+                    Text("Hier kannst du Vertrauenspersonen einladen und verwalten, damit deine Daten im Notfall kontrolliert abrufbar sind.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
 

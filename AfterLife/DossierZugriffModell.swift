@@ -153,14 +153,15 @@ final class DossierZugriffModell {
         einladungAlsVerwendetMarkieren()
     }
 
-    func einladungAblehnen() {
+    func einladungAblehnen(registrierungsEmail: String? = nil) {
         status = DossierZugriffStatus.abgelehnt
         abgelehntAm = Date()
         angenommenAm = nil
         vertrauenspersonUserID = nil
-        registrierungsEmail = nil
+        self.registrierungsEmail = registrierungsEmail
         istAktiv = false
         aktualisiertAm = Date()
+        einladungAlsVerwendetMarkieren()
     }
 
     func zugriffFreigeben() {
@@ -188,5 +189,57 @@ final class DossierZugriffModell {
 
     var kannRegistrierungFortsetzen: Bool {
         status == DossierZugriffStatus.erstellt && istAktiv && !einladungsLinkVerwendet && !istEinladungAbgelaufen
+    }
+
+    var wurdeAngenommen: Bool {
+        status == DossierZugriffStatus.angenommen
+    }
+
+    var wurdeAbgelehnt: Bool {
+        status == DossierZugriffStatus.abgelehnt
+    }
+
+    var istFreigegeben: Bool {
+        status == DossierZugriffStatus.freigegeben
+    }
+
+    var istWiderrufen: Bool {
+        status == DossierZugriffStatus.widerrufen
+    }
+
+    var hatAbweichendeRegistrierungsEmail: Bool {
+        guard let registrierungsEmail else { return false }
+        return eingeladeneEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            != registrierungsEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    var anzeigename: String {
+        if let eingeladenePersonName,
+           !eingeladenePersonName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return eingeladenePersonName
+        }
+
+        return eingeladeneEmail
+    }
+
+    var statusAnzeige: String {
+        if istEinladungAbgelaufen && status == DossierZugriffStatus.erstellt {
+            return "Abgelaufen"
+        }
+
+        switch status {
+        case DossierZugriffStatus.erstellt:
+            return "Eingeladen"
+        case DossierZugriffStatus.angenommen:
+            return "Angenommen"
+        case DossierZugriffStatus.abgelehnt:
+            return "Abgelehnt"
+        case DossierZugriffStatus.freigegeben:
+            return "Freigegeben"
+        case DossierZugriffStatus.widerrufen:
+            return "Widerrufen"
+        default:
+            return "Unbekannt"
+        }
     }
 }
