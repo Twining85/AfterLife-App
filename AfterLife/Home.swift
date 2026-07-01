@@ -2,10 +2,10 @@ import SwiftUI
 import SwiftData
 
 struct Home: View {
-    private let kachelFarbe = Color(red: 0.92, green: 0.92, blue: 0.94)
+    private let kachelFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
+    private let schluessliAkzent = Color(red: 0.16, green: 0.36, blue: 0.42)
     // TEST: später durch echte Beziehungen aus dem Einladungs-/VertrauenspersonModell ersetzen
     private let verknuepfteVorsorgedossiers = ["René Engeler"]
-    @State private var bildIstSichtbar = false
     @State private var kachelnSindSichtbar = false
     @State private var vorsorgedossierAuswahlAnzeigen = false
     @State private var direktesVorsorgedossierOeffnen = false
@@ -16,43 +16,112 @@ struct Home: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
 
-                    Text("Home")
+                    Text("Willkommen")
                         .font(.largeTitle)
                         .fontWeight(.bold)
                         .padding(.horizontal, 24)
                         .padding(.top, 24)
                         .padding(.bottom, 8)
 
-                    Image("Hand2")
-                        .resizable()
-                        .scaledToFill()
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 250)
-                        .clipped()
-                        .overlay(
-                            LinearGradient(
-                                colors: [
-                                    Color.clear,
-                                    Color(.systemBackground).opacity(0.20),
-                                    Color(.systemBackground)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                        .opacity(bildIstSichtbar ? 1 : 0)
-                        .animation(.easeInOut(duration: 1.4), value: bildIstSichtbar)
-                        .onAppear {
-                            bildIstSichtbar = true
 
-                            withAnimation(.easeOut(duration: 0.8).delay(0.25)) {
-                                kachelnSindSichtbar = true
+                    NavigationLink {
+                        ProfilView()
+                    } label: {
+                        VStack(alignment: .leading, spacing: 18) {
+                            HStack(alignment: .top, spacing: 14) {
+                                ZStack {
+                                    Circle()
+                                        .fill(schluessliAkzent.opacity(0.14))
+                                        .frame(width: 56, height: 56)
+
+                                    Image(systemName: "heart.text.square.fill")
+                                        .font(.system(size: 27, weight: .semibold))
+                                        .foregroundStyle(schluessliAkzent)
+                                }
+
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Schön, dass du vorsorgst.")
+                                        .font(.title3.weight(.bold))
+                                        .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+
+                                    Text("Deine wichtigsten Bereiche sind hier gesammelt. Du kannst dein Dossier jederzeit ergänzen und Schritt für Schritt vervollständigen.")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
                             }
+
+                            HStack(spacing: 8) {
+                                Text("Weiter am Dossier")
+                                    .font(.headline.weight(.semibold))
+
+                                Image(systemName: "arrow.right")
+                                    .font(.headline.weight(.semibold))
+                            }
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 11)
+                            .background(schluessliAkzent)
+                            .clipShape(Capsule())
                         }
+                        .padding(20)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                                .fill(Color(red: 0.98, green: 0.97, blue: 0.94))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                                .stroke(Color.white.opacity(0.78), lineWidth: 1)
+                        )
+                        .shadow(color: schluessliAkzent.opacity(0.13), radius: 18, x: 0, y: 10)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 10)
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            HomeInfoChip(
+                                icon: "shield.checkered",
+                                titel: "Sicher gespeichert"
+                            )
+
+                            HomeInfoChip(
+                                icon: "lock.fill",
+                                titel: "Privat"
+                            )
+
+                            HomeInfoChip(
+                                icon: "icloud.fill",
+                                titel: "Jederzeit verfügbar"
+                            )
+                        }
+                        .padding(.horizontal, 24)
+                    }
+                    .padding(.top, 16)
+
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Bereiche")
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+
+                        Text("Wähle einen Bereich aus, um deine Angaben zu ergänzen.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 28)
 
                     alleKacheln
                         .padding(.horizontal, 24)
-                        .padding(.top, -40)
+                        .padding(.top, 18)
+                        .onAppear {
+                            withAnimation(.easeOut(duration: 0.8).delay(0.15)) {
+                                kachelnSindSichtbar = true
+                            }
+                        }
                         .offset(y: kachelnSindSichtbar ? 0 : 20)
                         .opacity(kachelnSindSichtbar ? 1 : 0)
 
@@ -142,7 +211,10 @@ struct Home: View {
                 HomeKachel(
                     icon: "person.fill",
                     titel: "Mein Profil",
-                    farbe: kachelFarbe
+                    untertitel: "Persönliche Angaben",
+                    details: "Kontaktdaten und Einstellungen, Vertrauensperson verwalten",
+                    farbe: kachelFarbe,
+                    akzentFarbe: schluessliAkzent
                 )
             }
             .buttonStyle(.plain)
@@ -153,7 +225,10 @@ struct Home: View {
                 HomeKachel(
                     icon: "sparkles",
                     titel: "Meine Wünsche",
-                    farbe: kachelFarbe
+                    untertitel: "Was dir wichtig ist",
+                    details: "Testament und persönliche Wünsche festhalten",
+                    farbe: kachelFarbe,
+                    akzentFarbe: Color(red: 0.72, green: 0.42, blue: 0.28)
                 )
             }
             .buttonStyle(.plain)
@@ -164,7 +239,10 @@ struct Home: View {
                 HomeKachel(
                     icon: "dollarsign.circle.fill",
                     titel: "Finanzen",
-                    farbe: kachelFarbe
+                    untertitel: "Deine finanzielle Übersicht",
+                    details: "Konten, Schulden und Wertsachen auflisten",
+                    farbe: kachelFarbe,
+                    akzentFarbe: Color(red: 0.62, green: 0.47, blue: 0.18)
                 )
             }
             .buttonStyle(.plain)
@@ -175,7 +253,10 @@ struct Home: View {
                 HomeKachel(
                     icon: "person.3.fill",
                     titel: "Hinterbliebene",
-                    farbe: kachelFarbe
+                    untertitel: "Menschen, die dir wichtig sind",
+                    details: "Familie & Freunde als Kontakte hinterlegen",
+                    farbe: kachelFarbe,
+                    akzentFarbe: Color(red: 0.24, green: 0.50, blue: 0.34)
                 )
             }
             .buttonStyle(.plain)
@@ -186,7 +267,10 @@ struct Home: View {
                 HomeKachel(
                     icon: "folder.fill",
                     titel: "Dokumente & Fotoalbum",
-                    farbe: kachelFarbe
+                    untertitel: "Alles sicher abgelegt",
+                    details: "Dokumente hochladen und Fotoalbum erstellen",
+                    farbe: kachelFarbe,
+                    akzentFarbe: Color(red: 0.22, green: 0.43, blue: 0.68)
                 )
             }
             .buttonStyle(.plain)
@@ -197,35 +281,89 @@ struct Home: View {
                 HomeKachel(
                     icon: "rectangle.stack.badge.person.crop.fill",
                     titel: "Abos & Profile",
-                    farbe: kachelFarbe
+                    untertitel: "Digitales Leben",
+                    details: "Digitale Profile, Zugänge und Abos",
+                    farbe: kachelFarbe,
+                    akzentFarbe: Color(red: 0.46, green: 0.36, blue: 0.62)
                 )
             }
             .buttonStyle(.plain)
         }
     }
+
+    struct HomeKachel: View {
+        let icon: String
+        let titel: String
+        let untertitel: String
+        let details: String
+        let farbe: Color
+        let akzentFarbe: Color
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(akzentFarbe.opacity(0.14))
+                        .frame(width: 54, height: 54)
+
+                    Image(systemName: icon)
+                        .font(.system(size: 25, weight: .semibold))
+                        .foregroundStyle(akzentFarbe)
+                }
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(titel)
+                        .font(.headline.weight(.semibold))
+                        .multilineTextAlignment(.leading)
+                        .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+                        .lineLimit(2)
+
+                    Text(untertitel)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+
+                    Text(details)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(4)
+                }
+            }
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: 202)
+            .background(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(farbe.opacity(0.98))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .stroke(Color.white.opacity(0.72), lineWidth: 1)
+            )
+            .shadow(color: akzentFarbe.opacity(0.12), radius: 16, x: 0, y: 8)
+        }
+    }
 }
 
-struct HomeKachel: View {
+struct HomeInfoChip: View {
     let icon: String
     let titel: String
-    let farbe: Color
 
     var body: some View {
-        VStack(spacing: 14) {
+        HStack(spacing: 6) {
             Image(systemName: icon)
-                .font(.system(size: 36))
-                .foregroundStyle(.black)
+                .font(.caption.weight(.semibold))
 
             Text(titel)
-                .font(.headline)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.black)
+                .font(.caption.weight(.medium))
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: 140)
-        .background(farbe.opacity(0.96))
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 6)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            Capsule()
+                .fill(Color(.secondarySystemBackground))
+        )
     }
 }
 

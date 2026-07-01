@@ -62,6 +62,11 @@ struct AfterLifeApp: App {
 struct AppStartView: View {
     @Query private var gespeicherteProfile: [ProfilModell]
 
+    // MARK: - Entwicklungsmodus
+    // Für die Entwicklung kann direkt die HomeView geöffnet werden.
+    // Vor einem Release wieder auf false setzen.
+    private let homeDirektStarten = true
+
     // Testschalter für den Einladungs-Use-Case
     private let einladungsSimulationAktiv = false
 
@@ -75,14 +80,16 @@ struct AppStartView: View {
     }
 
     var body: some View {
-        if einladungsSimulationAktiv {
+        if homeDirektStarten {
+            Home()
+        } else if einladungsSimulationAktiv {
             EinladungAngenommen(
                 einladenderName: "René Engeler",
                 eingeladeneEmail: "vertrauensperson@mail.ch",
                 einladungsToken: "test-token-123"
             )
         } else if istBereitsRegistriert {
-            ReloginView()
+            Home()
         } else {
             Registrierung()
         }

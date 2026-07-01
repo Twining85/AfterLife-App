@@ -12,7 +12,7 @@ import SwiftData
 final class VertrauenspersonModell {
     // MARK: - Personendaten
 
-    var personenID: UUID
+    var personenID: UUID?
     var vorname: String
     var name: String
     var email: String
@@ -44,7 +44,7 @@ final class VertrauenspersonModell {
     var geaendertAm: Date
 
     init(
-        personenID: UUID = UUID(),
+        personenID: UUID? = UUID(),
         vorname: String = "",
         name: String = "",
         email: String = "",
@@ -155,7 +155,19 @@ final class VertrauenspersonModell {
     }
 
     func istDieselbePerson(wie anderePerson: VertrauenspersonModell) -> Bool {
-        personenID == anderePerson.personenID
+        guard let personenID, let anderePersonenID = anderePerson.personenID else {
+            return false
+        }
+
+        return personenID == anderePersonenID
+    }
+
+
+    func stellePersonenIDSicher() {
+        if personenID == nil {
+            personenID = UUID()
+            markiereAlsGeaendert()
+        }
     }
 
     func kontaktangabenAktualisieren(
