@@ -6,6 +6,7 @@ struct HinterbliebeneView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Query private var gespeicherteKontakte: [HinterbliebeneModell]
+    @Query private var gesundheitsDatensaetze: [GesundheitModell]
 
     @State private var aktiveKategorie: VertrauenspersonKategorie = .partner
     @State private var showKontaktPicker = false
@@ -38,7 +39,7 @@ struct HinterbliebeneView: View {
                     kontakte: kontakteFuerKategorie(.beguenstigte)
                 )
             }
-            .navigationTitle("Hinterbliebene")
+            .navigationTitle("Menschen meines Vertrauens")
             .sheet(isPresented: $showKontaktPicker) {
                 HinterbliebeneKontaktPicker { kontakt in
                     if let kontakt {
@@ -77,6 +78,7 @@ struct HinterbliebeneView: View {
                 .onDelete { indexSet in
                     let zuLoeschendeKontakte = indexSet.map { sichtbareKontakte[$0] }
                     zuLoeschendeKontakte.forEach { kontakt in
+                        guard !istAbgeleiteterHausarztKontakt(kontakt) else { return }
                         modelContext.delete(kontakt)
                     }
                 }
@@ -149,9 +151,57 @@ struct HinterbliebeneView: View {
     }
 
     private func kontakteFuerKategorie(_ kategorie: VertrauenspersonKategorie) -> [HinterbliebeneModell] {
-        gespeicherteKontakte
+        var kontakte = gespeicherteKontakte
             .filter { $0.beziehung == kategorie.rawValue }
+
+        if kategorie == .beguenstigte,
+           let hausarztKontakt = abgeleiteterHausarztKontakt(),
+           !kontakte.contains(where: { istDerselbeAndereKontakt($0, wie: hausarztKontakt) }) {
+            kontakte.append(hausarztKontakt)
+        }
+
+        return kontakte
             .sorted { anzeigenameFuerKontakt($0) < anzeigenameFuerKontakt($1) }
+    }
+
+    private func abgeleiteterHausarztKontakt() -> HinterbliebeneModell? {
+        guard let gesundheit = gesundheitsDatensaetze.first,
+              gesundheit.hatHausarzt else {
+            return nil
+        }
+
+        let getrimmterName = gesundheit.hausarztName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !getrimmterName.isEmpty else {
+            return nil
+        }
+
+        return HinterbliebeneModell(
+            vorname: "",
+            name: getrimmterName,
+            rolle: "Andere|Hausarzt",
+            beziehung: VertrauenspersonKategorie.beguenstigte.rawValue,
+            telefon: "",
+            email: "",
+            adresse: "",
+            plz: "",
+            stadt: "",
+            istVertrauensperson: false,
+            sollInformiertWerden: false
+        )
+    }
+
+    private func istDerselbeAndereKontakt(_ kontakt: HinterbliebeneModell, wie andererKontakt: HinterbliebeneModell) -> Bool {
+        let linkerName = anzeigenameFuerKontakt(kontakt).trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let rechterName = anzeigenameFuerKontakt(andererKontakt).trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        return linkerName == rechterName
+            && kontakt.beziehung == VertrauenspersonKategorie.beguenstigte.rawValue
+            && andererKontakt.beziehung == VertrauenspersonKategorie.beguenstigte.rawValue
+    }
+
+    private func istAbgeleiteterHausarztKontakt(_ kontakt: HinterbliebeneModell) -> Bool {
+        kontakt.rolle == "Andere|Hausarzt"
+            && kontakt.beziehung == VertrauenspersonKategorie.beguenstigte.rawValue
     }
 
     private func anzeigenameFuerKontakt(_ kontakt: HinterbliebeneModell) -> String {
@@ -173,6 +223,9 @@ struct HinterbliebeneView: View {
         case VertrauenspersonKategorie.freunde.rawValue:
             return "Freunde"
         case VertrauenspersonKategorie.beguenstigte.rawValue:
+            if kontakt.rolle.contains("Hausarzt") {
+                return "Andere · Hausarzt"
+            }
             return "Andere"
         default:
             return roheRolle
@@ -293,5 +346,5 @@ struct HinterbliebeneKontaktPicker: UIViewControllerRepresentable {
 
 #Preview {
     HinterbliebeneView()
-        .modelContainer(for: HinterbliebeneModell.self, inMemory: true)
+        .modelContainer(for: [HinterbliebeneModell.self, GesundheitModell.self], inMemory: true)
 }

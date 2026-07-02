@@ -515,7 +515,7 @@ struct Home: View {
                 } label: {
                     HomeKachel(
                         icon: "person.3.fill",
-                        titel: "Hinterbliebene",
+                        titel: "Menschen meines Vertrauens",
                         untertitel: "Menschen, die dir wichtig sind",
                         details: "Familie & Freunde als Kontakte hinterlegen",
                         farbe: kachelFarbe,

@@ -29,6 +29,7 @@ struct ProfilView: View {
     @State private var name = ""
 
     @State private var geburtsdatum = Calendar.current.date(from: DateComponents(year: 1978, month: 6, day: 1)) ?? Date()
+    @State private var geburtsdatumText = "01.06.1978"
 
     @State private var adresse = ""
     @State private var hausnummer = ""
@@ -196,12 +197,18 @@ struct ProfilView: View {
                     TextField("Name", text: $name)
                         .textContentType(.name)
 
-                    DatePicker(
-                        "Geburtsdatum",
-                        selection: $geburtsdatum,
-                        displayedComponents: .date
-                    )
-                    .environment(\.locale, Locale(identifier: "de_CH"))
+                    VStack(alignment: .leading, spacing: 6) {
+                        TextField("Geburtsdatum", text: $geburtsdatumText)
+                            .keyboardType(.numberPad)
+                            .textContentType(.birthdate)
+                            .onChange(of: geburtsdatumText) { _, neuerWert in
+                                verarbeiteGeburtsdatumEingabe(neuerWert)
+                            }
+
+                        Text("Format: TT.MM.JJJJ")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
 
                     TextField("Strasse", text: $adresse)
                         .textContentType(.streetAddressLine1)
@@ -557,7 +564,10 @@ struct ProfilView: View {
             }
             .onChange(of: vorname) { _, _ in speichereProfil() }
             .onChange(of: name) { _, _ in speichereProfil() }
-            .onChange(of: geburtsdatum) { _, _ in speichereProfil() }
+            .onChange(of: geburtsdatum) { _, _ in
+                geburtsdatumText = formatiereGeburtsdatum(geburtsdatum)
+                speichereProfil()
+            }
             .onChange(of: adresse) { _, _ in speichereProfil() }
             .onChange(of: hausnummer) { _, _ in speichereProfil() }
             .onChange(of: plz) { _, _ in speichereProfil() }
@@ -630,6 +640,49 @@ struct ProfilView: View {
         }
     }
 
+    private func formatiereGeburtsdatum(_ datum: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "de_CH")
+        formatter.dateFormat = "dd.MM.yyyy"
+        return formatter.string(from: datum)
+    }
+
+    private func datumAusGeburtsdatumText(_ text: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "de_CH")
+        formatter.dateFormat = "dd.MM.yyyy"
+        formatter.isLenient = false
+        return formatter.date(from: text)
+    }
+
+    private func verarbeiteGeburtsdatumEingabe(_ eingabe: String) {
+        let ziffern = eingabe.filter { $0.isNumber }
+        let begrenzteZiffern = String(ziffern.prefix(8))
+
+        var formatiert = ""
+
+        for (index, zeichen) in begrenzteZiffern.enumerated() {
+            if index == 2 || index == 4 {
+                formatiert.append(".")
+            }
+
+            formatiert.append(zeichen)
+        }
+
+        if formatiert != geburtsdatumText {
+            geburtsdatumText = formatiert
+            return
+        }
+
+        guard formatiert.count == 10,
+              let neuesDatum = datumAusGeburtsdatumText(formatiert) else {
+            return
+        }
+
+        geburtsdatum = neuesDatum
+    }
+
+    
 
     private func pruefeUndAktiviereBiometrie() {
         guard !biometriePruefungLaeuft else { return }
@@ -705,6 +758,7 @@ struct ProfilView: View {
             vorname = vorhandenesProfil.vorname
             name = vorhandenesProfil.name
             geburtsdatum = vorhandenesProfil.geburtsdatum
+            geburtsdatumText = formatiereGeburtsdatum(vorhandenesProfil.geburtsdatum)
             adresse = vorhandenesProfil.strasse
             hausnummer = vorhandenesProfil.hausnummer
             plz = vorhandenesProfil.plz
@@ -733,6 +787,7 @@ struct ProfilView: View {
             )
             neuesProfil.biometrieAktiviert = biometrieAktiviert
             modelContext.insert(neuesProfil)
+            geburtsdatumText = formatiereGeburtsdatum(geburtsdatum)
         }
 
         profilGeladen = true
@@ -1054,6 +1109,7 @@ struct ProfilView: View {
         registrierungsPasswortAnzeigen = false
 
         geburtsdatum = Calendar.current.date(from: DateComponents(year: 1978, month: 6, day: 1)) ?? Date()
+        geburtsdatumText = formatiereGeburtsdatum(geburtsdatum)
 
         gespeicherteAboModelle.forEach { aboModell in
             aboModell.abos
@@ -2374,3 +2430,5 @@ private struct PDFHaustierEintrag: Decodable {
         ], inMemory: true)
 }
 
+
+    
