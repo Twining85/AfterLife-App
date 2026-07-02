@@ -95,6 +95,10 @@ struct WuenscheView: View {
     @State private var aktiverDokumentTyp: DokumentTyp?
     @State private var dokumentVorschauURL: URL?
 
+    private let wuenscheCardColor = Color(red: 0.96, green: 0.95, blue: 0.92)
+    private let wuenscheAccentColor = Color(red: 0.72, green: 0.42, blue: 0.28)
+    private let wuenscheBackgroundColor = Color(red: 0.985, green: 0.975, blue: 0.955)
+
 
     private var kontakteSpeicherSignatur: String {
         kontakte.map { kontakt in
@@ -175,21 +179,28 @@ struct WuenscheView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                hauptToggleSection
+            ScrollView {
+                VStack(spacing: 18) {
+                    hauptToggleSection
 
-                if hatBesondereWuensche {
-                    beisetzungSection
-                    beisetzungsWuenscheSection
-                    kontakteSection
-                    haustiereSection
-                    nachlassSection
-                    patientenverfuegungSection
-                    vorsorgeauftragSection
-                    sterbebegleitungSection
+                    if hatBesondereWuensche {
+                        beisetzungSection
+                        beisetzungsWuenscheSection
+                        kontakteSection
+                        haustiereSection
+                        nachlassSection
+                        patientenverfuegungSection
+                        vorsorgeauftragSection
+                        sterbebegleitungSection
+                    }
                 }
+                .padding(.horizontal, 18)
+                .padding(.top, 18)
+                .padding(.bottom, 32)
             }
+            .background(wuenscheBackgroundColor.ignoresSafeArea())
             .navigationTitle("Meine Wünsche")
+            .tint(wuenscheAccentColor)
             .sheet(isPresented: $kontaktPickerAnzeigen) {
                 KontaktPicker { kontakt in
                     kontakte.append(kontakt)
@@ -248,13 +259,13 @@ struct WuenscheView: View {
     }
 
     private var haustiereSection: some View {
-        Section("Haustiere") {
+        styleGuideSection(titel: "Haustiere", systemImage: "pawprint.fill") {
             Toggle("Ich habe Haustiere", isOn: $hatHaustiere)
+                .tint(wuenscheAccentColor)
 
             if hatHaustiere {
                 if haustiere.isEmpty {
-                    Text("Noch keine Haustiere erfasst.")
-                        .foregroundStyle(.secondary)
+                    leerText("Noch keine Haustiere erfasst.")
                 }
 
                 ForEach($haustiere) { haustier in
@@ -273,25 +284,17 @@ struct WuenscheView: View {
                         ) {
                             haustierDetailFormular(haustier: haustier)
                         } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(haustier.wrappedValue.anzeigename)
-                                    .font(.headline)
-
-                                Text(haustier.wrappedValue.art.rawValue)
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                            }
+                            listHeader(title: haustier.wrappedValue.anzeigename, subtitle: haustier.wrappedValue.art.rawValue, icon: "pawprint")
                         }
+                        .tint(wuenscheAccentColor)
                     } else {
                         haustierDetailFormular(haustier: haustier)
                     }
                 }
                 .onDelete(perform: haustierLoeschen)
 
-                Button {
+                accentButton(title: "Haustier erfassen", systemImage: "plus.circle.fill") {
                     haustierPopupAnzeigen = true
-                } label: {
-                    Label("Haustier erfassen", systemImage: "plus.circle.fill")
                 }
             }
         }
@@ -305,25 +308,27 @@ struct WuenscheView: View {
                     Text(art.rawValue).tag(art)
                 }
             }
+            .tint(wuenscheAccentColor)
 
-            TextField("Name", text: haustier.name)
-            TextField("Tierarzt", text: haustier.tierarzt)
-            TextField("Bemerkungen", text: haustier.bemerkungen, axis: .vertical)
-                .lineLimit(2...6)
+            styledTextField("Name", text: haustier.name)
+            styledTextField("Tierarzt", text: haustier.tierarzt)
+            styledTextField("Bemerkungen", text: haustier.bemerkungen, axis: .vertical, lineLimit: 2...6)
         }
-        .padding(.vertical, 6)
+        .padding(12)
+        .background(Color.white.opacity(0.72))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private var hauptToggleSection: some View {
-        Section {
+        styleGuideSection(titel: "Meine Wünsche", systemImage: "heart.text.square.fill") {
             Toggle("Ich habe besondere Wünsche nach meinem Tod", isOn: $hatBesondereWuensche)
+                .tint(wuenscheAccentColor)
         }
     }
 
     private var beisetzungSection: some View {
-        Section("Meine Beisetzung") {
-            TextField("Bestattungswünsche", text: $bestattungswuensche, axis: .vertical)
-                .lineLimit(3...8)
+        styleGuideSection(titel: "Meine Beisetzung", systemImage: "leaf.fill") {
+            styledTextField("Bestattungswünsche", text: $bestattungswuensche, axis: .vertical, lineLimit: 3...8)
 
             Picker("Bestattungsart", selection: $bestattungsart) {
                 ForEach(Bestattungsart.allCases) { art in
@@ -331,40 +336,39 @@ struct WuenscheView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .tint(wuenscheAccentColor)
 
             if bestattungsart == .kremation {
-                TextField("Was ist bei der Kremation zu beachten? z.B. Art der Urne, Urnengrab, Waldfriedhof", text: $kremationHinweise, axis: .vertical)
-                    .lineLimit(3...8)
+                styledTextField("Was ist bei der Kremation zu beachten? z.B. Art der Urne, Urnengrab, Waldfriedhof", text: $kremationHinweise, axis: .vertical, lineLimit: 3...8)
             }
 
             if bestattungsart == .erdbestattung {
-                TextField("Was ist bei der Erdbestattung zu beachten? z.B. Art des Sarges, Kleidung, Ort und Ablauf", text: $erdbestattungHinweise, axis: .vertical)
-                    .lineLimit(3...8)
+                styledTextField("Was ist bei der Erdbestattung zu beachten? z.B. Art des Sarges, Kleidung, Ort und Ablauf", text: $erdbestattungHinweise, axis: .vertical, lineLimit: 3...8)
             }
 
-            TextField("Sonstige Bemerkungen", text: $sonstigeBemerkungen, axis: .vertical)
-                .lineLimit(3...8)
+            styledTextField("Sonstige Bemerkungen", text: $sonstigeBemerkungen, axis: .vertical, lineLimit: 3...8)
         }
     }
 
     private var beisetzungsWuenscheSection: some View {
-        Section("Wünsche zur Beisetzung") {
+        styleGuideSection(titel: "Wünsche zur Beisetzung", systemImage: "sparkles") {
             Toggle("Keine Blumengeschenke, bitte spendet das Geld lieber", isOn: $keineBlumengeschenkeBitte)
+                .tint(wuenscheAccentColor)
             Toggle("Zeremonie", isOn: $zeremonie)
+                .tint(wuenscheAccentColor)
 
             if zeremonie {
-                DetailBox {
-                    TextField("Wie soll die Zeremonie gestaltet sein?", text: $zeremonieText, axis: .vertical)
-                        .lineLimit(2...6)
+                DetailBox(accentColor: wuenscheAccentColor) {
+                    styledTextField("Wie soll die Zeremonie gestaltet sein?", text: $zeremonieText, axis: .vertical, lineLimit: 2...6)
 
                     Divider()
 
                     Toggle("Bereits organisiert", isOn: $zeremonieBereitsOrganisiert)
+                        .tint(wuenscheAccentColor)
 
                     if zeremonieBereitsOrganisiert {
-                        DetailBox {
-                            TextField("Details zur Organisation", text: $zeremonieOrganisiertDetails, axis: .vertical)
-                                .lineLimit(2...6)
+                        DetailBox(accentColor: wuenscheAccentColor) {
+                            styledTextField("Details zur Organisation", text: $zeremonieOrganisiertDetails, axis: .vertical, lineLimit: 2...6)
                         }
                     }
 
@@ -375,6 +379,7 @@ struct WuenscheView: View {
                     } label: {
                         HStack {
                             Image(systemName: zeremonieFinanziellAbgesichert ? "checkmark.square.fill" : "square")
+                                .foregroundStyle(wuenscheAccentColor)
                             Text("Finanziell abgesichert, diese zu begleichen")
                             Spacer()
                         }
@@ -384,20 +389,20 @@ struct WuenscheView: View {
             }
 
             Toggle("Besondere Musik", isOn: $besondereMusik)
+                .tint(wuenscheAccentColor)
 
             if besondereMusik {
-                DetailBox {
-                    TextField("Welche Musik soll gespielt werden?", text: $besondereMusikText, axis: .vertical)
-                        .lineLimit(2...6)
+                DetailBox(accentColor: wuenscheAccentColor) {
+                    styledTextField("Welche Musik soll gespielt werden?", text: $besondereMusikText, axis: .vertical, lineLimit: 2...6)
                 }
             }
 
             Toggle("Persönliche Botschaft", isOn: $moechteNochWasSagen)
+                .tint(wuenscheAccentColor)
 
             if moechteNochWasSagen {
-                DetailBox {
-                    TextField("Was möchtest du noch sagen?", text: $letzteWorteText, axis: .vertical)
-                        .lineLimit(3...8)
+                DetailBox(accentColor: wuenscheAccentColor) {
+                    styledTextField("Was möchtest du noch sagen?", text: $letzteWorteText, axis: .vertical, lineLimit: 3...8)
 
                     Divider()
 
@@ -411,7 +416,7 @@ struct WuenscheView: View {
                         } else {
                             Image(systemName: "video.badge.plus")
                                 .font(.system(size: 44))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(wuenscheAccentColor.opacity(0.75))
                         }
 
                         PhotosPicker(
@@ -422,6 +427,7 @@ struct WuenscheView: View {
                             Label(letzteWorteVideoData == nil ? "Video hochladen" : "Video ändern", systemImage: "video.badge.plus")
                         }
                         .buttonStyle(.borderless)
+                        .foregroundStyle(wuenscheAccentColor)
 
                         if letzteWorteVideoData != nil {
                             Button(role: .destructive) {
@@ -445,11 +451,11 @@ struct WuenscheView: View {
     private var nachrufBlock: some View {
         Group {
             Toggle("Ich habe eine Vorstellung, wie der Nachruf sein soll", isOn: $nachrufVorstellung)
+                .tint(wuenscheAccentColor)
 
             if nachrufVorstellung {
-                DetailBox {
-                    TextField("Wie soll der Nachruf sein? z.B Zeitung, Karte", text: $nachrufText, axis: .vertical)
-                        .lineLimit(3...8)
+                DetailBox(accentColor: wuenscheAccentColor) {
+                    styledTextField("Wie soll der Nachruf sein? z.B Zeitung, Karte", text: $nachrufText, axis: .vertical, lineLimit: 3...8)
 
                     Divider()
 
@@ -465,7 +471,7 @@ struct WuenscheView: View {
                         } else {
                             Image(systemName: "photo.fill")
                                 .font(.system(size: 48))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(wuenscheAccentColor.opacity(0.75))
                         }
 
                         PhotosPicker(
@@ -476,6 +482,7 @@ struct WuenscheView: View {
                             Label(nachrufBildData == nil ? "Bild für Nachruf hochladen" : "Bild für Nachruf ändern", systemImage: "photo.on.rectangle")
                         }
                         .buttonStyle(.borderless)
+                        .foregroundStyle(wuenscheAccentColor)
 
                         if nachrufBildData != nil {
                             Button(role: .destructive) {
@@ -495,10 +502,9 @@ struct WuenscheView: View {
     }
 
     private var kontakteSection: some View {
-        Section("Personen informieren / einladen") {
+        styleGuideSection(titel: "Personen informieren / einladen", systemImage: "person.2.fill") {
             if kontakte.isEmpty {
-                Text("Noch keine Kontakte erfasst.")
-                    .foregroundStyle(.secondary)
+                leerText("Noch keine Kontakte erfasst.")
             }
 
             ForEach($kontakte) { $kontakt in
@@ -506,10 +512,8 @@ struct WuenscheView: View {
             }
             .onDelete(perform: kontaktLoeschen)
 
-            Button {
+            accentButton(title: "Aus Adressbuch hinzufügen", systemImage: "person.crop.circle.badge.plus") {
                 kontaktPickerAnzeigen = true
-            } label: {
-                Label("Aus Adressbuch hinzufügen", systemImage: "person.crop.circle.badge.plus")
             }
         }
     }
@@ -531,14 +535,7 @@ struct WuenscheView: View {
             ) {
                 kontaktDetailFormular(kontakt: kontakt)
             } label: {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(kontakt.wrappedValue.anzeigename)
-                        .font(.headline)
-
-                    Text(kontakt.wrappedValue.art.rawValue)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+                listHeader(title: kontakt.wrappedValue.anzeigename, subtitle: kontakt.wrappedValue.art.rawValue, icon: "person.fill")
             }
         } else {
             kontaktDetailFormular(kontakt: kontakt)
@@ -546,24 +543,25 @@ struct WuenscheView: View {
     }
 
     private var nachlassSection: some View {
-        Section("Nachlass") {
+        styleGuideSection(titel: "Nachlass", systemImage: "doc.text.fill") {
             Toggle("Ich habe ein Testament", isOn: $hatTestament)
+                .tint(wuenscheAccentColor)
 
             if hatTestament {
-                DetailBox {
+                DetailBox(accentColor: wuenscheAccentColor) {
                     Text("Ein Testament muss den gesetzlichen und formellen Anforderungen entsprechen. Du bist selbst dafür verantwortlich, dass Inhalt, Form und Aufbewahrung korrekt und rechtsgültig sind. Diese App ersetzt keine rechtliche Beratung.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
 
                     Divider()
 
-                    TextField("Ablageort", text: $testamentAblageort, axis: .vertical)
-                        .lineLimit(2...4)
+                    styledTextField("Ablageort", text: $testamentAblageort, axis: .vertical, lineLimit: 2...4)
                         .textContentType(.location)
 
                     Divider()
 
                     DokumentUploadBox(
+                        accentColor: wuenscheAccentColor,
                         dateiName: testamentDateiName,
                         hochgeladenAm: testamentHochgeladenAm,
                         timestampTitel: "Testament hochgeladen am",
@@ -587,12 +585,14 @@ struct WuenscheView: View {
     }
 
     private var patientenverfuegungSection: some View {
-        Section("Patientenverfügung") {
+        styleGuideSection(titel: "Patientenverfügung", systemImage: "cross.case.fill") {
             Toggle("Ich habe eine Patientenverfügung", isOn: $hatPatientenverfuegung)
+                .tint(wuenscheAccentColor)
 
             if hatPatientenverfuegung {
-                DetailBox {
+                DetailBox(accentColor: wuenscheAccentColor) {
                     DokumentUploadBox(
+                        accentColor: wuenscheAccentColor,
                         dateiName: patientenverfuegungDateiName,
                         hochgeladenAm: patientenverfuegungHochgeladenAm,
                         timestampTitel: "Patientenverfügung hochgeladen am",
@@ -616,12 +616,14 @@ struct WuenscheView: View {
     }
 
     private var vorsorgeauftragSection: some View {
-        Section("Vorsorgeauftrag") {
+        styleGuideSection(titel: "Vorsorgeauftrag", systemImage: "checkmark.shield.fill") {
             Toggle("Ich habe einen Vorsorgeauftrag", isOn: $hatVorsorgeauftrag)
+                .tint(wuenscheAccentColor)
 
             if hatVorsorgeauftrag {
-                DetailBox {
+                DetailBox(accentColor: wuenscheAccentColor) {
                     DokumentUploadBox(
+                        accentColor: wuenscheAccentColor,
                         dateiName: vorsorgeauftragDateiName,
                         hochgeladenAm: vorsorgeauftragHochgeladenAm,
                         timestampTitel: "Vorsorgeauftrag hochgeladen am",
@@ -645,30 +647,33 @@ struct WuenscheView: View {
     }
 
     private var sterbebegleitungSection: some View {
-        Section("Sterbebegleitung") {
+        styleGuideSection(titel: "Sterbebegleitung", systemImage: "hands.sparkles.fill") {
             Toggle("Ich bin offen für eine Sterbebegleitung", isOn: $offenFuerSterbebegleitung)
+                .tint(wuenscheAccentColor)
 
             if offenFuerSterbebegleitung {
-                DetailBox {
+                DetailBox(accentColor: wuenscheAccentColor) {
                     Toggle("Ich habe eine schwerwiegende gesundheitliche Erkrankung", isOn: $hatSchwereGesundheitlicheErkrankung)
+                        .tint(wuenscheAccentColor)
 
                     if hatSchwereGesundheitlicheErkrankung {
-                        DetailBox {
+                        DetailBox(accentColor: wuenscheAccentColor) {
                             Picker("Erkrankung", selection: $schwereErkrankung) {
                                 Text("Bitte wählen").tag(nil as SchwereErkrankung?)
                                 ForEach(SchwereErkrankung.allCases) { erkrankung in
                                     Text(erkrankung.rawValue).tag(erkrankung as SchwereErkrankung?)
                                 }
                             }
+                            .tint(wuenscheAccentColor)
 
-                            TextField("Das ist für mich wichtig", text: $sterbebegleitungWichtig, axis: .vertical)
-                                .lineLimit(3...8)
+                            styledTextField("Das ist für mich wichtig", text: $sterbebegleitungWichtig, axis: .vertical, lineLimit: 3...8)
 
                             if schwereErkrankung != nil {
                                 Toggle(
                                     "Ich möchte regelmässig bewusst beurteilen, ob mein Leben für mich noch lebenswert ist und welcher Weg sich für mich stimmig anfühlt.",
                                     isOn: $lebensqualitaetRegelmaessigBeurteilen
                                 )
+                                .tint(wuenscheAccentColor)
                             }
                         }
                     }
@@ -676,6 +681,7 @@ struct WuenscheView: View {
                     Divider()
 
                     DokumentUploadBox(
+                        accentColor: wuenscheAccentColor,
                         dateiName: sterbebegleitungDateiName,
                         hochgeladenAm: sterbebegleitungHochgeladenAm,
                         timestampTitel: "Sterbebegleitung hochgeladen am",
@@ -1104,9 +1110,117 @@ struct WuenscheView: View {
             kontaktAnzeigeZeile(titel: "E-Mail", wert: kontakt.wrappedValue.email)
 
             Toggle("Informieren", isOn: kontakt.informieren)
+                .tint(wuenscheAccentColor)
             Toggle("Zur Beisetzung einladen", isOn: kontakt.einladen)
+                .tint(wuenscheAccentColor)
         }
-        .padding(.vertical, 6)
+        .padding(12)
+        .background(Color.white.opacity(0.72))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func styleGuideSection<Content: View>(titel: String, systemImage: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                Image(systemName: systemImage)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 30, height: 30)
+                    .background(Circle().fill(wuenscheAccentColor))
+
+                Text(titel)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.black)
+
+                Spacer()
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                content()
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(wuenscheCardColor)
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.white.opacity(0.65), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.045), radius: 12, x: 0, y: 6)
+    }
+
+    @ViewBuilder
+    private func styledTextField(
+        _ placeholder: String,
+        text: Binding<String>,
+        axis: Axis = .horizontal,
+        lineLimit: ClosedRange<Int>? = nil
+    ) -> some View {
+        if let lineLimit {
+            TextField(placeholder, text: text, axis: axis)
+                .lineLimit(lineLimit)
+                .textFieldStyle(.plain)
+                .padding(12)
+                .background(Color.white.opacity(0.8))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(wuenscheAccentColor.opacity(0.18), lineWidth: 1)
+                )
+        } else {
+            TextField(placeholder, text: text, axis: axis)
+                .textFieldStyle(.plain)
+                .padding(12)
+                .background(Color.white.opacity(0.8))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(wuenscheAccentColor.opacity(0.18), lineWidth: 1)
+                )
+        }
+    }
+
+    private func accentButton(title: String, systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(wuenscheAccentColor)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func leerText(_ text: String) -> some View {
+        Text(text)
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.vertical, 8)
+    }
+
+    private func listHeader(title: String, subtitle: String, icon: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(wuenscheAccentColor)
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(Color.white.opacity(0.85)))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 
     @ViewBuilder
@@ -1436,6 +1550,7 @@ struct KontaktPicker: UIViewControllerRepresentable {
 
 
 struct DetailBox<Content: View>: View {
+    var accentColor: Color = Color(red: 0.72, green: 0.42, blue: 0.28)
     @ViewBuilder let content: Content
 
     var body: some View {
@@ -1443,12 +1558,17 @@ struct DetailBox<Content: View>: View {
             content
         }
         .padding(12)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(Color.white.opacity(0.72))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(accentColor.opacity(0.16), lineWidth: 1)
+        )
     }
 }
 
 struct DokumentUploadBox: View {
+    var accentColor: Color = Color(red: 0.72, green: 0.42, blue: 0.28)
     let dateiName: String?
     let hochgeladenAm: Date?
     let timestampTitel: String
@@ -1469,7 +1589,7 @@ struct DokumentUploadBox: View {
                     .font(.title2.weight(.semibold))
                     .foregroundStyle(.white)
                     .frame(width: 42, height: 42)
-                    .background(Circle().fill(Color.black))
+                    .background(Circle().fill(accentColor))
             }
             .buttonStyle(.plain)
             .accessibilityLabel(uploadTitel)
@@ -1477,7 +1597,7 @@ struct DokumentUploadBox: View {
             if let dateiName {
                 HStack(spacing: 10) {
                     Image(systemName: "doc.fill")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(accentColor)
 
                     Button {
                         vorschauAktion()
@@ -1518,12 +1638,13 @@ struct DokumentUploadBox: View {
                     .accessibilityLabel(entfernenTitel)
                 }
                 .padding(12)
-                .background(Color(.systemBackground))
+                .background(Color.white.opacity(0.82))
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                 Divider()
 
                 Toggle("Erinnerung zur Überprüfung", isOn: $erinnerungAktiv)
+                    .tint(accentColor)
 
                 if erinnerungAktiv {
                     DatePicker(
@@ -1532,6 +1653,7 @@ struct DokumentUploadBox: View {
                         displayedComponents: .date
                     )
                     .environment(\.locale, Locale(identifier: "de_CH"))
+                    .tint(accentColor)
                 }
             } else {
                 Text("Noch kein Dokument hochgeladen.")
@@ -1604,7 +1726,10 @@ struct HaustierErfassungView: View {
                 TextField("Bemerkungen", text: $bemerkungen, axis: .vertical)
                     .lineLimit(2...6)
             }
+            .scrollContentBackground(.hidden)
+            .background(Color(red: 0.985, green: 0.975, blue: 0.955))
             .navigationTitle("Haustier erfassen")
+            .tint(Color(red: 0.72, green: 0.42, blue: 0.28))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Abbrechen") {

@@ -19,6 +19,10 @@ struct ProfilView: View {
     @Query private var gespeicherteAboModelle: [AboModell]
     @Query private var gespeicherteDossierZugriffe: [DossierZugriffModell]
 
+    private let profilKartenFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
+    private let profilAkzentFarbe = Color(red: 0.16, green: 0.36, blue: 0.42)
+    private let profilHintergrundFarbe = Color(red: 0.985, green: 0.98, blue: 0.965)
+
     @AppStorage("gespeicherteEmail") private var gespeicherteEmail = ""
     @AppStorage("gespeichertesPasswort") private var gespeichertesPasswort = ""
     @AppStorage("registrierungsArt") private var registrierungsArt = "E-Mail"
@@ -126,81 +130,66 @@ struct ProfilView: View {
     var body: some View {
 
         NavigationStack {
-
             Form {
-
                 Section {
-
                     VStack(spacing: 16) {
-
                         if let profilbildData,
-
                            let uiImage = UIImage(data: profilbildData) {
-
                             Image(uiImage: uiImage)
-
                                 .resizable()
-
                                 .scaledToFill()
-
                                 .frame(width: 90, height: 90)
-
                                 .clipShape(Circle())
-
                         } else {
-
                             Image(systemName: "person.crop.circle.fill")
-
                                 .resizable()
-
                                 .scaledToFit()
-
                                 .frame(width: 90, height: 90)
-
-                                .foregroundStyle(Color.gray.opacity(0.45))
-
+                                .foregroundStyle(profilAkzentFarbe.opacity(0.65))
                         }
-
                         PhotosPicker(
-
                             selection: $profilbildAuswahl,
-
                             matching: .images,
-
                             photoLibrary: .shared()
-
                         ) {
-
                             Text(profilbildData == nil ? "Profilbild auswählen" : "Profilbild ändern")
-
                                 .font(.headline)
-
+                                .foregroundStyle(profilAkzentFarbe)
                         }
-
                     }
-
                     .frame(maxWidth: .infinity)
-
-                    .padding(.vertical, 12)
-
-                    .listRowInsets(EdgeInsets())
-
+                    .padding(.vertical, 18)
+                    .padding(.horizontal, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .fill(profilKartenFarbe)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .stroke(Color.white.opacity(0.75), lineWidth: 1)
+                    )
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                     .listRowBackground(Color.clear)
-
                 }
 
                 Section("Persönliche Angaben") {
-
                     TextField("Vorname", text: $vorname)
                         .textContentType(.name)
                     
                     TextField("Name", text: $name)
                         .textContentType(.name)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Geburtsdatum")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(profilAkzentFarbe)
 
-                    VStack(alignment: .leading, spacing: 6) {
-                        TextField("Geburtsdatum", text: $geburtsdatumText)
+                        TextField("TT.MM.JJJJ", text: $geburtsdatumText)
                             .keyboardType(.numberPad)
                             .textContentType(.birthdate)
+                            .padding(.vertical, 10)
+                            .padding(.horizontal, 12)
+                            .background(profilKartenFarbe)
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                             .onChange(of: geburtsdatumText) { _, neuerWert in
                                 verarbeiteGeburtsdatumEingabe(neuerWert)
                             }
@@ -209,6 +198,7 @@ struct ProfilView: View {
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
+                    .padding(.vertical, 4)
 
                     TextField("Strasse", text: $adresse)
                         .textContentType(.streetAddressLine1)
@@ -245,7 +235,6 @@ struct ProfilView: View {
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text(vorschlag.anzeigeTitel)
                                                 .foregroundStyle(.primary)
-
                                             Text(vorschlag.anzeigeUntertitel)
                                                 .font(.footnote)
                                                 .foregroundStyle(.secondary)
@@ -255,7 +244,6 @@ struct ProfilView: View {
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                     }
                                     .buttonStyle(.plain)
-
                                     if vorschlag.id != adressVorschlaege.last?.id {
                                         Divider()
                                             .padding(.horizontal, 10)
@@ -264,16 +252,16 @@ struct ProfilView: View {
                             }
                         }
                         .frame(maxHeight: 260)
-                        .background(.thinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .background(Color.white.opacity(0.78))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .overlay(alignment: .leading) {
                             Rectangle()
-                                .fill(Color.gray.opacity(0.15))
+                                .fill(profilAkzentFarbe.opacity(0.14))
                                 .frame(width: 1)
                         }
                         .overlay(alignment: .trailing) {
                             Rectangle()
-                                .fill(Color.gray.opacity(0.15))
+                                .fill(profilAkzentFarbe.opacity(0.14))
                                 .frame(width: 1)
                         }
                         .padding(.vertical, 4)
@@ -312,9 +300,10 @@ struct ProfilView: View {
                         }
                     }
                 }
+                .listRowBackground(profilKartenFarbe)
+                .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
 
                 Section("Zugriff im Notfall") {
-
                     NavigationLink {
                         VertrauenspersonView()
                     } label: {
@@ -324,35 +313,29 @@ struct ProfilView: View {
                                 : "Vertrauenspersonen verwalten",
                             systemImage: "person.badge.key.fill"
                         )
+                        .foregroundStyle(profilAkzentFarbe)
                     }
-
                     Text("Hier kannst du Vertrauenspersonen einladen und verwalten, damit deine Daten im Notfall kontrolliert abrufbar sind.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-
                 }
+                .listRowBackground(profilKartenFarbe)
+                .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
                 Section("Dossier exportieren") {
-
                     Button {
-
                         passwortExportAuswahlAnzeigen = true
-
                     } label: {
-
                         Label("Dossier als PDF exportieren", systemImage: "doc.richtext.fill")
-
+                            .foregroundStyle(profilAkzentFarbe)
                     }
-
                     Text("Erzeugt ein PDF-Dossier mit den aktuell erfassten Informationen aus Profil, Wünsche, Finanzen, Hinterbliebenen, Dokumenten sowie weiteren gespeicherten Bereichen.")
-
                         .font(.footnote)
-
                         .foregroundStyle(.secondary)
-
                 }
+                .listRowBackground(profilKartenFarbe)
+                .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
 
                 Section("Zugangsdaten") {
-
                     if registrierungsArt == "Google" {
                         LabeledContent("Registrierungsart", value: "Mit Google registriert")
                         LabeledContent("E-Mail-Adresse", value: gespeicherteEmail.isEmpty ? "Nicht erfasst" : gespeicherteEmail)
@@ -361,34 +344,28 @@ struct ProfilView: View {
                         LabeledContent("E-Mail-Adresse", value: gespeicherteEmail.isEmpty ? "Nicht erfasst" : gespeicherteEmail)
                     } else {
                         LabeledContent("Benutzername", value: gespeicherteEmail.isEmpty ? "Nicht erfasst" : gespeicherteEmail)
-
                         HStack {
                             Text("Passwort")
-
                             Spacer()
-
                             Text(angezeigtesRegistrierungsPasswort)
                                 .foregroundStyle(.secondary)
-
                             Button {
                                 registrierungsPasswortAnzeigen.toggle()
                             } label: {
                                 Image(systemName: registrierungsPasswortAnzeigen ? "eye.slash" : "eye")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(profilAkzentFarbe)
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel(registrierungsPasswortAnzeigen ? "Passwort ausblenden" : "Passwort anzeigen")
                         }
-
                         Button {
                             passwortAendernAnzeigen = true
                         } label: {
                             Label("Passwort ändern", systemImage: "key.fill")
+                                .foregroundStyle(profilAkzentFarbe)
                         }
                     }
-
                     Divider()
-
                     Toggle("Biometrische Anmeldung verwenden", isOn: Binding(
                         get: {
                             biometrieAktiviert
@@ -404,7 +381,6 @@ struct ProfilView: View {
                         }
                     ))
                     .disabled(biometriePruefungLaeuft)
-
                     if biometriePruefungLaeuft {
                         HStack(spacing: 8) {
                             ProgressView()
@@ -413,48 +389,39 @@ struct ProfilView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
-
                     if !biometrieFehlermeldung.isEmpty {
                         Text(biometrieFehlermeldung)
                             .font(.footnote)
                             .foregroundStyle(.red)
                     }
-
                     Text("Wenn aktiviert, kann die App beim Öffnen Face ID oder Touch ID für die Anmeldung verwenden.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-
                     Text("Diese Angaben stammen aus der Registrierung. Für eine produktive App sollten Passwörter nicht im Klartext gespeichert oder angezeigt werden, sondern sicher über die Keychain verwaltet werden.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-
                 }
+                .listRowBackground(profilKartenFarbe)
+                .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
                 Section {
-
                     Button {
-
                         showLogout = true
-
                     } label: {
-
                         Label("Logout", systemImage: "rectangle.portrait.and.arrow.right")
-
                     }
-
                     Button(role: .destructive) {
-
                         profilLoeschenBestaetigen = true
-
                     } label: {
-
                         Label("Profil löschen", systemImage: "trash.fill")
-
                     }
-
                 }
+                .listRowBackground(profilKartenFarbe)
+                .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
 
             }
-
+            .scrollContentBackground(.hidden)
+            .background(profilHintergrundFarbe.ignoresSafeArea())
+            .tint(profilAkzentFarbe)
             .navigationTitle("Mein Profil")
 
             .navigationDestination(isPresented: $showLogout) {
