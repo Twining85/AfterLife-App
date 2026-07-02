@@ -1,0 +1,3239 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2870
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fnil\fcharset0 Menlo-Bold;\f1\fnil\fcharset0 Menlo-Regular;}
+{\colortbl;\red255\green255\blue255;\red155\green35\blue147;\red255\green255\blue255;\red0\green0\blue0;
+\red11\green79\blue121;\red57\green0\blue160;\red108\green54\blue169;\red15\green104\blue160;\red28\green70\blue74;
+\red50\green109\blue116;\red196\green26\blue22;\red28\green0\blue207;}
+{\*\expandedcolortbl;;\csgenericrgb\c60759\c13753\c57628;\csgenericrgb\c100000\c100000\c100000;\csgenericrgb\c0\c0\c0\c85000;
+\csgenericrgb\c4314\c30980\c47451;\csgenericrgb\c22454\c0\c62803;\csgenericrgb\c42190\c21278\c66379;\csgenericrgb\c5882\c40784\c62745;\csgenericrgb\c10981\c27276\c28869;
+\csgenericrgb\c19418\c42935\c45455;\csgenericrgb\c77000\c10200\c8600;\csgenericrgb\c11000\c0\c81000;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\deftab593
+\pard\tx593\pardeftab593\partightenfactor0
+
+\f0\b\fs24 \cf2 \cb3 import
+\f1\b0 \cf4  SwiftUI\
+
+\f0\b \cf2 import
+\f1\b0 \cf4  SwiftData\
+
+\f0\b \cf2 import
+\f1\b0 \cf4  ContactsUI\
+
+\f0\b \cf2 import
+\f1\b0 \cf4  PhotosUI\
+
+\f0\b \cf2 import
+\f1\b0 \cf4  UniformTypeIdentifiers\
+
+\f0\b \cf2 import
+\f1\b0 \cf4  QuickLook\
+
+\f0\b \cf2 import
+\f1\b0 \cf4  AVKit\
+\
+
+\f0\b \cf2 struct
+\f1\b0 \cf4  \cf5 WuenscheView\cf4 : \cf6 View\cf4  \{\
+    \cf6 @Environment\cf4 (\\.\cf7 modelContext\cf4 ) 
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 modelContext\cf4 \
+    \cf7 @Query\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 gespeicherteWuensche\cf4 : [\cf9 WuenscheModell\cf4 ]\
+    \cf7 @Query\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 gespeicherteHinterbliebeneKontakte\cf4 : [\cf9 HinterbliebeneModell\cf4 ]\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 wuenscheGeladen\cf4  = 
+\f0\b \cf2 false
+\f1\b0 \cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 kontakteGeladen\cf4  = 
+\f0\b \cf2 false
+\f1\b0 \cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 hatBesondereWuensche\cf4  = 
+\f0\b \cf2 true
+\f1\b0 \cf4 \
+\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 bestattungsart\cf4 : \cf9 Bestattungsart\cf4  = .\cf10 kremation\cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 bestattungswuensche\cf4  = \cf11 ""\cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 kremationHinweise\cf4  = \cf11 ""\cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 erdbestattungHinweise\cf4  = \cf11 ""\cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 sonstigeBemerkungen\cf4  = \cf11 ""\cf4 \
+\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 keineBlumengeschenkeBitte\cf4  = 
+\f0\b \cf2 false
+\f1\b0 \cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 besondereMusik\cf4  = 
+\f0\b \cf2 false
+\f1\b0 \cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 besondereMusikText\cf4  = \cf11 ""\cf4 \
+\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 zeremonie\cf4  = 
+\f0\b \cf2 false
+\f1\b0 \cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 zeremonieText\cf4  = \cf11 ""\cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 zeremonieBereitsOrganisiert\cf4  = 
+\f0\b \cf2 false
+\f1\b0 \cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 zeremonieOrganisiertDetails\cf4  = \cf11 ""\cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 zeremonieFinanziellAbgesichert\cf4  = 
+\f0\b \cf2 false
+\f1\b0 \cf4 \
+\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 moechteNochWasSagen\cf4  = 
+\f0\b \cf2 false
+\f1\b0 \cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 letzteWorteText\cf4  = \cf11 ""\cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 letzteWorteVideoAuswahl\cf4 : \cf6 PhotosPickerItem\cf4 ?\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 letzteWorteVideoData\cf4 : \cf6 Data\cf4 ?\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 letzteWorteVideoName\cf4 : \cf6 String\cf4 ?\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 letzteWorteVideoURL\cf4 : \cf6 URL\cf4 ?\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 letzteWorteVideoVorschauAnzeigen\cf4  = 
+\f0\b \cf2 false
+\f1\b0 \cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 letzteWorteVideoPlayer\cf4 : \cf6 AVPlayer\cf4 ?\
+\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 nachrufVorstellung\cf4  = 
+\f0\b \cf2 false
+\f1\b0 \cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 nachrufText\cf4  = \cf11 ""\cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 nachrufBildAuswahl\cf4 : \cf6 PhotosPickerItem\cf4 ?\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 nachrufBildData\cf4 : \cf6 Data\cf4 ?\
+\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 kontakte\cf4 : [\cf9 BeisetzungsKontakt\cf4 ] = []\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 ausgeklappteKontaktIDs\cf4 : \cf6 Set\cf4 <\cf6 UUID\cf4 > = []\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 kontaktPickerAnzeigen\cf4  = 
+\f0\b \cf2 false
+\f1\b0 \cf4 \
+\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 hatHaustiere\cf4  = 
+\f0\b \cf2 false
+\f1\b0 \cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 haustiere\cf4 : [\cf9 WuenschePetEntry\cf4 ] = []\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 ausgeklappteHaustierIDs\cf4 : \cf6 Set\cf4 <\cf6 UUID\cf4 > = []\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 haustierPopupAnzeigen\cf4  = 
+\f0\b \cf2 false
+\f1\b0 \cf4 \
+\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 hatTestament\cf4  = 
+\f0\b \cf2 false
+\f1\b0 \cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 testamentAblageort\cf4  = \cf11 ""\cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 testamentDateiName\cf4 : \cf6 String\cf4 ?\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 testamentDateiURL\cf4 : \cf6 URL\cf4 ?\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 testamentDateiData\cf4 : \cf6 Data\cf4 ?\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 testamentHochgeladenAm\cf4 : \cf6 Date\cf4 ?\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 testamentErinnerungAktiv\cf4  = 
+\f0\b \cf2 true
+\f1\b0 \cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 testamentErinnerungDatum\cf4  = \cf6 Date\cf4 ()\
+\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 hatPatientenverfuegung\cf4  = 
+\f0\b \cf2 false
+\f1\b0 \cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 patientenverfuegungDateiName\cf4 : \cf6 String\cf4 ?\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 patientenverfuegungDateiURL\cf4 : \cf6 URL\cf4 ?\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 patientenverfuegungDateiData\cf4 : \cf6 Data\cf4 ?\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 patientenverfuegungHochgeladenAm\cf4 : \cf6 Date\cf4 ?\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 patientenverfuegungErinnerungAktiv\cf4  = 
+\f0\b \cf2 true
+\f1\b0 \cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 patientenverfuegungErinnerungDatum\cf4  = \cf6 Date\cf4 ()\
+\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 hatVorsorgeauftrag\cf4  = 
+\f0\b \cf2 false
+\f1\b0 \cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 vorsorgeauftragDateiName\cf4 : \cf6 String\cf4 ?\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 vorsorgeauftragDateiURL\cf4 : \cf6 URL\cf4 ?\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 vorsorgeauftragDateiData\cf4 : \cf6 Data\cf4 ?\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 vorsorgeauftragHochgeladenAm\cf4 : \cf6 Date\cf4 ?\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 vorsorgeauftragErinnerungAktiv\cf4  = 
+\f0\b \cf2 true
+\f1\b0 \cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 vorsorgeauftragErinnerungDatum\cf4  = \cf6 Date\cf4 ()\
+\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 offenFuerSterbebegleitung\cf4  = 
+\f0\b \cf2 false
+\f1\b0 \cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 sterbebegleitungDateiName\cf4 : \cf6 String\cf4 ?\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 sterbebegleitungDateiURL\cf4 : \cf6 URL\cf4 ?\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 sterbebegleitungDateiData\cf4 : \cf6 Data\cf4 ?\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 sterbebegleitungHochgeladenAm\cf4 : \cf6 Date\cf4 ?\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 sterbebegleitungErinnerungAktiv\cf4  = 
+\f0\b \cf2 true
+\f1\b0 \cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 sterbebegleitungErinnerungDatum\cf4  = \cf6 Date\cf4 ()\
+\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 hatSchwereGesundheitlicheErkrankung\cf4  = 
+\f0\b \cf2 false
+\f1\b0 \cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 schwereErkrankung\cf4 : \cf9 SchwereErkrankung\cf4 ?\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 sterbebegleitungWichtig\cf4  = \cf11 ""\cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 lebensqualitaetRegelmaessigBeurteilen\cf4  = 
+\f0\b \cf2 true
+\f1\b0 \cf4 \
+\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 dokumentImporterAnzeigen\cf4  = 
+\f0\b \cf2 false
+\f1\b0 \cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 aktiverDokumentTyp\cf4 : \cf9 DokumentTyp\cf4 ?\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 dokumentVorschauURL\cf4 : \cf6 URL\cf4 ?\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 let
+\f1\b0 \cf4  \cf8 wuenscheCardColor\cf4  = \cf6 Color\cf4 (\cf6 red\cf4 : \cf12 0.96\cf4 , \cf6 green\cf4 : \cf12 0.95\cf4 , \cf6 blue\cf4 : \cf12 0.92\cf4 )\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 let
+\f1\b0 \cf4  \cf8 wuenscheAccentColor\cf4  = \cf6 Color\cf4 (\cf6 red\cf4 : \cf12 0.72\cf4 , \cf6 green\cf4 : \cf12 0.42\cf4 , \cf6 blue\cf4 : \cf12 0.28\cf4 )\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 let
+\f1\b0 \cf4  \cf8 wuenscheBackgroundColor\cf4  = \cf6 Color\cf4 (\cf6 red\cf4 : \cf12 0.985\cf4 , \cf6 green\cf4 : \cf12 0.975\cf4 , \cf6 blue\cf4 : \cf12 0.955\cf4 )\
+\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 kontakteSpeicherSignatur\cf4 : \cf6 String\cf4  \{\
+        \cf10 kontakte\cf4 .\cf7 map\cf4  \{ kontakt 
+\f0\b \cf2 in
+\f1\b0 \cf4 \
+            [\
+                kontakt.\cf10 id\cf4 .\cf7 uuidString\cf4 ,\
+                kontakt.\cf10 vorname\cf4 ,\
+                kontakt.\cf10 name\cf4 ,\
+                kontakt.\cf10 strasse\cf4 ,\
+                kontakt.\cf10 hausnummer\cf4 ,\
+                kontakt.\cf10 plz\cf4 ,\
+                kontakt.\cf10 ort\cf4 ,\
+                kontakt.\cf10 telefon\cf4 ,\
+                kontakt.\cf10 email\cf4 ,\
+                kontakt.\cf10 art\cf4 .\cf10 rawValue\cf4 ,\
+                \cf6 String\cf4 (kontakt.\cf10 informieren\cf4 ),\
+                \cf6 String\cf4 (kontakt.\cf10 einladen\cf4 )\
+            ].\cf7 joined\cf4 (\cf7 separator\cf4 : \cf11 "|"\cf4 )\
+        \}\
+        .\cf7 joined\cf4 (\cf7 separator\cf4 : \cf11 "#"\cf4 )\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 wuenscheSpeicherSignatur\cf4 : \cf6 String\cf4  \{\
+        [\
+            \cf6 String\cf4 (\cf10 hatBesondereWuensche\cf4 ),\
+            \cf10 bestattungsart\cf4 .\cf10 rawValue\cf4 ,\
+            \cf10 bestattungswuensche\cf4 ,\
+            \cf10 kremationHinweise\cf4 ,\
+            \cf10 erdbestattungHinweise\cf4 ,\
+            \cf10 sonstigeBemerkungen\cf4 ,\
+            \cf6 String\cf4 (\cf10 keineBlumengeschenkeBitte\cf4 ),\
+            \cf6 String\cf4 (\cf10 besondereMusik\cf4 ),\
+            \cf10 besondereMusikText\cf4 ,\
+            \cf6 String\cf4 (\cf10 zeremonie\cf4 ),\
+            \cf10 zeremonieText\cf4 ,\
+            \cf6 String\cf4 (\cf10 zeremonieBereitsOrganisiert\cf4 ),\
+            \cf10 zeremonieOrganisiertDetails\cf4 ,\
+            \cf6 String\cf4 (\cf10 zeremonieFinanziellAbgesichert\cf4 ),\
+            \cf6 String\cf4 (\cf10 moechteNochWasSagen\cf4 ),\
+            \cf10 letzteWorteText\cf4 ,\
+            \cf10 letzteWorteVideoName\cf4  ?? \cf11 ""\cf4 ,\
+            \cf10 letzteWorteVideoData\cf4 ?.\cf7 count\cf4 .\cf7 description\cf4  ?? \cf11 ""\cf4 ,\
+            \cf6 String\cf4 (\cf10 nachrufVorstellung\cf4 ),\
+            \cf10 nachrufText\cf4 ,\
+            \cf10 nachrufBildData\cf4 ?.\cf7 base64EncodedString\cf4 () ?? \cf11 ""\cf4 ,\
+            \cf6 String\cf4 (\cf10 hatTestament\cf4 ),\
+            \cf10 testamentAblageort\cf4 ,\
+            \cf10 testamentDateiName\cf4  ?? \cf11 ""\cf4 ,\
+            \cf10 testamentDateiData\cf4 ?.\cf7 count\cf4 .\cf7 description\cf4  ?? \cf11 ""\cf4 ,\
+            \cf10 testamentHochgeladenAm\cf4 ?.\cf7 timeIntervalSince1970\cf4 .\cf7 description\cf4  ?? \cf11 ""\cf4 ,\
+            \cf6 String\cf4 (\cf10 testamentErinnerungAktiv\cf4 ),\
+            \cf10 testamentErinnerungDatum\cf4 .\cf7 timeIntervalSince1970\cf4 .\cf7 description\cf4 ,\
+            \cf6 String\cf4 (\cf10 hatPatientenverfuegung\cf4 ),\
+            \cf10 patientenverfuegungDateiName\cf4  ?? \cf11 ""\cf4 ,\
+            \cf10 patientenverfuegungDateiData\cf4 ?.\cf7 count\cf4 .\cf7 description\cf4  ?? \cf11 ""\cf4 ,\
+            \cf10 patientenverfuegungHochgeladenAm\cf4 ?.\cf7 timeIntervalSince1970\cf4 .\cf7 description\cf4  ?? \cf11 ""\cf4 ,\
+            \cf6 String\cf4 (\cf10 patientenverfuegungErinnerungAktiv\cf4 ),\
+            \cf10 patientenverfuegungErinnerungDatum\cf4 .\cf7 timeIntervalSince1970\cf4 .\cf7 description\cf4 ,\
+            \cf6 String\cf4 (\cf10 hatVorsorgeauftrag\cf4 ),\
+            \cf10 vorsorgeauftragDateiName\cf4  ?? \cf11 ""\cf4 ,\
+            \cf10 vorsorgeauftragDateiData\cf4 ?.\cf7 count\cf4 .\cf7 description\cf4  ?? \cf11 ""\cf4 ,\
+            \cf10 vorsorgeauftragHochgeladenAm\cf4 ?.\cf7 timeIntervalSince1970\cf4 .\cf7 description\cf4  ?? \cf11 ""\cf4 ,\
+            \cf6 String\cf4 (\cf10 vorsorgeauftragErinnerungAktiv\cf4 ),\
+            \cf10 vorsorgeauftragErinnerungDatum\cf4 .\cf7 timeIntervalSince1970\cf4 .\cf7 description\cf4 ,\
+            \cf6 String\cf4 (\cf10 offenFuerSterbebegleitung\cf4 ),\
+            \cf10 sterbebegleitungDateiName\cf4  ?? \cf11 ""\cf4 ,\
+            \cf10 sterbebegleitungDateiData\cf4 ?.\cf7 count\cf4 .\cf7 description\cf4  ?? \cf11 ""\cf4 ,\
+            \cf10 sterbebegleitungHochgeladenAm\cf4 ?.\cf7 timeIntervalSince1970\cf4 .\cf7 description\cf4  ?? \cf11 ""\cf4 ,\
+            \cf6 String\cf4 (\cf10 sterbebegleitungErinnerungAktiv\cf4 ),\
+            \cf10 sterbebegleitungErinnerungDatum\cf4 .\cf7 timeIntervalSince1970\cf4 .\cf7 description\cf4 ,\
+            \cf6 String\cf4 (\cf10 hatSchwereGesundheitlicheErkrankung\cf4 ),\
+            \cf10 schwereErkrankung\cf4 ?.\cf10 rawValue\cf4  ?? \cf11 ""\cf4 ,\
+            \cf10 sterbebegleitungWichtig\cf4 ,\
+            \cf6 String\cf4 (\cf10 lebensqualitaetRegelmaessigBeurteilen\cf4 ),\
+            \cf6 String\cf4 (\cf10 hatHaustiere\cf4 ),\
+            (
+\f0\b \cf2 try
+\f1\b0 \cf4 ? \cf6 JSONEncoder\cf4 ().\cf7 encode\cf4 (\cf10 haustiere\cf4 ))?.\cf7 base64EncodedString\cf4 () ?? \cf11 ""\cf4 \
+        ].\cf7 joined\cf4 (\cf7 separator\cf4 : \cf11 "|"\cf4 )\
+    \}\
+\
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 body\cf4 : 
+\f0\b \cf2 some
+\f1\b0 \cf4  \cf6 View\cf4  \{\
+        \cf6 NavigationStack\cf4  \{\
+            \cf6 ScrollView\cf4  \{\
+                \cf6 VStack\cf4 (\cf6 spacing\cf4 : \cf12 18\cf4 ) \{\
+                    \cf10 hauptToggleSection\cf4 \
+\
+                    
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 hatBesondereWuensche\cf4  \{\
+                        \cf10 beisetzungSection\cf4 \
+                        \cf10 beisetzungsWuenscheSection\cf4 \
+                        \cf10 kontakteSection\cf4 \
+                        \cf10 haustiereSection\cf4 \
+                        \cf10 nachlassSection\cf4 \
+                        \cf10 patientenverfuegungSection\cf4 \
+                        \cf10 vorsorgeauftragSection\cf4 \
+                        \cf10 sterbebegleitungSection\cf4 \
+                    \}\
+                \}\
+                .\cf7 padding\cf4 (.\cf7 horizontal\cf4 , \cf12 18\cf4 )\
+                .\cf7 padding\cf4 (.\cf7 top\cf4 , \cf12 18\cf4 )\
+                .\cf7 padding\cf4 (.\cf7 bottom\cf4 , \cf12 32\cf4 )\
+            \}\
+            .\cf7 background\cf4 (\cf10 wuenscheBackgroundColor\cf4 .\cf7 ignoresSafeArea\cf4 ())\
+            .\cf7 navigationTitle\cf4 (\cf11 "Meine W\'fcnsche"\cf4 )\
+            .\cf7 tint\cf4 (\cf10 wuenscheAccentColor\cf4 )\
+            .\cf7 sheet\cf4 (\cf7 isPresented\cf4 : \cf10 $kontaktPickerAnzeigen\cf4 ) \{\
+                \cf9 KontaktPicker\cf4  \{ kontakt 
+\f0\b \cf2 in
+\f1\b0 \cf4 \
+                    \cf10 kontakte\cf4 .\cf7 append\cf4 (kontakt)\
+                    \cf10 synchronisiereKontakteMitHinterbliebenen\cf4 ()\
+                    \cf10 kontaktPickerAnzeigen\cf4  = 
+\f0\b \cf2 false
+\f1\b0 \cf4 \
+                \}\
+            \}\
+            .\cf7 sheet\cf4 (\cf7 isPresented\cf4 : \cf10 $haustierPopupAnzeigen\cf4 ) \{\
+                \cf9 HaustierErfassungView\cf4  \{ haustier 
+\f0\b \cf2 in
+\f1\b0 \cf4 \
+                    \cf10 haustiere\cf4 .\cf7 append\cf4 (haustier)\
+                    \cf10 haustierPopupAnzeigen\cf4  = 
+\f0\b \cf2 false
+\f1\b0 \cf4 \
+                \}\
+            \}\
+            .\cf7 fileImporter\cf4 (\
+                \cf7 isPresented\cf4 : \cf10 $dokumentImporterAnzeigen\cf4 ,\
+                \cf7 allowedContentTypes\cf4 : [.\cf7 pdf\cf4 , .\cf7 image\cf4 , .\cf7 text\cf4 , .\cf7 plainText\cf4 , .\cf7 rtf\cf4 , .\cf7 data\cf4 ],\
+                \cf7 allowsMultipleSelection\cf4 : 
+\f0\b \cf2 false
+\f1\b0 \cf4 \
+            ) \{ result 
+\f0\b \cf2 in
+\f1\b0 \cf4 \
+                \cf10 dokumentImportVerarbeiten\cf4 (result)\
+            \}\
+            .\cf7 quickLookPreview\cf4 (\cf10 $dokumentVorschauURL\cf4 )\
+            .\cf7 onChange\cf4 (\cf7 of\cf4 : \cf10 nachrufBildAuswahl\cf4 ) \{ _, neueAuswahl 
+\f0\b \cf2 in
+\f1\b0 \cf4 \
+                \cf6 Task\cf4  \{\
+                    
+\f0\b \cf2 if
+\f1\b0 \cf4  
+\f0\b \cf2 let
+\f1\b0 \cf4  data = 
+\f0\b \cf2 try
+\f1\b0 \cf4 ? 
+\f0\b \cf2 await
+\f1\b0 \cf4  neueAuswahl?.\cf7 loadTransferable\cf4 (\cf7 type\cf4 : \cf6 Data\cf4 .
+\f0\b \cf2 self
+\f1\b0 \cf4 ) \{\
+                        
+\f0\b \cf2 await
+\f1\b0 \cf4  \cf6 MainActor\cf4 .\cf7 run\cf4  \{\
+                            \cf10 nachrufBildData\cf4  = data\
+                            \cf10 speichereWuensche\cf4 ()\
+                        \}\
+                    \}\
+                \}\
+            \}\
+            .\cf7 onChange\cf4 (\cf7 of\cf4 : \cf10 letzteWorteVideoAuswahl\cf4 ) \{ _, neueAuswahl 
+\f0\b \cf2 in
+\f1\b0 \cf4 \
+                \cf6 Task\cf4  \{\
+                    
+\f0\b \cf2 guard
+\f1\b0 \cf4  
+\f0\b \cf2 let
+\f1\b0 \cf4  neueAuswahl 
+\f0\b \cf2 else
+\f1\b0 \cf4  \{ 
+\f0\b \cf2 return
+\f1\b0 \cf4  \}\
+\
+                    
+\f0\b \cf2 if
+\f1\b0 \cf4  
+\f0\b \cf2 let
+\f1\b0 \cf4  data = 
+\f0\b \cf2 try
+\f1\b0 \cf4 ? 
+\f0\b \cf2 await
+\f1\b0 \cf4  neueAuswahl.\cf7 loadTransferable\cf4 (\cf7 type\cf4 : \cf6 Data\cf4 .
+\f0\b \cf2 self
+\f1\b0 \cf4 ) \{\
+                        
+\f0\b \cf2 await
+\f1\b0 \cf4  \cf6 MainActor\cf4 .\cf7 run\cf4  \{\
+                            \cf10 letzteWorteVideoData\cf4  = data\
+                            \cf10 letzteWorteVideoName\cf4  = \cf11 "Pers\'f6nliche Botschaft.mov"\cf4 \
+                            \cf10 bereiteLetzteWorteVideoVorschauVor\cf4 (\cf10 sichtbar\cf4 : 
+\f0\b \cf2 true
+\f1\b0 \cf4 )\
+                        \}\
+                    \}\
+                \}\
+            \}\
+            .\cf7 onAppear\cf4  \{\
+                \cf10 ladeOderErstelleWuensche\cf4 ()\
+                \cf10 ladeKontakteAusHinterbliebenen\cf4 ()\
+            \}\
+            .\cf7 onChange\cf4 (\cf7 of\cf4 : \cf10 wuenscheSpeicherSignatur\cf4 ) \{ _, _ 
+\f0\b \cf2 in
+\f1\b0 \cf4 \
+                \cf10 speichereWuensche\cf4 ()\
+            \}\
+            .\cf7 onChange\cf4 (\cf7 of\cf4 : \cf10 kontakteSpeicherSignatur\cf4 ) \{ _, _ 
+\f0\b \cf2 in
+\f1\b0 \cf4 \
+                \cf10 synchronisiereKontakteMitHinterbliebenen\cf4 ()\
+            \}\
+        \}\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 haustiereSection\cf4 : 
+\f0\b \cf2 some
+\f1\b0 \cf4  \cf6 View\cf4  \{\
+        \cf10 styleGuideSection\cf4 (\cf10 titel\cf4 : \cf11 "Haustiere"\cf4 , \cf10 systemImage\cf4 : \cf11 "pawprint.fill"\cf4 ) \{\
+            \cf6 Toggle\cf4 (\cf11 "Ich habe Haustiere"\cf4 , \cf6 isOn\cf4 : \cf10 $hatHaustiere\cf4 )\
+                .\cf7 tint\cf4 (\cf10 wuenscheAccentColor\cf4 )\
+\
+            
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 hatHaustiere\cf4  \{\
+                
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 haustiere\cf4 .\cf7 isEmpty\cf4  \{\
+                    \cf10 leerText\cf4 (\cf11 "Noch keine Haustiere erfasst."\cf4 )\
+                \}\
+\
+                \cf6 ForEach\cf4 (\cf10 $haustiere\cf4 ) \{ haustier 
+\f0\b \cf2 in
+\f1\b0 \cf4 \
+                    
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 haustiere\cf4 .\cf7 count\cf4  > \cf12 2\cf4  \{\
+                        \cf6 DisclosureGroup\cf4 (\
+                            \cf6 isExpanded\cf4 : \cf6 Binding\cf4 (\
+                                \cf6 get\cf4 : \{ \cf10 ausgeklappteHaustierIDs\cf4 .\cf7 contains\cf4 (haustier.\cf7 wrappedValue\cf4 .id) \},\
+                                \cf6 set\cf4 : \{ istOffen 
+\f0\b \cf2 in
+\f1\b0 \cf4 \
+                                    
+\f0\b \cf2 if
+\f1\b0 \cf4  istOffen \{\
+                                        \cf10 ausgeklappteHaustierIDs\cf4 .\cf7 insert\cf4 (haustier.\cf7 wrappedValue\cf4 .id)\
+                                    \} 
+\f0\b \cf2 else
+\f1\b0 \cf4  \{\
+                                        \cf10 ausgeklappteHaustierIDs\cf4 .\cf7 remove\cf4 (haustier.\cf7 wrappedValue\cf4 .id)\
+                                    \}\
+                                \}\
+                            )\
+                        ) \{\
+                            \cf10 haustierDetailFormular\cf4 (\cf10 haustier\cf4 : haustier)\
+                        \} \cf7 label\cf4 : \{\
+                            \cf10 listHeader\cf4 (\cf10 title\cf4 : haustier.\cf7 wrappedValue\cf4 .\cf10 anzeigename\cf4 , \cf10 subtitle\cf4 : haustier.\cf7 wrappedValue\cf4 .art.rawValue, \cf10 icon\cf4 : \cf11 "pawprint"\cf4 )\
+                        \}\
+                        .\cf7 tint\cf4 (\cf10 wuenscheAccentColor\cf4 )\
+                    \} 
+\f0\b \cf2 else
+\f1\b0 \cf4  \{\
+                        \cf10 haustierDetailFormular\cf4 (\cf10 haustier\cf4 : haustier)\
+                    \}\
+                \}\
+                .\cf7 onDelete\cf4 (\cf7 perform\cf4 : \cf10 haustierLoeschen\cf4 )\
+\
+                \cf10 accentButton\cf4 (\cf10 title\cf4 : \cf11 "Haustier erfassen"\cf4 , \cf10 systemImage\cf4 : \cf11 "plus.circle.fill"\cf4 ) \{\
+                    \cf10 haustierPopupAnzeigen\cf4  = 
+\f0\b \cf2 true
+\f1\b0 \cf4 \
+                \}\
+            \}\
+        \}\
+    \}\
+\
+    \cf6 @ViewBuilder\cf4 \
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 haustierDetailFormular\cf4 (\cf8 haustier\cf4 : \cf6 Binding\cf4 <\cf9 WuenschePetEntry\cf4 >) -> 
+\f0\b \cf2 some
+\f1\b0 \cf4  \cf6 View\cf4  \{\
+        \cf6 VStack\cf4 (\cf6 alignment\cf4 : .\cf7 leading\cf4 , \cf6 spacing\cf4 : \cf12 12\cf4 ) \{\
+            \cf6 Picker\cf4 (\cf11 "Art"\cf4 , \cf6 selection\cf4 : haustier.\cf7 art\cf4 ) \{\
+                \cf6 ForEach\cf4 (\cf9 HaustierArt\cf4 .\cf7 allCases\cf4 ) \{ art 
+\f0\b \cf2 in
+\f1\b0 \cf4 \
+                    \cf6 Text\cf4 (art.rawValue).\cf7 tag\cf4 (art)\
+                \}\
+            \}\
+            .\cf7 tint\cf4 (\cf10 wuenscheAccentColor\cf4 )\
+\
+            \cf10 styledTextField\cf4 (\cf11 "Name"\cf4 , \cf10 text\cf4 : haustier.\cf7 name\cf4 )\
+            \cf10 styledTextField\cf4 (\cf11 "Tierarzt"\cf4 , \cf10 text\cf4 : haustier.\cf10 tierarzt\cf4 )\
+            \cf10 styledTextField\cf4 (\cf11 "Bemerkungen"\cf4 , \cf10 text\cf4 : haustier.\cf10 bemerkungen\cf4 , \cf10 axis\cf4 : .\cf7 vertical\cf4 , \cf10 lineLimit\cf4 : \cf12 2\cf4 ...\cf12 6\cf4 )\
+        \}\
+        .\cf7 padding\cf4 (\cf12 12\cf4 )\
+        .\cf7 background\cf4 (\cf6 Color\cf4 .\cf7 white\cf4 .\cf7 opacity\cf4 (\cf12 0.72\cf4 ))\
+        .\cf7 clipShape\cf4 (\cf6 RoundedRectangle\cf4 (\cf6 cornerRadius\cf4 : \cf12 16\cf4 , \cf6 style\cf4 : .\cf7 continuous\cf4 ))\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 hauptToggleSection\cf4 : 
+\f0\b \cf2 some
+\f1\b0 \cf4  \cf6 View\cf4  \{\
+        \cf10 styleGuideSection\cf4 (\cf10 titel\cf4 : \cf11 "Meine W\'fcnsche"\cf4 , \cf10 systemImage\cf4 : \cf11 "heart.text.square.fill"\cf4 ) \{\
+            \cf6 Toggle\cf4 (\cf11 "Ich habe besondere W\'fcnsche nach meinem Tod"\cf4 , \cf6 isOn\cf4 : \cf10 $hatBesondereWuensche\cf4 )\
+                .\cf7 tint\cf4 (\cf10 wuenscheAccentColor\cf4 )\
+        \}\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 beisetzungSection\cf4 : 
+\f0\b \cf2 some
+\f1\b0 \cf4  \cf6 View\cf4  \{\
+        \cf10 styleGuideSection\cf4 (\cf10 titel\cf4 : \cf11 "Meine Beisetzung"\cf4 , \cf10 systemImage\cf4 : \cf11 "leaf.fill"\cf4 ) \{\
+            \cf10 styledTextField\cf4 (\cf11 "Bestattungsw\'fcnsche"\cf4 , \cf10 text\cf4 : \cf10 $bestattungswuensche\cf4 , \cf10 axis\cf4 : .\cf7 vertical\cf4 , \cf10 lineLimit\cf4 : \cf12 3\cf4 ...\cf12 8\cf4 )\
+\
+            \cf6 Picker\cf4 (\cf11 "Bestattungsart"\cf4 , \cf6 selection\cf4 : \cf10 $bestattungsart\cf4 ) \{\
+                \cf6 ForEach\cf4 (\cf9 Bestattungsart\cf4 .\cf7 allCases\cf4 ) \{ art 
+\f0\b \cf2 in
+\f1\b0 \cf4 \
+                    \cf6 Text\cf4 (art.rawValue).\cf7 tag\cf4 (art)\
+                \}\
+            \}\
+            .\cf7 pickerStyle\cf4 (.\cf7 segmented\cf4 )\
+            .\cf7 tint\cf4 (\cf10 wuenscheAccentColor\cf4 )\
+\
+            
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 bestattungsart\cf4  == .\cf10 kremation\cf4  \{\
+                \cf10 styledTextField\cf4 (\cf11 "Was ist bei der Kremation zu beachten? z.B. Art der Urne, Urnengrab, Waldfriedhof"\cf4 , \cf10 text\cf4 : \cf10 $kremationHinweise\cf4 , \cf10 axis\cf4 : .\cf7 vertical\cf4 , \cf10 lineLimit\cf4 : \cf12 3\cf4 ...\cf12 8\cf4 )\
+            \}\
+\
+            
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 bestattungsart\cf4  == .\cf10 erdbestattung\cf4  \{\
+                \cf10 styledTextField\cf4 (\cf11 "Was ist bei der Erdbestattung zu beachten? z.B. Art des Sarges, Kleidung, Ort und Ablauf"\cf4 , \cf10 text\cf4 : \cf10 $erdbestattungHinweise\cf4 , \cf10 axis\cf4 : .\cf7 vertical\cf4 , \cf10 lineLimit\cf4 : \cf12 3\cf4 ...\cf12 8\cf4 )\
+            \}\
+\
+            \cf10 styledTextField\cf4 (\cf11 "Sonstige Bemerkungen"\cf4 , \cf10 text\cf4 : \cf10 $sonstigeBemerkungen\cf4 , \cf10 axis\cf4 : .\cf7 vertical\cf4 , \cf10 lineLimit\cf4 : \cf12 3\cf4 ...\cf12 8\cf4 )\
+        \}\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 beisetzungsWuenscheSection\cf4 : 
+\f0\b \cf2 some
+\f1\b0 \cf4  \cf6 View\cf4  \{\
+        \cf10 styleGuideSection\cf4 (\cf10 titel\cf4 : \cf11 "W\'fcnsche zur Beisetzung"\cf4 , \cf10 systemImage\cf4 : \cf11 "sparkles"\cf4 ) \{\
+            \cf6 Toggle\cf4 (\cf11 "Keine Blumengeschenke, bitte spendet das Geld lieber"\cf4 , \cf6 isOn\cf4 : \cf10 $keineBlumengeschenkeBitte\cf4 )\
+                .\cf7 tint\cf4 (\cf10 wuenscheAccentColor\cf4 )\
+            \cf6 Toggle\cf4 (\cf11 "Zeremonie"\cf4 , \cf6 isOn\cf4 : \cf10 $zeremonie\cf4 )\
+                .\cf7 tint\cf4 (\cf10 wuenscheAccentColor\cf4 )\
+\
+            
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 zeremonie\cf4  \{\
+                \cf9 DetailBox\cf4 (\cf9 accentColor\cf4 : \cf10 wuenscheAccentColor\cf4 ) \{\
+                    \cf10 styledTextField\cf4 (\cf11 "Wie soll die Zeremonie gestaltet sein?"\cf4 , \cf10 text\cf4 : \cf10 $zeremonieText\cf4 , \cf10 axis\cf4 : .\cf7 vertical\cf4 , \cf10 lineLimit\cf4 : \cf12 2\cf4 ...\cf12 6\cf4 )\
+\
+                    \cf6 Divider\cf4 ()\
+\
+                    \cf6 Toggle\cf4 (\cf11 "Bereits organisiert"\cf4 , \cf6 isOn\cf4 : \cf10 $zeremonieBereitsOrganisiert\cf4 )\
+                        .\cf7 tint\cf4 (\cf10 wuenscheAccentColor\cf4 )\
+\
+                    
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 zeremonieBereitsOrganisiert\cf4  \{\
+                        \cf9 DetailBox\cf4 (\cf9 accentColor\cf4 : \cf10 wuenscheAccentColor\cf4 ) \{\
+                            \cf10 styledTextField\cf4 (\cf11 "Details zur Organisation"\cf4 , \cf10 text\cf4 : \cf10 $zeremonieOrganisiertDetails\cf4 , \cf10 axis\cf4 : .\cf7 vertical\cf4 , \cf10 lineLimit\cf4 : \cf12 2\cf4 ...\cf12 6\cf4 )\
+                        \}\
+                    \}\
+\
+                    \cf6 Divider\cf4 ()\
+\
+                    \cf6 Button\cf4  \{\
+                        \cf10 zeremonieFinanziellAbgesichert\cf4 .\cf7 toggle\cf4 ()\
+                    \} \cf7 label\cf4 : \{\
+                        \cf6 HStack\cf4  \{\
+                            \cf6 Image\cf4 (\cf6 systemName\cf4 : \cf10 zeremonieFinanziellAbgesichert\cf4  ? \cf11 "checkmark.square.fill"\cf4  : \cf11 "square"\cf4 )\
+                                .\cf7 foregroundStyle\cf4 (\cf10 wuenscheAccentColor\cf4 )\
+                            \cf6 Text\cf4 (\cf11 "Finanziell abgesichert, diese zu begleichen"\cf4 )\
+                            \cf6 Spacer\cf4 ()\
+                        \}\
+                    \}\
+                    .\cf7 buttonStyle\cf4 (.\cf7 plain\cf4 )\
+                \}\
+            \}\
+\
+            \cf6 Toggle\cf4 (\cf11 "Besondere Musik"\cf4 , \cf6 isOn\cf4 : \cf10 $besondereMusik\cf4 )\
+                .\cf7 tint\cf4 (\cf10 wuenscheAccentColor\cf4 )\
+\
+            
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 besondereMusik\cf4  \{\
+                \cf9 DetailBox\cf4 (\cf9 accentColor\cf4 : \cf10 wuenscheAccentColor\cf4 ) \{\
+                    \cf10 styledTextField\cf4 (\cf11 "Welche Musik soll gespielt werden?"\cf4 , \cf10 text\cf4 : \cf10 $besondereMusikText\cf4 , \cf10 axis\cf4 : .\cf7 vertical\cf4 , \cf10 lineLimit\cf4 : \cf12 2\cf4 ...\cf12 6\cf4 )\
+                \}\
+            \}\
+\
+            \cf6 Toggle\cf4 (\cf11 "Pers\'f6nliche Botschaft"\cf4 , \cf6 isOn\cf4 : \cf10 $moechteNochWasSagen\cf4 )\
+                .\cf7 tint\cf4 (\cf10 wuenscheAccentColor\cf4 )\
+\
+            
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 moechteNochWasSagen\cf4  \{\
+                \cf9 DetailBox\cf4 (\cf9 accentColor\cf4 : \cf10 wuenscheAccentColor\cf4 ) \{\
+                    \cf10 styledTextField\cf4 (\cf11 "Was m\'f6chtest du noch sagen?"\cf4 , \cf10 text\cf4 : \cf10 $letzteWorteText\cf4 , \cf10 axis\cf4 : .\cf7 vertical\cf4 , \cf10 lineLimit\cf4 : \cf12 3\cf4 ...\cf12 8\cf4 )\
+\
+                    \cf6 Divider\cf4 ()\
+\
+                    \cf6 VStack\cf4 (\cf6 spacing\cf4 : \cf12 12\cf4 ) \{\
+                        
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 letzteWorteVideoData\cf4  != 
+\f0\b \cf2 nil
+\f1\b0 \cf4  \{\
+                            
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 letzteWorteVideoVorschauAnzeigen\cf4 , 
+\f0\b \cf2 let
+\f1\b0 \cf4  letzteWorteVideoPlayer \{\
+                                \cf6 VideoPlayer\cf4 (\cf6 player\cf4 : letzteWorteVideoPlayer)\
+                                    .\cf7 frame\cf4 (\cf7 height\cf4 : \cf12 240\cf4 )\
+                                    .\cf7 clipShape\cf4 (\cf6 RoundedRectangle\cf4 (\cf6 cornerRadius\cf4 : \cf12 14\cf4 , \cf6 style\cf4 : .\cf7 continuous\cf4 ))\
+                            \}\
+                        \} 
+\f0\b \cf2 else
+\f1\b0 \cf4  \{\
+                            \cf6 Image\cf4 (\cf6 systemName\cf4 : \cf11 "video.badge.plus"\cf4 )\
+                                .\cf7 font\cf4 (.\cf7 system\cf4 (\cf7 size\cf4 : \cf12 44\cf4 ))\
+                                .\cf7 foregroundStyle\cf4 (\cf10 wuenscheAccentColor\cf4 .\cf7 opacity\cf4 (\cf12 0.75\cf4 ))\
+                        \}\
+\
+                        \cf6 PhotosPicker\cf4 (\
+                            \cf6 selection\cf4 : \cf10 $letzteWorteVideoAuswahl\cf4 ,\
+                            \cf6 matching\cf4 : .\cf7 videos\cf4 ,\
+                            \cf6 photoLibrary\cf4 : .\cf7 shared\cf4 ()\
+                        ) \{\
+                            \cf6 Label\cf4 (\cf10 letzteWorteVideoData\cf4  == 
+\f0\b \cf2 nil
+\f1\b0 \cf4  ? \cf11 "Video hochladen"\cf4  : \cf11 "Video \'e4ndern"\cf4 , \cf6 systemImage\cf4 : \cf11 "video.badge.plus"\cf4 )\
+                        \}\
+                        .\cf7 buttonStyle\cf4 (.\cf7 borderless\cf4 )\
+                        .\cf7 foregroundStyle\cf4 (\cf10 wuenscheAccentColor\cf4 )\
+\
+                        
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 letzteWorteVideoData\cf4  != 
+\f0\b \cf2 nil
+\f1\b0 \cf4  \{\
+                            \cf6 Button\cf4 (\cf6 role\cf4 : .\cf7 destructive\cf4 ) \{\
+                                \cf10 letzteWorteVideoEntfernen\cf4 ()\
+                            \} \cf7 label\cf4 : \{\
+                                \cf6 Label\cf4 (\cf11 "Video entfernen"\cf4 , \cf6 systemImage\cf4 : \cf11 "trash"\cf4 )\
+                                    .\cf7 font\cf4 (.\cf7 caption\cf4 )\
+                            \}\
+                            .\cf7 buttonStyle\cf4 (.\cf7 borderless\cf4 )\
+                        \}\
+                    \}\
+                    .\cf7 frame\cf4 (\cf7 maxWidth\cf4 : .\cf7 infinity\cf4 )\
+                    .\cf7 padding\cf4 (.\cf7 vertical\cf4 , \cf12 8\cf4 )\
+                \}\
+            \}\
+\
+            \cf10 nachrufBlock\cf4 \
+        \}\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 nachrufBlock\cf4 : 
+\f0\b \cf2 some
+\f1\b0 \cf4  \cf6 View\cf4  \{\
+        \cf6 Group\cf4  \{\
+            \cf6 Toggle\cf4 (\cf11 "Ich habe eine Vorstellung, wie der Nachruf sein soll"\cf4 , \cf6 isOn\cf4 : \cf10 $nachrufVorstellung\cf4 )\
+                .\cf7 tint\cf4 (\cf10 wuenscheAccentColor\cf4 )\
+\
+            
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 nachrufVorstellung\cf4  \{\
+                \cf9 DetailBox\cf4 (\cf9 accentColor\cf4 : \cf10 wuenscheAccentColor\cf4 ) \{\
+                    \cf10 styledTextField\cf4 (\cf11 "Wie soll der Nachruf sein? z.B Zeitung, Karte"\cf4 , \cf10 text\cf4 : \cf10 $nachrufText\cf4 , \cf10 axis\cf4 : .\cf7 vertical\cf4 , \cf10 lineLimit\cf4 : \cf12 3\cf4 ...\cf12 8\cf4 )\
+\
+                    \cf6 Divider\cf4 ()\
+\
+                    \cf6 VStack\cf4 (\cf6 spacing\cf4 : \cf12 12\cf4 ) \{\
+                        
+\f0\b \cf2 if
+\f1\b0 \cf4  
+\f0\b \cf2 let
+\f1\b0 \cf4  nachrufBildData,\
+                           
+\f0\b \cf2 let
+\f1\b0 \cf4  uiImage = \cf6 UIImage\cf4 (\cf6 data\cf4 : nachrufBildData) \{\
+                            \cf6 Image\cf4 (\cf6 uiImage\cf4 : uiImage)\
+                                .\cf7 resizable\cf4 ()\
+                                .\cf7 scaledToFill\cf4 ()\
+                                .\cf7 frame\cf4 (\cf7 width\cf4 : \cf12 140\cf4 , \cf7 height\cf4 : \cf12 140\cf4 )\
+                                .\cf7 clipShape\cf4 (\cf6 RoundedRectangle\cf4 (\cf6 cornerRadius\cf4 : \cf12 20\cf4 , \cf6 style\cf4 : .\cf7 continuous\cf4 ))\
+                                .\cf7 clipped\cf4 ()\
+                        \} 
+\f0\b \cf2 else
+\f1\b0 \cf4  \{\
+                            \cf6 Image\cf4 (\cf6 systemName\cf4 : \cf11 "photo.fill"\cf4 )\
+                                .\cf7 font\cf4 (.\cf7 system\cf4 (\cf7 size\cf4 : \cf12 48\cf4 ))\
+                                .\cf7 foregroundStyle\cf4 (\cf10 wuenscheAccentColor\cf4 .\cf7 opacity\cf4 (\cf12 0.75\cf4 ))\
+                        \}\
+\
+                        \cf6 PhotosPicker\cf4 (\
+                            \cf6 selection\cf4 : \cf10 $nachrufBildAuswahl\cf4 ,\
+                            \cf6 matching\cf4 : .\cf7 images\cf4 ,\
+                            \cf6 photoLibrary\cf4 : .\cf7 shared\cf4 ()\
+                        ) \{\
+                            \cf6 Label\cf4 (\cf10 nachrufBildData\cf4  == 
+\f0\b \cf2 nil
+\f1\b0 \cf4  ? \cf11 "Bild f\'fcr Nachruf hochladen"\cf4  : \cf11 "Bild f\'fcr Nachruf \'e4ndern"\cf4 , \cf6 systemImage\cf4 : \cf11 "photo.on.rectangle"\cf4 )\
+                        \}\
+                        .\cf7 buttonStyle\cf4 (.\cf7 borderless\cf4 )\
+                        .\cf7 foregroundStyle\cf4 (\cf10 wuenscheAccentColor\cf4 )\
+\
+                        
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 nachrufBildData\cf4  != 
+\f0\b \cf2 nil
+\f1\b0 \cf4  \{\
+                            \cf6 Button\cf4 (\cf6 role\cf4 : .\cf7 destructive\cf4 ) \{\
+                                \cf10 nachrufBildEntfernen\cf4 ()\
+                            \} \cf7 label\cf4 : \{\
+                                \cf6 Label\cf4 (\cf11 "Bild entfernen"\cf4 , \cf6 systemImage\cf4 : \cf11 "trash"\cf4 )\
+                                    .\cf7 font\cf4 (.\cf7 caption\cf4 )\
+                            \}\
+                            .\cf7 buttonStyle\cf4 (.\cf7 borderless\cf4 )\
+                        \}\
+                    \}\
+                    .\cf7 frame\cf4 (\cf7 maxWidth\cf4 : .\cf7 infinity\cf4 )\
+                    .\cf7 padding\cf4 (.\cf7 vertical\cf4 , \cf12 8\cf4 )\
+                \}\
+            \}\
+        \}\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 kontakteSection\cf4 : 
+\f0\b \cf2 some
+\f1\b0 \cf4  \cf6 View\cf4  \{\
+        \cf10 styleGuideSection\cf4 (\cf10 titel\cf4 : \cf11 "Personen informieren / einladen"\cf4 , \cf10 systemImage\cf4 : \cf11 "person.2.fill"\cf4 ) \{\
+            
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 kontakte\cf4 .\cf7 isEmpty\cf4  \{\
+                \cf10 leerText\cf4 (\cf11 "Noch keine Kontakte erfasst."\cf4 )\
+            \}\
+\
+            \cf6 ForEach\cf4 (\cf10 $kontakte\cf4 ) \{ $kontakt 
+\f0\b \cf2 in
+\f1\b0 \cf4 \
+                \cf10 kontaktEintragView\cf4 (\cf10 kontakt\cf4 : $kontakt)\
+            \}\
+            .\cf7 onDelete\cf4 (\cf7 perform\cf4 : \cf10 kontaktLoeschen\cf4 )\
+\
+            \cf10 accentButton\cf4 (\cf10 title\cf4 : \cf11 "Aus Adressbuch hinzuf\'fcgen"\cf4 , \cf10 systemImage\cf4 : \cf11 "person.crop.circle.badge.plus"\cf4 ) \{\
+                \cf10 kontaktPickerAnzeigen\cf4  = 
+\f0\b \cf2 true
+\f1\b0 \cf4 \
+            \}\
+        \}\
+    \}\
+\
+    \cf6 @ViewBuilder\cf4 \
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 kontaktEintragView\cf4 (\cf8 kontakt\cf4 : \cf6 Binding\cf4 <\cf9 BeisetzungsKontakt\cf4 >) -> 
+\f0\b \cf2 some
+\f1\b0 \cf4  \cf6 View\cf4  \{\
+        
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 kontakte\cf4 .\cf7 count\cf4  > \cf12 3\cf4  \{\
+            \cf6 DisclosureGroup\cf4 (\
+                \cf6 isExpanded\cf4 : \cf6 Binding\cf4 (\
+                    \cf6 get\cf4 : \{ \cf10 ausgeklappteKontaktIDs\cf4 .\cf7 contains\cf4 (kontakt.\cf7 wrappedValue\cf4 .id) \},\
+                    \cf6 set\cf4 : \{ istOffen 
+\f0\b \cf2 in
+\f1\b0 \cf4 \
+                        
+\f0\b \cf2 if
+\f1\b0 \cf4  istOffen \{\
+                            \cf10 ausgeklappteKontaktIDs\cf4 .\cf7 insert\cf4 (kontakt.\cf7 wrappedValue\cf4 .id)\
+                        \} 
+\f0\b \cf2 else
+\f1\b0 \cf4  \{\
+                            \cf10 ausgeklappteKontaktIDs\cf4 .\cf7 remove\cf4 (kontakt.\cf7 wrappedValue\cf4 .id)\
+                        \}\
+                    \}\
+                )\
+            ) \{\
+                \cf10 kontaktDetailFormular\cf4 (\cf10 kontakt\cf4 : kontakt)\
+            \} \cf7 label\cf4 : \{\
+                \cf10 listHeader\cf4 (\cf10 title\cf4 : kontakt.\cf7 wrappedValue\cf4 .\cf10 anzeigename\cf4 , \cf10 subtitle\cf4 : kontakt.\cf7 wrappedValue\cf4 .art.rawValue, \cf10 icon\cf4 : \cf11 "person.fill"\cf4 )\
+            \}\
+        \} 
+\f0\b \cf2 else
+\f1\b0 \cf4  \{\
+            \cf10 kontaktDetailFormular\cf4 (\cf10 kontakt\cf4 : kontakt)\
+        \}\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 nachlassSection\cf4 : 
+\f0\b \cf2 some
+\f1\b0 \cf4  \cf6 View\cf4  \{\
+        \cf10 styleGuideSection\cf4 (\cf10 titel\cf4 : \cf11 "Nachlass"\cf4 , \cf10 systemImage\cf4 : \cf11 "doc.text.fill"\cf4 ) \{\
+            \cf6 Toggle\cf4 (\cf11 "Ich habe ein Testament"\cf4 , \cf6 isOn\cf4 : \cf10 $hatTestament\cf4 )\
+                .\cf7 tint\cf4 (\cf10 wuenscheAccentColor\cf4 )\
+\
+            
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 hatTestament\cf4  \{\
+                \cf9 DetailBox\cf4 (\cf9 accentColor\cf4 : \cf10 wuenscheAccentColor\cf4 ) \{\
+                    \cf6 Text\cf4 (\cf11 "Ein Testament muss den gesetzlichen und formellen Anforderungen entsprechen. Du bist selbst daf\'fcr verantwortlich, dass Inhalt, Form und Aufbewahrung korrekt und rechtsg\'fcltig sind. Diese App ersetzt keine rechtliche Beratung."\cf4 )\
+                        .\cf7 font\cf4 (.\cf7 footnote\cf4 )\
+                        .\cf7 foregroundStyle\cf4 (.\cf7 secondary\cf4 )\
+\
+                    \cf6 Divider\cf4 ()\
+\
+                    \cf10 styledTextField\cf4 (\cf11 "Ablageort"\cf4 , \cf10 text\cf4 : \cf10 $testamentAblageort\cf4 , \cf10 axis\cf4 : .\cf7 vertical\cf4 , \cf10 lineLimit\cf4 : \cf12 2\cf4 ...\cf12 4\cf4 )\
+                        .\cf7 textContentType\cf4 (.\cf7 location\cf4 )\
+\
+                    \cf6 Divider\cf4 ()\
+\
+                    \cf9 DokumentUploadBox\cf4 (\
+                        \cf9 accentColor\cf4 : \cf10 wuenscheAccentColor\cf4 ,\
+                        \cf9 dateiName\cf4 : \cf10 testamentDateiName\cf4 ,\
+                        \cf9 hochgeladenAm\cf4 : \cf10 testamentHochgeladenAm\cf4 ,\
+                        \cf9 timestampTitel\cf4 : \cf11 "Testament hochgeladen am"\cf4 ,\
+                        \cf9 uploadTitel\cf4 : \cf10 testamentDateiName\cf4  == 
+\f0\b \cf2 nil
+\f1\b0 \cf4  ? \cf11 "Testament hochladen"\cf4  : \cf11 "Testament \'e4ndern"\cf4 ,\
+                        \cf9 entfernenTitel\cf4 : \cf11 "Testament entfernen"\cf4 ,\
+                        \cf9 erinnerungAktiv\cf4 : \cf10 $testamentErinnerungAktiv\cf4 ,\
+                        \cf9 erinnerungDatum\cf4 : \cf10 $testamentErinnerungDatum\cf4 ,\
+                        \cf9 vorschauAktion\cf4 : \{\
+                            \cf10 dokumentVorschauAnzeigen\cf4 (\cf10 testamentDateiURL\cf4 , \cf10 dateiName\cf4 : \cf10 testamentDateiName\cf4 , \cf10 dateiData\cf4 : \cf10 testamentDateiData\cf4 )\
+                        \},\
+                        \cf9 uploadAktion\cf4 : \{\
+                            \cf10 dokumentImportStarten\cf4 (.\cf10 testament\cf4 )\
+                        \},\
+                        \cf9 entfernenAktion\cf4 : \{\
+                            \cf10 testamentDateiEntfernen\cf4 ()\
+                        \}\
+                    )\
+                \}\
+            \}\
+        \}\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 patientenverfuegungSection\cf4 : 
+\f0\b \cf2 some
+\f1\b0 \cf4  \cf6 View\cf4  \{\
+        \cf10 styleGuideSection\cf4 (\cf10 titel\cf4 : \cf11 "Patientenverf\'fcgung"\cf4 , \cf10 systemImage\cf4 : \cf11 "cross.case.fill"\cf4 ) \{\
+            \cf6 Toggle\cf4 (\cf11 "Ich habe eine Patientenverf\'fcgung"\cf4 , \cf6 isOn\cf4 : \cf10 $hatPatientenverfuegung\cf4 )\
+                .\cf7 tint\cf4 (\cf10 wuenscheAccentColor\cf4 )\
+\
+            
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 hatPatientenverfuegung\cf4  \{\
+                \cf9 DetailBox\cf4 (\cf9 accentColor\cf4 : \cf10 wuenscheAccentColor\cf4 ) \{\
+                    \cf9 DokumentUploadBox\cf4 (\
+                        \cf9 accentColor\cf4 : \cf10 wuenscheAccentColor\cf4 ,\
+                        \cf9 dateiName\cf4 : \cf10 patientenverfuegungDateiName\cf4 ,\
+                        \cf9 hochgeladenAm\cf4 : \cf10 patientenverfuegungHochgeladenAm\cf4 ,\
+                        \cf9 timestampTitel\cf4 : \cf11 "Patientenverf\'fcgung hochgeladen am"\cf4 ,\
+                        \cf9 uploadTitel\cf4 : \cf10 patientenverfuegungDateiName\cf4  == 
+\f0\b \cf2 nil
+\f1\b0 \cf4  ? \cf11 "Patientenverf\'fcgung hochladen"\cf4  : \cf11 "Patientenverf\'fcgung \'e4ndern"\cf4 ,\
+                        \cf9 entfernenTitel\cf4 : \cf11 "Patientenverf\'fcgung entfernen"\cf4 ,\
+                        \cf9 erinnerungAktiv\cf4 : \cf10 $patientenverfuegungErinnerungAktiv\cf4 ,\
+                        \cf9 erinnerungDatum\cf4 : \cf10 $patientenverfuegungErinnerungDatum\cf4 ,\
+                        \cf9 vorschauAktion\cf4 : \{\
+                            \cf10 dokumentVorschauAnzeigen\cf4 (\cf10 patientenverfuegungDateiURL\cf4 , \cf10 dateiName\cf4 : \cf10 patientenverfuegungDateiName\cf4 , \cf10 dateiData\cf4 : \cf10 patientenverfuegungDateiData\cf4 )\
+                        \},\
+                        \cf9 uploadAktion\cf4 : \{\
+                            \cf10 dokumentImportStarten\cf4 (.\cf10 patientenverfuegung\cf4 )\
+                        \},\
+                        \cf9 entfernenAktion\cf4 : \{\
+                            \cf10 patientenverfuegungDateiEntfernen\cf4 ()\
+                        \}\
+                    )\
+                \}\
+            \}\
+        \}\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 vorsorgeauftragSection\cf4 : 
+\f0\b \cf2 some
+\f1\b0 \cf4  \cf6 View\cf4  \{\
+        \cf10 styleGuideSection\cf4 (\cf10 titel\cf4 : \cf11 "Vorsorgeauftrag"\cf4 , \cf10 systemImage\cf4 : \cf11 "checkmark.shield.fill"\cf4 ) \{\
+            \cf6 Toggle\cf4 (\cf11 "Ich habe einen Vorsorgeauftrag"\cf4 , \cf6 isOn\cf4 : \cf10 $hatVorsorgeauftrag\cf4 )\
+                .\cf7 tint\cf4 (\cf10 wuenscheAccentColor\cf4 )\
+\
+            
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 hatVorsorgeauftrag\cf4  \{\
+                \cf9 DetailBox\cf4 (\cf9 accentColor\cf4 : \cf10 wuenscheAccentColor\cf4 ) \{\
+                    \cf9 DokumentUploadBox\cf4 (\
+                        \cf9 accentColor\cf4 : \cf10 wuenscheAccentColor\cf4 ,\
+                        \cf9 dateiName\cf4 : \cf10 vorsorgeauftragDateiName\cf4 ,\
+                        \cf9 hochgeladenAm\cf4 : \cf10 vorsorgeauftragHochgeladenAm\cf4 ,\
+                        \cf9 timestampTitel\cf4 : \cf11 "Vorsorgeauftrag hochgeladen am"\cf4 ,\
+                        \cf9 uploadTitel\cf4 : \cf10 vorsorgeauftragDateiName\cf4  == 
+\f0\b \cf2 nil
+\f1\b0 \cf4  ? \cf11 "Vorsorgeauftrag hochladen"\cf4  : \cf11 "Vorsorgeauftrag \'e4ndern"\cf4 ,\
+                        \cf9 entfernenTitel\cf4 : \cf11 "Vorsorgeauftrag entfernen"\cf4 ,\
+                        \cf9 erinnerungAktiv\cf4 : \cf10 $vorsorgeauftragErinnerungAktiv\cf4 ,\
+                        \cf9 erinnerungDatum\cf4 : \cf10 $vorsorgeauftragErinnerungDatum\cf4 ,\
+                        \cf9 vorschauAktion\cf4 : \{\
+                            \cf10 dokumentVorschauAnzeigen\cf4 (\cf10 vorsorgeauftragDateiURL\cf4 , \cf10 dateiName\cf4 : \cf10 vorsorgeauftragDateiName\cf4 , \cf10 dateiData\cf4 : \cf10 vorsorgeauftragDateiData\cf4 )\
+                        \},\
+                        \cf9 uploadAktion\cf4 : \{\
+                            \cf10 dokumentImportStarten\cf4 (.\cf10 vorsorgeauftrag\cf4 )\
+                        \},\
+                        \cf9 entfernenAktion\cf4 : \{\
+                            \cf10 vorsorgeauftragDateiEntfernen\cf4 ()\
+                        \}\
+                    )\
+                \}\
+            \}\
+        \}\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 sterbebegleitungSection\cf4 : 
+\f0\b \cf2 some
+\f1\b0 \cf4  \cf6 View\cf4  \{\
+        \cf10 styleGuideSection\cf4 (\cf10 titel\cf4 : \cf11 "Sterbebegleitung"\cf4 , \cf10 systemImage\cf4 : \cf11 "hands.sparkles.fill"\cf4 ) \{\
+            \cf6 Toggle\cf4 (\cf11 "Ich bin offen f\'fcr eine Sterbebegleitung"\cf4 , \cf6 isOn\cf4 : \cf10 $offenFuerSterbebegleitung\cf4 )\
+                .\cf7 tint\cf4 (\cf10 wuenscheAccentColor\cf4 )\
+\
+            
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 offenFuerSterbebegleitung\cf4  \{\
+                \cf9 DetailBox\cf4 (\cf9 accentColor\cf4 : \cf10 wuenscheAccentColor\cf4 ) \{\
+                    \cf6 Toggle\cf4 (\cf11 "Ich habe eine schwerwiegende gesundheitliche Erkrankung"\cf4 , \cf6 isOn\cf4 : \cf10 $hatSchwereGesundheitlicheErkrankung\cf4 )\
+                        .\cf7 tint\cf4 (\cf10 wuenscheAccentColor\cf4 )\
+\
+                    
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 hatSchwereGesundheitlicheErkrankung\cf4  \{\
+                        \cf9 DetailBox\cf4 (\cf9 accentColor\cf4 : \cf10 wuenscheAccentColor\cf4 ) \{\
+                            \cf6 Picker\cf4 (\cf11 "Erkrankung"\cf4 , \cf6 selection\cf4 : \cf10 $schwereErkrankung\cf4 ) \{\
+                                \cf6 Text\cf4 (\cf11 "Bitte w\'e4hlen"\cf4 ).\cf7 tag\cf4 (
+\f0\b \cf2 nil
+\f1\b0 \cf4  
+\f0\b \cf2 as
+\f1\b0 \cf4  \cf9 SchwereErkrankung\cf4 ?)\
+                                \cf6 ForEach\cf4 (\cf9 SchwereErkrankung\cf4 .\cf7 allCases\cf4 ) \{ erkrankung 
+\f0\b \cf2 in
+\f1\b0 \cf4 \
+                                    \cf6 Text\cf4 (erkrankung.rawValue).\cf7 tag\cf4 (erkrankung 
+\f0\b \cf2 as
+\f1\b0 \cf4  \cf9 SchwereErkrankung\cf4 ?)\
+                                \}\
+                            \}\
+                            .\cf7 tint\cf4 (\cf10 wuenscheAccentColor\cf4 )\
+\
+                            \cf10 styledTextField\cf4 (\cf11 "Das ist f\'fcr mich wichtig"\cf4 , \cf10 text\cf4 : \cf10 $sterbebegleitungWichtig\cf4 , \cf10 axis\cf4 : .\cf7 vertical\cf4 , \cf10 lineLimit\cf4 : \cf12 3\cf4 ...\cf12 8\cf4 )\
+\
+                            
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 schwereErkrankung\cf4  != 
+\f0\b \cf2 nil
+\f1\b0 \cf4  \{\
+                                \cf6 Toggle\cf4 (\
+                                    \cf11 "Ich m\'f6chte regelm\'e4ssig bewusst beurteilen, ob mein Leben f\'fcr mich noch lebenswert ist und welcher Weg sich f\'fcr mich stimmig anf\'fchlt."\cf4 ,\
+                                    \cf6 isOn\cf4 : \cf10 $lebensqualitaetRegelmaessigBeurteilen\cf4 \
+                                )\
+                                .\cf7 tint\cf4 (\cf10 wuenscheAccentColor\cf4 )\
+                            \}\
+                        \}\
+                    \}\
+\
+                    \cf6 Divider\cf4 ()\
+\
+                    \cf9 DokumentUploadBox\cf4 (\
+                        \cf9 accentColor\cf4 : \cf10 wuenscheAccentColor\cf4 ,\
+                        \cf9 dateiName\cf4 : \cf10 sterbebegleitungDateiName\cf4 ,\
+                        \cf9 hochgeladenAm\cf4 : \cf10 sterbebegleitungHochgeladenAm\cf4 ,\
+                        \cf9 timestampTitel\cf4 : \cf11 "Sterbebegleitung hochgeladen am"\cf4 ,\
+                        \cf9 uploadTitel\cf4 : \cf10 sterbebegleitungDateiName\cf4  == 
+\f0\b \cf2 nil
+\f1\b0 \cf4  ? \cf11 "Dokument zur Sterbebegleitung hochladen"\cf4  : \cf11 "Dokument zur Sterbebegleitung \'e4ndern"\cf4 ,\
+                        \cf9 entfernenTitel\cf4 : \cf11 "Dokument zur Sterbebegleitung entfernen"\cf4 ,\
+                        \cf9 erinnerungAktiv\cf4 : \cf10 $sterbebegleitungErinnerungAktiv\cf4 ,\
+                        \cf9 erinnerungDatum\cf4 : \cf10 $sterbebegleitungErinnerungDatum\cf4 ,\
+                        \cf9 vorschauAktion\cf4 : \{\
+                            \cf10 dokumentVorschauAnzeigen\cf4 (\cf10 sterbebegleitungDateiURL\cf4 , \cf10 dateiName\cf4 : \cf10 sterbebegleitungDateiName\cf4 , \cf10 dateiData\cf4 : \cf10 sterbebegleitungDateiData\cf4 )\
+                        \},\
+                        \cf9 uploadAktion\cf4 : \{\
+                            \cf10 dokumentImportStarten\cf4 (.\cf10 sterbebegleitung\cf4 )\
+                        \},\
+                        \cf9 entfernenAktion\cf4 : \{\
+                            \cf10 sterbebegleitungDateiEntfernen\cf4 ()\
+                        \}\
+                    )\
+                \}\
+            \}\
+        \}\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 ladeOderErstelleWuensche\cf4 () \{\
+        
+\f0\b \cf2 guard
+\f1\b0 \cf4  !\cf10 wuenscheGeladen\cf4  
+\f0\b \cf2 else
+\f1\b0 \cf4  \{ 
+\f0\b \cf2 return
+\f1\b0 \cf4  \}\
+\
+        
+\f0\b \cf2 if
+\f1\b0 \cf4  
+\f0\b \cf2 let
+\f1\b0 \cf4  vorhandeneWuensche = \cf10 gespeicherteWuensche\cf4 .\cf7 first\cf4  \{\
+            \cf10 hatBesondereWuensche\cf4  = vorhandeneWuensche.\cf10 hatWuensche\cf4 \
+            \cf10 bestattungsart\cf4  = \cf9 Bestattungsart\cf4 (\cf9 rawValue\cf4 : vorhandeneWuensche.\cf10 beisetzungsArt\cf4 ) ?? .\cf10 kremation\cf4 \
+            \cf10 bestattungswuensche\cf4  = vorhandeneWuensche.\cf10 beisetzungHinweis\cf4 \
+            \cf10 sonstigeBemerkungen\cf4  = vorhandeneWuensche.\cf10 sonstigeBemerkungen\cf4 \
+\
+            
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 bestattungsart\cf4  == .\cf10 kremation\cf4  \{\
+                \cf10 kremationHinweise\cf4  = vorhandeneWuensche.\cf10 beisetzungHinweis\cf4 \
+            \} 
+\f0\b \cf2 else
+\f1\b0 \cf4  \{\
+                \cf10 erdbestattungHinweise\cf4  = vorhandeneWuensche.\cf10 beisetzungHinweis\cf4 \
+            \}\
+\
+            \cf10 keineBlumengeschenkeBitte\cf4  = vorhandeneWuensche.\cf10 keineBlumengeschenkeBitte\cf4 \
+            \cf10 besondereMusik\cf4  = vorhandeneWuensche.\cf10 besondereMusik\cf4 \
+            \cf10 besondereMusikText\cf4  = vorhandeneWuensche.\cf10 musikWunsch\cf4 \
+\
+            \cf10 zeremonie\cf4  = vorhandeneWuensche.\cf10 zeremonieGewuenscht\cf4 \
+            \cf10 zeremonieText\cf4  = vorhandeneWuensche.\cf10 zeremonieDetails\cf4 \
+            \cf10 zeremonieBereitsOrganisiert\cf4  = vorhandeneWuensche.\cf10 zeremonieOrganisiert\cf4 \
+            \cf10 zeremonieFinanziellAbgesichert\cf4  = vorhandeneWuensche.\cf10 zeremonieFinanziellAbgesichert\cf4 \
+\
+            \cf10 moechteNochWasSagen\cf4  = vorhandeneWuensche.\cf10 moechteNochEtwasSagen\cf4 \
+\
+            \cf10 letzteWorteText\cf4  = vorhandeneWuensche.\cf10 letzteBotschaft\cf4 \
+\
+            \cf10 letzteWorteVideoName\cf4  = vorhandeneWuensche.\cf10 letzteBotschaftVideoName\cf4 .\cf7 isEmpty\cf4  ? 
+\f0\b \cf2 nil
+\f1\b0 \cf4  : vorhandeneWuensche.\cf10 letzteBotschaftVideoName\cf4 \
+\
+            \cf10 letzteWorteVideoData\cf4  = vorhandeneWuensche.\cf10 letzteBotschaftVideoData\cf4 \
+\
+            
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 letzteWorteVideoData\cf4  != 
+\f0\b \cf2 nil
+\f1\b0 \cf4  \{\
+\
+                \cf10 bereiteLetzteWorteVideoVorschauVor\cf4 (\cf10 sichtbar\cf4 : 
+\f0\b \cf2 true
+\f1\b0 \cf4 )\
+\
+            \}\
+            \cf10 nachrufVorstellung\cf4  = vorhandeneWuensche.\cf10 nachrufGewuenscht\cf4 \
+            \cf10 nachrufText\cf4  = vorhandeneWuensche.\cf10 nachrufText\cf4 \
+            \cf10 nachrufBildData\cf4  = vorhandeneWuensche.\cf10 nachrufBildData\cf4 \
+\
+            \cf10 hatTestament\cf4  = vorhandeneWuensche.\cf10 testamentVorhanden\cf4 \
+            \cf10 testamentAblageort\cf4  = vorhandeneWuensche.\cf10 testamentAblageort\cf4 \
+            \cf10 testamentDateiName\cf4  = vorhandeneWuensche.\cf10 testamentDateiName\cf4 .\cf7 isEmpty\cf4  ? 
+\f0\b \cf2 nil
+\f1\b0 \cf4  : vorhandeneWuensche.\cf10 testamentDateiName\cf4 \
+            \cf10 testamentDateiData\cf4  = vorhandeneWuensche.\cf10 testamentDateiData\cf4 \
+            \cf10 testamentHochgeladenAm\cf4  = vorhandeneWuensche.\cf10 testamentHochgeladenAm\cf4 \
+            \cf10 testamentErinnerungAktiv\cf4  = vorhandeneWuensche.\cf10 testamentErinnerungAktiv\cf4 \
+            \cf10 testamentErinnerungDatum\cf4  = vorhandeneWuensche.\cf10 testamentErinnerungAm\cf4  ?? \cf6 Date\cf4 ()\
+\
+            \cf10 hatPatientenverfuegung\cf4  = vorhandeneWuensche.\cf10 patientenverfuegungVorhanden\cf4 \
+            \cf10 patientenverfuegungDateiName\cf4  = vorhandeneWuensche.\cf10 patientenverfuegungDateiName\cf4 .\cf7 isEmpty\cf4  ? 
+\f0\b \cf2 nil
+\f1\b0 \cf4  : vorhandeneWuensche.\cf10 patientenverfuegungDateiName\cf4 \
+            \cf10 patientenverfuegungDateiData\cf4  = vorhandeneWuensche.\cf10 patientenverfuegungDateiData\cf4 \
+            \cf10 patientenverfuegungHochgeladenAm\cf4  = vorhandeneWuensche.\cf10 patientenverfuegungHochgeladenAm\cf4 \
+            \cf10 patientenverfuegungErinnerungAktiv\cf4  = vorhandeneWuensche.\cf10 patientenverfuegungErinnerungAktiv\cf4 \
+            \cf10 patientenverfuegungErinnerungDatum\cf4  = vorhandeneWuensche.\cf10 patientenverfuegungErinnerungAm\cf4  ?? \cf6 Date\cf4 ()\
+\
+            \cf10 hatVorsorgeauftrag\cf4  = vorhandeneWuensche.\cf10 vorsorgeauftragVorhanden\cf4 \
+            \cf10 vorsorgeauftragDateiName\cf4  = vorhandeneWuensche.\cf10 vorsorgeauftragDateiName\cf4 .\cf7 isEmpty\cf4  ? 
+\f0\b \cf2 nil
+\f1\b0 \cf4  : vorhandeneWuensche.\cf10 vorsorgeauftragDateiName\cf4 \
+            \cf10 vorsorgeauftragDateiData\cf4  = vorhandeneWuensche.\cf10 vorsorgeauftragDateiData\cf4 \
+            \cf10 vorsorgeauftragHochgeladenAm\cf4  = vorhandeneWuensche.\cf10 vorsorgeauftragHochgeladenAm\cf4 \
+            \cf10 vorsorgeauftragErinnerungAktiv\cf4  = vorhandeneWuensche.\cf10 vorsorgeauftragErinnerungAktiv\cf4 \
+            \cf10 vorsorgeauftragErinnerungDatum\cf4  = vorhandeneWuensche.\cf10 vorsorgeauftragErinnerungAm\cf4  ?? \cf6 Date\cf4 ()\
+\
+            \cf10 offenFuerSterbebegleitung\cf4  = vorhandeneWuensche.\cf10 sterbebegleitungGewuenscht\cf4 \
+            \cf10 sterbebegleitungDateiName\cf4  = vorhandeneWuensche.\cf10 sterbebegleitungDateiName\cf4 .\cf7 isEmpty\cf4  ? 
+\f0\b \cf2 nil
+\f1\b0 \cf4  : vorhandeneWuensche.\cf10 sterbebegleitungDateiName\cf4 \
+            \cf10 sterbebegleitungDateiData\cf4  = vorhandeneWuensche.\cf10 sterbebegleitungDateiData\cf4 \
+            \cf10 sterbebegleitungHochgeladenAm\cf4  = vorhandeneWuensche.\cf10 sterbebegleitungHochgeladenAm\cf4 \
+            \cf10 sterbebegleitungErinnerungAktiv\cf4  = vorhandeneWuensche.\cf10 sterbebegleitungErinnerungAktiv\cf4 \
+            \cf10 sterbebegleitungErinnerungDatum\cf4  = vorhandeneWuensche.\cf10 sterbebegleitungErinnerungAm\cf4  ?? \cf6 Date\cf4 ()\
+\
+            \cf10 hatSchwereGesundheitlicheErkrankung\cf4  = vorhandeneWuensche.\cf10 schwereErkrankungVorhanden\cf4 \
+            \cf10 schwereErkrankung\cf4  = \cf9 SchwereErkrankung\cf4 (\cf9 rawValue\cf4 : vorhandeneWuensche.\cf10 schwereErkrankungArt\cf4 )\
+            \cf10 sterbebegleitungWichtig\cf4  = vorhandeneWuensche.\cf10 mirIstWichtig\cf4 \
+            \cf10 lebensqualitaetRegelmaessigBeurteilen\cf4  = vorhandeneWuensche.\cf10 regelmaessigBeurteilen\cf4 \
+\
+            \cf10 hatHaustiere\cf4  = vorhandeneWuensche.\cf10 hatHaustiere\cf4 \
+            
+\f0\b \cf2 if
+\f1\b0 \cf4  
+\f0\b \cf2 let
+\f1\b0 \cf4  data = vorhandeneWuensche.\cf10 haustiereData\cf4  \{\
+                \cf10 haustiere\cf4  = (
+\f0\b \cf2 try
+\f1\b0 \cf4 ? \cf6 JSONDecoder\cf4 ().\cf7 decode\cf4 ([\cf9 WuenschePetEntry\cf4 ].
+\f0\b \cf2 self
+\f1\b0 \cf4 , \cf7 from\cf4 : data)) ?? []\
+            \}\
+        \} 
+\f0\b \cf2 else
+\f1\b0 \cf4  \{\
+            
+\f0\b \cf2 let
+\f1\b0 \cf4  neueWuensche = \cf9 WuenscheModell\cf4 ()\
+            \cf10 modelContext\cf4 .\cf7 insert\cf4 (neueWuensche)\
+        \}\
+\
+        \cf10 wuenscheGeladen\cf4  = 
+\f0\b \cf2 true
+\f1\b0 \cf4 \
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 speichereWuensche\cf4 () \{\
+        
+\f0\b \cf2 guard
+\f1\b0 \cf4  \cf10 wuenscheGeladen\cf4  
+\f0\b \cf2 else
+\f1\b0 \cf4  \{ 
+\f0\b \cf2 return
+\f1\b0 \cf4  \}\
+\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  wuensche: \cf9 WuenscheModell\cf4 \
+\
+        
+\f0\b \cf2 if
+\f1\b0 \cf4  
+\f0\b \cf2 let
+\f1\b0 \cf4  vorhandeneWuensche = \cf10 gespeicherteWuensche\cf4 .\cf7 first\cf4  \{\
+            wuensche = vorhandeneWuensche\
+        \} 
+\f0\b \cf2 else
+\f1\b0 \cf4  \{\
+            
+\f0\b \cf2 let
+\f1\b0 \cf4  neueWuensche = \cf9 WuenscheModell\cf4 ()\
+            \cf10 modelContext\cf4 .\cf7 insert\cf4 (neueWuensche)\
+            wuensche = neueWuensche\
+        \}\
+\
+        wuensche.\cf10 hatWuensche\cf4  = \cf10 hatBesondereWuensche\cf4 \
+        wuensche.\cf10 beisetzungsArt\cf4  = \cf10 bestattungsart\cf4 .\cf10 rawValue\cf4 \
+\
+        
+\f0\b \cf2 switch
+\f1\b0 \cf4  \cf10 bestattungsart\cf4  \{\
+        
+\f0\b \cf2 case
+\f1\b0 \cf4  .\cf10 kremation\cf4 :\
+            wuensche.\cf10 beisetzungHinweis\cf4  = \cf10 kremationHinweise\cf4 .\cf7 isEmpty\cf4  ? \cf10 bestattungswuensche\cf4  : \cf10 kremationHinweise\cf4 \
+        
+\f0\b \cf2 case
+\f1\b0 \cf4  .\cf10 erdbestattung\cf4 :\
+            wuensche.\cf10 beisetzungHinweis\cf4  = \cf10 erdbestattungHinweise\cf4 .\cf7 isEmpty\cf4  ? \cf10 bestattungswuensche\cf4  : \cf10 erdbestattungHinweise\cf4 \
+        \}\
+\
+        wuensche.\cf10 sonstigeBemerkungen\cf4  = \cf10 sonstigeBemerkungen\cf4 \
+        wuensche.\cf10 keineBlumengeschenkeBitte\cf4  = \cf10 keineBlumengeschenkeBitte\cf4 \
+        wuensche.\cf10 besondereMusik\cf4  = \cf10 besondereMusik\cf4 \
+        wuensche.\cf10 musikWunsch\cf4  = \cf10 besondereMusikText\cf4 \
+        wuensche.\cf10 zeremonieGewuenscht\cf4  = \cf10 zeremonie\cf4 \
+        wuensche.\cf10 zeremonieDetails\cf4  = \cf10 zeremonieText\cf4 \
+        wuensche.\cf10 zeremonieOrganisiert\cf4  = \cf10 zeremonieBereitsOrganisiert\cf4 \
+        wuensche.\cf10 zeremonieFinanziellAbgesichert\cf4  = \cf10 zeremonieFinanziellAbgesichert\cf4 \
+        wuensche.\cf10 moechteNochEtwasSagen\cf4  = \cf10 moechteNochWasSagen\cf4 \
+        wuensche.\cf10 letzteBotschaft\cf4  = \cf10 letzteWorteText\cf4 \
+        wuensche.\cf10 letzteBotschaftVideoName\cf4  = \cf10 letzteWorteVideoName\cf4  ?? \cf11 ""\cf4 \
+        wuensche.\cf10 letzteBotschaftVideoData\cf4  = \cf10 letzteWorteVideoData\cf4 \
+        wuensche.\cf10 nachrufGewuenscht\cf4  = \cf10 nachrufVorstellung\cf4 \
+        wuensche.\cf10 nachrufText\cf4  = \cf10 nachrufText\cf4 \
+        wuensche.\cf10 nachrufBildData\cf4  = \cf10 nachrufBildData\cf4 \
+\
+        wuensche.\cf10 testamentVorhanden\cf4  = \cf10 hatTestament\cf4 \
+        wuensche.\cf10 testamentAblageort\cf4  = \cf10 testamentAblageort\cf4 \
+        wuensche.\cf10 testamentDateiName\cf4  = \cf10 testamentDateiName\cf4  ?? \cf11 ""\cf4 \
+        wuensche.\cf10 testamentDateiData\cf4  = \cf10 testamentDateiData\cf4 \
+        wuensche.\cf10 testamentHochgeladenAm\cf4  = \cf10 testamentHochgeladenAm\cf4 \
+        wuensche.\cf10 testamentErinnerungAktiv\cf4  = \cf10 testamentErinnerungAktiv\cf4 \
+        wuensche.\cf10 testamentErinnerungAm\cf4  = \cf10 testamentErinnerungDatum\cf4 \
+\
+        wuensche.\cf10 patientenverfuegungVorhanden\cf4  = \cf10 hatPatientenverfuegung\cf4 \
+        wuensche.\cf10 patientenverfuegungDateiName\cf4  = \cf10 patientenverfuegungDateiName\cf4  ?? \cf11 ""\cf4 \
+        wuensche.\cf10 patientenverfuegungDateiData\cf4  = \cf10 patientenverfuegungDateiData\cf4 \
+        wuensche.\cf10 patientenverfuegungHochgeladenAm\cf4  = \cf10 patientenverfuegungHochgeladenAm\cf4 \
+        wuensche.\cf10 patientenverfuegungErinnerungAktiv\cf4  = \cf10 patientenverfuegungErinnerungAktiv\cf4 \
+        wuensche.\cf10 patientenverfuegungErinnerungAm\cf4  = \cf10 patientenverfuegungErinnerungDatum\cf4 \
+\
+        wuensche.\cf10 vorsorgeauftragVorhanden\cf4  = \cf10 hatVorsorgeauftrag\cf4 \
+        wuensche.\cf10 vorsorgeauftragDateiName\cf4  = \cf10 vorsorgeauftragDateiName\cf4  ?? \cf11 ""\cf4 \
+        wuensche.\cf10 vorsorgeauftragDateiData\cf4  = \cf10 vorsorgeauftragDateiData\cf4 \
+        wuensche.\cf10 vorsorgeauftragHochgeladenAm\cf4  = \cf10 vorsorgeauftragHochgeladenAm\cf4 \
+        wuensche.\cf10 vorsorgeauftragErinnerungAktiv\cf4  = \cf10 vorsorgeauftragErinnerungAktiv\cf4 \
+        wuensche.\cf10 vorsorgeauftragErinnerungAm\cf4  = \cf10 vorsorgeauftragErinnerungDatum\cf4 \
+\
+        wuensche.\cf10 sterbebegleitungGewuenscht\cf4  = \cf10 offenFuerSterbebegleitung\cf4 \
+        wuensche.\cf10 sterbebegleitungDateiName\cf4  = \cf10 sterbebegleitungDateiName\cf4  ?? \cf11 ""\cf4 \
+        wuensche.\cf10 sterbebegleitungDateiData\cf4  = \cf10 sterbebegleitungDateiData\cf4 \
+        wuensche.\cf10 sterbebegleitungHochgeladenAm\cf4  = \cf10 sterbebegleitungHochgeladenAm\cf4 \
+        wuensche.\cf10 sterbebegleitungErinnerungAktiv\cf4  = \cf10 sterbebegleitungErinnerungAktiv\cf4 \
+        wuensche.\cf10 sterbebegleitungErinnerungAm\cf4  = \cf10 sterbebegleitungErinnerungDatum\cf4 \
+\
+        wuensche.\cf10 schwereErkrankungVorhanden\cf4  = \cf10 hatSchwereGesundheitlicheErkrankung\cf4 \
+        wuensche.\cf10 schwereErkrankungArt\cf4  = \cf10 schwereErkrankung\cf4 ?.\cf10 rawValue\cf4  ?? \cf11 ""\cf4 \
+        wuensche.\cf10 mirIstWichtig\cf4  = \cf10 sterbebegleitungWichtig\cf4 \
+        wuensche.\cf10 regelmaessigBeurteilen\cf4  = \cf10 lebensqualitaetRegelmaessigBeurteilen\cf4 \
+        wuensche.\cf10 hatHaustiere\cf4  = \cf10 hatHaustiere\cf4 \
+        wuensche.\cf10 haustiereData\cf4  = 
+\f0\b \cf2 try
+\f1\b0 \cf4 ? \cf6 JSONEncoder\cf4 ().\cf7 encode\cf4 (\cf10 haustiere\cf4 )\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 haustierLoeschen\cf4 (\cf8 at\cf4  offsets: \cf6 IndexSet\cf4 ) \{\
+        
+\f0\b \cf2 for
+\f1\b0 \cf4  index 
+\f0\b \cf2 in
+\f1\b0 \cf4  offsets \{\
+            
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 haustiere\cf4 .\cf7 indices\cf4 .\cf7 contains\cf4 (index) \{\
+                \cf10 ausgeklappteHaustierIDs\cf4 .\cf7 remove\cf4 (\cf10 haustiere\cf4 [index].\cf10 id\cf4 )\
+            \}\
+        \}\
+\
+        \cf10 haustiere\cf4 .\cf7 remove\cf4 (\cf7 atOffsets\cf4 : offsets)\
+    \}\
+\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 kontaktLoeschen\cf4 (\cf8 at\cf4  offsets: \cf6 IndexSet\cf4 ) \{\
+        
+\f0\b \cf2 for
+\f1\b0 \cf4  index 
+\f0\b \cf2 in
+\f1\b0 \cf4  offsets \{\
+            
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 kontakte\cf4 .\cf7 indices\cf4 .\cf7 contains\cf4 (index) \{\
+                \cf10 ausgeklappteKontaktIDs\cf4 .\cf7 remove\cf4 (\cf10 kontakte\cf4 [index].\cf10 id\cf4 )\
+            \}\
+        \}\
+\
+        \cf10 kontakte\cf4 .\cf7 remove\cf4 (\cf7 atOffsets\cf4 : offsets)\
+        \cf10 synchronisiereKontakteMitHinterbliebenen\cf4 ()\
+    \}\
+\
+\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 ladeKontakteAusHinterbliebenen\cf4 () \{\
+        
+\f0\b \cf2 guard
+\f1\b0 \cf4  !\cf10 kontakteGeladen\cf4  
+\f0\b \cf2 else
+\f1\b0 \cf4  \{ 
+\f0\b \cf2 return
+\f1\b0 \cf4  \}\
+\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  gespeicherteWuenscheKontakte = \cf10 gespeicherteHinterbliebeneKontakte\cf4 \
+            .\cf7 filter\cf4  \{ $0.\cf10 quelle\cf4  == \cf11 "WuenscheView"\cf4  || $0.\cf10 bemerkungen\cf4  == \cf11 "Quelle: WuenscheView"\cf4  \}\
+            .\cf7 sorted\cf4  \{ $0.\cf10 erstelltAm\cf4  < $1.\cf10 erstelltAm\cf4  \}\
+\
+        \cf10 kontakte\cf4  = gespeicherteWuenscheKontakte.\cf7 map\cf4  \{ gespeicherterKontakt 
+\f0\b \cf2 in
+\f1\b0 \cf4 \
+            
+\f0\b \cf2 let
+\f1\b0 \cf4  adressTeile = \cf10 getrennteAdresseAusText\cf4 (gespeicherterKontakt.\cf10 adresse\cf4 )\
+\
+            
+\f0\b \cf2 return
+\f1\b0 \cf4  \cf9 BeisetzungsKontakt\cf4 (\
+                \cf9 id\cf4 : \cf6 UUID\cf4 (\cf6 uuidString\cf4 : gespeicherterKontakt.\cf10 rolle\cf4 .\cf7 components\cf4 (\cf7 separatedBy\cf4 : \cf11 "|"\cf4 ).\cf7 last\cf4  ?? \cf11 ""\cf4 ) ?? \cf6 UUID\cf4 (),\
+                \cf9 vorname\cf4 : gespeicherterKontakt.\cf10 vorname\cf4 ,\
+                \cf9 name\cf4 : gespeicherterKontakt.\cf10 name\cf4 ,\
+                \cf9 strasse\cf4 : adressTeile.\cf10 strasse\cf4 ,\
+                \cf9 hausnummer\cf4 : adressTeile.\cf10 hausnummer\cf4 ,\
+                \cf9 plz\cf4 : adressTeile.\cf10 plz\cf4 ,\
+                \cf9 ort\cf4 : adressTeile.\cf10 ort\cf4 ,\
+                \cf9 telefon\cf4 : gespeicherterKontakt.\cf10 telefon\cf4 ,\
+                \cf9 email\cf4 : gespeicherterKontakt.\cf10 email\cf4 ,\
+                \cf9 art\cf4 : \cf10 kontaktArtAusBeziehung\cf4 (gespeicherterKontakt.\cf10 beziehung\cf4 ),\
+                \cf9 informieren\cf4 : gespeicherterKontakt.\cf10 sollInformiertWerden\cf4 ,\
+                \cf9 einladen\cf4 : gespeicherterKontakt.\cf10 darfDokumenteErhalten\cf4 \
+            )\
+        \}\
+\
+        \cf10 kontakteGeladen\cf4  = 
+\f0\b \cf2 true
+\f1\b0 \cf4 \
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 synchronisiereKontakteMitHinterbliebenen\cf4 () \{\
+        
+\f0\b \cf2 guard
+\f1\b0 \cf4  \cf10 kontakteGeladen\cf4  
+\f0\b \cf2 else
+\f1\b0 \cf4  \{ 
+\f0\b \cf2 return
+\f1\b0 \cf4  \}\
+\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  gueltigeKontakte = \cf10 kontakte\cf4 .\cf7 filter\cf4  \{ kontakt 
+\f0\b \cf2 in
+\f1\b0 \cf4 \
+            !kontakt.\cf10 vorname\cf4 .\cf7 trimmingCharacters\cf4 (\cf7 in\cf4 : .\cf7 whitespacesAndNewlines\cf4 ).\cf7 isEmpty\cf4  ||\
+            !kontakt.\cf7 name\cf4 .\cf7 trimmingCharacters\cf4 (\cf7 in\cf4 : .\cf7 whitespacesAndNewlines\cf4 ).\cf7 isEmpty\cf4  ||\
+            !kontakt.\cf10 strasse\cf4 .\cf7 trimmingCharacters\cf4 (\cf7 in\cf4 : .\cf7 whitespacesAndNewlines\cf4 ).\cf7 isEmpty\cf4  ||\
+            !kontakt.\cf10 hausnummer\cf4 .\cf7 trimmingCharacters\cf4 (\cf7 in\cf4 : .\cf7 whitespacesAndNewlines\cf4 ).\cf7 isEmpty\cf4  ||\
+            !kontakt.\cf10 plz\cf4 .\cf7 trimmingCharacters\cf4 (\cf7 in\cf4 : .\cf7 whitespacesAndNewlines\cf4 ).\cf7 isEmpty\cf4  ||\
+            !kontakt.\cf10 ort\cf4 .\cf7 trimmingCharacters\cf4 (\cf7 in\cf4 : .\cf7 whitespacesAndNewlines\cf4 ).\cf7 isEmpty\cf4  ||\
+            !kontakt.\cf10 telefon\cf4 .\cf7 trimmingCharacters\cf4 (\cf7 in\cf4 : .\cf7 whitespacesAndNewlines\cf4 ).\cf7 isEmpty\cf4  ||\
+            !kontakt.\cf7 email\cf4 .\cf7 trimmingCharacters\cf4 (\cf7 in\cf4 : .\cf7 whitespacesAndNewlines\cf4 ).\cf7 isEmpty\cf4 \
+        \}\
+\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  gueltigeIDs = \cf6 Set\cf4 (gueltigeKontakte.\cf7 map\cf4  \{ $0.\cf10 id\cf4 .\cf7 uuidString\cf4  \})\
+\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  gespeicherteWuenscheKontakte = \cf10 gespeicherteHinterbliebeneKontakte\cf4 .\cf7 filter\cf4  \{\
+            $0.\cf10 quelle\cf4  == \cf11 "WuenscheView"\cf4  || $0.\cf10 bemerkungen\cf4  == \cf11 "Quelle: WuenscheView"\cf4 \
+        \}\
+\
+        
+\f0\b \cf2 for
+\f1\b0 \cf4  gespeicherterKontakt 
+\f0\b \cf2 in
+\f1\b0 \cf4  gespeicherteWuenscheKontakte \{\
+            
+\f0\b \cf2 let
+\f1\b0 \cf4  gespeicherteID = \cf10 kontaktIDAusRolle\cf4 (gespeicherterKontakt.\cf10 rolle\cf4 )\
+\
+            
+\f0\b \cf2 if
+\f1\b0 \cf4  !gueltigeIDs.\cf7 contains\cf4 (gespeicherteID) \{\
+                \cf10 modelContext\cf4 .\cf7 delete\cf4 (gespeicherterKontakt)\
+            \}\
+        \}\
+\
+        
+\f0\b \cf2 for
+\f1\b0 \cf4  kontakt 
+\f0\b \cf2 in
+\f1\b0 \cf4  gueltigeKontakte \{\
+            
+\f0\b \cf2 let
+\f1\b0 \cf4  kontaktID = kontakt.\cf10 id\cf4 .\cf7 uuidString\cf4 \
+\
+            
+\f0\b \cf2 let
+\f1\b0 \cf4  passendeKontakteNachID = gespeicherteWuenscheKontakte.\cf7 filter\cf4  \{\
+                \cf10 kontaktIDAusRolle\cf4 ($0.\cf10 rolle\cf4 ) == kontaktID\
+            \}\
+\
+            
+\f0\b \cf2 let
+\f1\b0 \cf4  passendeKontakteNachInhalt = \cf10 gespeicherteHinterbliebeneKontakte\cf4 .\cf7 filter\cf4  \{\
+                \cf10 istGleicherKontakt\cf4 ($0, \cf10 wie\cf4 : kontakt)\
+            \}\
+\
+            
+\f0\b \cf2 let
+\f1\b0 \cf4  passendeKontakte = passendeKontakteNachID + passendeKontakteNachInhalt.\cf7 filter\cf4  \{ inhaltKontakt 
+\f0\b \cf2 in
+\f1\b0 \cf4 \
+                !passendeKontakteNachID.\cf7 contains\cf4  \{ idKontakt 
+\f0\b \cf2 in
+\f1\b0 \cf4 \
+                    idKontakt === inhaltKontakt\
+                \}\
+            \}\
+\
+            
+\f0\b \cf2 let
+\f1\b0 \cf4  zielKontakt: \cf9 HinterbliebeneModell\cf4 \
+\
+            
+\f0\b \cf2 if
+\f1\b0 \cf4  
+\f0\b \cf2 let
+\f1\b0 \cf4  bestehenderKontakt = passendeKontakte.\cf7 first\cf4  \{\
+                zielKontakt = bestehenderKontakt\
+\
+                passendeKontakte.dropFirst().\cf7 forEach\cf4  \{ doppelterKontakt 
+\f0\b \cf2 in
+\f1\b0 \cf4 \
+                    \cf10 modelContext\cf4 .\cf7 delete\cf4 (doppelterKontakt)\
+                \}\
+            \} 
+\f0\b \cf2 else
+\f1\b0 \cf4  \{\
+                
+\f0\b \cf2 let
+\f1\b0 \cf4  neuerKontakt = \cf9 HinterbliebeneModell\cf4 (\
+                    \cf9 quelle\cf4 : \cf11 "WuenscheView"\cf4 \
+                )\
+                \cf10 modelContext\cf4 .\cf7 insert\cf4 (neuerKontakt)\
+                zielKontakt = neuerKontakt\
+            \}\
+\
+            zielKontakt.\cf10 vorname\cf4  = kontakt.\cf10 vorname\cf4 \
+            zielKontakt.\cf10 name\cf4  = kontakt.\cf10 name\cf4 \
+            zielKontakt.\cf10 rolle\cf4  = \cf11 "\cf4 \\(kontakt.\cf10 art\cf4 .\cf10 rawValue\cf4 )\cf11 |\cf4 \\(kontakt.\cf10 id\cf4 .\cf7 uuidString\cf4 )\cf11 "\cf4 \
+            zielKontakt.\cf10 beziehung\cf4  = \cf10 beziehungFuerKontaktArt\cf4 (kontakt.\cf10 art\cf4 )\
+            zielKontakt.\cf10 telefon\cf4  = kontakt.\cf10 telefon\cf4 \
+            zielKontakt.\cf10 email\cf4  = kontakt.\cf10 email\cf4 \
+            zielKontakt.\cf10 adresse\cf4  = kontakt.\cf10 vollstaendigeAdresse\cf4 \
+            zielKontakt.\cf10 quelle\cf4  = zielKontakt.\cf10 quelle\cf4 .\cf7 isEmpty\cf4  ? \cf11 "WuenscheView"\cf4  : zielKontakt.\cf10 quelle\cf4 \
+            zielKontakt.\cf10 istVertrauensperson\cf4  = zielKontakt.\cf10 istVertrauensperson\cf4 \
+            zielKontakt.\cf10 sollInformiertWerden\cf4  = kontakt.\cf10 informieren\cf4 \
+            zielKontakt.\cf10 darfDokumenteErhalten\cf4  = kontakt.\cf10 einladen\cf4 \
+            zielKontakt.\cf10 aktualisiertAm\cf4  = \cf6 Date\cf4 ()\
+        \}\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 kontaktIDAusRolle\cf4 (\cf8 _\cf4  rolle: \cf6 String\cf4 ) -> \cf6 String\cf4  \{\
+        rolle.\cf7 components\cf4 (\cf7 separatedBy\cf4 : \cf11 "|"\cf4 ).\cf7 last\cf4  ?? \cf11 ""\cf4 \
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 istGleicherKontakt\cf4 (\cf8 _\cf4  gespeicherterKontakt: \cf9 HinterbliebeneModell\cf4 , \cf8 wie\cf4  kontakt: \cf9 BeisetzungsKontakt\cf4 ) -> \cf6 Bool\cf4  \{\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  gespeicherteEmail = gespeicherterKontakt.\cf10 email\cf4 .\cf7 trimmingCharacters\cf4 (\cf7 in\cf4 : .\cf7 whitespacesAndNewlines\cf4 ).\cf7 lowercased\cf4 ()\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  kontaktEmail = kontakt.\cf10 email\cf4 .\cf7 trimmingCharacters\cf4 (\cf7 in\cf4 : .\cf7 whitespacesAndNewlines\cf4 ).\cf7 lowercased\cf4 ()\
+\
+        
+\f0\b \cf2 if
+\f1\b0 \cf4  !gespeicherteEmail.\cf7 isEmpty\cf4  && gespeicherteEmail == kontaktEmail \{\
+            
+\f0\b \cf2 return
+\f1\b0 \cf4  
+\f0\b \cf2 true
+\f1\b0 \cf4 \
+        \}\
+\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  gespeicherteTelefonnummer = \cf10 normalisierteTelefonnummer\cf4 (gespeicherterKontakt.\cf10 telefon\cf4 )\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  kontaktTelefonnummer = \cf10 normalisierteTelefonnummer\cf4 (kontakt.\cf10 telefon\cf4 )\
+\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  gespeicherterName = \cf10 normalisierterName\cf4 (\cf10 vorname\cf4 : gespeicherterKontakt.\cf10 vorname\cf4 , \cf10 name\cf4 : gespeicherterKontakt.\cf10 name\cf4 )\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  kontaktName = \cf10 normalisierterName\cf4 (\cf10 vorname\cf4 : kontakt.\cf10 vorname\cf4 , \cf10 name\cf4 : kontakt.\cf10 name\cf4 )\
+\
+        
+\f0\b \cf2 if
+\f1\b0 \cf4  !gespeicherterName.\cf7 isEmpty\cf4 ,\
+           gespeicherterName == kontaktName,\
+           !gespeicherteTelefonnummer.\cf7 isEmpty\cf4 ,\
+           gespeicherteTelefonnummer == kontaktTelefonnummer \{\
+            
+\f0\b \cf2 return
+\f1\b0 \cf4  
+\f0\b \cf2 true
+\f1\b0 \cf4 \
+        \}\
+\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  gespeicherteAdresse = gespeicherterKontakt.\cf10 adresse\cf4 .\cf7 trimmingCharacters\cf4 (\cf7 in\cf4 : .\cf7 whitespacesAndNewlines\cf4 ).\cf7 lowercased\cf4 ()\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  kontaktAdresse = kontakt.\cf10 vollstaendigeAdresse\cf4 .\cf7 trimmingCharacters\cf4 (\cf7 in\cf4 : .\cf7 whitespacesAndNewlines\cf4 ).\cf7 lowercased\cf4 ()\
+\
+        
+\f0\b \cf2 if
+\f1\b0 \cf4  !gespeicherterName.\cf7 isEmpty\cf4 ,\
+           gespeicherterName == kontaktName,\
+           !gespeicherteAdresse.\cf7 isEmpty\cf4 ,\
+           gespeicherteAdresse == kontaktAdresse \{\
+            
+\f0\b \cf2 return
+\f1\b0 \cf4  
+\f0\b \cf2 true
+\f1\b0 \cf4 \
+        \}\
+\
+        
+\f0\b \cf2 return
+\f1\b0 \cf4  
+\f0\b \cf2 false
+\f1\b0 \cf4 \
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 normalisierterName\cf4 (\cf8 vorname\cf4 : \cf6 String\cf4 , \cf8 name\cf4 : \cf6 String\cf4 ) -> \cf6 String\cf4  \{\
+        [vorname, name]\
+            .\cf7 map\cf4  \{ $0.\cf7 trimmingCharacters\cf4 (\cf7 in\cf4 : .\cf7 whitespacesAndNewlines\cf4 ).\cf7 lowercased\cf4 () \}\
+            .\cf7 filter\cf4  \{ !$0.\cf7 isEmpty\cf4  \}\
+            .\cf7 joined\cf4 (\cf7 separator\cf4 : \cf11 " "\cf4 )\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 normalisierteTelefonnummer\cf4 (\cf8 _\cf4  telefon: \cf6 String\cf4 ) -> \cf6 String\cf4  \{\
+        telefon.\cf7 filter\cf4  \{ $0.\cf7 isNumber\cf4  \}\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 getrennteAdresseAusText\cf4 (\cf8 _\cf4  adresse: \cf6 String\cf4 ) -> (strasse: \cf6 String\cf4 , hausnummer: \cf6 String\cf4 , plz: \cf6 String\cf4 , ort: \cf6 String\cf4 ) \{\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  zeilen = adresse\
+            .\cf7 components\cf4 (\cf7 separatedBy\cf4 : .\cf7 newlines\cf4 )\
+            .\cf7 map\cf4  \{ $0.\cf7 trimmingCharacters\cf4 (\cf7 in\cf4 : .\cf7 whitespacesAndNewlines\cf4 ) \}\
+            .\cf7 filter\cf4  \{ !$0.\cf7 isEmpty\cf4  \}\
+\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  ersteZeile = zeilen.\cf7 first\cf4  ?? \cf11 ""\cf4 \
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  zweiteZeile = zeilen.dropFirst().\cf7 first\cf4  ?? \cf11 ""\cf4 \
+\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  ersteZeileKomponenten = ersteZeile.\cf7 components\cf4 (\cf7 separatedBy\cf4 : \cf11 " "\cf4 ).\cf7 filter\cf4  \{ !$0.\cf7 isEmpty\cf4  \}\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  hausnummer = ersteZeileKomponenten.\cf7 last\cf4 ?.\cf7 rangeOfCharacter\cf4 (\cf7 from\cf4 : .\cf7 decimalDigits\cf4 ) != 
+\f0\b \cf2 nil
+\f1\b0 \cf4  ? ersteZeileKomponenten.\cf7 last\cf4  ?? \cf11 ""\cf4  : \cf11 ""\cf4 \
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  strasse = hausnummer.\cf7 isEmpty\cf4  ? ersteZeile : ersteZeileKomponenten.\cf7 dropLast\cf4 ().\cf7 joined\cf4 (\cf7 separator\cf4 : \cf11 " "\cf4 )\
+\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  zweiteZeileKomponenten = zweiteZeile.\cf7 components\cf4 (\cf7 separatedBy\cf4 : \cf11 " "\cf4 ).\cf7 filter\cf4  \{ !$0.\cf7 isEmpty\cf4  \}\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  plz = zweiteZeileKomponenten.\cf7 first\cf4 ?.\cf7 allSatisfy\cf4 (\\.\cf7 isNumber\cf4 ) == 
+\f0\b \cf2 true
+\f1\b0 \cf4  ? zweiteZeileKomponenten.\cf7 first\cf4  ?? \cf11 ""\cf4  : \cf11 ""\cf4 \
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  ort = plz.\cf7 isEmpty\cf4  ? zweiteZeile : zweiteZeileKomponenten.dropFirst().\cf7 joined\cf4 (\cf7 separator\cf4 : \cf11 " "\cf4 )\
+\
+        
+\f0\b \cf2 return
+\f1\b0 \cf4  (strasse, hausnummer, plz, ort)\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 beziehungFuerKontaktArt\cf4 (\cf8 _\cf4  art: \cf9 KontaktArt\cf4 ) -> \cf6 String\cf4  \{\
+        
+\f0\b \cf2 switch
+\f1\b0 \cf4  art \{\
+        
+\f0\b \cf2 case
+\f1\b0 \cf4  .\cf10 partner\cf4 :\
+            
+\f0\b \cf2 return
+\f1\b0 \cf4  \cf9 VertrauenspersonKategorie\cf4 .\cf10 partner\cf4 .\cf10 rawValue\cf4 \
+        
+\f0\b \cf2 case
+\f1\b0 \cf4  .\cf10 familie\cf4 :\
+            
+\f0\b \cf2 return
+\f1\b0 \cf4  \cf9 VertrauenspersonKategorie\cf4 .\cf10 familie\cf4 .\cf10 rawValue\cf4 \
+        
+\f0\b \cf2 case
+\f1\b0 \cf4  .\cf10 freunde\cf4 :\
+            
+\f0\b \cf2 return
+\f1\b0 \cf4  \cf9 VertrauenspersonKategorie\cf4 .\cf10 freunde\cf4 .\cf10 rawValue\cf4 \
+        
+\f0\b \cf2 case
+\f1\b0 \cf4  .\cf10 anderes\cf4 :\
+            
+\f0\b \cf2 return
+\f1\b0 \cf4  \cf9 VertrauenspersonKategorie\cf4 .\cf10 beguenstigte\cf4 .\cf10 rawValue\cf4 \
+        \}\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 kontaktArtAusBeziehung\cf4 (\cf8 _\cf4  beziehung: \cf6 String\cf4 ) -> \cf9 KontaktArt\cf4  \{\
+        
+\f0\b \cf2 switch
+\f1\b0 \cf4  beziehung \{\
+        
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf9 VertrauenspersonKategorie\cf4 .\cf10 partner\cf4 .\cf10 rawValue\cf4 :\
+            
+\f0\b \cf2 return
+\f1\b0 \cf4  .\cf10 partner\cf4 \
+        
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf9 VertrauenspersonKategorie\cf4 .\cf10 familie\cf4 .\cf10 rawValue\cf4 :\
+            
+\f0\b \cf2 return
+\f1\b0 \cf4  .\cf10 familie\cf4 \
+        
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf9 VertrauenspersonKategorie\cf4 .\cf10 freunde\cf4 .\cf10 rawValue\cf4 :\
+            
+\f0\b \cf2 return
+\f1\b0 \cf4  .\cf10 freunde\cf4 \
+        
+\f0\b \cf2 default
+\f1\b0 \cf4 :\
+            
+\f0\b \cf2 return
+\f1\b0 \cf4  .\cf10 anderes\cf4 \
+        \}\
+    \}\
+\
+    \cf6 @ViewBuilder\cf4 \
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 kontaktDetailFormular\cf4 (\cf8 kontakt\cf4 : \cf6 Binding\cf4 <\cf9 BeisetzungsKontakt\cf4 >) -> 
+\f0\b \cf2 some
+\f1\b0 \cf4  \cf6 View\cf4  \{\
+        \cf6 VStack\cf4 (\cf6 alignment\cf4 : .\cf7 leading\cf4 , \cf6 spacing\cf4 : \cf12 12\cf4 ) \{\
+            \cf6 Picker\cf4 (\cf11 "Art"\cf4 , \cf6 selection\cf4 : kontakt.\cf7 art\cf4 ) \{\
+                \cf6 ForEach\cf4 (\cf9 KontaktArt\cf4 .\cf7 allCases\cf4 ) \{ art 
+\f0\b \cf2 in
+\f1\b0 \cf4 \
+                    \cf6 Text\cf4 (art.rawValue).\cf7 tag\cf4 (art)\
+                \}\
+            \}\
+\
+            \cf10 kontaktAnzeigeZeile\cf4 (\cf10 titel\cf4 : \cf11 "Vorname"\cf4 , \cf10 wert\cf4 : kontakt.\cf7 wrappedValue\cf4 .\cf10 vorname\cf4 )\
+            \cf10 kontaktAnzeigeZeile\cf4 (\cf10 titel\cf4 : \cf11 "Name"\cf4 , \cf10 wert\cf4 : kontakt.\cf7 wrappedValue\cf4 .name)\
+            \cf10 kontaktAnzeigeZeile\cf4 (\cf10 titel\cf4 : \cf11 "Strasse"\cf4 , \cf10 wert\cf4 : kontakt.\cf7 wrappedValue\cf4 .\cf10 strasse\cf4 )\
+            \cf10 kontaktAnzeigeZeile\cf4 (\cf10 titel\cf4 : \cf11 "Hausnummer"\cf4 , \cf10 wert\cf4 : kontakt.\cf7 wrappedValue\cf4 .\cf10 hausnummer\cf4 )\
+            \cf10 kontaktAnzeigeZeile\cf4 (\cf10 titel\cf4 : \cf11 "PLZ"\cf4 , \cf10 wert\cf4 : kontakt.\cf7 wrappedValue\cf4 .\cf10 plz\cf4 )\
+            \cf10 kontaktAnzeigeZeile\cf4 (\cf10 titel\cf4 : \cf11 "Ort"\cf4 , \cf10 wert\cf4 : kontakt.\cf7 wrappedValue\cf4 .\cf10 ort\cf4 )\
+            \cf10 kontaktAnzeigeZeile\cf4 (\cf10 titel\cf4 : \cf11 "Telefonnummer"\cf4 , \cf10 wert\cf4 : kontakt.\cf7 wrappedValue\cf4 .\cf10 telefon\cf4 )\
+            \cf10 kontaktAnzeigeZeile\cf4 (\cf10 titel\cf4 : \cf11 "E-Mail"\cf4 , \cf10 wert\cf4 : kontakt.\cf7 wrappedValue\cf4 .email)\
+\
+            \cf6 Toggle\cf4 (\cf11 "Informieren"\cf4 , \cf6 isOn\cf4 : kontakt.\cf10 informieren\cf4 )\
+                .\cf7 tint\cf4 (\cf10 wuenscheAccentColor\cf4 )\
+            \cf6 Toggle\cf4 (\cf11 "Zur Beisetzung einladen"\cf4 , \cf6 isOn\cf4 : kontakt.\cf10 einladen\cf4 )\
+                .\cf7 tint\cf4 (\cf10 wuenscheAccentColor\cf4 )\
+        \}\
+        .\cf7 padding\cf4 (\cf12 12\cf4 )\
+        .\cf7 background\cf4 (\cf6 Color\cf4 .\cf7 white\cf4 .\cf7 opacity\cf4 (\cf12 0.72\cf4 ))\
+        .\cf7 clipShape\cf4 (\cf6 RoundedRectangle\cf4 (\cf6 cornerRadius\cf4 : \cf12 16\cf4 , \cf6 style\cf4 : .\cf7 continuous\cf4 ))\
+    \}\
+\
+    \cf6 @ViewBuilder\cf4 \
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 styleGuideSection\cf4 <Content: \cf6 View\cf4 >(\cf8 titel\cf4 : \cf6 String\cf4 , \cf8 systemImage\cf4 : \cf6 String\cf4 , \cf6 @ViewBuilder\cf4  \cf8 content\cf4 : () -> Content) -> 
+\f0\b \cf2 some
+\f1\b0 \cf4  \cf6 View\cf4  \{\
+        \cf6 VStack\cf4 (\cf6 alignment\cf4 : .\cf7 leading\cf4 , \cf6 spacing\cf4 : \cf12 14\cf4 ) \{\
+            \cf6 HStack\cf4 (\cf6 spacing\cf4 : \cf12 10\cf4 ) \{\
+                \cf6 Image\cf4 (\cf6 systemName\cf4 : systemImage)\
+                    .\cf7 font\cf4 (.\cf7 subheadline\cf4 .\cf7 weight\cf4 (.\cf7 semibold\cf4 ))\
+                    .\cf7 foregroundStyle\cf4 (.\cf7 white\cf4 )\
+                    .\cf7 frame\cf4 (\cf7 width\cf4 : \cf12 30\cf4 , \cf7 height\cf4 : \cf12 30\cf4 )\
+                    .\cf7 background\cf4 (\cf6 Circle\cf4 ().\cf7 fill\cf4 (\cf10 wuenscheAccentColor\cf4 ))\
+\
+                \cf6 Text\cf4 (titel)\
+                    .\cf7 font\cf4 (.\cf7 headline\cf4 .\cf7 weight\cf4 (.\cf7 semibold\cf4 ))\
+                    .\cf7 foregroundStyle\cf4 (.\cf7 black\cf4 )\
+\
+                \cf6 Spacer\cf4 ()\
+            \}\
+\
+            \cf6 VStack\cf4 (\cf6 alignment\cf4 : .\cf7 leading\cf4 , \cf6 spacing\cf4 : \cf12 12\cf4 ) \{\
+                content()\
+            \}\
+        \}\
+        .\cf7 padding\cf4 (\cf12 16\cf4 )\
+        .\cf7 frame\cf4 (\cf7 maxWidth\cf4 : .\cf7 infinity\cf4 , \cf7 alignment\cf4 : .\cf7 leading\cf4 )\
+        .\cf7 background\cf4 (\cf10 wuenscheCardColor\cf4 )\
+        .\cf7 clipShape\cf4 (\cf6 RoundedRectangle\cf4 (\cf6 cornerRadius\cf4 : \cf12 22\cf4 , \cf6 style\cf4 : .\cf7 continuous\cf4 ))\
+        .\cf7 overlay\cf4 (\
+            \cf6 RoundedRectangle\cf4 (\cf6 cornerRadius\cf4 : \cf12 22\cf4 , \cf6 style\cf4 : .\cf7 continuous\cf4 )\
+                .\cf7 stroke\cf4 (\cf6 Color\cf4 .\cf7 white\cf4 .\cf7 opacity\cf4 (\cf12 0.65\cf4 ), \cf7 lineWidth\cf4 : \cf12 1\cf4 )\
+        )\
+        .\cf7 shadow\cf4 (\cf7 color\cf4 : .\cf7 black\cf4 .\cf7 opacity\cf4 (\cf12 0.045\cf4 ), \cf7 radius\cf4 : \cf12 12\cf4 , \cf7 x\cf4 : \cf12 0\cf4 , \cf7 y\cf4 : \cf12 6\cf4 )\
+    \}\
+\
+    \cf6 @ViewBuilder\cf4 \
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 styledTextField\cf4 (\
+        \cf8 _\cf4  placeholder: \cf6 String\cf4 ,\
+        \cf8 text\cf4 : \cf6 Binding\cf4 <\cf6 String\cf4 >,\
+        \cf8 axis\cf4 : \cf6 Axis\cf4  = .\cf7 horizontal\cf4 ,\
+        \cf8 lineLimit\cf4 : \cf6 ClosedRange\cf4 <\cf6 Int\cf4 >? = 
+\f0\b \cf2 nil
+\f1\b0 \cf4 \
+    ) -> 
+\f0\b \cf2 some
+\f1\b0 \cf4  \cf6 View\cf4  \{\
+        
+\f0\b \cf2 if
+\f1\b0 \cf4  
+\f0\b \cf2 let
+\f1\b0 \cf4  lineLimit \{\
+            \cf6 TextField\cf4 (placeholder, \cf6 text\cf4 : text, \cf6 axis\cf4 : axis)\
+                .\cf7 lineLimit\cf4 (lineLimit)\
+                .\cf7 textFieldStyle\cf4 (.\cf7 plain\cf4 )\
+                .\cf7 padding\cf4 (\cf12 12\cf4 )\
+                .\cf7 background\cf4 (\cf6 Color\cf4 .\cf7 white\cf4 .\cf7 opacity\cf4 (\cf12 0.8\cf4 ))\
+                .\cf7 clipShape\cf4 (\cf6 RoundedRectangle\cf4 (\cf6 cornerRadius\cf4 : \cf12 14\cf4 , \cf6 style\cf4 : .\cf7 continuous\cf4 ))\
+                .\cf7 overlay\cf4 (\
+                    \cf6 RoundedRectangle\cf4 (\cf6 cornerRadius\cf4 : \cf12 14\cf4 , \cf6 style\cf4 : .\cf7 continuous\cf4 )\
+                        .\cf7 stroke\cf4 (\cf10 wuenscheAccentColor\cf4 .\cf7 opacity\cf4 (\cf12 0.18\cf4 ), \cf7 lineWidth\cf4 : \cf12 1\cf4 )\
+                )\
+        \} 
+\f0\b \cf2 else
+\f1\b0 \cf4  \{\
+            \cf6 TextField\cf4 (placeholder, \cf6 text\cf4 : text, \cf6 axis\cf4 : axis)\
+                .\cf7 textFieldStyle\cf4 (.\cf7 plain\cf4 )\
+                .\cf7 padding\cf4 (\cf12 12\cf4 )\
+                .\cf7 background\cf4 (\cf6 Color\cf4 .\cf7 white\cf4 .\cf7 opacity\cf4 (\cf12 0.8\cf4 ))\
+                .\cf7 clipShape\cf4 (\cf6 RoundedRectangle\cf4 (\cf6 cornerRadius\cf4 : \cf12 14\cf4 , \cf6 style\cf4 : .\cf7 continuous\cf4 ))\
+                .\cf7 overlay\cf4 (\
+                    \cf6 RoundedRectangle\cf4 (\cf6 cornerRadius\cf4 : \cf12 14\cf4 , \cf6 style\cf4 : .\cf7 continuous\cf4 )\
+                        .\cf7 stroke\cf4 (\cf10 wuenscheAccentColor\cf4 .\cf7 opacity\cf4 (\cf12 0.18\cf4 ), \cf7 lineWidth\cf4 : \cf12 1\cf4 )\
+                )\
+        \}\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 accentButton\cf4 (\cf8 title\cf4 : \cf6 String\cf4 , \cf8 systemImage\cf4 : \cf6 String\cf4 , \cf8 action\cf4 : 
+\f0\b \cf2 @escaping
+\f1\b0 \cf4  () -> \cf6 Void\cf4 ) -> 
+\f0\b \cf2 some
+\f1\b0 \cf4  \cf6 View\cf4  \{\
+        \cf6 Button\cf4 (\cf6 action\cf4 : action) \{\
+            \cf6 Label\cf4 (title, \cf6 systemImage\cf4 : systemImage)\
+                .\cf7 font\cf4 (.\cf7 subheadline\cf4 .\cf7 weight\cf4 (.\cf7 semibold\cf4 ))\
+                .\cf7 foregroundStyle\cf4 (.\cf7 white\cf4 )\
+                .\cf7 frame\cf4 (\cf7 maxWidth\cf4 : .\cf7 infinity\cf4 )\
+                .\cf7 padding\cf4 (.\cf7 vertical\cf4 , \cf12 12\cf4 )\
+                .\cf7 background\cf4 (\cf10 wuenscheAccentColor\cf4 )\
+                .\cf7 clipShape\cf4 (\cf6 RoundedRectangle\cf4 (\cf6 cornerRadius\cf4 : \cf12 16\cf4 , \cf6 style\cf4 : .\cf7 continuous\cf4 ))\
+        \}\
+        .\cf7 buttonStyle\cf4 (.\cf7 plain\cf4 )\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 leerText\cf4 (\cf8 _\cf4  text: \cf6 String\cf4 ) -> 
+\f0\b \cf2 some
+\f1\b0 \cf4  \cf6 View\cf4  \{\
+        \cf6 Text\cf4 (text)\
+            .\cf7 font\cf4 (.\cf7 footnote\cf4 )\
+            .\cf7 foregroundStyle\cf4 (.\cf7 secondary\cf4 )\
+            .\cf7 frame\cf4 (\cf7 maxWidth\cf4 : .\cf7 infinity\cf4 , \cf7 alignment\cf4 : .\cf7 center\cf4 )\
+            .\cf7 padding\cf4 (.\cf7 vertical\cf4 , \cf12 8\cf4 )\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 listHeader\cf4 (\cf8 title\cf4 : \cf6 String\cf4 , \cf8 subtitle\cf4 : \cf6 String\cf4 , \cf8 icon\cf4 : \cf6 String\cf4 ) -> 
+\f0\b \cf2 some
+\f1\b0 \cf4  \cf6 View\cf4  \{\
+        \cf6 HStack\cf4 (\cf6 spacing\cf4 : \cf12 10\cf4 ) \{\
+            \cf6 Image\cf4 (\cf6 systemName\cf4 : icon)\
+                .\cf7 font\cf4 (.\cf7 footnote\cf4 .\cf7 weight\cf4 (.\cf7 semibold\cf4 ))\
+                .\cf7 foregroundStyle\cf4 (\cf10 wuenscheAccentColor\cf4 )\
+                .\cf7 frame\cf4 (\cf7 width\cf4 : \cf12 26\cf4 , \cf7 height\cf4 : \cf12 26\cf4 )\
+                .\cf7 background\cf4 (\cf6 Circle\cf4 ().\cf7 fill\cf4 (\cf6 Color\cf4 .\cf7 white\cf4 .\cf7 opacity\cf4 (\cf12 0.85\cf4 )))\
+\
+            \cf6 VStack\cf4 (\cf6 alignment\cf4 : .\cf7 leading\cf4 , \cf6 spacing\cf4 : \cf12 3\cf4 ) \{\
+                \cf6 Text\cf4 (title)\
+                    .\cf7 font\cf4 (.\cf7 subheadline\cf4 .\cf7 weight\cf4 (.\cf7 semibold\cf4 ))\
+                    .\cf7 foregroundStyle\cf4 (.\cf7 primary\cf4 )\
+\
+                \cf6 Text\cf4 (subtitle)\
+                    .\cf7 font\cf4 (.\cf7 caption\cf4 )\
+                    .\cf7 foregroundStyle\cf4 (.\cf7 secondary\cf4 )\
+            \}\
+        \}\
+    \}\
+\
+    \cf6 @ViewBuilder\cf4 \
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 kontaktAnzeigeZeile\cf4 (\cf8 titel\cf4 : \cf6 String\cf4 , \cf8 wert\cf4 : \cf6 String\cf4 ) -> 
+\f0\b \cf2 some
+\f1\b0 \cf4  \cf6 View\cf4  \{\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  bereinigterWert = wert.\cf7 trimmingCharacters\cf4 (\cf7 in\cf4 : .\cf7 whitespacesAndNewlines\cf4 )\
+\
+        
+\f0\b \cf2 if
+\f1\b0 \cf4  !bereinigterWert.\cf7 isEmpty\cf4  \{\
+            \cf6 HStack\cf4 (\cf6 alignment\cf4 : .\cf7 top\cf4 ) \{\
+                \cf6 Text\cf4 (titel)\
+                    .\cf7 foregroundStyle\cf4 (.\cf7 secondary\cf4 )\
+\
+                \cf6 Spacer\cf4 (\cf6 minLength\cf4 : \cf12 16\cf4 )\
+\
+                \cf6 Text\cf4 (bereinigterWert)\
+                    .\cf7 multilineTextAlignment\cf4 (.\cf7 trailing\cf4 )\
+            \}\
+            .\cf7 font\cf4 (.\cf7 subheadline\cf4 )\
+        \}\
+    \}\
+\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 nachrufBildEntfernen\cf4 () \{\
+        \cf10 nachrufBildData\cf4  = 
+\f0\b \cf2 nil
+\f1\b0 \cf4 \
+        \cf10 nachrufBildAuswahl\cf4  = 
+\f0\b \cf2 nil
+\f1\b0 \cf4 \
+        \cf10 speichereWuensche\cf4 ()\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 letzteWorteVideoEntfernen\cf4 () \{\
+        \cf10 letzteWorteVideoData\cf4  = 
+\f0\b \cf2 nil
+\f1\b0 \cf4 \
+        \cf10 letzteWorteVideoName\cf4  = 
+\f0\b \cf2 nil
+\f1\b0 \cf4 \
+        \cf10 letzteWorteVideoAuswahl\cf4  = 
+\f0\b \cf2 nil
+\f1\b0 \cf4 \
+        \cf10 letzteWorteVideoURL\cf4  = 
+\f0\b \cf2 nil
+\f1\b0 \cf4 \
+        \cf10 letzteWorteVideoVorschauAnzeigen\cf4  = 
+\f0\b \cf2 false
+\f1\b0 \cf4 \
+        \cf10 speichereWuensche\cf4 ()\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 oeffneLetzteWorteVideo\cf4 () \{\
+        
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 letzteWorteVideoVorschauAnzeigen\cf4  \{\
+            \cf10 letzteWorteVideoPlayer\cf4 ?.\cf7 pause\cf4 ()\
+            \cf10 letzteWorteVideoVorschauAnzeigen\cf4  = 
+\f0\b \cf2 false
+\f1\b0 \cf4 \
+        \} 
+\f0\b \cf2 else
+\f1\b0 \cf4  \{\
+            \cf10 bereiteLetzteWorteVideoVorschauVor\cf4 (\cf10 sichtbar\cf4 : 
+\f0\b \cf2 true
+\f1\b0 \cf4 )\
+        \}\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 bereiteLetzteWorteVideoVorschauVor\cf4 (\cf8 sichtbar\cf4 : \cf6 Bool\cf4 ) \{\
+        
+\f0\b \cf2 guard
+\f1\b0 \cf4  
+\f0\b \cf2 let
+\f1\b0 \cf4  letzteWorteVideoData 
+\f0\b \cf2 else
+\f1\b0 \cf4  \{ 
+\f0\b \cf2 return
+\f1\b0 \cf4  \}\
+\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  dateiname = \cf10 letzteWorteVideoName\cf4 ?.\cf7 isEmpty\cf4  == 
+\f0\b \cf2 false
+\f1\b0 \cf4 \
+            ? \cf10 letzteWorteVideoName\cf4 !\
+            : \cf11 "Pers\'f6nliche_Botschaft.mov"\cf4 \
+\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  videoURL = \cf6 FileManager\cf4 .\cf7 default\cf4 .\cf7 temporaryDirectory\cf4 \
+            .\cf7 appendingPathComponent\cf4 (dateiname)\
+\
+        
+\f0\b \cf2 do
+\f1\b0 \cf4  \{\
+            
+\f0\b \cf2 try
+\f1\b0 \cf4  letzteWorteVideoData.\cf7 write\cf4 (\cf7 to\cf4 : videoURL, \cf7 options\cf4 : .\cf7 atomic\cf4 )\
+            \cf10 letzteWorteVideoURL\cf4  = videoURL\
+            \cf10 letzteWorteVideoPlayer\cf4  = \cf6 AVPlayer\cf4 (\cf6 url\cf4 : videoURL)\
+            \cf10 letzteWorteVideoVorschauAnzeigen\cf4  = sichtbar\
+        \} 
+\f0\b \cf2 catch
+\f1\b0 \cf4  \{\
+            \cf7 print\cf4 (\cf11 "Video konnte nicht vorbereitet werden: \cf4 \\(error.\cf7 localizedDescription\cf4 )\cf11 "\cf4 )\
+        \}\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 dokumentVorschauAnzeigen\cf4 (\cf8 _\cf4  url: \cf6 URL\cf4 ?, \cf8 dateiName\cf4 : \cf6 String\cf4 ?, \cf8 dateiData\cf4 : \cf6 Data\cf4 ?) \{\
+        
+\f0\b \cf2 if
+\f1\b0 \cf4  
+\f0\b \cf2 let
+\f1\b0 \cf4  url \{\
+            \cf10 dokumentVorschauURL\cf4  = url\
+            
+\f0\b \cf2 return
+\f1\b0 \cf4 \
+        \}\
+        
+\f0\b \cf2 guard
+\f1\b0 \cf4  
+\f0\b \cf2 let
+\f1\b0 \cf4  dateiName,\
+              
+\f0\b \cf2 let
+\f1\b0 \cf4  dateiData,\
+              
+\f0\b \cf2 let
+\f1\b0 \cf4  tempURL = \cf10 temporaereDateiURL\cf4 (\cf10 dateiName\cf4 : dateiName, \cf10 dateiData\cf4 : dateiData) 
+\f0\b \cf2 else
+\f1\b0 \cf4  \{ 
+\f0\b \cf2 return
+\f1\b0 \cf4  \}\
+        \cf10 dokumentVorschauURL\cf4  = tempURL\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 temporaereDateiURL\cf4 (\cf8 dateiName\cf4 : \cf6 String\cf4 , \cf8 dateiData\cf4 : \cf6 Data\cf4 ) -> \cf6 URL\cf4 ? \{\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  bereinigterName = dateiName\
+            .\cf7 replacingOccurrences\cf4 (\cf7 of\cf4 : \cf11 "/"\cf4 , \cf7 with\cf4 : \cf11 "-"\cf4 )\
+            .\cf7 replacingOccurrences\cf4 (\cf7 of\cf4 : \cf11 ":"\cf4 , \cf7 with\cf4 : \cf11 "-"\cf4 )\
+\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  url = \cf6 FileManager\cf4 .\cf7 default\cf4 .\cf7 temporaryDirectory\cf4 .\cf7 appendingPathComponent\cf4 (bereinigterName)\
+\
+        
+\f0\b \cf2 do
+\f1\b0 \cf4  \{\
+            
+\f0\b \cf2 try
+\f1\b0 \cf4  dateiData.\cf7 write\cf4 (\cf7 to\cf4 : url, \cf7 options\cf4 : .\cf7 atomic\cf4 )\
+            
+\f0\b \cf2 return
+\f1\b0 \cf4  url\
+        \} 
+\f0\b \cf2 catch
+\f1\b0 \cf4  \{\
+            
+\f0\b \cf2 return
+\f1\b0 \cf4  
+\f0\b \cf2 nil
+\f1\b0 \cf4 \
+        \}\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 dokumentImportStarten\cf4 (\cf8 _\cf4  typ: \cf9 DokumentTyp\cf4 ) \{\
+        \cf10 aktiverDokumentTyp\cf4  = typ\
+        \cf10 dokumentImporterAnzeigen\cf4  = 
+\f0\b \cf2 true
+\f1\b0 \cf4 \
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 dokumentImportVerarbeiten\cf4 (\cf8 _\cf4  result: \cf6 Result\cf4 <[\cf6 URL\cf4 ], \cf6 Error\cf4 >) \{\
+        
+\f0\b \cf2 switch
+\f1\b0 \cf4  result \{\
+        
+\f0\b \cf2 case
+\f1\b0 \cf4  .\cf7 success\cf4 (
+\f0\b \cf2 let
+\f1\b0 \cf4  urls):\
+            
+\f0\b \cf2 guard
+\f1\b0 \cf4  
+\f0\b \cf2 let
+\f1\b0 \cf4  url = urls.\cf7 first\cf4  
+\f0\b \cf2 else
+\f1\b0 \cf4  \{ 
+\f0\b \cf2 return
+\f1\b0 \cf4  \}\
+\
+            
+\f0\b \cf2 let
+\f1\b0 \cf4  hatZugriffErhalten = url.\cf7 startAccessingSecurityScopedResource\cf4 ()\
+            
+\f0\b \cf2 defer
+\f1\b0 \cf4  \{\
+                
+\f0\b \cf2 if
+\f1\b0 \cf4  hatZugriffErhalten \{\
+                    url.\cf7 stopAccessingSecurityScopedResource\cf4 ()\
+                \}\
+            \}\
+\
+            
+\f0\b \cf2 let
+\f1\b0 \cf4  dateiData = 
+\f0\b \cf2 try
+\f1\b0 \cf4 ? \cf6 Data\cf4 (\cf6 contentsOf\cf4 : url)\
+\
+            
+\f0\b \cf2 switch
+\f1\b0 \cf4  \cf10 aktiverDokumentTyp\cf4  \{\
+            
+\f0\b \cf2 case
+\f1\b0 \cf4  .\cf10 testament\cf4 :\
+                \cf10 testamentDateiURL\cf4  = url\
+                \cf10 testamentDateiName\cf4  = url.\cf7 lastPathComponent\cf4 \
+                \cf10 testamentDateiData\cf4  = dateiData\
+                \cf10 testamentHochgeladenAm\cf4  = \cf6 Date\cf4 ()\
+                \cf10 testamentErinnerungAktiv\cf4  = 
+\f0\b \cf2 true
+\f1\b0 \cf4 \
+                \cf10 testamentErinnerungDatum\cf4  = \cf10 erinnerungsDatumInEinemJahr\cf4 ()\
+            
+\f0\b \cf2 case
+\f1\b0 \cf4  .\cf10 patientenverfuegung\cf4 :\
+                \cf10 patientenverfuegungDateiURL\cf4  = url\
+                \cf10 patientenverfuegungDateiName\cf4  = url.\cf7 lastPathComponent\cf4 \
+                \cf10 patientenverfuegungDateiData\cf4  = dateiData\
+                \cf10 patientenverfuegungHochgeladenAm\cf4  = \cf6 Date\cf4 ()\
+                \cf10 patientenverfuegungErinnerungAktiv\cf4  = 
+\f0\b \cf2 true
+\f1\b0 \cf4 \
+                \cf10 patientenverfuegungErinnerungDatum\cf4  = \cf10 erinnerungsDatumInEinemJahr\cf4 ()\
+            
+\f0\b \cf2 case
+\f1\b0 \cf4  .\cf10 vorsorgeauftrag\cf4 :\
+                \cf10 vorsorgeauftragDateiURL\cf4  = url\
+                \cf10 vorsorgeauftragDateiName\cf4  = url.\cf7 lastPathComponent\cf4 \
+                \cf10 vorsorgeauftragDateiData\cf4  = dateiData\
+                \cf10 vorsorgeauftragHochgeladenAm\cf4  = \cf6 Date\cf4 ()\
+                \cf10 vorsorgeauftragErinnerungAktiv\cf4  = 
+\f0\b \cf2 true
+\f1\b0 \cf4 \
+                \cf10 vorsorgeauftragErinnerungDatum\cf4  = \cf10 erinnerungsDatumInEinemJahr\cf4 ()\
+            
+\f0\b \cf2 case
+\f1\b0 \cf4  .\cf10 sterbebegleitung\cf4 :\
+                \cf10 sterbebegleitungDateiURL\cf4  = url\
+                \cf10 sterbebegleitungDateiName\cf4  = url.\cf7 lastPathComponent\cf4 \
+                \cf10 sterbebegleitungDateiData\cf4  = dateiData\
+                \cf10 sterbebegleitungHochgeladenAm\cf4  = \cf6 Date\cf4 ()\
+                \cf10 sterbebegleitungErinnerungAktiv\cf4  = 
+\f0\b \cf2 true
+\f1\b0 \cf4 \
+                \cf10 sterbebegleitungErinnerungDatum\cf4  = \cf10 erinnerungsDatumInEinemJahr\cf4 ()\
+            
+\f0\b \cf2 case
+\f1\b0 \cf4  .\cf7 none\cf4 :\
+                
+\f0\b \cf2 break
+\f1\b0 \cf4 \
+            \}\
+            \cf10 speichereWuensche\cf4 ()\
+        
+\f0\b \cf2 case
+\f1\b0 \cf4  .\cf7 failure\cf4 :\
+            
+\f0\b \cf2 break
+\f1\b0 \cf4 \
+        \}\
+\
+        \cf10 aktiverDokumentTyp\cf4  = 
+\f0\b \cf2 nil
+\f1\b0 \cf4 \
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 testamentDateiEntfernen\cf4 () \{\
+        \cf10 testamentDateiName\cf4  = 
+\f0\b \cf2 nil
+\f1\b0 \cf4 \
+        \cf10 testamentDateiURL\cf4  = 
+\f0\b \cf2 nil
+\f1\b0 \cf4 \
+        \cf10 testamentDateiData\cf4  = 
+\f0\b \cf2 nil
+\f1\b0 \cf4 \
+        \cf10 testamentHochgeladenAm\cf4  = 
+\f0\b \cf2 nil
+\f1\b0 \cf4 \
+        \cf10 testamentErinnerungAktiv\cf4  = 
+\f0\b \cf2 true
+\f1\b0 \cf4 \
+        \cf10 testamentErinnerungDatum\cf4  = \cf6 Date\cf4 ()\
+        \cf10 speichereWuensche\cf4 ()\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 patientenverfuegungDateiEntfernen\cf4 () \{\
+        \cf10 patientenverfuegungDateiName\cf4  = 
+\f0\b \cf2 nil
+\f1\b0 \cf4 \
+        \cf10 patientenverfuegungDateiURL\cf4  = 
+\f0\b \cf2 nil
+\f1\b0 \cf4 \
+        \cf10 patientenverfuegungDateiData\cf4  = 
+\f0\b \cf2 nil
+\f1\b0 \cf4 \
+        \cf10 patientenverfuegungHochgeladenAm\cf4  = 
+\f0\b \cf2 nil
+\f1\b0 \cf4 \
+        \cf10 patientenverfuegungErinnerungAktiv\cf4  = 
+\f0\b \cf2 true
+\f1\b0 \cf4 \
+        \cf10 patientenverfuegungErinnerungDatum\cf4  = \cf6 Date\cf4 ()\
+        \cf10 speichereWuensche\cf4 ()\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 vorsorgeauftragDateiEntfernen\cf4 () \{\
+        \cf10 vorsorgeauftragDateiName\cf4  = 
+\f0\b \cf2 nil
+\f1\b0 \cf4 \
+        \cf10 vorsorgeauftragDateiURL\cf4  = 
+\f0\b \cf2 nil
+\f1\b0 \cf4 \
+        \cf10 vorsorgeauftragDateiData\cf4  = 
+\f0\b \cf2 nil
+\f1\b0 \cf4 \
+        \cf10 vorsorgeauftragHochgeladenAm\cf4  = 
+\f0\b \cf2 nil
+\f1\b0 \cf4 \
+        \cf10 vorsorgeauftragErinnerungAktiv\cf4  = 
+\f0\b \cf2 true
+\f1\b0 \cf4 \
+        \cf10 vorsorgeauftragErinnerungDatum\cf4  = \cf6 Date\cf4 ()\
+        \cf10 speichereWuensche\cf4 ()\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 sterbebegleitungDateiEntfernen\cf4 () \{\
+        \cf10 sterbebegleitungDateiName\cf4  = 
+\f0\b \cf2 nil
+\f1\b0 \cf4 \
+        \cf10 sterbebegleitungDateiURL\cf4  = 
+\f0\b \cf2 nil
+\f1\b0 \cf4 \
+        \cf10 sterbebegleitungDateiData\cf4  = 
+\f0\b \cf2 nil
+\f1\b0 \cf4 \
+        \cf10 sterbebegleitungHochgeladenAm\cf4  = 
+\f0\b \cf2 nil
+\f1\b0 \cf4 \
+        \cf10 sterbebegleitungErinnerungAktiv\cf4  = 
+\f0\b \cf2 true
+\f1\b0 \cf4 \
+        \cf10 sterbebegleitungErinnerungDatum\cf4  = \cf6 Date\cf4 ()\
+        \cf10 speichereWuensche\cf4 ()\
+    \}\
+\
+    
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 erinnerungsDatumInEinemJahr\cf4 () -> \cf6 Date\cf4  \{\
+        \cf6 Calendar\cf4 .\cf7 current\cf4 .\cf7 date\cf4 (\cf7 byAdding\cf4 : .\cf7 year\cf4 , \cf7 value\cf4 : \cf12 1\cf4 , \cf7 to\cf4 : \cf6 Date\cf4 ()) ?? \cf6 Date\cf4 ()\
+    \}\
+\}\
+\
+
+\f0\b \cf2 enum
+\f1\b0 \cf4  \cf5 Bestattungsart\cf4 : \cf6 String\cf4 , \cf6 CaseIterable\cf4 , \cf6 Identifiable\cf4  \{\
+    
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf8 kremation\cf4  = \cf11 "Kremation"\cf4 \
+    
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf8 erdbestattung\cf4  = \cf11 "Erdbestattung"\cf4 \
+\
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 id\cf4 : \cf6 String\cf4  \{ rawValue \}\
+\}\
+\
+
+\f0\b \cf2 enum
+\f1\b0 \cf4  \cf5 KontaktArt\cf4 : \cf6 String\cf4 , \cf6 CaseIterable\cf4 , \cf6 Identifiable\cf4 , \cf6 Codable\cf4  \{\
+    
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf8 partner\cf4  = \cf11 "Partner"\cf4 \
+    
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf8 familie\cf4  = \cf11 "Familie"\cf4 \
+    
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf8 freunde\cf4  = \cf11 "Freunde"\cf4 \
+    
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf8 anderes\cf4  = \cf11 "Andere"\cf4 \
+\
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 id\cf4 : \cf6 String\cf4  \{ rawValue \}\
+\}\
+\
+
+\f0\b \cf2 enum
+\f1\b0 \cf4  \cf5 DokumentTyp\cf4  \{\
+    
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf8 testament\cf4 \
+    
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf8 patientenverfuegung\cf4 \
+    
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf8 vorsorgeauftrag\cf4 \
+    
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf8 sterbebegleitung\cf4 \
+\}\
+\
+
+\f0\b \cf2 enum
+\f1\b0 \cf4  \cf5 SchwereErkrankung\cf4 : \cf6 String\cf4 , \cf6 CaseIterable\cf4 , \cf6 Identifiable\cf4  \{\
+    
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf8 demenz\cf4  = \cf11 "Demenz"\cf4 \
+    
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf8 alzheimer\cf4  = \cf11 "Alzheimer"\cf4 \
+    
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf8 fortgeschrittenerKrebs\cf4  = \cf11 "Fortgeschrittener Krebs"\cf4 \
+    
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf8 andere\cf4  = \cf11 "Andere"\cf4 \
+\
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 id\cf4 : \cf6 String\cf4  \{ rawValue \}\
+\}\
+\
+
+\f0\b \cf2 struct
+\f1\b0 \cf4  \cf5 BeisetzungsKontakt\cf4 : \cf6 Identifiable\cf4 , \cf6 Codable\cf4 , \cf6 Equatable\cf4  \{\
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 id\cf4  = \cf6 UUID\cf4 ()\
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 vorname\cf4  = \cf11 ""\cf4 \
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 name\cf4  = \cf11 ""\cf4 \
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 strasse\cf4  = \cf11 ""\cf4 \
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 hausnummer\cf4  = \cf11 ""\cf4 \
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 plz\cf4  = \cf11 ""\cf4 \
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 ort\cf4  = \cf11 ""\cf4 \
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 telefon\cf4  = \cf11 ""\cf4 \
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 email\cf4  = \cf11 ""\cf4 \
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 art\cf4 : \cf9 KontaktArt\cf4  = .\cf10 familie\cf4 \
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 informieren\cf4  = 
+\f0\b \cf2 true
+\f1\b0 \cf4 \
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 einladen\cf4  = 
+\f0\b \cf2 true
+\f1\b0 \cf4 \
+\
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 anzeigename\cf4 : \cf6 String\cf4  \{\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  nameTeile = [\cf10 vorname\cf4 , \cf10 name\cf4 ].\cf7 filter\cf4  \{ !$0.\cf7 isEmpty\cf4  \}\
+        
+\f0\b \cf2 return
+\f1\b0 \cf4  nameTeile.\cf7 isEmpty\cf4  ? \cf11 "Unbenannter Kontakt"\cf4  : nameTeile.\cf7 joined\cf4 (\cf7 separator\cf4 : \cf11 " "\cf4 )\
+    \}\
+\
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 vollstaendigeAdresse\cf4 : \cf6 String\cf4  \{\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  strasseUndHausnummer = [\cf10 strasse\cf4 , \cf10 hausnummer\cf4 ]\
+            .\cf7 map\cf4  \{ $0.\cf7 trimmingCharacters\cf4 (\cf7 in\cf4 : .\cf7 whitespacesAndNewlines\cf4 ) \}\
+            .\cf7 filter\cf4  \{ !$0.\cf7 isEmpty\cf4  \}\
+            .\cf7 joined\cf4 (\cf7 separator\cf4 : \cf11 " "\cf4 )\
+\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  plzUndOrt = [\cf10 plz\cf4 , \cf10 ort\cf4 ]\
+            .\cf7 map\cf4  \{ $0.\cf7 trimmingCharacters\cf4 (\cf7 in\cf4 : .\cf7 whitespacesAndNewlines\cf4 ) \}\
+            .\cf7 filter\cf4  \{ !$0.\cf7 isEmpty\cf4  \}\
+            .\cf7 joined\cf4 (\cf7 separator\cf4 : \cf11 " "\cf4 )\
+\
+        
+\f0\b \cf2 return
+\f1\b0 \cf4  [strasseUndHausnummer, plzUndOrt]\
+            .\cf7 filter\cf4  \{ !$0.\cf7 isEmpty\cf4  \}\
+            .\cf7 joined\cf4 (\cf7 separator\cf4 : \cf11 "\\n"\cf4 )\
+    \}\
+\}\
+\
+
+\f0\b \cf2 struct
+\f1\b0 \cf4  \cf5 KontaktPicker\cf4 : \cf6 UIViewControllerRepresentable\cf4  \{\
+    
+\f0\b \cf2 let
+\f1\b0 \cf4  \cf8 kontaktAusgewaehlt\cf4 : (\cf9 BeisetzungsKontakt\cf4 ) -> \cf6 Void\cf4 \
+\
+    
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 makeUIViewController\cf4 (\cf8 context\cf4 : \cf6 Context\cf4 ) -> \cf6 CNContactPickerViewController\cf4  \{\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  picker = \cf6 CNContactPickerViewController\cf4 ()\
+        picker.\cf7 delegate\cf4  = context.\cf7 coordinator\cf4 \
+        picker.\cf7 displayedPropertyKeys\cf4  = [\
+            \cf7 CNContactGivenNameKey\cf4 ,\
+            \cf7 CNContactFamilyNameKey\cf4 ,\
+            \cf7 CNContactPostalAddressesKey\cf4 ,\
+            \cf7 CNContactEmailAddressesKey\cf4 ,\
+            \cf7 CNContactPhoneNumbersKey\cf4 \
+        ]\
+        
+\f0\b \cf2 return
+\f1\b0 \cf4  picker\
+    \}\
+\
+    
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 updateUIViewController\cf4 (\cf8 _\cf4  uiViewController: \cf6 CNContactPickerViewController\cf4 , \cf8 context\cf4 : \cf6 Context\cf4 ) \{ \}\
+\
+    
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 makeCoordinator\cf4 () -> \cf9 Coordinator\cf4  \{\
+        \cf9 Coordinator\cf4 (\cf9 kontaktAusgewaehlt\cf4 : \cf10 kontaktAusgewaehlt\cf4 )\
+    \}\
+\
+    
+\f0\b \cf2 final
+\f1\b0 \cf4  
+\f0\b \cf2 class
+\f1\b0 \cf4  \cf5 Coordinator\cf4 : \cf6 NSObject\cf4 , \cf6 CNContactPickerDelegate\cf4  \{\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  \cf8 kontaktAusgewaehlt\cf4 : (\cf9 BeisetzungsKontakt\cf4 ) -> \cf6 Void\cf4 \
+\
+        
+\f0\b \cf2 init
+\f1\b0 \cf4 (\cf8 kontaktAusgewaehlt\cf4 : 
+\f0\b \cf2 @escaping
+\f1\b0 \cf4  (\cf9 BeisetzungsKontakt\cf4 ) -> \cf6 Void\cf4 ) \{\
+            
+\f0\b \cf2 self
+\f1\b0 \cf4 .\cf10 kontaktAusgewaehlt\cf4  = kontaktAusgewaehlt\
+        \}\
+\
+        
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 contactPicker\cf4 (\cf8 _\cf4  picker: \cf6 CNContactPickerViewController\cf4 , \cf8 didSelect\cf4  contact: \cf6 CNContact\cf4 ) \{\
+            
+\f0\b \cf2 let
+\f1\b0 \cf4  adressTeile = contact.\cf7 postalAddresses\cf4 .\cf7 first\cf4 .\cf7 map\cf4  \{ \cf10 adresseAufteilen\cf4 ($0.value) \} ?? (\cf10 strasse\cf4 : \cf11 ""\cf4 , \cf10 hausnummer\cf4 : \cf11 ""\cf4 , \cf10 plz\cf4 : \cf11 ""\cf4 , \cf10 ort\cf4 : \cf11 ""\cf4 )\
+            
+\f0\b \cf2 let
+\f1\b0 \cf4  telefon = contact.\cf7 phoneNumbers\cf4 .\cf7 first\cf4 ?.\cf7 value\cf4 .\cf7 stringValue\cf4  ?? \cf11 ""\cf4 \
+            
+\f0\b \cf2 let
+\f1\b0 \cf4  email = contact.\cf7 emailAddresses\cf4 .\cf7 first\cf4 .\cf7 map\cf4  \{ \cf6 String\cf4 ($0.value) \} ?? \cf11 ""\cf4 \
+\
+            
+\f0\b \cf2 let
+\f1\b0 \cf4  beisetzungsKontakt = \cf9 BeisetzungsKontakt\cf4 (\
+                \cf9 vorname\cf4 : contact.\cf7 givenName\cf4 ,\
+                \cf9 name\cf4 : contact.\cf7 familyName\cf4 ,\
+                \cf9 strasse\cf4 : adressTeile.\cf10 strasse\cf4 ,\
+                \cf9 hausnummer\cf4 : adressTeile.\cf10 hausnummer\cf4 ,\
+                \cf9 plz\cf4 : adressTeile.\cf10 plz\cf4 ,\
+                \cf9 ort\cf4 : adressTeile.\cf10 ort\cf4 ,\
+                \cf9 telefon\cf4 : telefon,\
+                \cf9 email\cf4 : email\
+            )\
+\
+            \cf10 kontaktAusgewaehlt\cf4 (beisetzungsKontakt)\
+        \}\
+\
+        
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 func
+\f1\b0 \cf4  \cf8 adresseAufteilen\cf4 (\cf8 _\cf4  adresse: \cf6 CNPostalAddress\cf4 ) -> (strasse: \cf6 String\cf4 , hausnummer: \cf6 String\cf4 , plz: \cf6 String\cf4 , ort: \cf6 String\cf4 ) \{\
+            
+\f0\b \cf2 let
+\f1\b0 \cf4  strassenKomponenten = adresse.\cf7 street\cf4 .\cf7 components\cf4 (\cf7 separatedBy\cf4 : \cf11 " "\cf4 ).\cf7 filter\cf4  \{ !$0.\cf7 isEmpty\cf4  \}\
+            
+\f0\b \cf2 let
+\f1\b0 \cf4  hausnummer = strassenKomponenten.\cf7 last\cf4 ?.\cf7 rangeOfCharacter\cf4 (\cf7 from\cf4 : .\cf7 decimalDigits\cf4 ) != 
+\f0\b \cf2 nil
+\f1\b0 \cf4  ? strassenKomponenten.\cf7 last\cf4  ?? \cf11 ""\cf4  : \cf11 ""\cf4 \
+            
+\f0\b \cf2 let
+\f1\b0 \cf4  strasse = hausnummer.\cf7 isEmpty\cf4  ? adresse.\cf7 street\cf4  : strassenKomponenten.\cf7 dropLast\cf4 ().\cf7 joined\cf4 (\cf7 separator\cf4 : \cf11 " "\cf4 )\
+\
+            
+\f0\b \cf2 return
+\f1\b0 \cf4  (\
+                strasse: strasse,\
+                hausnummer: hausnummer,\
+                plz: adresse.\cf7 postalCode\cf4 ,\
+                ort: adresse.\cf7 city\cf4 \
+            )\
+        \}\
+    \}\
+\}\
+\
+\
+\
+
+\f0\b \cf2 struct
+\f1\b0 \cf4  \cf5 DetailBox\cf4 <Content: \cf6 View\cf4 >: \cf6 View\cf4  \{\
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 accentColor\cf4 : \cf6 Color\cf4  = \cf6 Color\cf4 (\cf6 red\cf4 : \cf12 0.72\cf4 , \cf6 green\cf4 : \cf12 0.42\cf4 , \cf6 blue\cf4 : \cf12 0.28\cf4 )\
+    \cf6 @ViewBuilder\cf4  
+\f0\b \cf2 let
+\f1\b0 \cf4  \cf8 content\cf4 : Content\
+\
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 body\cf4 : 
+\f0\b \cf2 some
+\f1\b0 \cf4  \cf6 View\cf4  \{\
+        \cf6 VStack\cf4 (\cf6 alignment\cf4 : .\cf7 leading\cf4 , \cf6 spacing\cf4 : \cf12 12\cf4 ) \{\
+            \cf10 content\cf4 \
+        \}\
+        .\cf7 padding\cf4 (\cf12 12\cf4 )\
+        .\cf7 background\cf4 (\cf6 Color\cf4 .\cf7 white\cf4 .\cf7 opacity\cf4 (\cf12 0.72\cf4 ))\
+        .\cf7 clipShape\cf4 (\cf6 RoundedRectangle\cf4 (\cf6 cornerRadius\cf4 : \cf12 16\cf4 , \cf6 style\cf4 : .\cf7 continuous\cf4 ))\
+        .\cf7 overlay\cf4 (\
+            \cf6 RoundedRectangle\cf4 (\cf6 cornerRadius\cf4 : \cf12 16\cf4 , \cf6 style\cf4 : .\cf7 continuous\cf4 )\
+                .\cf7 stroke\cf4 (\cf10 accentColor\cf4 .\cf7 opacity\cf4 (\cf12 0.16\cf4 ), \cf7 lineWidth\cf4 : \cf12 1\cf4 )\
+        )\
+    \}\
+\}\
+\
+
+\f0\b \cf2 struct
+\f1\b0 \cf4  \cf5 DokumentUploadBox\cf4 : \cf6 View\cf4  \{\
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 accentColor\cf4 : \cf6 Color\cf4  = \cf6 Color\cf4 (\cf6 red\cf4 : \cf12 0.72\cf4 , \cf6 green\cf4 : \cf12 0.42\cf4 , \cf6 blue\cf4 : \cf12 0.28\cf4 )\
+    
+\f0\b \cf2 let
+\f1\b0 \cf4  \cf8 dateiName\cf4 : \cf6 String\cf4 ?\
+    
+\f0\b \cf2 let
+\f1\b0 \cf4  \cf8 hochgeladenAm\cf4 : \cf6 Date\cf4 ?\
+    
+\f0\b \cf2 let
+\f1\b0 \cf4  \cf8 timestampTitel\cf4 : \cf6 String\cf4 \
+    
+\f0\b \cf2 let
+\f1\b0 \cf4  \cf8 uploadTitel\cf4 : \cf6 String\cf4 \
+    
+\f0\b \cf2 let
+\f1\b0 \cf4  \cf8 entfernenTitel\cf4 : \cf6 String\cf4 \
+    \cf6 @Binding\cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 erinnerungAktiv\cf4 : \cf6 Bool\cf4 \
+    \cf6 @Binding\cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 erinnerungDatum\cf4 : \cf6 Date\cf4 \
+    
+\f0\b \cf2 let
+\f1\b0 \cf4  \cf8 vorschauAktion\cf4 : () -> \cf6 Void\cf4 \
+    
+\f0\b \cf2 let
+\f1\b0 \cf4  \cf8 uploadAktion\cf4 : () -> \cf6 Void\cf4 \
+    
+\f0\b \cf2 let
+\f1\b0 \cf4  \cf8 entfernenAktion\cf4 : () -> \cf6 Void\cf4 \
+\
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 body\cf4 : 
+\f0\b \cf2 some
+\f1\b0 \cf4  \cf6 View\cf4  \{\
+        \cf6 VStack\cf4 (\cf6 spacing\cf4 : \cf12 14\cf4 ) \{\
+            \cf6 Button\cf4  \{\
+                \cf10 uploadAktion\cf4 ()\
+            \} \cf7 label\cf4 : \{\
+                \cf6 Image\cf4 (\cf6 systemName\cf4 : \cf11 "doc.badge.plus"\cf4 )\
+                    .\cf7 font\cf4 (.\cf7 title2\cf4 .\cf7 weight\cf4 (.\cf7 semibold\cf4 ))\
+                    .\cf7 foregroundStyle\cf4 (.\cf7 white\cf4 )\
+                    .\cf7 frame\cf4 (\cf7 width\cf4 : \cf12 42\cf4 , \cf7 height\cf4 : \cf12 42\cf4 )\
+                    .\cf7 background\cf4 (\cf6 Circle\cf4 ().\cf7 fill\cf4 (\cf10 accentColor\cf4 ))\
+            \}\
+            .\cf7 buttonStyle\cf4 (.\cf7 plain\cf4 )\
+            .\cf7 accessibilityLabel\cf4 (\cf10 uploadTitel\cf4 )\
+\
+            
+\f0\b \cf2 if
+\f1\b0 \cf4  
+\f0\b \cf2 let
+\f1\b0 \cf4  dateiName \{\
+                \cf6 HStack\cf4 (\cf6 spacing\cf4 : \cf12 10\cf4 ) \{\
+                    \cf6 Image\cf4 (\cf6 systemName\cf4 : \cf11 "doc.fill"\cf4 )\
+                        .\cf7 foregroundStyle\cf4 (\cf10 accentColor\cf4 )\
+\
+                    \cf6 Button\cf4  \{\
+                        \cf10 vorschauAktion\cf4 ()\
+                    \} \cf7 label\cf4 : \{\
+                        \cf6 VStack\cf4 (\cf6 alignment\cf4 : .\cf7 leading\cf4 , \cf6 spacing\cf4 : \cf12 4\cf4 ) \{\
+                            \cf6 Text\cf4 (dateiName)\
+                                .\cf7 font\cf4 (.\cf7 footnote\cf4 )\
+                                .\cf7 lineLimit\cf4 (\cf12 1\cf4 )\
+                                .\cf7 truncationMode\cf4 (.\cf7 middle\cf4 )\
+\
+                            
+\f0\b \cf2 if
+\f1\b0 \cf4  
+\f0\b \cf2 let
+\f1\b0 \cf4  hochgeladenAm \{\
+                                \cf6 Text\cf4 (\cf11 "\cf4 \\(\cf10 timestampTitel\cf4 )\cf11  \cf4 \\(hochgeladenAm.\cf7 formatted\cf4 (\cf7 date\cf4 : .\cf7 abbreviated\cf4 , \cf7 time\cf4 : .\cf7 shortened\cf4 ))\cf11 "\cf4 )\
+                                    .\cf7 font\cf4 (.\cf7 caption\cf4 )\
+                                    .\cf7 foregroundStyle\cf4 (.\cf7 secondary\cf4 )\
+                            \}\
+                        \}\
+                        .\cf7 frame\cf4 (\cf7 maxWidth\cf4 : .\cf7 infinity\cf4 , \cf7 alignment\cf4 : .\cf7 leading\cf4 )\
+                    \}\
+                    .\cf7 buttonStyle\cf4 (.\cf7 plain\cf4 )\
+                    .\cf7 accessibilityLabel\cf4 (\cf11 "Dokument Vorschau \'f6ffnen"\cf4 )\
+\
+                    \cf6 Spacer\cf4 ()\
+\
+                    \cf6 Button\cf4  \{\
+                        \cf10 vorschauAktion\cf4 ()\
+                    \} \cf7 label\cf4 : \{\
+                        \cf6 Image\cf4 (\cf6 systemName\cf4 : \cf11 "eye.fill"\cf4 )\
+                    \}\
+                    .\cf7 buttonStyle\cf4 (.\cf7 borderless\cf4 )\
+                    .\cf7 accessibilityLabel\cf4 (\cf11 "Dokument anzeigen"\cf4 )\
+\
+                    \cf6 Button\cf4 (\cf6 role\cf4 : .\cf7 destructive\cf4 ) \{\
+                        \cf10 entfernenAktion\cf4 ()\
+                    \} \cf7 label\cf4 : \{\
+                        \cf6 Image\cf4 (\cf6 systemName\cf4 : \cf11 "trash"\cf4 )\
+                    \}\
+                    .\cf7 buttonStyle\cf4 (.\cf7 borderless\cf4 )\
+                    .\cf7 accessibilityLabel\cf4 (\cf10 entfernenTitel\cf4 )\
+                \}\
+                .\cf7 padding\cf4 (\cf12 12\cf4 )\
+                .\cf7 background\cf4 (\cf6 Color\cf4 .\cf7 white\cf4 .\cf7 opacity\cf4 (\cf12 0.82\cf4 ))\
+                .\cf7 clipShape\cf4 (\cf6 RoundedRectangle\cf4 (\cf6 cornerRadius\cf4 : \cf12 12\cf4 , \cf6 style\cf4 : .\cf7 continuous\cf4 ))\
+\
+                \cf6 Divider\cf4 ()\
+\
+                \cf6 Toggle\cf4 (\cf11 "Erinnerung zur \'dcberpr\'fcfung"\cf4 , \cf6 isOn\cf4 : \cf10 $erinnerungAktiv\cf4 )\
+                    .\cf7 tint\cf4 (\cf10 accentColor\cf4 )\
+\
+                
+\f0\b \cf2 if
+\f1\b0 \cf4  \cf10 erinnerungAktiv\cf4  \{\
+                    \cf6 DatePicker\cf4 (\
+                        \cf11 "\'dcberpr\'fcfung am"\cf4 ,\
+                        \cf6 selection\cf4 : \cf10 $erinnerungDatum\cf4 ,\
+                        \cf6 displayedComponents\cf4 : .\cf7 date\cf4 \
+                    )\
+                    .\cf7 environment\cf4 (\\.\cf7 locale\cf4 , \cf6 Locale\cf4 (\cf6 identifier\cf4 : \cf11 "de_CH"\cf4 ))\
+                    .\cf7 tint\cf4 (\cf10 accentColor\cf4 )\
+                \}\
+            \} 
+\f0\b \cf2 else
+\f1\b0 \cf4  \{\
+                \cf6 Text\cf4 (\cf11 "Noch kein Dokument hochgeladen."\cf4 )\
+                    .\cf7 font\cf4 (.\cf7 footnote\cf4 )\
+                    .\cf7 foregroundStyle\cf4 (.\cf7 secondary\cf4 )\
+                    .\cf7 frame\cf4 (\cf7 maxWidth\cf4 : .\cf7 infinity\cf4 , \cf7 alignment\cf4 : .\cf7 center\cf4 )\
+            \}\
+        \}\
+        .\cf7 frame\cf4 (\cf7 maxWidth\cf4 : .\cf7 infinity\cf4 )\
+        .\cf7 padding\cf4 (.\cf7 vertical\cf4 , \cf12 8\cf4 )\
+    \}\
+\}\
+\
+\cf7 #Preview\cf4  \{\
+    \cf9 WuenscheView\cf4 ()\
+        .\cf7 modelContainer\cf4 (\cf7 for\cf4 : [\cf9 WuenscheModell\cf4 .
+\f0\b \cf2 self
+\f1\b0 \cf4 , \cf9 HinterbliebeneModell\cf4 .
+\f0\b \cf2 self
+\f1\b0 \cf4 ], \cf7 inMemory\cf4 : 
+\f0\b \cf2 true
+\f1\b0 \cf4 )\
+\}\
+\
+\
+\
+
+\f0\b \cf2 struct
+\f1\b0 \cf4  \cf5 WuenschePetEntry\cf4 : \cf6 Identifiable\cf4 , \cf6 Codable\cf4 , \cf6 Equatable\cf4  \{\
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 id\cf4  = \cf6 UUID\cf4 ()\
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 art\cf4 : \cf9 HaustierArt\cf4  = .\cf10 hund\cf4 \
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 name\cf4  = \cf11 ""\cf4 \
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 tierarzt\cf4  = \cf11 ""\cf4 \
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 bemerkungen\cf4  = \cf11 ""\cf4 \
+\
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 anzeigename\cf4 : \cf6 String\cf4  \{\
+        
+\f0\b \cf2 let
+\f1\b0 \cf4  bereinigterName = \cf10 name\cf4 .\cf7 trimmingCharacters\cf4 (\cf7 in\cf4 : .\cf7 whitespacesAndNewlines\cf4 )\
+        
+\f0\b \cf2 return
+\f1\b0 \cf4  bereinigterName.\cf7 isEmpty\cf4  ? \cf11 "Unbenanntes Haustier"\cf4  : bereinigterName\
+    \}\
+\}\
+\
+
+\f0\b \cf2 enum
+\f1\b0 \cf4  \cf5 HaustierArt\cf4 : \cf6 String\cf4 , \cf6 CaseIterable\cf4 , \cf6 Identifiable\cf4 , \cf6 Codable\cf4  \{\
+    
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf8 hund\cf4  = \cf11 "Hund"\cf4 \
+    
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf8 katze\cf4  = \cf11 "Katze"\cf4 \
+    
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf8 pferd\cf4  = \cf11 "Pferd"\cf4 \
+    
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf8 vogel\cf4  = \cf11 "Vogel"\cf4 \
+    
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf8 kaninchen\cf4  = \cf11 "Kaninchen"\cf4 \
+    
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf8 meerschweinchen\cf4  = \cf11 "Meerschweinchen"\cf4 \
+    
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf8 hamster\cf4  = \cf11 "Hamster"\cf4 \
+    
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf8 reptil\cf4  = \cf11 "Reptil"\cf4 \
+    
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf8 fisch\cf4  = \cf11 "Fisch"\cf4 \
+    
+\f0\b \cf2 case
+\f1\b0 \cf4  \cf8 anderes\cf4  = \cf11 "Anderes"\cf4 \
+\
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 id\cf4 : \cf6 String\cf4  \{ rawValue \}\
+\}\
+\
+
+\f0\b \cf2 struct
+\f1\b0 \cf4  \cf5 HaustierErfassungView\cf4 : \cf6 View\cf4  \{\
+    \cf6 @Environment\cf4 (\\.\cf7 dismiss\cf4 ) 
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 dismiss\cf4 \
+\
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 art\cf4 : \cf9 HaustierArt\cf4  = .\cf10 hund\cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 name\cf4  = \cf11 ""\cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 tierarzt\cf4  = \cf11 ""\cf4 \
+    \cf6 @State\cf4  
+\f0\b \cf2 private
+\f1\b0 \cf4  
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 bemerkungen\cf4  = \cf11 ""\cf4 \
+\
+    
+\f0\b \cf2 let
+\f1\b0 \cf4  \cf8 onSave\cf4 : (\cf9 WuenschePetEntry\cf4 ) -> \cf6 Void\cf4 \
+\
+    
+\f0\b \cf2 var
+\f1\b0 \cf4  \cf8 body\cf4 : 
+\f0\b \cf2 some
+\f1\b0 \cf4  \cf6 View\cf4  \{\
+        \cf6 NavigationStack\cf4  \{\
+            \cf6 Form\cf4  \{\
+                \cf6 Picker\cf4 (\cf11 "Art"\cf4 , \cf6 selection\cf4 : \cf10 $art\cf4 ) \{\
+                    \cf6 ForEach\cf4 (\cf9 HaustierArt\cf4 .\cf7 allCases\cf4 ) \{ art 
+\f0\b \cf2 in
+\f1\b0 \cf4 \
+                        \cf6 Text\cf4 (art.rawValue).\cf7 tag\cf4 (art)\
+                    \}\
+                \}\
+\
+                \cf6 TextField\cf4 (\cf11 "Name"\cf4 , \cf6 text\cf4 : \cf10 $name\cf4 )\
+                \cf6 TextField\cf4 (\cf11 "Tierarzt"\cf4 , \cf6 text\cf4 : \cf10 $tierarzt\cf4 )\
+                \cf6 TextField\cf4 (\cf11 "Bemerkungen"\cf4 , \cf6 text\cf4 : \cf10 $bemerkungen\cf4 , \cf6 axis\cf4 : .\cf7 vertical\cf4 )\
+                    .\cf7 lineLimit\cf4 (\cf12 2\cf4 ...\cf12 6\cf4 )\
+            \}\
+            .\cf7 scrollContentBackground\cf4 (.\cf7 hidden\cf4 )\
+            .\cf7 background\cf4 (\cf6 Color\cf4 (\cf6 red\cf4 : \cf12 0.985\cf4 , \cf6 green\cf4 : \cf12 0.975\cf4 , \cf6 blue\cf4 : \cf12 0.955\cf4 ))\
+            .\cf7 navigationTitle\cf4 (\cf11 "Haustier erfassen"\cf4 )\
+            .\cf7 tint\cf4 (\cf6 Color\cf4 (\cf6 red\cf4 : \cf12 0.72\cf4 , \cf6 green\cf4 : \cf12 0.42\cf4 , \cf6 blue\cf4 : \cf12 0.28\cf4 ))\
+            .\cf7 toolbar\cf4  \{\
+                \cf6 ToolbarItem\cf4 (\cf6 placement\cf4 : .\cf7 cancellationAction\cf4 ) \{\
+                    \cf6 Button\cf4 (\cf11 "Abbrechen"\cf4 ) \{\
+                        \cf10 dismiss\cf4 ()\
+                    \}\
+                \}\
+\
+                \cf6 ToolbarItem\cf4 (\cf6 placement\cf4 : .\cf7 confirmationAction\cf4 ) \{\
+                    \cf6 Button\cf4 (\cf11 "Speichern"\cf4 ) \{\
+                        \cf10 onSave\cf4 (\
+                            \cf9 WuenschePetEntry\cf4 (\
+                                \cf9 art\cf4 : \cf10 art\cf4 ,\
+                                \cf9 name\cf4 : \cf10 name\cf4 ,\
+                                \cf9 tierarzt\cf4 : \cf10 tierarzt\cf4 ,\
+                                \cf9 bemerkungen\cf4 : \cf10 bemerkungen\cf4 \
+                            )\
+                        )\
+                        \cf10 dismiss\cf4 ()\
+                    \}\
+                    .\cf7 disabled\cf4 (\cf10 name\cf4 .\cf7 trimmingCharacters\cf4 (\cf7 in\cf4 : .\cf7 whitespacesAndNewlines\cf4 ).\cf7 isEmpty\cf4 )\
+                \}\
+            \}\
+        \}\
+    \}\
+\}\
+}

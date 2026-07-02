@@ -13,6 +13,7 @@ struct WuenscheView: View {
     @State private var wuenscheGeladen = false
     @State private var kontakteGeladen = false
     @State private var hatBesondereWuensche = true
+    @State private var ausgewaehlteThemen: Set<WuenscheThema> = []
 
     @State private var bestattungsart: Bestattungsart = .kremation
     @State private var bestattungswuensche = ""
@@ -181,17 +182,10 @@ struct WuenscheView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 18) {
-                    hauptToggleSection
+                    wuenscheHeroSection
 
-                    if hatBesondereWuensche {
-                        beisetzungSection
-                        beisetzungsWuenscheSection
-                        kontakteSection
-                        haustiereSection
-                        nachlassSection
-                        patientenverfuegungSection
-                        vorsorgeauftragSection
-                        sterbebegleitungSection
+                    if !ausgewaehlteThemen.isEmpty {
+                        ausgewaehlteThemenListe
                     }
                 }
                 .padding(.horizontal, 18)
@@ -258,8 +252,159 @@ struct WuenscheView: View {
         }
     }
 
+    private var wuenscheHeroSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "heart.text.square.fill")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 42, height: 42)
+                    .background(Circle().fill(wuenscheAccentColor))
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Meine Wünsche")
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(.black)
+
+                    Text("Ich habe besondere Wünsche und möchte, dass diese respektiert werden.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 14) {
+                chipGruppe(
+                    titel: "Persönliche Wünsche",
+                    themen: [.beisetzung, .zeremonie, .musik, .letzteWorte, .nachruf]
+                )
+
+                chipGruppe(
+                    titel: "Dokumente & Verantwortung",
+                    themen: [.testament, .patientenverfuegung, .vorsorgeauftrag, .sterbebegleitung]
+                )
+
+                chipGruppe(
+                    titel: "Weiteres",
+                    themen: [.kontakte, .haustiere]
+                )
+            }
+
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(wuenscheCardColor)
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(Color.white.opacity(0.68), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.055), radius: 14, x: 0, y: 7)
+    }
+
+
+    @ViewBuilder
+    private var ausgewaehlteThemenListe: some View {
+        ForEach(WuenscheThema.allCases) { thema in
+            if ausgewaehlteThemen.contains(thema) {
+                sectionFuerThema(thema)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func sectionFuerThema(_ thema: WuenscheThema) -> some View {
+        switch thema {
+        case .beisetzung:
+            beisetzungSection
+        case .zeremonie:
+            zeremonieSection
+        case .musik:
+            musikSection
+        case .letzteWorte:
+            letzteWorteSection
+        case .nachruf:
+            nachrufSection
+        case .kontakte:
+            kontakteSection
+        case .haustiere:
+            haustiereSection
+        case .testament:
+            testamentSection
+        case .patientenverfuegung:
+            patientenverfuegungSection
+        case .vorsorgeauftrag:
+            vorsorgeauftragSection
+        case .sterbebegleitung:
+            sterbebegleitungSection
+        }
+    }
+
+    private func chipGruppe(titel: String, themen: [WuenscheThema]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(titel)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 2)
+
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 135), spacing: 10)],
+                alignment: .leading,
+                spacing: 10
+            ) {
+                ForEach(themen, id: \.self) { thema in
+                    themaChip(thema)
+                }
+            }
+        }
+    }
+
+    private func themaChip(_ thema: WuenscheThema) -> some View {
+        let istAusgewaehlt = ausgewaehlteThemen.contains(thema)
+
+        return Button {
+            withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
+                if istAusgewaehlt {
+                    ausgewaehlteThemen.remove(thema)
+                } else {
+                    ausgewaehlteThemen.insert(thema)
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: istAusgewaehlt ? "checkmark.circle.fill" : thema.systemImage)
+                    .font(.footnote.weight(.semibold))
+
+                Text(thema.titel)
+                    .font(.footnote.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(thema == .kontakte ? 0.92 : 0.82)
+                    .allowsTightening(true)
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+            .foregroundStyle(istAusgewaehlt ? .white : wuenscheAccentColor)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 11)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(istAusgewaehlt ? wuenscheAccentColor : Color.white.opacity(0.82))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(wuenscheAccentColor.opacity(istAusgewaehlt ? 0 : 0.18), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func themaEntfernen(_ thema: WuenscheThema) {
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
+            _ = ausgewaehlteThemen.remove(thema)
+        }
+    }
+
     private var haustiereSection: some View {
-        styleGuideSection(titel: "Haustiere", systemImage: "pawprint.fill") {
+        styleGuideSection(titel: "Haustiere", systemImage: "pawprint.fill", entfernenAktion: { themaEntfernen(.haustiere) }) {
             Toggle("Ich habe Haustiere", isOn: $hatHaustiere)
                 .tint(wuenscheAccentColor)
 
@@ -319,15 +464,10 @@ struct WuenscheView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
-    private var hauptToggleSection: some View {
-        styleGuideSection(titel: "Meine Wünsche", systemImage: "heart.text.square.fill") {
-            Toggle("Ich habe besondere Wünsche nach meinem Tod", isOn: $hatBesondereWuensche)
-                .tint(wuenscheAccentColor)
-        }
-    }
+
 
     private var beisetzungSection: some View {
-        styleGuideSection(titel: "Meine Beisetzung", systemImage: "leaf.fill") {
+        styleGuideSection(titel: "Meine Beisetzung", systemImage: "leaf.fill", entfernenAktion: { themaEntfernen(.beisetzung) }) {
             styledTextField("Bestattungswünsche", text: $bestattungswuensche, axis: .vertical, lineLimit: 3...8)
 
             Picker("Bestattungsart", selection: $bestattungsart) {
@@ -350,16 +490,19 @@ struct WuenscheView: View {
         }
     }
 
-    private var beisetzungsWuenscheSection: some View {
-        styleGuideSection(titel: "Wünsche zur Beisetzung", systemImage: "sparkles") {
-            Toggle("Keine Blumengeschenke, bitte spendet das Geld lieber", isOn: $keineBlumengeschenkeBitte)
-                .tint(wuenscheAccentColor)
+    private var zeremonieSection: some View {
+        styleGuideSection(titel: "Zeremonie", systemImage: "sparkles", entfernenAktion: { themaEntfernen(.zeremonie) }) {
             Toggle("Zeremonie", isOn: $zeremonie)
                 .tint(wuenscheAccentColor)
 
             if zeremonie {
                 DetailBox(accentColor: wuenscheAccentColor) {
                     styledTextField("Wie soll die Zeremonie gestaltet sein?", text: $zeremonieText, axis: .vertical, lineLimit: 2...6)
+
+                    Divider()
+
+                    Toggle("Keine Blumengeschenke, bitte spendet das Geld lieber", isOn: $keineBlumengeschenkeBitte)
+                        .tint(wuenscheAccentColor)
 
                     Divider()
 
@@ -387,7 +530,11 @@ struct WuenscheView: View {
                     .buttonStyle(.plain)
                 }
             }
+        }
+    }
 
+    private var musikSection: some View {
+        styleGuideSection(titel: "Musik", systemImage: "music.note", entfernenAktion: { themaEntfernen(.musik) }) {
             Toggle("Besondere Musik", isOn: $besondereMusik)
                 .tint(wuenscheAccentColor)
 
@@ -396,7 +543,11 @@ struct WuenscheView: View {
                     styledTextField("Welche Musik soll gespielt werden?", text: $besondereMusikText, axis: .vertical, lineLimit: 2...6)
                 }
             }
+        }
+    }
 
+    private var letzteWorteSection: some View {
+        styleGuideSection(titel: "Letzte Worte", systemImage: "video.fill", entfernenAktion: { themaEntfernen(.letzteWorte) }) {
             Toggle("Persönliche Botschaft", isOn: $moechteNochWasSagen)
                 .tint(wuenscheAccentColor)
 
@@ -443,13 +594,11 @@ struct WuenscheView: View {
                     .padding(.vertical, 8)
                 }
             }
-
-            nachrufBlock
         }
     }
 
-    private var nachrufBlock: some View {
-        Group {
+    private var nachrufSection: some View {
+        styleGuideSection(titel: "Nachruf", systemImage: "newspaper.fill", entfernenAktion: { themaEntfernen(.nachruf) }) {
             Toggle("Ich habe eine Vorstellung, wie der Nachruf sein soll", isOn: $nachrufVorstellung)
                 .tint(wuenscheAccentColor)
 
@@ -502,7 +651,7 @@ struct WuenscheView: View {
     }
 
     private var kontakteSection: some View {
-        styleGuideSection(titel: "Personen informieren / einladen", systemImage: "person.2.fill") {
+        styleGuideSection(titel: "Personen informieren / einladen", systemImage: "person.2.fill", entfernenAktion: { themaEntfernen(.kontakte) }) {
             if kontakte.isEmpty {
                 leerText("Noch keine Kontakte erfasst.")
             }
@@ -542,8 +691,8 @@ struct WuenscheView: View {
         }
     }
 
-    private var nachlassSection: some View {
-        styleGuideSection(titel: "Nachlass", systemImage: "doc.text.fill") {
+    private var testamentSection: some View {
+        styleGuideSection(titel: "Testament", systemImage: "doc.text.fill", entfernenAktion: { themaEntfernen(.testament) }) {
             Toggle("Ich habe ein Testament", isOn: $hatTestament)
                 .tint(wuenscheAccentColor)
 
@@ -585,7 +734,7 @@ struct WuenscheView: View {
     }
 
     private var patientenverfuegungSection: some View {
-        styleGuideSection(titel: "Patientenverfügung", systemImage: "cross.case.fill") {
+        styleGuideSection(titel: "Patientenverfügung", systemImage: "cross.case.fill", entfernenAktion: { themaEntfernen(.patientenverfuegung) }) {
             Toggle("Ich habe eine Patientenverfügung", isOn: $hatPatientenverfuegung)
                 .tint(wuenscheAccentColor)
 
@@ -616,7 +765,7 @@ struct WuenscheView: View {
     }
 
     private var vorsorgeauftragSection: some View {
-        styleGuideSection(titel: "Vorsorgeauftrag", systemImage: "checkmark.shield.fill") {
+        styleGuideSection(titel: "Vorsorgeauftrag", systemImage: "checkmark.shield.fill", entfernenAktion: { themaEntfernen(.vorsorgeauftrag) }) {
             Toggle("Ich habe einen Vorsorgeauftrag", isOn: $hatVorsorgeauftrag)
                 .tint(wuenscheAccentColor)
 
@@ -647,7 +796,7 @@ struct WuenscheView: View {
     }
 
     private var sterbebegleitungSection: some View {
-        styleGuideSection(titel: "Sterbebegleitung", systemImage: "hands.sparkles.fill") {
+        styleGuideSection(titel: "Sterbebegleitung", systemImage: "hands.sparkles.fill", entfernenAktion: { themaEntfernen(.sterbebegleitung) }) {
             Toggle("Ich bin offen für eine Sterbebegleitung", isOn: $offenFuerSterbebegleitung)
                 .tint(wuenscheAccentColor)
 
@@ -708,7 +857,7 @@ struct WuenscheView: View {
         guard !wuenscheGeladen else { return }
 
         if let vorhandeneWuensche = gespeicherteWuensche.first {
-            hatBesondereWuensche = vorhandeneWuensche.hatWuensche
+            hatBesondereWuensche = true
             bestattungsart = Bestattungsart(rawValue: vorhandeneWuensche.beisetzungsArt) ?? .kremation
             bestattungswuensche = vorhandeneWuensche.beisetzungHinweis
             sonstigeBemerkungen = vorhandeneWuensche.sonstigeBemerkungen
@@ -804,7 +953,7 @@ struct WuenscheView: View {
             wuensche = neueWuensche
         }
 
-        wuensche.hatWuensche = hatBesondereWuensche
+        wuensche.hatWuensche = true
         wuensche.beisetzungsArt = bestattungsart.rawValue
 
         switch bestattungsart {
@@ -1120,7 +1269,7 @@ struct WuenscheView: View {
     }
 
     @ViewBuilder
-    private func styleGuideSection<Content: View>(titel: String, systemImage: String, @ViewBuilder content: () -> Content) -> some View {
+    private func styleGuideSection<Content: View>(titel: String, systemImage: String, entfernenAktion: (() -> Void)? = nil, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 10) {
                 Image(systemName: systemImage)
@@ -1134,6 +1283,20 @@ struct WuenscheView: View {
                     .foregroundStyle(.black)
 
                 Spacer()
+
+                if let entfernenAktion {
+                    Button {
+                        entfernenAktion()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.white.opacity(0.92))
+                            .frame(width: 24, height: 24)
+                            .background(Circle().fill(wuenscheAccentColor.opacity(0.72)))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Thema entfernen")
+                }
             }
 
             VStack(alignment: .leading, spacing: 12) {
@@ -1413,6 +1576,76 @@ struct WuenscheView: View {
 
     private func erinnerungsDatumInEinemJahr() -> Date {
         Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
+    }
+}
+
+enum WuenscheThema: String, CaseIterable, Identifiable, Hashable {
+    case beisetzung
+    case zeremonie
+    case musik
+    case letzteWorte
+    case nachruf
+    case kontakte
+    case haustiere
+    case testament
+    case patientenverfuegung
+    case vorsorgeauftrag
+    case sterbebegleitung
+
+    var id: String { rawValue }
+
+    var titel: String {
+        switch self {
+        case .beisetzung:
+            return "Beisetzung"
+        case .zeremonie:
+            return "Zeremonie"
+        case .musik:
+            return "Musik"
+        case .letzteWorte:
+            return "Letzte Worte"
+        case .nachruf:
+            return "Nachruf"
+        case .kontakte:
+            return "Personen informieren"
+        case .haustiere:
+            return "Haustiere"
+        case .testament:
+            return "Testament"
+        case .patientenverfuegung:
+            return "Patientenverfügung"
+        case .vorsorgeauftrag:
+            return "Vorsorgeauftrag"
+        case .sterbebegleitung:
+            return "Sterbebegleitung"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .beisetzung:
+            return "leaf.fill"
+        case .zeremonie:
+            return "sparkles"
+        case .musik:
+            return "music.note"
+        case .letzteWorte:
+            return "video.fill"
+        case .nachruf:
+            return "newspaper.fill"
+        case .kontakte:
+            return "person.2.fill"
+        case .haustiere:
+            return "pawprint.fill"
+        case .testament:
+            return "doc.text.fill"
+        case .patientenverfuegung:
+            return "cross.case.fill"
+        case .vorsorgeauftrag:
+            return "checkmark.shield.fill"
+        case .sterbebegleitung:
+            return "hands.sparkles.fill"
+        }
     }
 }
 
