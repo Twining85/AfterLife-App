@@ -5,6 +5,7 @@ import QuickLook
 import PhotosUI
 import UIKit
 import PDFKit
+import VisionKit
 
 struct DokumenteView: View {
     @Environment(\.modelContext) private var modelContext
@@ -20,6 +21,7 @@ struct DokumenteView: View {
     @State private var showDocumentPicker = false
     @State private var selectedDocument: UploadedDocument?
     @State private var exportURL: URL?
+    @State private var showDocumentScanner = false
 
     private let dokumenteHintergrundFarbe = Color(red: 0.985, green: 0.975, blue: 0.955)
     private let dokumenteKartenFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
@@ -69,6 +71,18 @@ struct DokumenteView: View {
                             modelContext.insert(dokument)
                         }
                     }
+                    try? modelContext.save()
+                }
+            }
+            .sheet(isPresented: $showDocumentScanner) {
+                DocumentScanner { pdfData in
+                    let dokument = DokumenteModell(
+                        dateiName: "Scan_\(Date().formatted(.dateTime.year().month().day().hour().minute())).pdf",
+                        kategorie: "Weitere Dokumente",
+                        hochgeladenAm: Date(),
+                        dateiDaten: pdfData
+                    )
+                    modelContext.insert(dokument)
                     try? modelContext.save()
                 }
             }
@@ -131,82 +145,114 @@ struct DokumenteView: View {
 
     private var fotoalbumSection: some View {
         Section {
-            if gespeicherteFotos.isEmpty {
-                Text("Noch keine Fotos zugeordnet.")
-                    .foregroundStyle(.secondary)
-            } else {
-                fotoalbumInhalt
-            }
-        } header: {
-            HStack {
+            VStack(alignment: .leading, spacing: 12) {
                 Text("Mein persönliches Fotoalbum")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
 
-                Spacer()
+                Text("Lade hier Fotos hoch, die für deine Vertrauenspersonen wichtig oder besonders wertvoll sind.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .textCase(nil)
+
+                if !gespeicherteFotos.isEmpty {
+                    fotoalbumInhalt
+                }
 
                 PhotosPicker(
                     selection: $selectedPhotoItems,
                     maxSelectionCount: 20,
                     matching: .images
                 ) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title3)
+                    Label("Bild für Fotoalbum hochladen", systemImage: "photo.on.rectangle.angled")
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(dokumenteAkzentFarbe)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(dokumenteAkzentFarbe.opacity(0.10))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
+            .padding(14)
+            .background(Color.white.opacity(0.65))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(dokumenteAkzentFarbe.opacity(0.12), lineWidth: 1)
+            }
         }
-        .listRowBackground(dokumenteKartenFarbe)
+        .listRowBackground(Color.clear)
     }
 
     private var weitereDokumenteSection: some View {
         Section {
-            if weitereDokumente.isEmpty {
-                Text("Noch keine Dokumente vorhanden.")
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(Array(weitereDokumente.enumerated()), id: \.element.id) { index, document in
-                    readOnlyDocumentRow(document) {
-                        if let previewURL = previewURL(for: document) {
-                            selectedDocument = UploadedDocument(
-                                fileName: document.fileName,
-                                uploadDate: document.uploadDate ?? Date(),
-                                fileURL: previewURL
-                            )
-                        }
-                    }
-                }
-                .onDelete { indexSet in
-                    for index in indexSet {
-                        let dokument = gespeicherteWeitereDokumente[index]
-                        modelContext.delete(dokument)
-                    }
-                    try? modelContext.save()
-                }
-            }
-        } header: {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text("Weitere Dokumente hochladen")
-
-                    Spacer()
-
-                    Button {
-                        showDocumentPicker = true
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(dokumenteAkzentFarbe)
-                    }
-                    .buttonStyle(.plain)
-                }
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Weitere Dokumente hochladen")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
 
                 Text("Lade weitere Dokumente hoch, zum Beispiel Ehevertrag, Vollmachten für Konten oder Post, Wohnsitzbestätigung oder ähnliche Unterlagen.")
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
                     .textCase(nil)
+
+                Button {
+                    showDocumentPicker = true
+                } label: {
+                    Label("Hinzufügen", systemImage: "doc.badge.arrow.up")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(dokumenteAkzentFarbe)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(dokumenteAkzentFarbe.opacity(0.10))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    showDocumentScanner = true
+                } label: {
+                    Label("Scannen", systemImage: "doc.viewfinder")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(dokumenteAkzentFarbe)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(dokumenteAkzentFarbe.opacity(0.10))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(.plain)
+
+                if !weitereDokumente.isEmpty {
+                    ForEach(Array(weitereDokumente.enumerated()), id: \.element.id) { index, document in
+                        readOnlyDocumentRow(document) {
+                            if let previewURL = previewURL(for: document) {
+                                selectedDocument = UploadedDocument(
+                                    fileName: document.fileName,
+                                    uploadDate: document.uploadDate ?? Date(),
+                                    fileURL: previewURL
+                                )
+                            }
+                        }
+                    }
+                    .onDelete { indexSet in
+                        for index in indexSet {
+                            let dokument = gespeicherteWeitereDokumente[index]
+                            modelContext.delete(dokument)
+                        }
+                        try? modelContext.save()
+                    }
+                }
+            }
+            .padding(14)
+            .background(Color.white.opacity(0.65))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(dokumenteAkzentFarbe.opacity(0.12), lineWidth: 1)
             }
         }
-        .listRowBackground(dokumenteKartenFarbe)
+        .listRowBackground(Color.clear)
     }
 
     private var fotoalbumInhalt: some View {
@@ -339,6 +385,7 @@ struct DokumenteView: View {
         }
         .buttonStyle(.plain)
     }
+
 
     private var alleExportierbarenDokumente: [ReadOnlyDocument] {
         wuenscheDokumente + finanzDokumente + weitereDokumente
@@ -861,6 +908,61 @@ struct DocumentPicker: UIViewControllerRepresentable {
 
         func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
             onDocumentsPicked(urls)
+        }
+    }
+}
+
+struct DocumentScanner: UIViewControllerRepresentable {
+    var onScanCompleted: (Data) -> Void
+
+    func makeUIViewController(context: Context) -> VNDocumentCameraViewController {
+        let scanner = VNDocumentCameraViewController()
+        scanner.delegate = context.coordinator
+        return scanner
+    }
+
+    func updateUIViewController(_ uiViewController: VNDocumentCameraViewController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onScanCompleted: onScanCompleted)
+    }
+
+    final class Coordinator: NSObject, VNDocumentCameraViewControllerDelegate {
+        var onScanCompleted: (Data) -> Void
+
+        init(onScanCompleted: @escaping (Data) -> Void) {
+            self.onScanCompleted = onScanCompleted
+        }
+
+        func documentCameraViewController(
+            _ controller: VNDocumentCameraViewController,
+            didFinishWith scan: VNDocumentCameraScan
+        ) {
+            let pdfDocument = PDFDocument()
+
+            for index in 0..<scan.pageCount {
+                let image = scan.imageOfPage(at: index)
+                if let pdfPage = PDFPage(image: image) {
+                    pdfDocument.insert(pdfPage, at: index)
+                }
+            }
+
+            if let pdfData = pdfDocument.dataRepresentation() {
+                onScanCompleted(pdfData)
+            }
+
+            controller.dismiss(animated: true)
+        }
+
+        func documentCameraViewControllerDidCancel(_ controller: VNDocumentCameraViewController) {
+            controller.dismiss(animated: true)
+        }
+
+        func documentCameraViewController(
+            _ controller: VNDocumentCameraViewController,
+            didFailWithError error: Error
+        ) {
+            controller.dismiss(animated: true)
         }
     }
 }
