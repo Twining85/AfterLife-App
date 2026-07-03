@@ -373,15 +373,12 @@ struct WuenscheView: View {
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 2)
 
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 135), spacing: 10)],
-                alignment: .leading,
-                spacing: 10
-            ) {
+            WuenscheChipFlowLayout(spacing: 10, rowSpacing: 10) {
                 ForEach(themen, id: \.self) { thema in
                     themaChip(thema)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -408,7 +405,7 @@ struct WuenscheView: View {
                     .minimumScaleFactor(thema == .kontakte ? 0.92 : 0.82)
                     .allowsTightening(true)
             }
-            .frame(maxWidth: .infinity, alignment: .center)
+            .fixedSize(horizontal: true, vertical: false)
             .foregroundStyle(istAusgewaehlt ? .white : wuenscheAccentColor)
             .padding(.horizontal, 12)
             .padding(.vertical, 11)
@@ -1760,6 +1757,79 @@ struct WuenscheView: View {
 
     private func erinnerungsDatumInEinemJahr() -> Date {
         Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
+    }
+}
+
+struct WuenscheChipFlowLayout: Layout {
+    var spacing: CGFloat = 10
+    var rowSpacing: CGFloat = 10
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGSize {
+        let maxWidth = max(1, proposal.width ?? 320)
+        var currentX: CGFloat = 0
+        var currentY: CGFloat = 0
+        var currentRowHeight: CGFloat = 0
+        var usedWidth: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            let proposedX = currentX == 0 ? size.width : currentX + spacing + size.width
+
+            if currentX > 0 && proposedX > maxWidth {
+                currentY += currentRowHeight + rowSpacing
+                currentX = 0
+                currentRowHeight = 0
+            }
+
+            if currentX > 0 {
+                currentX += spacing
+            }
+
+            currentX += size.width
+            currentRowHeight = max(currentRowHeight, size.height)
+            usedWidth = max(usedWidth, currentX)
+        }
+
+        return CGSize(width: min(usedWidth, maxWidth), height: currentY + currentRowHeight)
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        let maxWidth = max(1, bounds.width)
+        var currentX: CGFloat = bounds.minX
+        var currentY: CGFloat = bounds.minY
+        var currentRowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            let proposedX = currentX == bounds.minX ? size.width : currentX - bounds.minX + spacing + size.width
+
+            if currentX > bounds.minX && proposedX > maxWidth {
+                currentY += currentRowHeight + rowSpacing
+                currentX = bounds.minX
+                currentRowHeight = 0
+            }
+
+            if currentX > bounds.minX {
+                currentX += spacing
+            }
+
+            subview.place(
+                at: CGPoint(x: currentX, y: currentY),
+                proposal: ProposedViewSize(width: size.width, height: size.height)
+            )
+
+            currentX += size.width
+            currentRowHeight = max(currentRowHeight, size.height)
+        }
     }
 }
 
