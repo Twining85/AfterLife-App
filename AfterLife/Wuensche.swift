@@ -67,7 +67,6 @@ struct WuenscheView: View {
     @State private var testamentHochgeladenAm: Date?
     @State private var testamentErinnerungAktiv = true
     @State private var testamentErinnerungDatum = Date()
-
     @State private var hatPatientenverfuegung = false
     @State private var patientenverfuegungDateiName: String?
     @State private var patientenverfuegungDateiURL: URL?
@@ -205,6 +204,7 @@ struct WuenscheView: View {
                 KontaktPicker { kontakt in
                     kontakte.append(kontakt)
                     kontaktPickerAnzeigen = false
+                    synchronisiereKontakteMitHinterbliebenen()
                 }
             }
             .sheet(isPresented: $haustierPopupAnzeigen) {
@@ -1156,6 +1156,7 @@ struct WuenscheView: View {
         speichereWuenscheVerzoegert()
     }
 
+    
     private func bindingFuerKontakt(id: UUID) -> Binding<BeisetzungsKontakt>? {
         guard kontakte.contains(where: { $0.id == id }) else { return nil }
 
@@ -1728,6 +1729,229 @@ struct WuenscheView: View {
     }
 }
 
+struct DetailBox<Content: View>: View {
+    var accentColor: Color = Color(red: 0.72, green: 0.42, blue: 0.28)
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            content
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct HaustierErfassungView: View {
+    let speichern: (WuenschePetEntry) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var haustier = WuenschePetEntry()
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Haustier") {
+                    Picker("Art", selection: $haustier.art) {
+                        ForEach(HaustierArt.allCases) { art in
+                            Text(art.rawValue).tag(art)
+                        }
+                    }
+
+                    TextField("Name", text: $haustier.name)
+                    TextField("Tierarzt", text: $haustier.tierarzt)
+
+                    TextField("Bemerkungen", text: $haustier.bemerkungen, axis: .vertical)
+                        .lineLimit(3...6)
+                }
+            }
+            .navigationTitle("Haustier erfassen")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") {
+                        dismiss()
+                    }
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Speichern") {
+                        speichern(haustier)
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct SwipeToDeleteRow<Content: View>: View {
+    var accentColor: Color
+    let deleteAction: () -> Void
+    let content: Content
+
+    @State private var offsetX: CGFloat = 0
+    @State private var istGeloescht = false
+
+    private let deleteThreshold: CGFloat = -86
+    private let maxOffset: CGFloat = -112
+
+    init(
+        accentColor: Color,
+        deleteAction: @escaping () -> Void,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.accentColor = accentColor
+        self.deleteAction = deleteAction
+        self.content = content()
+    }
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            content
+                .offset(x: offsetX)
+                .gesture(
+                    DragGesture(minimumDistance: 18, coordinateSpace: .local)
+                        .onChanged { value in
+                            guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                            offsetX = min(0, max(value.translation.width, maxOffset))
+                        }
+                        .onEnded { value in
+                            guard !istGeloescht else { return }
+
+                            if value.translation.width <= deleteThreshold {
+                                istGeloescht = true
+                                withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
+                                    offsetX = maxOffset
+                                }
+
+                                DispatchQueue.main.async {
+                                    deleteAction()
+                                }
+                            } else {
+                                withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
+                                    offsetX = 0
+                                }
+                            }
+                        }
+                )
+
+            if offsetX < -12 {
+                HStack {
+                    Spacer()
+
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.red.opacity(0.92))
+                        .frame(width: 58, height: 58)
+                        .overlay {
+                            Image(systemName: "trash.fill")
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(.white)
+                        }
+                        .padding(.trailing, 12)
+                }
+                .allowsHitTesting(false)
+                .transition(.opacity)
+                .zIndex(1)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityAction(named: "Löschen") {
+            guard !istGeloescht else { return }
+            istGeloescht = true
+            deleteAction()
+        }
+    }
+}
+
+struct DokumentUploadBox: View {
+    var accentColor: Color
+    var dateiName: String?
+    var hochgeladenAm: Date?
+    var timestampTitel: String
+    var uploadTitel: String
+    var entfernenTitel: String
+    @Binding var erinnerungAktiv: Bool
+    @Binding var erinnerungDatum: Date
+    let vorschauAktion: () -> Void
+    let uploadAktion: () -> Void
+    let entfernenAktion: () -> Void
+
+    private var datumText: String {
+        guard let hochgeladenAm else { return "" }
+        return hochgeladenAm.formatted(date: .abbreviated, time: .omitted)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let dateiName, !dateiName.isEmpty {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "doc.fill")
+                        .foregroundStyle(accentColor)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(dateiName)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(2)
+
+                        if !datumText.isEmpty {
+                            Text("\(timestampTitel): \(datumText)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Spacer()
+
+                    Button {
+                        vorschauAktion()
+                    } label: {
+                        Image(systemName: "eye.fill")
+                            .foregroundStyle(accentColor)
+                    }
+                    .buttonStyle(.plain)
+                }
+            } else {
+                Text("Noch kein Dokument hochgeladen.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 10) {
+                Button {
+                    uploadAktion()
+                } label: {
+                    Label(uploadTitel, systemImage: "doc.badge.plus")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(accentColor)
+
+                Spacer()
+
+                if dateiName != nil {
+                    Button(role: .destructive) {
+                        entfernenAktion()
+                    } label: {
+                        Label(entfernenTitel, systemImage: "trash")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderless)
+                }
+            }
+
+            Toggle("Erinnerung aktiv", isOn: $erinnerungAktiv)
+                .tint(accentColor)
+
+            if erinnerungAktiv {
+                DatePicker("Erinnerung", selection: $erinnerungDatum, displayedComponents: .date)
+                    .tint(accentColor)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 enum WuenscheThema: String, CaseIterable, Identifiable, Hashable {
     case beisetzung
     case zeremonie
@@ -1830,6 +2054,28 @@ enum SchwereErkrankung: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum HaustierArt: String, CaseIterable, Identifiable, Codable {
+    case hund = "Hund"
+    case katze = "Katze"
+    case pferd = "Pferd"
+    case andere = "Andere"
+
+    var id: String { rawValue }
+}
+
+struct WuenschePetEntry: Identifiable, Codable, Equatable {
+    var id = UUID()
+    var art: HaustierArt = .hund
+    var name = ""
+    var tierarzt = ""
+    var bemerkungen = ""
+
+    var anzeigename: String {
+        let bereinigterName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return bereinigterName.isEmpty ? "Unbenanntes Haustier" : bereinigterName
+    }
+}
+
 struct BeisetzungsKontakt: Identifiable, Codable, Equatable {
     var id = UUID()
     var vorname = ""
@@ -1915,9 +2161,11 @@ struct KontaktPicker: UIViewControllerRepresentable {
         }
 
         private func adresseAufteilen(_ adresse: CNPostalAddress) -> (strasse: String, hausnummer: String, plz: String, ort: String) {
-            let strassenKomponenten = adresse.street.components(separatedBy: " ").filter { !$0.isEmpty }
-            let hausnummer = strassenKomponenten.last?.rangeOfCharacter(from: .decimalDigits) != nil ? strassenKomponenten.last ?? "" : ""
-            let strasse = hausnummer.isEmpty ? adresse.street : strassenKomponenten.dropLast().joined(separator: " ")
+            let strassenText = adresse.street.trimmingCharacters(in: .whitespacesAndNewlines)
+            let komponenten = strassenText.components(separatedBy: " ").filter { !$0.isEmpty }
+
+            let hausnummer = komponenten.last?.rangeOfCharacter(from: .decimalDigits) != nil ? komponenten.last ?? "" : ""
+            let strasse = hausnummer.isEmpty ? strassenText : komponenten.dropLast().joined(separator: " ")
 
             return (
                 strasse: strasse,
@@ -1925,278 +2173,6 @@ struct KontaktPicker: UIViewControllerRepresentable {
                 plz: adresse.postalCode,
                 ort: adresse.city
             )
-        }
-    }
-}
-
-
-
-struct DetailBox<Content: View>: View {
-    var accentColor: Color = Color(red: 0.72, green: 0.42, blue: 0.28)
-    @ViewBuilder let content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            content
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-struct SwipeToDeleteRow<Content: View>: View {
-    var accentColor: Color
-    let deleteAction: () -> Void
-    @ViewBuilder let content: Content
-
-    @State private var offsetX: CGFloat = 0
-    @State private var istGeloescht = false
-
-    private let deleteThreshold: CGFloat = -86
-    private let maxOffset: CGFloat = -112
-
-    var body: some View {
-        ZStack(alignment: .trailing) {
-            content
-                .offset(x: offsetX)
-                .gesture(
-                    DragGesture(minimumDistance: 18, coordinateSpace: .local)
-                        .onChanged { value in
-                            guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                            offsetX = min(0, max(value.translation.width, maxOffset))
-                        }
-                        .onEnded { value in
-                            guard !istGeloescht else { return }
-
-                            if value.translation.width <= deleteThreshold {
-                                istGeloescht = true
-                                withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
-                                    offsetX = maxOffset
-                                }
-
-                                DispatchQueue.main.async {
-                                    deleteAction()
-                                }
-                            } else {
-                                withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
-                                    offsetX = 0
-                                }
-                            }
-                        }
-                )
-
-            if offsetX < -12 {
-                HStack {
-                    Spacer()
-
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.red.opacity(0.92))
-                        .frame(width: 58, height: 58)
-                        .overlay {
-                            Image(systemName: "trash.fill")
-                                .font(.subheadline.weight(.bold))
-                                .foregroundStyle(.white)
-                        }
-                        .padding(.trailing, 12)
-                }
-                .allowsHitTesting(false)
-                .transition(.opacity)
-                .zIndex(1)
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .accessibilityAction(named: "Löschen") {
-            guard !istGeloescht else { return }
-            istGeloescht = true
-            deleteAction()
-        }
-    }
-}
-
-struct DokumentUploadBox: View {
-    var accentColor: Color = Color(red: 0.72, green: 0.42, blue: 0.28)
-    let dateiName: String?
-    let hochgeladenAm: Date?
-    let timestampTitel: String
-    let uploadTitel: String
-    let entfernenTitel: String
-    @Binding var erinnerungAktiv: Bool
-    @Binding var erinnerungDatum: Date
-    let vorschauAktion: () -> Void
-    let uploadAktion: () -> Void
-    let entfernenAktion: () -> Void
-
-    var body: some View {
-        VStack(spacing: 14) {
-            Button {
-                uploadAktion()
-            } label: {
-                Image(systemName: "doc.badge.plus")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 42, height: 42)
-                    .background(Circle().fill(accentColor))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(uploadTitel)
-
-            if let dateiName {
-                HStack(spacing: 10) {
-                    Image(systemName: "doc.fill")
-                        .foregroundStyle(accentColor)
-
-                    Button {
-                        vorschauAktion()
-                    } label: {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(dateiName)
-                                .font(.footnote)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-
-                            if let hochgeladenAm {
-                                Text("\(timestampTitel) \(hochgeladenAm.formatted(date: .abbreviated, time: .shortened))")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Dokument Vorschau öffnen")
-
-                    Spacer()
-
-                    Button {
-                        vorschauAktion()
-                    } label: {
-                        Image(systemName: "eye.fill")
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel("Dokument anzeigen")
-
-                    Button(role: .destructive) {
-                        entfernenAktion()
-                    } label: {
-                        Image(systemName: "trash")
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel(entfernenTitel)
-                }
-                .padding(12)
-                .background(Color.white.opacity(0.82))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                Divider()
-
-                Toggle("Erinnerung zur Überprüfung", isOn: $erinnerungAktiv)
-                    .tint(accentColor)
-
-                if erinnerungAktiv {
-                    DatePicker(
-                        "Überprüfung am",
-                        selection: $erinnerungDatum,
-                        displayedComponents: .date
-                    )
-                    .environment(\.locale, Locale(identifier: "de_CH"))
-                    .tint(accentColor)
-                }
-            } else {
-                Text("Noch kein Dokument hochgeladen.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-    }
-}
-
-#Preview {
-    WuenscheView()
-        .modelContainer(for: [WuenscheModell.self, HinterbliebeneModell.self], inMemory: true)
-}
-
-
-
-struct WuenschePetEntry: Identifiable, Codable, Equatable {
-    var id = UUID()
-    var art: HaustierArt = .hund
-    var name = ""
-    var tierarzt = ""
-    var bemerkungen = ""
-
-    var anzeigename: String {
-        let bereinigterName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return bereinigterName.isEmpty ? "Unbenanntes Haustier" : bereinigterName
-    }
-}
-
-enum HaustierArt: String, CaseIterable, Identifiable, Codable {
-    case hund = "Hund"
-    case katze = "Katze"
-    case pferd = "Pferd"
-    case vogel = "Vogel"
-    case kaninchen = "Kaninchen"
-    case meerschweinchen = "Meerschweinchen"
-    case hamster = "Hamster"
-    case reptil = "Reptil"
-    case fisch = "Fisch"
-    case anderes = "Anderes"
-
-    var id: String { rawValue }
-}
-
-struct HaustierErfassungView: View {
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var art: HaustierArt = .hund
-    @State private var name = ""
-    @State private var tierarzt = ""
-    @State private var bemerkungen = ""
-
-    let onSave: (WuenschePetEntry) -> Void
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Picker("Art", selection: $art) {
-                    ForEach(HaustierArt.allCases) { art in
-                        Text(art.rawValue).tag(art)
-                    }
-                }
-
-                TextField("Name", text: $name)
-                TextField("Tierarzt", text: $tierarzt)
-                TextField("Bemerkungen", text: $bemerkungen, axis: .vertical)
-                    .lineLimit(2...6)
-            }
-            .scrollContentBackground(.hidden)
-            .background(Color(red: 0.985, green: 0.975, blue: 0.955))
-            .navigationTitle("Haustier erfassen")
-            .tint(Color(red: 0.72, green: 0.42, blue: 0.28))
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Abbrechen") {
-                        dismiss()
-                    }
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Speichern") {
-                        onSave(
-                            WuenschePetEntry(
-                                art: art,
-                                name: name,
-                                tierarzt: tierarzt,
-                                bemerkungen: bemerkungen
-                            )
-                        )
-                        dismiss()
-                    }
-                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
         }
     }
 }
