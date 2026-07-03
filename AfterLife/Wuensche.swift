@@ -777,7 +777,7 @@ struct WuenscheView: View {
             if kontakte.isEmpty {
                 leerText("Noch keine Kontakte erfasst.")
             }
-
+// MARK swipe funktio analog Finanzen später anpassen
             ForEach(kontakte) { kontakt in
                 if let kontaktBinding = bindingFuerKontakt(id: kontakt.id) {
                     SwipeToDeleteRow(

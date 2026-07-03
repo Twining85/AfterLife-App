@@ -5,12 +5,20 @@ struct AbosView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var gespeicherteAboModelle: [AboModell]
 
+    private let abosHintergrundFarbe = Color(red: 0.985, green: 0.975, blue: 0.955)
+    private let abosKartenFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
+    private let abosAkzentFarbe = Color(red: 0.46, green: 0.36, blue: 0.62)
+
     @State private var showAddAboSheet = false
     @State private var sheetID = UUID()
     @State private var selectedAboID: UUID?
     @State private var selectedAbo: AboEintrag?
     @State private var wurdeInitialisiert = false
     @State private var ausgeklappteAboSektionen: Set<String> = []
+    @State private var ausgewaehlteAboTypen: Set<AboType> = []
+    @State private var scrollZuAboEintragID: UUID?
+    @State private var aboTypDurchSectionVorgegeben = false
+    @State private var sectionAboType: AboType?
   
 
     @State private var selectedAboType: AboType = .pleaseSelect
@@ -39,65 +47,51 @@ struct AbosView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 28) {
-                Spacer()
+            VStack(spacing: 24) {
+                abosHero
+                    .padding(.horizontal, 16)
+                    .padding(.top, 20)
 
-                Button {
-                    showAddAboSheet = false
-                    selectedAboID = nil
-                    selectedAbo = nil
-                    resetInputFields()
+                abosTypChips
+                    .padding(.horizontal, 16)
 
-                    DispatchQueue.main.async {
-                        sheetID = UUID()
-                        showAddAboSheet = true
-                    }
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 82))
-                        .foregroundStyle(.black)
-                        .accessibilityLabel("Abo hinzufügen")
-                }
 
-                Text("Abo oder Profil hinzufügen")
-                    .font(.title3)
-                    .fontWeight(.semibold)
-
-                if aktuellesAboModell?.abos.isEmpty ?? true {
+                if (aktuellesAboModell?.abos.isEmpty ?? true) && ausgewaehlteAboTypen.isEmpty {
                     Text("Hier kannst du digitale Abonnemente, Online-Profile, Streamingdienste, ÖV-Abos o.ä erfassen.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
                 } else {
-                    List {
-                        ForEach(gruppierteAbos, id: \.typ) { gruppe in
-                            Section {
-                                if istSektionAusgeklappt(gruppe) {
-                                    ForEach(gruppe.abos) { abo in
-                                        aboKarte(abo)
-                                            .listRowSeparator(.hidden)
-                                            .listRowBackground(Color.clear)
-                                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                                Button(role: .destructive) {
-                                                    loescheAbo(abo)
-                                                } label: {
-                                                    Label("Löschen", systemImage: "trash")
-                                                }
-                                            }
-                                    }
+                    ScrollViewReader { scrollProxy in
+                        ScrollView {
+                            VStack(spacing: 16) {
+                                ForEach(gefilterteGruppierteAbos, id: \.typ) { gruppe in
+                                    aboSection(gruppe)
                                 }
-                            } header: {
-                                sektionHeader(gruppe)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 24)
+                        }
+                        .background(abosHintergrundFarbe)
+                        .onChange(of: scrollZuAboEintragID) { _, zielID in
+                            guard let zielID else { return }
+
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                                withAnimation(.easeInOut(duration: 0.25)) {
+                                    scrollProxy.scrollTo(zielID, anchor: .center)
+                                }
+                                scrollZuAboEintragID = nil
                             }
                         }
                     }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
                 }
 
                 Spacer()
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(abosHintergrundFarbe)
+            .tint(abosAkzentFarbe)
             .navigationTitle("Abos & Profile")
             .task {
                 ladeOderErstelleAboModellFallsNoetig()
@@ -105,15 +99,28 @@ struct AbosView: View {
             .sheet(isPresented: $showAddAboSheet) {
                 NavigationStack {
                     Form {
-                        Section("Typ") {
-                            styledPicker("Art des Abos bzw. Profils", selection: $selectedAboType) {
-                                ForEach(AboType.allCases) { type in
-                                    Text(type.rawValue).tag(type)
+                        if aboTypDurchSectionVorgegeben {
+                            Section("Bereich") {
+                                HStack(spacing: 10) {
+                                    Image(systemName: aktiverAboType.systemImage)
+                                        .foregroundStyle(abosAkzentFarbe)
+
+                                    Text(aktiverAboType.rawValue)
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(.primary)
+                                }
+                            }
+                        } else {
+                            Section("Typ") {
+                                styledPicker("Art des Abos bzw. Profils", selection: $selectedAboType) {
+                                    ForEach(AboType.allCases) { type in
+                                        Text(type.rawValue).tag(type)
+                                    }
                                 }
                             }
                         }
 
-                        if selectedAboType == .streaming {
+                        if aktiverAboType == .streaming {
                             Section("Streamingdienst") {
                                 styledPicker("Anbieter", selection: $selectedStreamingProvider) {
                                     ForEach(StreamingProvider.allCases) { provider in
@@ -127,7 +134,7 @@ struct AbosView: View {
                             }
                         }
 
-                        if selectedAboType == .socialMedia {
+                        if aktiverAboType == .socialMedia {
                             Section("Social Media") {
                                 styledPicker("Plattform", selection: $selectedSocialMediaProvider) {
                                     ForEach(SocialMediaProvider.allCases) { provider in
@@ -141,7 +148,7 @@ struct AbosView: View {
                             }
                         }
 
-                        if selectedAboType == .digitalIdentity {
+                        if aktiverAboType == .digitalIdentity {
                             Section("Digitale Identität") {
                                 styledPicker("Anbieter", selection: $selectedDigitalIdentityProvider) {
                                     ForEach(DigitalIdentityProvider.allCases) { provider in
@@ -155,7 +162,7 @@ struct AbosView: View {
                             }
                         }
 
-                        if selectedAboType == .emailAccount {
+                        if aktiverAboType == .emailAccount {
                             Section("E-Mail-Konto") {
                                 styledPicker("Anbieter", selection: $selectedEmailProvider) {
                                     ForEach(EmailProvider.allCases) { provider in
@@ -169,13 +176,13 @@ struct AbosView: View {
                             }
                         }
 
-                        if selectedAboType == .magazine {
+                        if aktiverAboType == .magazine {
                             Section("Zeitschrift") {
                                 labelledTextField("Name der Zeitschrift", text: $magazineName)
                             }
                         }
 
-                        if selectedAboType == .publicTransport {
+                        if aktiverAboType == .publicTransport {
                             Section("Öffentlicher Verkehr") {
                                 styledPicker("Art des Abos", selection: $publicTransportType) {
                                     ForEach(PublicTransportAboType.allCases) { type in
@@ -199,7 +206,7 @@ struct AbosView: View {
                             }
                         }
 
-                        if selectedAboType == .devices {
+                        if aktiverAboType == .devices {
                             Section("Meine Geräte") {
                                 styledPicker("Geräteart", selection: $selectedDeviceType) {
                                     ForEach(DeviceType.allCases) { type in
@@ -217,7 +224,7 @@ struct AbosView: View {
                             }
                         }
 
-                        if selectedAboType == .software {
+                        if aktiverAboType == .software {
                             Section("Um was handelt es sich?") {
                                 labelledTextField("Name App / Software", text: $softwareName)
                                 labelledTextField("Benutzername", text: $username)
@@ -226,14 +233,14 @@ struct AbosView: View {
                             }
                         }
 
-                        if selectedAboType == .fitness {
+                        if aktiverAboType == .fitness {
                             Section("Um was handelt es sich?") {
                                 labelledTextField("Aboart", text: $fitnessAboType)
                                 labelledTextField("Unternehmen", text: $fitnessCompany)
                             }
                         }
 
-                        if selectedAboType == .news {
+                        if aktiverAboType == .news {
                             Section("Um was handelt es sich?") {
                                 labelledTextField("Aboart", text: $onlineMagazineAboType)
                                 labelledTextField("Unternehmen", text: $onlineMagazineCompany)
@@ -242,26 +249,39 @@ struct AbosView: View {
                                 passwordField(title: "Passwort", text: $password)
                             }
                         }
-                        if selectedAboType == .membership {
+                        if aktiverAboType == .membership {
                             Section("Mitgliedschaft") {
                                 labelledTextField("Mitglied bei", text: $membershipAboType)
                                 labelledTextField("Kontakt", text: $membershipNumber)
                             }
                         }
+                        if aktiverAboType == .cloudStorage {
+                            Section("Cloud-Speicher") {
+                                labelledTextField("Dienst / Anbieter", text: $customAboName)
+                                labelledTextField("Benutzername / E-Mail", text: $username)
 
-                        if selectedAboType == .other {
+                                passwordField(title: "Passwort", text: $password)
+                            }
+                        }
+                        
+                        if aktiverAboType == .other {
                             Section("Anderes Abo") {
                                 labelledTextField("Name oder Beschreibung", text: $customAboName)
                             }
                         }
                     }
-                    .navigationTitle("Erfassen")
+                    .scrollContentBackground(.hidden)
+                    .background(abosHintergrundFarbe)
+                    .tint(abosAkzentFarbe)
+                    .navigationTitle(erfassungsTitel)
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
                             Button("Abbrechen") {
                                 showAddAboSheet = false
                                 selectedAbo = nil
                                 selectedAboID = nil
+                                aboTypDurchSectionVorgegeben = false
+                                sectionAboType = nil
                             }
                         }
 
@@ -271,6 +291,8 @@ struct AbosView: View {
                                 showAddAboSheet = false
                                 selectedAbo = nil
                                 selectedAboID = nil
+                                aboTypDurchSectionVorgegeben = false
+                                sectionAboType = nil
                             }
                             .disabled(!canSaveAbo)
                         }
@@ -289,6 +311,175 @@ struct AbosView: View {
                 }
             }
         }
+    }
+
+    private var abosHero: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Image(systemName: "rectangle.stack.badge.person.crop.fill")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(abosAkzentFarbe)
+                    .frame(width: 40, height: 40)
+                    .background(abosAkzentFarbe.opacity(0.12), in: Circle())
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Abos & Profile")
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    Text("Halte fest, welche digitalen Profile, Geräte, Zugänge und Abonnemente zu deinem digitalen Leben gehören.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(abosKartenFarbe)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(abosAkzentFarbe.opacity(0.12), lineWidth: 1)
+        }
+        .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
+    }
+
+    private var abosTypChips: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Bereiche")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(abosAkzentFarbe)
+
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 128), spacing: 10, alignment: .leading)],
+                alignment: .leading,
+                spacing: 10
+            ) {
+                aboChip(
+                    title: "Alle",
+                    systemImage: "square.grid.2x2.fill",
+                    count: anzahlFuerAlleAboTypen,
+                    isSelected: ausgewaehlteAboTypen.isEmpty
+                ) {
+                    withAnimation(.spring(response: 0.26, dampingFraction: 0.88)) {
+                        ausgewaehlteAboTypen.removeAll()
+                    }
+                }
+
+                ForEach(aboChipTypen) { typ in
+                    aboChip(
+                        title: typ.chipTitel,
+                        systemImage: typ.systemImage,
+                        count: anzahlFuerAboTyp(typ),
+                        isSelected: ausgewaehlteAboTypen.contains(typ)
+                    ) {
+                        withAnimation(.spring(response: 0.26, dampingFraction: 0.88)) {
+                            aboTypAntippen(typ)
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func aboChip(
+        title: String,
+        systemImage: String,
+        count: Int,
+        isSelected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 7) {
+                Image(systemName: systemImage)
+                    .font(.caption.weight(.semibold))
+
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+
+                if count > 0 {
+                    Text("\(count)")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(isSelected ? abosAkzentFarbe : .white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(
+                            isSelected ? Color.white.opacity(0.95) : abosAkzentFarbe,
+                            in: Capsule()
+                        )
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .foregroundStyle(isSelected ? .white : abosAkzentFarbe)
+            .background(
+                isSelected ? abosAkzentFarbe : abosKartenFarbe,
+                in: Capsule()
+            )
+            .overlay {
+                Capsule()
+                    .stroke(abosAkzentFarbe.opacity(isSelected ? 0 : 0.22), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var aboChipTypen: [AboType] {
+        AboType.allCases.filter { $0 != .pleaseSelect }
+    }
+
+    private var anzahlFuerAlleAboTypen: Int {
+        aktuellesAboModell?.abos.count ?? 0
+    }
+
+    private func anzahlFuerAboTyp(_ typ: AboType) -> Int {
+        aktuellesAboModell?.abos.filter { $0.aboTyp == typ.rawValue }.count ?? 0
+    }
+
+    private func aboTypAntippen(_ typ: AboType) {
+        if ausgewaehlteAboTypen.contains(typ) {
+            ausgewaehlteAboTypen.remove(typ)
+        } else {
+            ausgewaehlteAboTypen.insert(typ)
+        }
+
+        let alleEinzelTypen = Set(aboChipTypen)
+
+        if ausgewaehlteAboTypen == alleEinzelTypen || ausgewaehlteAboTypen.isEmpty {
+            ausgewaehlteAboTypen.removeAll()
+        }
+    }
+
+    private var gefilterteGruppierteAbos: [(typ: String, abos: [AboEintrag])] {
+        if ausgewaehlteAboTypen.isEmpty {
+            return gruppierteAbos
+        }
+
+        return aboChipTypen
+            .filter { ausgewaehlteAboTypen.contains($0) }
+            .map { typ in
+                (
+                    typ: typ.rawValue,
+                    abos: gruppierteAbos.first(where: { $0.typ == typ.rawValue })?.abos ?? []
+                )
+            }
+    }
+
+    private var aktiverAboType: AboType {
+        sectionAboType ?? selectedAboType
+    }
+
+    private var erfassungsTitel: String {
+        if aboTypDurchSectionVorgegeben, aktiverAboType != .pleaseSelect {
+            return "\(aktiverAboType.chipTitel) erfassen"
+        }
+
+        return selectedAboID == nil ? "Abo oder Profil erfassen" : "Eintrag bearbeiten"
     }
 
     private var gruppierteAbos: [(typ: String, abos: [AboEintrag])] {
@@ -320,69 +511,164 @@ struct AbosView: View {
     }
 
     private func istSektionAusgeklappt(_ gruppe: (typ: String, abos: [AboEintrag])) -> Bool {
-        if gruppe.abos.count <= 3 { return true }
+        if gruppe.abos.count <= 1 { return true }
         return ausgeklappteAboSektionen.contains(gruppe.typ)
     }
 
-    private func sektionHeader(_ gruppe: (typ: String, abos: [AboEintrag])) -> some View {
-        Button {
-            guard gruppe.abos.count > 3 else { return }
-
-            if ausgeklappteAboSektionen.contains(gruppe.typ) {
-                ausgeklappteAboSektionen.remove(gruppe.typ)
-            } else {
-                ausgeklappteAboSektionen.insert(gruppe.typ)
-            }
-        } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 3) {
+    private func aboSection(_ gruppe: (typ: String, abos: [AboEintrag])) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(gruppe.typ)
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.black)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.primary)
 
                     Text("\(gruppe.abos.count) Eintrag\(gruppe.abos.count == 1 ? "" : "e")")
                         .font(.footnote)
-                        .foregroundStyle(.black.opacity(0.75))
+                        .foregroundStyle(.secondary)
                 }
 
                 Spacer()
 
-                if gruppe.abos.count > 3 {
-                    Image(systemName: istSektionAusgeklappt(gruppe) ? "chevron.up" : "chevron.down")
-                        .font(.subheadline)
-                        .foregroundStyle(.black.opacity(0.75))
+                if gruppe.abos.count > 1 {
+                    Button {
+                        withAnimation(.spring(response: 0.26, dampingFraction: 0.88)) {
+                            if ausgeklappteAboSektionen.contains(gruppe.typ) {
+                                ausgeklappteAboSektionen.remove(gruppe.typ)
+                            } else {
+                                ausgeklappteAboSektionen.insert(gruppe.typ)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: istSektionAusgeklappt(gruppe) ? "chevron.up.circle.fill" : "chevron.down.circle.fill")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(abosAkzentFarbe)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 12)
-            .background(Color(.systemGray5))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+
+            if gruppe.abos.isEmpty {
+                Text("Noch keine Einträge erfasst.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 8)
+            } else if gruppe.abos.count > 1 {
+                DisclosureGroup("Erfasste Einträge (\(gruppe.abos.count))", isExpanded: Binding(
+                    get: { istSektionAusgeklappt(gruppe) },
+                    set: { istOffen in
+                        if istOffen {
+                            ausgeklappteAboSektionen.insert(gruppe.typ)
+                        } else {
+                            ausgeklappteAboSektionen.remove(gruppe.typ)
+                        }
+                    }
+                )) {
+                    VStack(spacing: 12) {
+                        ForEach(gruppe.abos) { abo in
+                            AboSwipeToDeleteRow(
+                                deleteAction: {
+                                    loescheAbo(abo)
+                                }
+                            ) {
+                                aboKarte(abo)
+                            }
+                            .id(abo.id)
+                        }
+                    }
+                    .padding(.top, 10)
+                }
+                .tint(abosAkzentFarbe)
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(gruppe.abos) { abo in
+                        AboSwipeToDeleteRow(
+                            deleteAction: {
+                                loescheAbo(abo)
+                            }
+                        ) {
+                            aboKarte(abo)
+                        }
+                        .id(abo.id)
+                    }
+                }
+            }
+
+            HStack {
+                Spacer()
+
+                Button {
+                    starteAboErfassung(fuer: gruppe.typ)
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 42, height: 42)
+                        .background(Circle().fill(abosAkzentFarbe))
+                        .shadow(color: abosAkzentFarbe.opacity(0.22), radius: 6, x: 0, y: 3)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Eintrag hinzufügen")
+
+                Spacer()
+            }
         }
-        .buttonStyle(.plain)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(abosKartenFarbe)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(abosAkzentFarbe.opacity(0.12), lineWidth: 1)
+        }
+        .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 3)
     }
+    private func starteAboErfassung(fuer typRawValue: String) {
+        showAddAboSheet = false
+        selectedAboID = nil
+        selectedAbo = nil
+        resetInputFields()
+        let vorgegebenerTyp = AboType(rawValue: typRawValue) ?? .pleaseSelect
+        selectedAboType = vorgegebenerTyp
+        sectionAboType = vorgegebenerTyp
+        aboTypDurchSectionVorgegeben = vorgegebenerTyp != .pleaseSelect
+
+        sheetID = UUID()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            showAddAboSheet = true
+        }
+    }
+
 
     private func aboKarte(_ abo: AboEintrag) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(aboTitel(abo))
-                .font(.headline)
-                .foregroundStyle(.gray)
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(.primary)
 
             if !abo.unternehmen.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(abo.unternehmen)
                     .font(.subheadline)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(.secondary)
             }
 
             if !abo.aboArt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(abo.aboArt)
                     .font(.caption)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(.secondary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 10)
-        .padding(.horizontal, 12)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 14)
+        .background(Color.white.opacity(0.68))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(abosAkzentFarbe.opacity(0.12), lineWidth: 1)
+        }
         .contentShape(Rectangle())
         .onTapGesture {
             oeffneAboZumBearbeiten(abo)
@@ -404,8 +690,8 @@ struct AbosView: View {
         selectedAboID = abo.id
         selectedAbo = abo
         resetInputFields()
-        selectedAboID = abo.id
-        selectedAbo = abo
+        aboTypDurchSectionVorgegeben = false
+        sectionAboType = nil
         sheetID = UUID()
 
         DispatchQueue.main.async {
@@ -414,7 +700,7 @@ struct AbosView: View {
     }
 
     private var canSaveAbo: Bool {
-        switch selectedAboType {
+        switch aktiverAboType {
         case .pleaseSelect:
             return false
         case .streaming:
@@ -451,7 +737,7 @@ struct AbosView: View {
             return selectedDeviceType != .pleaseSelect
                 && !devicePIN.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .cloudStorage:
-            return true
+            return !customAboName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .other:
             return !customAboName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
@@ -462,6 +748,10 @@ struct AbosView: View {
 
         let alleAbos = gespeicherteAboModelle.flatMap { $0.abos }
         let istNeuerEintrag = selectedAboID == nil && selectedAbo == nil
+
+        if let sectionAboType {
+            selectedAboType = sectionAboType
+        }
 
         let abo = selectedAboID.flatMap { id in
             alleAbos.first(where: { $0.id == id })
@@ -475,8 +765,9 @@ struct AbosView: View {
             }
         }
 
-        if istNeuerEintrag && aboModell.abos.filter({ $0.aboTyp == selectedAboType.rawValue }).count > 3 {
-            ausgeklappteAboSektionen.remove(selectedAboType.rawValue)
+        if istNeuerEintrag {
+            ausgeklappteAboSektionen.insert(selectedAboType.rawValue)
+            scrollZuAboEintragID = abo.id
         }
 
         abo.aboTyp = selectedAboType.rawValue
@@ -487,14 +778,14 @@ struct AbosView: View {
         abo.aboNummer = aboNummerWert
         abo.benutzername = username
         abo.passwort = password
-        abo.streamingAnbieter = selectedAboType == .streaming ? selectedStreamingProvider.rawValue : "Bitte wählen"
-        abo.socialMediaPlattform = selectedAboType == .socialMedia ? selectedSocialMediaProvider.rawValue : "Bitte wählen"
-        abo.digitaleIdentitaetAnbieter = selectedAboType == .digitalIdentity ? selectedDigitalIdentityProvider.rawValue : "Bitte wählen"
-        abo.emailAnbieter = selectedAboType == .emailAccount ? selectedEmailProvider.rawValue : "Bitte wählen"
-        if selectedAboType == .devices && selectedDeviceType == .mobilePhone {
+        abo.streamingAnbieter = aktiverAboType == .streaming ? selectedStreamingProvider.rawValue : "Bitte wählen"
+        abo.socialMediaPlattform = aktiverAboType == .socialMedia ? selectedSocialMediaProvider.rawValue : "Bitte wählen"
+        abo.digitaleIdentitaetAnbieter = aktiverAboType == .digitalIdentity ? selectedDigitalIdentityProvider.rawValue : "Bitte wählen"
+        abo.emailAnbieter = aktiverAboType == .emailAccount ? selectedEmailProvider.rawValue : "Bitte wählen"
+        if aktiverAboType == .devices && selectedDeviceType == .mobilePhone {
             abo.benutzername = ""
         }
-        if selectedAboType == .devices {
+        if aktiverAboType == .devices {
             abo.passwort = ""
             abo.geraeteArt = selectedDeviceType.rawValue
             abo.geraeteBezeichnung = bezeichnungWert
@@ -504,7 +795,7 @@ struct AbosView: View {
             abo.geraeteBezeichnung = ""
             abo.geraetePIN = ""
         }
-        if selectedAboType == .publicTransport {
+        if aktiverAboType == .publicTransport {
             abo.oevUnternehmen = publicTransportCompany.rawValue
             abo.oevAboTyp = publicTransportType.rawValue
             abo.andereBezeichnung = customPublicTransportCompany
@@ -551,7 +842,7 @@ struct AbosView: View {
         selectedDigitalIdentityProvider = .pleaseSelect
         selectedEmailProvider = .pleaseSelect
 
-        switch selectedAboType {
+        switch aktiverAboType {
         case .streaming:
             selectedStreamingProvider = StreamingProvider(rawValue: abo.streamingAnbieter.isEmpty || abo.streamingAnbieter == "Bitte wählen" ? abo.anbieter : abo.streamingAnbieter) ?? .pleaseSelect
         case .socialMedia:
@@ -585,7 +876,7 @@ struct AbosView: View {
         onlineMagazineCompany = selectedAboType == .news ? abo.unternehmen : ""
         membershipAboType = selectedAboType == .membership ? abo.aboArt : ""
         membershipNumber = selectedAboType == .membership ? abo.aboNummer : ""
-        customAboName = selectedAboType == .other ? abo.bezeichnung : (selectedAboType == .devices ? (abo.geraeteBezeichnung.isEmpty ? abo.bezeichnung : abo.geraeteBezeichnung) : "")
+        customAboName = selectedAboType == .other || selectedAboType == .cloudStorage ? abo.bezeichnung : (selectedAboType == .devices ? (abo.geraeteBezeichnung.isEmpty ? abo.bezeichnung : abo.geraeteBezeichnung) : "")
 
         if selectedAboType == .digitalIdentity && selectedDigitalIdentityProvider == .pleaseSelect,
            let fallbackProvider = DigitalIdentityProvider(rawValue: abo.bezeichnung) {
@@ -627,8 +918,8 @@ struct AbosView: View {
     private func passwordField(title: String, text: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(abosAkzentFarbe)
 
             HStack {
                 if showPassword {
@@ -645,17 +936,25 @@ struct AbosView: View {
                 }
                 .buttonStyle(.plain)
             }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 10)
+            .background(abosKartenFarbe.opacity(0.72))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
     }
 
     private func labelledTextField(_ title: String, text: Binding<String>, keyboardType: UIKeyboardType = .default) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(abosAkzentFarbe)
 
             TextField(title, text: text)
                 .keyboardType(keyboardType)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 10)
+                .background(abosKartenFarbe.opacity(0.72))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
     }
 
@@ -669,6 +968,7 @@ struct AbosView: View {
             content()
         }
         .pickerStyle(.menu)
+        .tint(abosAkzentFarbe)
     }
 
     private var alleAboEintraege: [AboEintrag] {
@@ -680,7 +980,7 @@ struct AbosView: View {
     }
 
     private var unternehmenWert: String {
-        switch selectedAboType {
+        switch aktiverAboType {
         case .fitness:
             return fitnessCompany
         case .news:
@@ -693,7 +993,7 @@ struct AbosView: View {
     }
 
     private var bezeichnungWert: String {
-        switch selectedAboType {
+        switch aktiverAboType {
         case .streaming:
             return selectedStreamingProvider.rawValue
         case .socialMedia:
@@ -708,6 +1008,8 @@ struct AbosView: View {
             return magazineName
         case .software:
             return softwareName
+        case .cloudStorage:
+            return customAboName
         case .other:
             return customAboName
         default:
@@ -716,7 +1018,7 @@ struct AbosView: View {
     }
 
     private var anbieterWert: String {
-        switch selectedAboType {
+        switch aktiverAboType {
         case .streaming:
             return selectedStreamingProvider.rawValue
         case .socialMedia:
@@ -731,7 +1033,7 @@ struct AbosView: View {
     }
 
     private var aboArtWert: String {
-        switch selectedAboType {
+        switch aktiverAboType {
         case .fitness:
             return fitnessAboType
         case .news:
@@ -748,7 +1050,7 @@ struct AbosView: View {
     }
 
     private var aboNummerWert: String {
-        switch selectedAboType {
+        switch aktiverAboType {
         case .publicTransport:
             return publicTransportAboNumber
         case .membership:
@@ -827,7 +1129,113 @@ struct AbosView: View {
     }
 }
 
-enum AboType: String, CaseIterable, Identifiable {
+struct AboSwipeToDeleteRow<Content: View>: View {
+    let deleteAction: () -> Void
+    let content: Content
+
+    @State private var offsetX: CGFloat = 0
+    @State private var istGeloescht = false
+
+    private let revealOffset: CGFloat = -92
+    private let fullDeleteThreshold: CGFloat = -148
+    private let maxOffset: CGFloat = -164
+
+    init(
+        deleteAction: @escaping () -> Void,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.deleteAction = deleteAction
+        self.content = content()
+    }
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            HStack(spacing: 0) {
+                Spacer(minLength: 0)
+
+                Button {
+                    loeschen()
+                } label: {
+                    ZStack {
+                        Rectangle()
+                            .fill(Color.red.opacity(0.92))
+
+                        Image(systemName: "trash.fill")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(.white)
+                    }
+                    .frame(width: deleteAreaWidth)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .opacity(offsetX < -8 ? 1 : 0)
+                .allowsHitTesting(offsetX < -40)
+            }
+            .frame(maxWidth: .infinity)
+            .zIndex(0)
+
+            content
+                .frame(maxWidth: .infinity)
+                .background(Color.white.opacity(0.001))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .compositingGroup()
+                .offset(x: offsetX)
+                .contentShape(Rectangle())
+                .zIndex(1)
+                .gesture(
+                    DragGesture(minimumDistance: 12, coordinateSpace: .local)
+                        .onChanged { value in
+                            guard abs(value.translation.width) > abs(value.translation.height) else { return }
+
+                            let startOffset = offsetX == revealOffset ? revealOffset : 0
+                            let neuePosition = min(0, max(maxOffset, value.translation.width + startOffset))
+
+                            if neuePosition <= 0 {
+                                offsetX = neuePosition
+                            }
+                        }
+                        .onEnded { value in
+                            guard !istGeloescht else { return }
+
+                            if value.translation.width < fullDeleteThreshold {
+                                loeschen()
+                            } else if offsetX < -42 {
+                                withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
+                                    offsetX = revealOffset
+                                }
+                            } else {
+                                withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
+                                    offsetX = 0
+                                }
+                            }
+                        }
+                )
+        }
+        .opacity(istGeloescht ? 0 : 1)
+        .frame(maxWidth: .infinity)
+        .fixedSize(horizontal: false, vertical: true)
+        .clipped()
+    }
+
+    private var deleteAreaWidth: CGFloat {
+        min(max(0, abs(offsetX)), abs(maxOffset))
+    }
+
+    private func loeschen() {
+        guard !istGeloescht else { return }
+
+        withAnimation(.easeInOut(duration: 0.18)) {
+            istGeloescht = true
+            offsetX = maxOffset
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+            deleteAction()
+        }
+    }
+}
+
+enum AboType: String, CaseIterable, Identifiable, Hashable {
     case pleaseSelect = "Bitte wählen"
     case digitalIdentity = "Digitale Identitäten"
     case devices = "Meine Geräte"
@@ -844,6 +1252,44 @@ enum AboType: String, CaseIterable, Identifiable {
     case other = "Andere"
 
     var id: String { rawValue }
+
+    var chipTitel: String {
+        switch self {
+        case .pleaseSelect: return "Bitte wählen"
+        case .digitalIdentity: return "Identitäten"
+        case .devices: return "Geräte"
+        case .emailAccount: return "E-Mail"
+        case .fitness: return "Fitness"
+        case .membership: return "Mitgliedschaft"
+        case .news: return "Online-Magazine"
+        case .publicTransport: return "ÖV"
+        case .socialMedia: return "Social Media"
+        case .software: return "Software"
+        case .streaming: return "Streaming"
+        case .magazine: return "Zeitschriften"
+        case .cloudStorage: return "Cloud"
+        case .other: return "Andere"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .pleaseSelect: return "questionmark.circle.fill"
+        case .digitalIdentity: return "person.badge.key.fill"
+        case .devices: return "iphone.gen3"
+        case .emailAccount: return "envelope.fill"
+        case .fitness: return "figure.run"
+        case .membership: return "person.2.fill"
+        case .news: return "newspaper.fill"
+        case .publicTransport: return "tram.fill"
+        case .socialMedia: return "bubble.left.and.bubble.right.fill"
+        case .software: return "app.fill"
+        case .streaming: return "play.rectangle.fill"
+        case .magazine: return "book.pages.fill"
+        case .cloudStorage: return "icloud.fill"
+        case .other: return "ellipsis.circle.fill"
+        }
+    }
 }
 
 enum StreamingProvider: String, CaseIterable, Identifiable {
