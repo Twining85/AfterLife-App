@@ -1168,7 +1168,6 @@ struct WuenscheView: View {
                 guard let index = kontakte.firstIndex(where: { $0.id == id }) else { return }
                 kontakte[index] = neuerKontakt
                 synchronisiereKontakteMitHinterbliebenen()
-                try? modelContext.save()
             }
         )
     }
@@ -1182,7 +1181,6 @@ struct WuenscheView: View {
         }
 
         synchronisiereKontakteMitHinterbliebenen()
-        try? modelContext.save()
     }
 
 
@@ -1292,7 +1290,11 @@ struct WuenscheView: View {
             zielKontakt.aktualisiertAm = Date()
         }
 
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            print("Kontakte konnten nicht mit Hinterbliebenen synchronisiert werden: \(error.localizedDescription)")
+        }
     }
 
     private func kontaktIDAusRolle(_ rolle: String) -> String {
@@ -1792,8 +1794,9 @@ struct SwipeToDeleteRow<Content: View>: View {
     @State private var offsetX: CGFloat = 0
     @State private var istGeloescht = false
 
-    private let deleteThreshold: CGFloat = -86
-    private let maxOffset: CGFloat = -112
+    private let revealOffset: CGFloat = -92
+    private let fullDeleteThreshold: CGFloat = -148
+    private let maxOffset: CGFloat = -164
 
     init(
         accentColor: Color,
@@ -1807,10 +1810,47 @@ struct SwipeToDeleteRow<Content: View>: View {
 
     var body: some View {
         ZStack(alignment: .trailing) {
+            GeometryReader { proxy in
+                let breite = max(0, min(abs(offsetX), abs(maxOffset)))
+
+                HStack(spacing: 0) {
+                    Spacer(minLength: 0)
+
+                    Button {
+                        guard !istGeloescht else { return }
+                        istGeloescht = true
+
+                        withAnimation(.easeInOut(duration: 0.16)) {
+                            offsetX = maxOffset
+                        }
+
+                        DispatchQueue.main.async {
+                            deleteAction()
+                        }
+                    } label: {
+                        HStack {
+                            Spacer(minLength: 0)
+
+                            Image(systemName: "trash.fill")
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 64, height: proxy.size.height)
+                        }
+                        .frame(width: max(0, breite), height: proxy.size.height)
+                        .background(Color.red.opacity(0.92))
+                    }
+                    .buttonStyle(.plain)
+                    .opacity(offsetX < -8 ? 1 : 0)
+                    .disabled(offsetX > -40)
+                }
+            }
+
             content
                 .offset(x: offsetX)
+                .contentShape(Rectangle())
+                .allowsHitTesting(offsetX > -40)
                 .gesture(
-                    DragGesture(minimumDistance: 18, coordinateSpace: .local)
+                    DragGesture(minimumDistance: 14, coordinateSpace: .local)
                         .onChanged { value in
                             guard abs(value.translation.width) > abs(value.translation.height) else { return }
                             offsetX = min(0, max(value.translation.width, maxOffset))
@@ -1818,41 +1858,27 @@ struct SwipeToDeleteRow<Content: View>: View {
                         .onEnded { value in
                             guard !istGeloescht else { return }
 
-                            if value.translation.width <= deleteThreshold {
+                            if value.translation.width <= fullDeleteThreshold {
                                 istGeloescht = true
-                                withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
+
+                                withAnimation(.easeInOut(duration: 0.16)) {
                                     offsetX = maxOffset
                                 }
 
                                 DispatchQueue.main.async {
                                     deleteAction()
                                 }
+                            } else if value.translation.width <= revealOffset / 2 {
+                                withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                                    offsetX = revealOffset
+                                }
                             } else {
-                                withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
+                                withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
                                     offsetX = 0
                                 }
                             }
                         }
                 )
-
-            if offsetX < -12 {
-                HStack {
-                    Spacer()
-
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.red.opacity(0.92))
-                        .frame(width: 58, height: 58)
-                        .overlay {
-                            Image(systemName: "trash.fill")
-                                .font(.subheadline.weight(.bold))
-                                .foregroundStyle(.white)
-                        }
-                        .padding(.trailing, 12)
-                }
-                .allowsHitTesting(false)
-                .transition(.opacity)
-                .zIndex(1)
-            }
         }
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .accessibilityAction(named: "Löschen") {
