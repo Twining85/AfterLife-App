@@ -41,11 +41,148 @@ struct FinanzenView: View {
     @State private var oldTaxReturnPreviewURL: URL?
     @State private var zuletztGepruefteIBANs: [UUID: String] = [:]
 
+    private let finanzenHintergrundFarbe = Color(red: 0.985, green: 0.975, blue: 0.955)
+    private let finanzenKartenFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
+    private let finanzenAkzentFarbe = Color(red: 0.62, green: 0.47, blue: 0.18)
+    @State private var ausgewaehlteFinanzenBereiche: Set<FinanzenBereich> = []
+    @State private var scrollZuFinanzEintragID: UUID?
+
+
     private var totalAssets: Double {
         bankEntries.reduce(0) { result, entry in
             result + convertToCHF(amountText: entry.assets, currency: entry.currency)
         }
     }
+
+    private var finanzenHero: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Image(systemName: "dollarsign.circle.fill")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(finanzenAkzentFarbe)
+                    .frame(width: 40, height: 40)
+                    .background(finanzenAkzentFarbe.opacity(0.12), in: Circle())
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Finanzübersicht")
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    Text("Halte fest, wo Vermögen, Schulden, Versicherungen und wichtige Unterlagen zu finden sind.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(finanzenKartenFarbe)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(finanzenAkzentFarbe.opacity(0.12), lineWidth: 1)
+        }
+        .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
+    }
+
+    
+    private func istFinanzenBereichAusgewaehlt(_ bereich: FinanzenBereich) -> Bool {
+        bereich == .alle ? ausgewaehlteFinanzenBereiche.isEmpty : ausgewaehlteFinanzenBereiche.contains(bereich)
+    }
+
+    private func finanzenBereichAntippen(_ bereich: FinanzenBereich) {
+        if bereich == .alle {
+            ausgewaehlteFinanzenBereiche.removeAll()
+            return
+        }
+
+        if ausgewaehlteFinanzenBereiche.contains(bereich) {
+            ausgewaehlteFinanzenBereiche.remove(bereich)
+        } else {
+            ausgewaehlteFinanzenBereiche.insert(bereich)
+        }
+
+        let alleEinzelbereiche = Set(FinanzenBereich.allCases.filter { $0 != .alle })
+
+        if ausgewaehlteFinanzenBereiche == alleEinzelbereiche || ausgewaehlteFinanzenBereiche.isEmpty {
+            ausgewaehlteFinanzenBereiche.removeAll()
+        }
+    }
+
+    private var finanzenBereichChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(FinanzenBereich.allCases) { bereich in
+                    Button {
+                        withAnimation(.spring(response: 0.26, dampingFraction: 0.88)) {
+                            finanzenBereichAntippen(bereich)
+                        }
+                    } label: {
+                        HStack(spacing: 7) {
+                            Image(systemName: bereich.systemImage)
+                                .font(.caption.weight(.semibold))
+
+                            Text(bereich.titel)
+                                .font(.subheadline.weight(.semibold))
+
+                            let anzahl = anzahlFuerBereich(bereich)
+                            if anzahl > 0 {
+                                Text("\(anzahl)")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(istFinanzenBereichAusgewaehlt(bereich) ? finanzenAkzentFarbe : .white)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 3)
+                                    .background(
+                                        istFinanzenBereichAusgewaehlt(bereich) ? Color.white.opacity(0.95) : finanzenAkzentFarbe,
+                                        in: Capsule()
+                                    )
+                            }
+                        }
+                        .padding(.horizontal, 13)
+                        .padding(.vertical, 9)
+                        .foregroundStyle(istFinanzenBereichAusgewaehlt(bereich) ? .white : finanzenAkzentFarbe)
+                        .background(
+                            istFinanzenBereichAusgewaehlt(bereich) ? finanzenAkzentFarbe : finanzenKartenFarbe,
+                            in: Capsule()
+                        )
+                        .overlay {
+                            Capsule()
+                                .stroke(finanzenAkzentFarbe.opacity(istFinanzenBereichAusgewaehlt(bereich) ? 0 : 0.22), lineWidth: 1)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 1)
+            .padding(.vertical, 2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func zeigtBereich(_ bereich: FinanzenBereich) -> Bool {
+        ausgewaehlteFinanzenBereiche.isEmpty || ausgewaehlteFinanzenBereiche.contains(bereich)
+    }
+
+    private func anzahlFuerBereich(_ bereich: FinanzenBereich) -> Int {
+        switch bereich {
+        case .alle:
+            return bankEntries.count + debts.count + propertyEntries.count + valuableEntries.count + insuranceEntries.count + (hasOldTaxReturn ? 1 : 0)
+        case .konten:
+            return bankEntries.count
+        case .schulden:
+            return debts.count
+        case .liegenschaften:
+            return propertyEntries.count
+        case .wertsachen:
+            return valuableEntries.count
+        case .steuern:
+            return hasOldTaxReturn ? 1 : 0
+        case .versicherungen:
+            return insuranceEntries.count
+        }
+    }
+
 
     private func finanzSection<Content: View>(
         title: String,
@@ -59,7 +196,8 @@ struct FinanzenView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
-                .font(.headline)
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(.primary)
                 .padding(.horizontal, 4)
 
             VStack(spacing: 14) {
@@ -68,7 +206,7 @@ struct FinanzenView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .center)
-                } else if entryCount >= 3 {
+                } else if entryCount > 1 {
                     DisclosureGroup("Erfasste Einträge (\(entryCount))", isExpanded: isExpanded) {
                         VStack(spacing: 12) {
                             content()
@@ -86,7 +224,8 @@ struct FinanzenView: View {
                         .font(.title2.weight(.semibold))
                         .foregroundStyle(.white)
                         .frame(width: 42, height: 42)
-                        .background(Circle().fill(Color.black))
+                        .background(Circle().fill(finanzenAkzentFarbe))
+                        .shadow(color: finanzenAkzentFarbe.opacity(0.22), radius: 6, x: 0, y: 3)
                 }
                 .frame(maxWidth: .infinity)
                 .buttonStyle(.plain)
@@ -108,20 +247,29 @@ struct FinanzenView: View {
                 }
             }
             .padding(16)
-            .background(Color(.systemGray6))
+            .background(Color.white.opacity(0.62))
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(finanzenAkzentFarbe.opacity(0.10), lineWidth: 1)
+            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.systemBackground))
+        .background(finanzenKartenFarbe)
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 3)
+        .overlay {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(finanzenAkzentFarbe.opacity(0.12), lineWidth: 1)
+        }
+        .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
     }
 
     private var steuerSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Alte Steuern zur Orientierung")
-                .font(.headline)
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(.primary)
                 .padding(.horizontal, 4)
 
             VStack(spacing: 14) {
@@ -133,7 +281,8 @@ struct FinanzenView: View {
                         .font(.title2.weight(.semibold))
                         .foregroundStyle(.white)
                         .frame(width: 42, height: 42)
-                        .background(Circle().fill(Color.black))
+                        .background(Circle().fill(finanzenAkzentFarbe))
+                        .shadow(color: finanzenAkzentFarbe.opacity(0.22), radius: 6, x: 0, y: 3)
                 }
                 .frame(maxWidth: .infinity)
                 .buttonStyle(.plain)
@@ -152,7 +301,7 @@ struct FinanzenView: View {
                 } else {
                     HStack(spacing: 10) {
                         Image(systemName: "doc.fill")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(finanzenAkzentFarbe)
 
                         Button {
                             zeigeSteuerdokumentVorschau()
@@ -168,7 +317,8 @@ struct FinanzenView: View {
                         Button {
                             zeigeSteuerdokumentVorschau()
                         } label: {
-                            Image(systemName: "eye")
+                            Image(systemName: "eye.fill")
+                                .foregroundStyle(finanzenAkzentFarbe)
                         }
                         .buttonStyle(.borderless)
                         .accessibilityLabel("Steuerdokument anzeigen")
@@ -182,19 +332,31 @@ struct FinanzenView: View {
                         .accessibilityLabel("Steuerdokument löschen")
                     }
                     .padding(12)
-                    .background(Color(.systemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(Color.white.opacity(0.70))
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(finanzenAkzentFarbe.opacity(0.12), lineWidth: 1)
+                    }
                 }
             }
             .padding(16)
-            .background(Color(.systemGray6))
+            .background(Color.white.opacity(0.62))
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(finanzenAkzentFarbe.opacity(0.10), lineWidth: 1)
+            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.systemBackground))
+        .background(finanzenKartenFarbe)
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 3)
+        .overlay {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(finanzenAkzentFarbe.opacity(0.12), lineWidth: 1)
+        }
+        .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
     }
 
     private var totalDebts: Double {
@@ -217,7 +379,7 @@ struct FinanzenView: View {
 
     private var totalInsuranceAssets: Double {
         insuranceEntries.reduce(0) { result, entry in
-            guard entry.type == .pensionFund || entry.type == .pillar3a || entry.type == .lifeInsurance else {
+            guard entry.type == .pensionFund || entry.type == .pillar3a || entry.type == .vestedBenefits || entry.type == .lifeInsurance else {
                 return result
             }
 
@@ -244,7 +406,7 @@ struct FinanzenView: View {
                 [entry.id.uuidString, entry.type.rawValue, entry.marketValue, entry.marketValueCurrency.rawValue, entry.imputedRentalValue, entry.imputedRentalValueCurrency.rawValue].joined(separator: "|")
             }.joined(separator: "#"),
             valuableEntries.map { entry in
-                [entry.id.uuidString, entry.type.rawValue, entry.amount, entry.currency.rawValue].joined(separator: "|")
+                [entry.id.uuidString, entry.type.rawValue, entry.typeDescription, entry.amount, entry.currency.rawValue].joined(separator: "|")
             }.joined(separator: "#"),
             String(hasOldTaxReturn),
             oldTaxReturnFileName,
@@ -255,122 +417,150 @@ struct FinanzenView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
+            ScrollViewReader { scrollProxy in
+                ScrollView {
                 VStack(alignment: .center, spacing: 24) {
-                    finanzSection(
-                        title: "Konten & Vermögen",
-                        totalTitle: "Total Vermögen",
-                        totalValue: totalAssets,
-                        showApproximation: hasMixedCurrencies(bankEntries.compactMap { entry in
-                            entry.assets.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : entry.currency
-                        }),
-                        entryCount: bankEntries.count,
-                        isExpanded: $showBankEntries,
-                        addAction: {
-                            bankEntries.append(BankEntry())
-                            if bankEntries.count > 2 {
-                                showBankEntries = true
-                            }
-                            speichereFinanzenInSwiftData()
-                        },
-                        content: {
-                            bankEntryList
-                        }
-                    )
+                    finanzenHero
 
-                    finanzSection(
-                        title: "Schulden",
-                        totalTitle: "Total Schulden",
-                        totalValue: totalDebts,
-                        showApproximation: hasMixedCurrencies(debts.compactMap { entry in
-                            entry.amount.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : entry.currency
-                        }),
-                        entryCount: debts.count,
-                        isExpanded: $showDebtEntries,
-                        addAction: {
-                            debts.append(DebtEntry())
-                            if debts.count > 2 {
-                                showDebtEntries = true
-                            }
-                            speichereFinanzenInSwiftData()
-                        },
-                        content: {
-                            debtEntryList
-                        }
-                    )
+                    finanzenBereichChips
 
-                    finanzSection(
-                        title: "Liegenschaften",
-                        totalTitle: "Total Verkehrswert",
-                        totalValue: totalPropertyValue,
-                        showApproximation: hasMixedCurrencies(propertyEntries.compactMap { entry in
-                            entry.marketValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : entry.marketValueCurrency
-                        }),
-                        entryCount: propertyEntries.count,
-                        isExpanded: $showPropertyEntries,
-                        addAction: {
-                            propertyEntries.append(PropertyEntry())
-                            if propertyEntries.count > 2 {
-                                showPropertyEntries = true
+                    if zeigtBereich(.konten) {
+                        finanzSection(
+                            title: "Konten & Vermögen",
+                            totalTitle: "Total Vermögen",
+                            totalValue: totalAssets,
+                            showApproximation: hasMixedCurrencies(bankEntries.compactMap { entry in
+                                entry.assets.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : entry.currency
+                            }),
+                            entryCount: bankEntries.count,
+                            isExpanded: $showBankEntries,
+                            addAction: {
+                                let neuerEintrag = BankEntry()
+                                bankEntries.append(neuerEintrag)
+                                if bankEntries.count > 1 {
+                                    showBankEntries = true
+                                }
+                                scrollZuFinanzEintragID = neuerEintrag.id
+                                speichereFinanzenInSwiftData()
+                            },
+                            content: {
+                                bankEntryList
                             }
-                            speichereFinanzenInSwiftData()
-                        },
-                        content: {
-                            propertyEntryList
-                        }
-                    )
+                        )
+                    }
 
-                    finanzSection(
-                        title: "Wertsachen",
-                        totalTitle: "Total Wertsachen",
-                        totalValue: totalValuables,
-                        showApproximation: hasMixedCurrencies(valuableEntries.compactMap { entry in
-                            entry.amount.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : entry.currency
-                        }),
-                        entryCount: valuableEntries.count,
-                        isExpanded: $showValuableEntries,
-                        addAction: {
-                            valuableEntries.append(ValuableEntry())
-                            if valuableEntries.count > 2 {
-                                showValuableEntries = true
+                    if zeigtBereich(.schulden) {
+                        finanzSection(
+                            title: "Schulden",
+                            totalTitle: "Total Schulden",
+                            totalValue: totalDebts,
+                            showApproximation: hasMixedCurrencies(debts.compactMap { entry in
+                                entry.amount.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : entry.currency
+                            }),
+                            entryCount: debts.count,
+                            isExpanded: $showDebtEntries,
+                            addAction: {
+                                let neuerEintrag = DebtEntry()
+                                debts.append(neuerEintrag)
+                                if debts.count > 1 {
+                                    showDebtEntries = true
+                                }
+                                scrollZuFinanzEintragID = neuerEintrag.id
+                                speichereFinanzenInSwiftData()
+                            },
+                            content: {
+                                debtEntryList
                             }
-                            speichereFinanzenInSwiftData()
-                        },
-                        content: {
-                            valuableEntryList
-                        }
-                    )
+                        )
+                    }
 
-                    steuerSection
-
-                    finanzSection(
-                        title: "Versicherungen",
-                        totalTitle: "Total Vorsorgewerte",
-                        totalValue: totalInsuranceAssets,
-                        showApproximation: hasMixedCurrencies(insuranceEntries.compactMap { entry in
-                            guard entry.type == .pensionFund || entry.type == .pillar3a || entry.type == .lifeInsurance else { return nil }
-                            return entry.amount.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : entry.currency
-                        }),
-                        entryCount: insuranceEntries.count,
-                        isExpanded: $showInsuranceEntries,
-                        addAction: {
-                            insuranceEntries.append(InsuranceEntry())
-                            if insuranceEntries.count > 2 {
-                                showInsuranceEntries = true
+                    if zeigtBereich(.liegenschaften) {
+                        finanzSection(
+                            title: "Liegenschaften",
+                            totalTitle: "Total Verkehrswert",
+                            totalValue: totalPropertyValue,
+                            showApproximation: hasMixedCurrencies(propertyEntries.compactMap { entry in
+                                entry.marketValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : entry.marketValueCurrency
+                            }),
+                            entryCount: propertyEntries.count,
+                            isExpanded: $showPropertyEntries,
+                            addAction: {
+                                let neuerEintrag = PropertyEntry()
+                                propertyEntries.append(neuerEintrag)
+                                if propertyEntries.count > 1 {
+                                    showPropertyEntries = true
+                                }
+                                scrollZuFinanzEintragID = neuerEintrag.id
+                                speichereFinanzenInSwiftData()
+                            },
+                            content: {
+                                propertyEntryList
                             }
-                            speichereFinanzenInSwiftData()
-                        },
-                        content: {
-                            insuranceEntryList
-                        }
-                    )
+                        )
+                    }
+
+                    if zeigtBereich(.wertsachen) {
+                        finanzSection(
+                            title: "Wertsachen",
+                            totalTitle: "Total Wertsachen",
+                            totalValue: totalValuables,
+                            showApproximation: hasMixedCurrencies(valuableEntries.compactMap { entry in
+                                entry.amount.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : entry.currency
+                            }),
+                            entryCount: valuableEntries.count,
+                            isExpanded: $showValuableEntries,
+                            addAction: {
+                                let neuerEintrag = ValuableEntry()
+                                valuableEntries.append(neuerEintrag)
+                                if valuableEntries.count > 1 {
+                                    showValuableEntries = true
+                                }
+                                scrollZuFinanzEintragID = neuerEintrag.id
+                                speichereFinanzenInSwiftData()
+                            },
+                            content: {
+                                valuableEntryList
+                            }
+                        )
+                    }
+
+                    if zeigtBereich(.steuern) {
+                        steuerSection
+                    }
+
+                    if zeigtBereich(.versicherungen) {
+                        finanzSection(
+                            title: "Versicherungen",
+                            totalTitle: "Total Vorsorgewerte",
+                            totalValue: totalInsuranceAssets,
+                            showApproximation: hasMixedCurrencies(insuranceEntries.compactMap { entry in
+                                guard entry.type == .pensionFund || entry.type == .pillar3a || entry.type == .vestedBenefits || entry.type == .lifeInsurance else { return nil }
+                                return entry.amount.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : entry.currency
+                            }),
+                            entryCount: insuranceEntries.count,
+                            isExpanded: $showInsuranceEntries,
+                            addAction: {
+                                let neuerEintrag = InsuranceEntry()
+                                insuranceEntries.append(neuerEintrag)
+                                if insuranceEntries.count > 1 {
+                                    showInsuranceEntries = true
+                                }
+                                scrollZuFinanzEintragID = neuerEintrag.id
+                                speichereFinanzenInSwiftData()
+                            },
+                            content: {
+                                insuranceEntryList
+                            }
+                        )
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 20)
                 .frame(maxWidth: 720)
                 .frame(maxWidth: .infinity)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(finanzenHintergrundFarbe)
+            .tint(finanzenAkzentFarbe)
             .navigationTitle("Finanzen")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -378,6 +568,7 @@ struct FinanzenView: View {
                         showExchangeRateInfo.toggle()
                     } label: {
                         Image(systemName: "info.circle")
+                            .foregroundStyle(finanzenAkzentFarbe)
                     }
                     .help("Hinweis zur Umrechnung: Totale werden bei unterschiedlichen Währungen anhand aktueller Referenz-Wechselkurse in CHF umgerechnet. Die angezeigten Beträge dienen lediglich der Orientierung und stellen keine verbindliche Bewertung dar. Wechselkurse können sich laufend ändern.")
                     .popover(isPresented: $showExchangeRateInfo, arrowEdge: .top) {
@@ -393,7 +584,7 @@ struct FinanzenView: View {
                                 } label: {
                                     Image(systemName: "xmark.circle.fill")
                                         .font(.title3)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(finanzenAkzentFarbe.opacity(0.75))
                                 }
                                 .buttonStyle(.plain)
                                 .accessibilityLabel("Hinweis schliessen")
@@ -434,7 +625,18 @@ struct FinanzenView: View {
                     speichereFinanzenInSwiftData()
                 }
             }
-            .quickLookPreview($oldTaxReturnPreviewURL)
+                .quickLookPreview($oldTaxReturnPreviewURL)
+                .onChange(of: scrollZuFinanzEintragID) { _, zielID in
+                    guard let zielID else { return }
+
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            scrollProxy.scrollTo(zielID, anchor: .center)
+                        }
+                        scrollZuFinanzEintragID = nil
+                    }
+                }
+            }
         }
     }
     private var bankEntryList: some View {
@@ -483,9 +685,14 @@ struct FinanzenView: View {
                     labelledMoneyField("Vermögenswerte", amount: $bankEntry.assets, currency: $bankEntry.currency)
                 }
             }
-            .padding(2)
-            .background(Color(.systemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .padding(12)
+            .background(Color.white.opacity(0.70))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(finanzenAkzentFarbe.opacity(0.12), lineWidth: 1)
+            }
+            .id(bankEntry.id)
             .swipeActions(edge: .trailing) {
                 Button(role: .destructive) {
                     bankEntries.removeAll { $0.id == bankEntry.id }
@@ -547,9 +754,14 @@ struct FinanzenView: View {
                     labelledMoneyField("Betrag", amount: $debt.amount, currency: $debt.currency)
                 }
             }
-            .padding(2)
-            .background(Color(.systemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .padding(12)
+            .background(Color.white.opacity(0.70))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(finanzenAkzentFarbe.opacity(0.12), lineWidth: 1)
+            }
+            .id(debt.id)
             .swipeActions(edge: .trailing) {
                 Button(role: .destructive) {
                     debts.removeAll { $0.id == debt.id }
@@ -591,9 +803,14 @@ struct FinanzenView: View {
                     labelledMoneyField("Eigenmietwert", amount: $propertyEntry.imputedRentalValue, currency: $propertyEntry.imputedRentalValueCurrency)
                 }
             }
-            .padding(2)
-            .background(Color(.systemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .padding(12)
+            .background(Color.white.opacity(0.70))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(finanzenAkzentFarbe.opacity(0.12), lineWidth: 1)
+            }
+            .id(propertyEntry.id)
             .swipeActions(edge: .trailing) {
                 Button(role: .destructive) {
                     propertyEntries.removeAll { $0.id == propertyEntry.id }
@@ -631,12 +848,19 @@ struct FinanzenView: View {
                 }
 
                 if valuableEntry.type != .pleaseSelect {
+                    labelledTextField("Beschreibung / Art", text: $valuableEntry.typeDescription)
+
                     labelledMoneyField("Betrag", amount: $valuableEntry.amount, currency: $valuableEntry.currency)
                 }
             }
-            .padding(2)
-            .background(Color(.systemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .padding(12)
+            .background(Color.white.opacity(0.70))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(finanzenAkzentFarbe.opacity(0.12), lineWidth: 1)
+            }
+            .id(valuableEntry.id)
             .swipeActions(edge: .trailing) {
                 Button(role: .destructive) {
                     valuableEntries.removeAll { $0.id == valuableEntry.id }
@@ -679,7 +903,7 @@ struct FinanzenView: View {
                     labelledTextField("Police-Nr. / Vertrags-Nr.", text: $insuranceEntry.policyNumber)
                         .autocorrectionDisabled()
 
-                    if insuranceEntry.type == .pensionFund || insuranceEntry.type == .pillar3a {
+                    if insuranceEntry.type == .pensionFund || insuranceEntry.type == .pillar3a || insuranceEntry.type == .vestedBenefits {
                         labelledMoneyField("Betrag", amount: $insuranceEntry.amount, currency: $insuranceEntry.currency)
                     }
 
@@ -690,9 +914,14 @@ struct FinanzenView: View {
                     labelledMultilineTextField("Bemerkungen", text: $insuranceEntry.notes, lineLimit: 2...5)
                 }
             }
-            .padding(2)
-            .background(Color(.systemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .padding(12)
+            .background(Color.white.opacity(0.70))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(finanzenAkzentFarbe.opacity(0.12), lineWidth: 1)
+            }
+            .id(insuranceEntry.id)
             .swipeActions(edge: .trailing) {
                 Button(role: .destructive) {
                     insuranceEntries.removeAll { $0.id == insuranceEntry.id }
@@ -766,6 +995,7 @@ struct FinanzenView: View {
                 ValuableEntry(
                     id: UUID(uuidString: wertsache.eintragsID) ?? UUID(),
                     type: ValuableType(rawValue: wertsache.art) ?? .pleaseSelect,
+                    typeDescription: wertsache.beschreibung,
                     amount: wertsache.betrag == 0 ? "" : String(wertsache.betrag),
                     currency: CurrencyType(rawValue: wertsache.waehrung) ?? .chf
                 )
@@ -931,6 +1161,7 @@ struct FinanzenView: View {
             }
 
             modell.art = entry.type.rawValue
+            modell.beschreibung = entry.typeDescription
             modell.betrag = parsedAmount(entry.amount)
             modell.waehrung = entry.currency.rawValue
             modell.aktualisiertAm = Date()
@@ -1127,6 +1358,10 @@ struct FinanzenView: View {
 
             TextField(title, text: text)
                 .keyboardType(keyboardType)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 10)
+                .background(finanzenKartenFarbe.opacity(0.72))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
     }
 
@@ -1138,6 +1373,10 @@ struct FinanzenView: View {
 
             TextField(title, text: text)
                 .keyboardType(.decimalPad)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 10)
+                .background(finanzenKartenFarbe.opacity(0.72))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .onChange(of: text.wrappedValue) { _, newValue in
                     let formattedValue = formatDecimalInput(newValue)
 
@@ -1157,6 +1396,10 @@ struct FinanzenView: View {
             HStack(spacing: 8) {
                 TextField(title, text: amount)
                     .keyboardType(.decimalPad)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 10)
+                    .background(finanzenKartenFarbe.opacity(0.72))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .onChange(of: amount.wrappedValue) { _, newValue in
                         let formattedValue = formatDecimalInput(newValue)
 
@@ -1219,9 +1462,50 @@ struct FinanzenView: View {
 
             TextField(title, text: text, axis: .vertical)
                 .lineLimit(lineLimit)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 10)
+                .background(finanzenKartenFarbe.opacity(0.72))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
     }
 }
+
+enum FinanzenBereich: String, CaseIterable, Identifiable, Hashable {
+    case alle
+    case konten
+    case schulden
+    case liegenschaften
+    case wertsachen
+    case steuern
+    case versicherungen
+
+    var id: String { rawValue }
+
+    var titel: String {
+        switch self {
+        case .alle: return "Alle"
+        case .konten: return "Konten"
+        case .schulden: return "Schulden"
+        case .liegenschaften: return "Liegenschaften"
+        case .wertsachen: return "Wertsachen"
+        case .steuern: return "Steuern"
+        case .versicherungen: return "Versicherungen"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .alle: return "square.grid.2x2.fill"
+        case .konten: return "building.columns.fill"
+        case .schulden: return "minus.circle.fill"
+        case .liegenschaften: return "house.fill"
+        case .wertsachen: return "sparkles"
+        case .steuern: return "doc.text.fill"
+        case .versicherungen: return "shield.fill"
+        }
+    }
+}
+
 
 struct ExchangeRateResponse {
     let date: String
@@ -1351,17 +1635,20 @@ enum PropertyType: String, CaseIterable, Identifiable {
 struct ValuableEntry: Identifiable {
     let id: UUID
     var type: ValuableType
+    var typeDescription: String
     var amount: String
     var currency: CurrencyType
 
     init(
         id: UUID = UUID(),
         type: ValuableType = .pleaseSelect,
+        typeDescription: String = "",
         amount: String = "",
         currency: CurrencyType = .chf
     ) {
         self.id = id
         self.type = type
+        self.typeDescription = typeDescription
         self.amount = amount
         self.currency = currency
     }
