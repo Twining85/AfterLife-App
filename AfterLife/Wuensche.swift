@@ -17,6 +17,8 @@ struct WuenscheView: View {
     @State private var kontakteGeladen = false
     @State private var hatBesondereWuensche = true
     @State private var ausgewaehlteThemen: Set<WuenscheThema> = []
+    @State private var themaZumEntfernen: WuenscheThema? = nil
+    @State private var themaEntfernenDialogAnzeigen = false
 
     @State private var bestattungsart: Bestattungsart = .kremation
     @State private var bestattungswuensche = ""
@@ -254,6 +256,25 @@ struct WuenscheView: View {
                 guard neueSignatur != letzteGespeicherteWuenscheSignatur else { return }
                 speichereWuenscheVerzoegert()
             }
+            .alert(
+                "Wunsch entfernen?",
+                isPresented: $themaEntfernenDialogAnzeigen,
+                presenting: themaZumEntfernen
+            ) { thema in
+                Button("Ausblenden") {
+                    themaNurAusblenden(thema)
+                }
+
+                Button("Daten löschen", role: .destructive) {
+                    themaMitDatenLoeschen(thema)
+                }
+
+                Button("Abbrechen", role: .cancel) {
+                    themaZumEntfernen = nil
+                }
+            } message: { _ in
+                Text("Möchtest du deinen Wunsch nur ausblenden oder auch alle erfassten Daten dazu löschen?")
+            }
         }
     }
 
@@ -404,11 +425,112 @@ struct WuenscheView: View {
     }
 
     private func themaEntfernen(_ thema: WuenscheThema) {
+        themaZumEntfernen = thema
+        themaEntfernenDialogAnzeigen = true
+    }
+
+    private func themaNurAusblenden(_ thema: WuenscheThema) {
         withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
             _ = ausgewaehlteThemen.remove(thema)
         }
 
+        themaZumEntfernen = nil
         speichereWuenscheVerzoegert()
+    }
+
+    private func themaMitDatenLoeschen(_ thema: WuenscheThema) {
+        datenFuerThemaZuruecksetzen(thema)
+        themaNurAusblenden(thema)
+    }
+
+    private func datenFuerThemaZuruecksetzen(_ thema: WuenscheThema) {
+        switch thema {
+        case .beisetzung:
+            bestattungsart = .kremation
+            bestattungswuensche = ""
+            kremationHinweise = ""
+            erdbestattungHinweise = ""
+            sonstigeBemerkungen = ""
+
+        case .zeremonie:
+            zeremonie = false
+            zeremonieText = ""
+            keineBlumengeschenkeBitte = false
+            zeremonieBereitsOrganisiert = false
+            zeremonieOrganisiertDetails = ""
+            zeremonieFinanziellAbgesichert = false
+
+        case .musik:
+            besondereMusik = false
+            besondereMusikText = ""
+
+        case .letzteWorte:
+            moechteNochWasSagen = false
+            letzteWorteText = ""
+            letzteWorteVideoData = nil
+            letzteWorteVideoName = nil
+            letzteWorteVideoAuswahl = nil
+            letzteWorteVideoURL = nil
+            letzteWorteVideoPlayer = nil
+            letzteWorteVideoVorschauAnzeigen = false
+
+        case .nachruf:
+            nachrufVorstellung = false
+            nachrufText = ""
+            nachrufBildAuswahl = nil
+            nachrufBildData = nil
+
+        case .kontakte:
+            kontakte.removeAll()
+            ausgeklappteKontaktIDs.removeAll()
+            synchronisiereKontakteMitHinterbliebenen()
+
+        case .haustiere:
+            hatHaustiere = false
+            haustiere.removeAll()
+            ausgeklappteHaustierIDs.removeAll()
+
+        case .testament:
+            hatTestament = false
+            testamentAblageort = ""
+            testamentDateiName = nil
+            testamentDateiURL = nil
+            testamentDateiData = nil
+            testamentHochgeladenAm = nil
+            testamentErinnerungAktiv = true
+            testamentErinnerungDatum = Date()
+
+        case .patientenverfuegung:
+            hatPatientenverfuegung = false
+            patientenverfuegungDateiName = nil
+            patientenverfuegungDateiURL = nil
+            patientenverfuegungDateiData = nil
+            patientenverfuegungHochgeladenAm = nil
+            patientenverfuegungErinnerungAktiv = true
+            patientenverfuegungErinnerungDatum = Date()
+
+        case .vorsorgeauftrag:
+            hatVorsorgeauftrag = false
+            vorsorgeauftragDateiName = nil
+            vorsorgeauftragDateiURL = nil
+            vorsorgeauftragDateiData = nil
+            vorsorgeauftragHochgeladenAm = nil
+            vorsorgeauftragErinnerungAktiv = true
+            vorsorgeauftragErinnerungDatum = Date()
+
+        case .sterbebegleitung:
+            offenFuerSterbebegleitung = false
+            sterbebegleitungDateiName = nil
+            sterbebegleitungDateiURL = nil
+            sterbebegleitungDateiData = nil
+            sterbebegleitungHochgeladenAm = nil
+            sterbebegleitungErinnerungAktiv = true
+            sterbebegleitungErinnerungDatum = Date()
+            hatSchwereGesundheitlicheErkrankung = false
+            schwereErkrankung = nil
+            sterbebegleitungWichtig = ""
+            lebensqualitaetRegelmaessigBeurteilen = true
+        }
     }
 
     private var haustiereSection: some View {
