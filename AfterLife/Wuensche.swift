@@ -11,6 +11,9 @@ struct WuenscheView: View {
     @Query private var gespeicherteWuensche: [WuenscheModell]
     @Query private var gespeicherteHinterbliebeneKontakte: [HinterbliebeneModell]
     @State private var wuenscheGeladen = false
+    @State private var speicherTask: Task<Void, Never>? = nil
+    @State private var speicherungLaeuft = false
+    @State private var letzteGespeicherteWuenscheSignatur = ""
     @State private var kontakteGeladen = false
     @State private var hatBesondereWuensche = true
     @State private var ausgewaehlteThemen: Set<WuenscheThema> = []
@@ -123,6 +126,7 @@ struct WuenscheView: View {
 
     private var wuenscheSpeicherSignatur: String {
         [
+            ausgewaehlteThemen.map(\.rawValue).sorted().joined(separator: ","),
             String(hatBesondereWuensche),
             bestattungsart.rawValue,
             bestattungswuensche,
@@ -198,7 +202,6 @@ struct WuenscheView: View {
             .sheet(isPresented: $kontaktPickerAnzeigen) {
                 KontaktPicker { kontakt in
                     kontakte.append(kontakt)
-                    synchronisiereKontakteMitHinterbliebenen()
                     kontaktPickerAnzeigen = false
                 }
             }
@@ -206,6 +209,7 @@ struct WuenscheView: View {
                 HaustierErfassungView { haustier in
                     haustiere.append(haustier)
                     haustierPopupAnzeigen = false
+                    speichereWuenscheVerzoegert()
                 }
             }
             .fileImporter(
@@ -221,7 +225,7 @@ struct WuenscheView: View {
                     if let data = try? await neueAuswahl?.loadTransferable(type: Data.self) {
                         await MainActor.run {
                             nachrufBildData = data
-                            speichereWuensche()
+                            speichereWuenscheVerzoegert()
                         }
                     }
                 }
@@ -235,6 +239,7 @@ struct WuenscheView: View {
                             letzteWorteVideoData = data
                             letzteWorteVideoName = "Persönliche Botschaft.mov"
                             bereiteLetzteWorteVideoVorschauVor(sichtbar: true)
+                            speichereWuenscheVerzoegert()
                         }
                     }
                 }
@@ -242,12 +247,12 @@ struct WuenscheView: View {
             .onAppear {
                 ladeOderErstelleWuensche()
                 ladeKontakteAusHinterbliebenen()
+                letzteGespeicherteWuenscheSignatur = wuenscheSpeicherSignatur
             }
-            .onChange(of: wuenscheSpeicherSignatur) { _, _ in
-                speichereWuensche()
-            }
-            .onChange(of: kontakteSpeicherSignatur) { _, _ in
-                synchronisiereKontakteMitHinterbliebenen()
+            .onChange(of: wuenscheSpeicherSignatur) { _, neueSignatur in
+                guard wuenscheGeladen else { return }
+                guard neueSignatur != letzteGespeicherteWuenscheSignatur else { return }
+                speichereWuenscheVerzoegert()
             }
         }
     }
@@ -370,6 +375,7 @@ struct WuenscheView: View {
                     ausgewaehlteThemen.insert(thema)
                 }
             }
+            speichereWuenscheVerzoegert()
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: istAusgewaehlt ? "checkmark.circle.fill" : thema.systemImage)
@@ -401,6 +407,8 @@ struct WuenscheView: View {
         withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
             _ = ausgewaehlteThemen.remove(thema)
         }
+
+        speichereWuenscheVerzoegert()
     }
 
     private var haustiereSection: some View {
@@ -656,10 +664,18 @@ struct WuenscheView: View {
                 leerText("Noch keine Kontakte erfasst.")
             }
 
-            ForEach($kontakte) { $kontakt in
-                kontaktEintragView(kontakt: $kontakt)
+            ForEach(kontakte) { kontakt in
+                if let kontaktBinding = bindingFuerKontakt(id: kontakt.id) {
+                    SwipeToDeleteRow(
+                        accentColor: wuenscheAccentColor,
+                        deleteAction: {
+                            kontaktLoeschen(id: kontakt.id)
+                        }
+                    ) {
+                        kontaktEintragView(kontakt: kontaktBinding)
+                    }
+                }
             }
-            .onDelete(perform: kontaktLoeschen)
 
             accentButton(title: "Aus Adressbuch hinzufügen", systemImage: "person.crop.circle.badge.plus") {
                 kontaktPickerAnzeigen = true
@@ -858,6 +874,14 @@ struct WuenscheView: View {
 
         if let vorhandeneWuensche = gespeicherteWuensche.first {
             hatBesondereWuensche = true
+
+            if let themenData = vorhandeneWuensche.ausgewaehlteThemenData,
+               let themenRawValues = try? JSONDecoder().decode([String].self, from: themenData) {
+                ausgewaehlteThemen = Set(themenRawValues.compactMap { WuenscheThema(rawValue: $0) })
+            } else {
+                ausgewaehlteThemen = []
+            }
+
             bestattungsart = Bestattungsart(rawValue: vorhandeneWuensche.beisetzungsArt) ?? .kremation
             bestattungswuensche = vorhandeneWuensche.beisetzungHinweis
             sonstigeBemerkungen = vorhandeneWuensche.sonstigeBemerkungen
@@ -940,9 +964,28 @@ struct WuenscheView: View {
         wuenscheGeladen = true
     }
 
+    private func speichereWuenscheVerzoegert() {
+        guard wuenscheGeladen else { return }
+        guard !speicherungLaeuft else { return }
+
+        speicherTask?.cancel()
+        speicherTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            guard !Task.isCancelled else { return }
+            guard wuenscheSpeicherSignatur != letzteGespeicherteWuenscheSignatur else { return }
+            speichereWuensche()
+        }
+    }
+
     private func speichereWuensche() {
         guard wuenscheGeladen else { return }
+        guard !speicherungLaeuft else { return }
+        guard wuenscheSpeicherSignatur != letzteGespeicherteWuenscheSignatur else { return }
 
+        speicherungLaeuft = true
+        defer { speicherungLaeuft = false }
+
+        let aktuelleSignatur = wuenscheSpeicherSignatur
         let wuensche: WuenscheModell
 
         if let vorhandeneWuensche = gespeicherteWuensche.first {
@@ -954,6 +997,8 @@ struct WuenscheView: View {
         }
 
         wuensche.hatWuensche = true
+        let sortierteThemen = ausgewaehlteThemen.map(\.rawValue).sorted()
+        wuensche.ausgewaehlteThemenData = try? JSONEncoder().encode(sortierteThemen)
         wuensche.beisetzungsArt = bestattungsart.rawValue
 
         switch bestattungsart {
@@ -1014,6 +1059,13 @@ struct WuenscheView: View {
         wuensche.regelmaessigBeurteilen = lebensqualitaetRegelmaessigBeurteilen
         wuensche.hatHaustiere = hatHaustiere
         wuensche.haustiereData = try? JSONEncoder().encode(haustiere)
+
+        do {
+            try modelContext.save()
+            letzteGespeicherteWuenscheSignatur = aktuelleSignatur
+        } catch {
+            print("Wuensche konnten nicht gespeichert werden: \(error.localizedDescription)")
+        }
     }
 
     private func haustierLoeschen(at offsets: IndexSet) {
@@ -1024,18 +1076,35 @@ struct WuenscheView: View {
         }
 
         haustiere.remove(atOffsets: offsets)
+        speichereWuenscheVerzoegert()
     }
 
+    private func bindingFuerKontakt(id: UUID) -> Binding<BeisetzungsKontakt>? {
+        guard kontakte.contains(where: { $0.id == id }) else { return nil }
 
-    private func kontaktLoeschen(at offsets: IndexSet) {
-        for index in offsets {
-            if kontakte.indices.contains(index) {
-                ausgeklappteKontaktIDs.remove(kontakte[index].id)
+        return Binding(
+            get: {
+                kontakte.first(where: { $0.id == id }) ?? BeisetzungsKontakt()
+            },
+            set: { neuerKontakt in
+                guard let index = kontakte.firstIndex(where: { $0.id == id }) else { return }
+                kontakte[index] = neuerKontakt
+                synchronisiereKontakteMitHinterbliebenen()
+                try? modelContext.save()
             }
+        )
+    }
+
+    private func kontaktLoeschen(id: UUID) {
+        guard kontakte.contains(where: { $0.id == id }) else { return }
+
+        withAnimation(.easeInOut(duration: 0.18)) {
+            ausgeklappteKontaktIDs.remove(id)
+            kontakte.removeAll { $0.id == id }
         }
 
-        kontakte.remove(atOffsets: offsets)
         synchronisiereKontakteMitHinterbliebenen()
+        try? modelContext.save()
     }
 
 
@@ -1085,7 +1154,7 @@ struct WuenscheView: View {
 
         let gueltigeIDs = Set(gueltigeKontakte.map { $0.id.uuidString })
 
-        let gespeicherteWuenscheKontakte = gespeicherteHinterbliebeneKontakte.filter {
+        var gespeicherteWuenscheKontakte = gespeicherteHinterbliebeneKontakte.filter {
             $0.quelle == "WuenscheView" || $0.bemerkungen == "Quelle: WuenscheView"
         }
 
@@ -1127,6 +1196,7 @@ struct WuenscheView: View {
                     quelle: "WuenscheView"
                 )
                 modelContext.insert(neuerKontakt)
+                gespeicherteWuenscheKontakte.append(neuerKontakt)
                 zielKontakt = neuerKontakt
             }
 
@@ -1143,6 +1213,8 @@ struct WuenscheView: View {
             zielKontakt.darfDokumenteErhalten = kontakt.einladen
             zielKontakt.aktualisiertAm = Date()
         }
+
+        try? modelContext.save()
     }
 
     private func kontaktIDAusRolle(_ rolle: String) -> String {
@@ -1290,9 +1362,9 @@ struct WuenscheView: View {
                     } label: {
                         Image(systemName: "xmark")
                             .font(.caption2.weight(.bold))
-                            .foregroundStyle(.white.opacity(0.92))
+                            .foregroundStyle(wuenscheAccentColor.opacity(0.9))
                             .frame(width: 24, height: 24)
-                            .background(Circle().fill(wuenscheAccentColor.opacity(0.72)))
+                            .background(Circle().fill(wuenscheAccentColor.opacity(0.14)))
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Thema entfernen")
@@ -1408,7 +1480,7 @@ struct WuenscheView: View {
     private func nachrufBildEntfernen() {
         nachrufBildData = nil
         nachrufBildAuswahl = nil
-        speichereWuensche()
+        speichereWuenscheVerzoegert()
     }
 
     private func letzteWorteVideoEntfernen() {
@@ -1417,7 +1489,7 @@ struct WuenscheView: View {
         letzteWorteVideoAuswahl = nil
         letzteWorteVideoURL = nil
         letzteWorteVideoVorschauAnzeigen = false
-        speichereWuensche()
+        speichereWuenscheVerzoegert()
     }
 
     private func oeffneLetzteWorteVideo() {
@@ -1526,7 +1598,7 @@ struct WuenscheView: View {
             case .none:
                 break
             }
-            speichereWuensche()
+            speichereWuenscheVerzoegert()
         case .failure:
             break
         }
@@ -1541,7 +1613,7 @@ struct WuenscheView: View {
         testamentHochgeladenAm = nil
         testamentErinnerungAktiv = true
         testamentErinnerungDatum = Date()
-        speichereWuensche()
+        speichereWuenscheVerzoegert()
     }
 
     private func patientenverfuegungDateiEntfernen() {
@@ -1551,7 +1623,7 @@ struct WuenscheView: View {
         patientenverfuegungHochgeladenAm = nil
         patientenverfuegungErinnerungAktiv = true
         patientenverfuegungErinnerungDatum = Date()
-        speichereWuensche()
+        speichereWuenscheVerzoegert()
     }
 
     private func vorsorgeauftragDateiEntfernen() {
@@ -1561,7 +1633,7 @@ struct WuenscheView: View {
         vorsorgeauftragHochgeladenAm = nil
         vorsorgeauftragErinnerungAktiv = true
         vorsorgeauftragErinnerungDatum = Date()
-        speichereWuensche()
+        speichereWuenscheVerzoegert()
     }
 
     private func sterbebegleitungDateiEntfernen() {
@@ -1571,7 +1643,7 @@ struct WuenscheView: View {
         sterbebegleitungHochgeladenAm = nil
         sterbebegleitungErinnerungAktiv = true
         sterbebegleitungErinnerungDatum = Date()
-        speichereWuensche()
+        speichereWuenscheVerzoegert()
     }
 
     private func erinnerungsDatumInEinemJahr() -> Date {
@@ -1797,6 +1869,75 @@ struct DetailBox<Content: View>: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(accentColor.opacity(0.16), lineWidth: 1)
         )
+    }
+}
+
+struct SwipeToDeleteRow<Content: View>: View {
+    var accentColor: Color
+    let deleteAction: () -> Void
+    @ViewBuilder let content: Content
+
+    @State private var offsetX: CGFloat = 0
+    @State private var istGeloescht = false
+
+    private let deleteThreshold: CGFloat = -86
+    private let maxOffset: CGFloat = -112
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            content
+                .offset(x: offsetX)
+                .gesture(
+                    DragGesture(minimumDistance: 18, coordinateSpace: .local)
+                        .onChanged { value in
+                            guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                            offsetX = min(0, max(value.translation.width, maxOffset))
+                        }
+                        .onEnded { value in
+                            guard !istGeloescht else { return }
+
+                            if value.translation.width <= deleteThreshold {
+                                istGeloescht = true
+                                withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
+                                    offsetX = maxOffset
+                                }
+
+                                DispatchQueue.main.async {
+                                    deleteAction()
+                                }
+                            } else {
+                                withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
+                                    offsetX = 0
+                                }
+                            }
+                        }
+                )
+
+            if offsetX < -12 {
+                HStack {
+                    Spacer()
+
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.red.opacity(0.92))
+                        .frame(width: 58, height: 58)
+                        .overlay {
+                            Image(systemName: "trash.fill")
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(.white)
+                        }
+                        .padding(.trailing, 12)
+                }
+                .allowsHitTesting(false)
+                .transition(.opacity)
+                .zIndex(1)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityAction(named: "Löschen") {
+            guard !istGeloescht else { return }
+            istGeloescht = true
+            deleteAction()
+        }
     }
 }
 
