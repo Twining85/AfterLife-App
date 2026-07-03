@@ -641,66 +641,58 @@ struct FinanzenView: View {
     }
     private var bankEntryList: some View {
         ForEach(Array($bankEntries.enumerated()), id: \.element.id) { index, $bankEntry in
-            DetailBox {
-                HStack {
-                    Text("Konto \(index + 1)")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-
-                    Spacer()
-
-                    Button(role: .destructive) {
-                        bankEntries.removeAll { $0.id == bankEntry.id }
-                        speichereFinanzenInSwiftData()
-                    } label: {
-                        Image(systemName: "trash")
-                    }
-                    .buttonStyle(.borderless)
-                }
-
-                Picker("Art des Kontos", selection: $bankEntry.accountType) {
-                    ForEach(AccountType.allCases) { type in
-                        Text(type.rawValue).tag(type)
-                    }
-                }
-
-                if bankEntry.accountType != .pleaseSelect {
-                    labelledTextField("IBAN / Konto-Nr.", text: $bankEntry.iban)
-                        .textInputAutocapitalization(.characters)
-                        .autocorrectionDisabled()
-                        .onChange(of: bankEntry.iban) { _, _ in
-                            pruefeIBANUndFuelleBankdatenAutomatisch(fuer: bankEntry.id)
-                        }
-                        .onSubmit {
-                            pruefeIBANUndFuelleBankdatenAutomatisch(fuer: bankEntry.id, erzwingen: true)
-                        }
-
-                    labelledTextField("Name der Bank", text: $bankEntry.bankName)
-                        .autocorrectionDisabled()
-
-                    labelledMultilineTextField("Adresse der Bank", text: $bankEntry.bankAddress, lineLimit: 2...4)
-
-                    labelledTextField("Berater", text: $bankEntry.advisor)
-
-                    labelledMoneyField("Vermögenswerte", amount: $bankEntry.assets, currency: $bankEntry.currency)
-                }
-            }
-            .padding(12)
-            .background(Color.white.opacity(0.70))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(finanzenAkzentFarbe.opacity(0.12), lineWidth: 1)
-            }
-            .id(bankEntry.id)
-            .swipeActions(edge: .trailing) {
-                Button(role: .destructive) {
+            FinanzenSwipeToDeleteRow(
+                accentColor: finanzenAkzentFarbe,
+                deleteAction: {
                     bankEntries.removeAll { $0.id == bankEntry.id }
                     speichereFinanzenInSwiftData()
-                } label: {
-                    Label("Löschen", systemImage: "trash")
+                }
+            ) {
+                DetailBox {
+                    HStack {
+                        Text("Konto \(index + 1)")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+
+                        Spacer()
+                    }
+
+                    Picker("Art des Kontos", selection: $bankEntry.accountType) {
+                        ForEach(AccountType.allCases) { type in
+                            Text(type.rawValue).tag(type)
+                        }
+                    }
+
+                    if bankEntry.accountType != .pleaseSelect {
+                        labelledTextField("IBAN / Konto-Nr.", text: $bankEntry.iban)
+                            .textInputAutocapitalization(.characters)
+                            .autocorrectionDisabled()
+                            .onChange(of: bankEntry.iban) { _, _ in
+                                pruefeIBANUndFuelleBankdatenAutomatisch(fuer: bankEntry.id)
+                            }
+                            .onSubmit {
+                                pruefeIBANUndFuelleBankdatenAutomatisch(fuer: bankEntry.id, erzwingen: true)
+                            }
+
+                        labelledTextField("Name der Bank", text: $bankEntry.bankName)
+                            .autocorrectionDisabled()
+
+                        labelledMultilineTextField("Adresse der Bank", text: $bankEntry.bankAddress, lineLimit: 2...4)
+
+                        labelledTextField("Berater", text: $bankEntry.advisor)
+
+                        labelledMoneyField("Vermögenswerte", amount: $bankEntry.assets, currency: $bankEntry.currency)
+                    }
+                }
+                .padding(12)
+                .background(Color.white.opacity(0.70))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(finanzenAkzentFarbe.opacity(0.12), lineWidth: 1)
                 }
             }
+            .id(bankEntry.id)
         }
     }
     private func pruefeIBANUndFuelleBankdatenAutomatisch(fuer entryID: UUID, erzwingen: Bool = false) {
@@ -726,212 +718,286 @@ struct FinanzenView: View {
 
     private var debtEntryList: some View {
         ForEach(Array($debts.enumerated()), id: \.element.id) { index, $debt in
-            DetailBox {
-                HStack {
-                    Text("Schuld \(index + 1)")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-
-                    Spacer()
-
-                    Button(role: .destructive) {
-                        debts.removeAll { $0.id == debt.id }
-                        speichereFinanzenInSwiftData()
-                    } label: {
-                        Image(systemName: "trash")
-                    }
-                    .buttonStyle(.borderless)
-                }
-                Picker("Art der Schuld", selection: $debt.type) {
-                    ForEach(DebtType.allCases) { type in
-                        Text(type.rawValue).tag(type)
-                    }
-                }
-
-                if debt.type != .pleaseSelect {
-                    labelledTextField("Name der Bank oder Person", text: $debt.creditor)
-
-                    labelledMoneyField("Betrag", amount: $debt.amount, currency: $debt.currency)
-                }
-            }
-            .padding(12)
-            .background(Color.white.opacity(0.70))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(finanzenAkzentFarbe.opacity(0.12), lineWidth: 1)
-            }
-            .id(debt.id)
-            .swipeActions(edge: .trailing) {
-                Button(role: .destructive) {
+            FinanzenSwipeToDeleteRow(
+                accentColor: finanzenAkzentFarbe,
+                deleteAction: {
                     debts.removeAll { $0.id == debt.id }
                     speichereFinanzenInSwiftData()
-                } label: {
-                    Label("Löschen", systemImage: "trash")
+                }
+            ) {
+                DetailBox {
+                    HStack {
+                        Text("Schuld \(index + 1)")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+
+                        Spacer()
+                    }
+                    Picker("Art der Schuld", selection: $debt.type) {
+                        ForEach(DebtType.allCases) { type in
+                            Text(type.rawValue).tag(type)
+                        }
+                    }
+
+                    if debt.type != .pleaseSelect {
+                        labelledTextField("Name der Bank oder Person", text: $debt.creditor)
+
+                        labelledMoneyField("Betrag", amount: $debt.amount, currency: $debt.currency)
+                    }
+                }
+                .padding(12)
+                .background(Color.white.opacity(0.70))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(finanzenAkzentFarbe.opacity(0.12), lineWidth: 1)
                 }
             }
+            .id(debt.id)
         }
     }
     private var propertyEntryList: some View {
         ForEach(Array($propertyEntries.enumerated()), id: \.element.id) { index, $propertyEntry in
-            DetailBox {
-                HStack {
-                    Text("Liegenschaft \(index + 1)")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-
-                    Spacer()
-
-                    Button(role: .destructive) {
-                        propertyEntries.removeAll { $0.id == propertyEntry.id }
-                        speichereFinanzenInSwiftData()
-                    } label: {
-                        Image(systemName: "trash")
-                    }
-                    .buttonStyle(.borderless)
-                }
-
-                Picker("Art", selection: $propertyEntry.type) {
-                    ForEach(PropertyType.allCases) { type in
-                        Text(type.rawValue).tag(type)
-                    }
-                }
-
-                if propertyEntry.type != .pleaseSelect {
-                    labelledMoneyField("Verkehrswert", amount: $propertyEntry.marketValue, currency: $propertyEntry.marketValueCurrency)
-
-                    labelledMoneyField("Eigenmietwert", amount: $propertyEntry.imputedRentalValue, currency: $propertyEntry.imputedRentalValueCurrency)
-                }
-            }
-            .padding(12)
-            .background(Color.white.opacity(0.70))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(finanzenAkzentFarbe.opacity(0.12), lineWidth: 1)
-            }
-            .id(propertyEntry.id)
-            .swipeActions(edge: .trailing) {
-                Button(role: .destructive) {
+            FinanzenSwipeToDeleteRow(
+                accentColor: finanzenAkzentFarbe,
+                deleteAction: {
                     propertyEntries.removeAll { $0.id == propertyEntry.id }
                     speichereFinanzenInSwiftData()
-                } label: {
-                    Label("Löschen", systemImage: "trash")
+                }
+            ) {
+                DetailBox {
+                    HStack {
+                        Text("Liegenschaft \(index + 1)")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+
+                        Spacer()
+                    }
+
+                    Picker("Art", selection: $propertyEntry.type) {
+                        ForEach(PropertyType.allCases) { type in
+                            Text(type.rawValue).tag(type)
+                        }
+                    }
+
+                    if propertyEntry.type != .pleaseSelect {
+                        labelledMoneyField("Verkehrswert", amount: $propertyEntry.marketValue, currency: $propertyEntry.marketValueCurrency)
+
+                        labelledMoneyField("Eigenmietwert", amount: $propertyEntry.imputedRentalValue, currency: $propertyEntry.imputedRentalValueCurrency)
+                    }
+                }
+                .padding(12)
+                .background(Color.white.opacity(0.70))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(finanzenAkzentFarbe.opacity(0.12), lineWidth: 1)
                 }
             }
+            .id(propertyEntry.id)
         }
     }
 
     private var valuableEntryList: some View {
         ForEach(Array($valuableEntries.enumerated()), id: \.element.id) { index, $valuableEntry in
-            DetailBox {
-                HStack {
-                    Text("Wertsache \(index + 1)")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-
-                    Spacer()
-
-                    Button(role: .destructive) {
-                        valuableEntries.removeAll { $0.id == valuableEntry.id }
-                        speichereFinanzenInSwiftData()
-                    } label: {
-                        Image(systemName: "trash")
-                    }
-                    .buttonStyle(.borderless)
-                }
-
-                Picker("Art", selection: $valuableEntry.type) {
-                    ForEach(ValuableType.allCases) { type in
-                        Text(type.rawValue).tag(type)
-                    }
-                }
-
-                if valuableEntry.type != .pleaseSelect {
-                    labelledTextField("Beschreibung / Art", text: $valuableEntry.typeDescription)
-
-                    labelledMoneyField("Betrag", amount: $valuableEntry.amount, currency: $valuableEntry.currency)
-                }
-            }
-            .padding(12)
-            .background(Color.white.opacity(0.70))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(finanzenAkzentFarbe.opacity(0.12), lineWidth: 1)
-            }
-            .id(valuableEntry.id)
-            .swipeActions(edge: .trailing) {
-                Button(role: .destructive) {
+            FinanzenSwipeToDeleteRow(
+                accentColor: finanzenAkzentFarbe,
+                deleteAction: {
                     valuableEntries.removeAll { $0.id == valuableEntry.id }
                     speichereFinanzenInSwiftData()
-                } label: {
-                    Label("Löschen", systemImage: "trash")
+                }
+            ) {
+                DetailBox {
+                    HStack {
+                        Text("Wertsache \(index + 1)")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+
+                        Spacer()
+                    }
+
+                    Picker("Art", selection: $valuableEntry.type) {
+                        ForEach(ValuableType.allCases) { type in
+                            Text(type.rawValue).tag(type)
+                        }
+                    }
+
+                    if valuableEntry.type != .pleaseSelect {
+                        labelledTextField("Beschreibung / Art", text: $valuableEntry.typeDescription)
+
+                        labelledMoneyField("Betrag", amount: $valuableEntry.amount, currency: $valuableEntry.currency)
+                    }
+                }
+                .padding(12)
+                .background(Color.white.opacity(0.70))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(finanzenAkzentFarbe.opacity(0.12), lineWidth: 1)
                 }
             }
+            .id(valuableEntry.id)
         }
     }
 
     private var insuranceEntryList: some View {
         ForEach(Array($insuranceEntries.enumerated()), id: \.element.id) { index, $insuranceEntry in
-            DetailBox {
-                HStack {
-                    Text("Versicherung \(index + 1)")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-
-                    Spacer()
-
-                    Button(role: .destructive) {
-                        insuranceEntries.removeAll { $0.id == insuranceEntry.id }
-                        speichereFinanzenInSwiftData()
-                    } label: {
-                        Image(systemName: "trash")
-                    }
-                    .buttonStyle(.borderless)
-                }
-
-                Picker("Art der Versicherung", selection: $insuranceEntry.type) {
-                    ForEach(InsuranceType.allCases) { type in
-                        Text(type.rawValue).tag(type)
-                    }
-                }
-
-                if insuranceEntry.type != .pleaseSelect {
-                    labelledTextField("Name der Versicherung", text: $insuranceEntry.provider)
-
-                    labelledTextField("Police-Nr. / Vertrags-Nr.", text: $insuranceEntry.policyNumber)
-                        .autocorrectionDisabled()
-
-                    if insuranceEntry.type == .pensionFund || insuranceEntry.type == .pillar3a || insuranceEntry.type == .vestedBenefits {
-                        labelledMoneyField("Betrag", amount: $insuranceEntry.amount, currency: $insuranceEntry.currency)
-                    }
-
-                    if insuranceEntry.type == .lifeInsurance {
-                        labelledMoneyField("Versicherungssumme", amount: $insuranceEntry.amount, currency: $insuranceEntry.currency)
-                    }
-
-                    labelledMultilineTextField("Bemerkungen", text: $insuranceEntry.notes, lineLimit: 2...5)
-                }
-            }
-            .padding(12)
-            .background(Color.white.opacity(0.70))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(finanzenAkzentFarbe.opacity(0.12), lineWidth: 1)
-            }
-            .id(insuranceEntry.id)
-            .swipeActions(edge: .trailing) {
-                Button(role: .destructive) {
+            FinanzenSwipeToDeleteRow(
+                accentColor: finanzenAkzentFarbe,
+                deleteAction: {
                     insuranceEntries.removeAll { $0.id == insuranceEntry.id }
                     speichereFinanzenInSwiftData()
-                } label: {
-                    Label("Löschen", systemImage: "trash")
+                }
+            ) {
+                DetailBox {
+                    HStack {
+                        Text("Versicherung \(index + 1)")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+
+                        Spacer()
+                    }
+
+                    Picker("Art der Versicherung", selection: $insuranceEntry.type) {
+                        ForEach(InsuranceType.allCases) { type in
+                            Text(type.rawValue).tag(type)
+                        }
+                    }
+
+                    if insuranceEntry.type != .pleaseSelect {
+                        labelledTextField("Name der Versicherung", text: $insuranceEntry.provider)
+
+                        labelledTextField("Police-Nr. / Vertrags-Nr.", text: $insuranceEntry.policyNumber)
+                            .autocorrectionDisabled()
+
+                        if insuranceEntry.type == .pensionFund || insuranceEntry.type == .pillar3a || insuranceEntry.type == .vestedBenefits {
+                            labelledMoneyField("Betrag", amount: $insuranceEntry.amount, currency: $insuranceEntry.currency)
+                        }
+
+                        if insuranceEntry.type == .lifeInsurance {
+                            labelledMoneyField("Versicherungssumme", amount: $insuranceEntry.amount, currency: $insuranceEntry.currency)
+                        }
+
+                        labelledMultilineTextField("Bemerkungen", text: $insuranceEntry.notes, lineLimit: 2...5)
+                    }
+                }
+                .padding(12)
+                .background(Color.white.opacity(0.70))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(finanzenAkzentFarbe.opacity(0.12), lineWidth: 1)
                 }
             }
+            .id(insuranceEntry.id)
         }
     }
+// Custom swipe-to-delete row for Finanzen
+
+struct FinanzenSwipeToDeleteRow<Content: View>: View {
+    var accentColor: Color
+    let deleteAction: () -> Void
+    let content: Content
+
+    @State private var offsetX: CGFloat = 0
+    @State private var istGeloescht = false
+
+    private let revealOffset: CGFloat = -92
+    private let fullDeleteThreshold: CGFloat = -148
+    private let maxOffset: CGFloat = -164
+
+    init(
+        accentColor: Color,
+        deleteAction: @escaping () -> Void,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.accentColor = accentColor
+        self.deleteAction = deleteAction
+        self.content = content()
+    }
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            HStack(spacing: 0) {
+                Spacer(minLength: 0)
+
+                Button {
+                    loeschen()
+                } label: {
+                    ZStack {
+                        Rectangle()
+                            .fill(Color.red)
+
+                        Image(systemName: "trash.fill")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(.white)
+                    }
+                    .frame(width: deleteAreaWidth)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .opacity(offsetX < -8 ? 1 : 0)
+                .allowsHitTesting(offsetX < -40)
+            }
+            .frame(maxWidth: .infinity)
+            .zIndex(0)
+
+            content
+                .frame(maxWidth: .infinity)
+                .background(Color.white.opacity(0.001))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .compositingGroup()
+                .offset(x: offsetX)
+                .contentShape(Rectangle())
+                .zIndex(1)
+                .gesture(
+                    DragGesture(minimumDistance: 12)
+                        .onChanged { value in
+                            let startOffset = offsetX == revealOffset ? revealOffset : 0
+                            let neuePosition = min(0, max(maxOffset, value.translation.width + startOffset))
+
+                            if neuePosition <= 0 {
+                                offsetX = neuePosition
+                            }
+                        }
+                        .onEnded { value in
+                            if value.translation.width < fullDeleteThreshold {
+                                loeschen()
+                            } else if offsetX < -42 {
+                                withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
+                                    offsetX = revealOffset
+                                }
+                            } else {
+                                withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
+                                    offsetX = 0
+                                }
+                            }
+                        }
+                )
+        }
+        .opacity(istGeloescht ? 0 : 1)
+        .frame(maxWidth: .infinity)
+        .fixedSize(horizontal: false, vertical: true)
+        .clipped()
+    }
+
+    private var deleteAreaWidth: CGFloat {
+        min(max(0, abs(offsetX)), abs(maxOffset))
+    }
+
+    private func loeschen() {
+        guard !istGeloescht else { return }
+
+        withAnimation(.easeInOut(duration: 0.18)) {
+            istGeloescht = true
+            offsetX = maxOffset
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+            deleteAction()
+        }
+    }
+}
     private func ladeFinanzenAusSwiftData() {
         guard !finanzenGeladen else { return }
 
