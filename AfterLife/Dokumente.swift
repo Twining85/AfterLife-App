@@ -22,10 +22,13 @@ struct DokumenteView: View {
     @State private var selectedDocument: UploadedDocument?
     @State private var exportURL: URL?
     @State private var showDocumentScanner = false
+    @State private var pendingScanData: Data?
+    @State private var pendingScanDateiName = ""
+    @State private var showDownloadSpeichernAbfrage = false
 
     private let dokumenteHintergrundFarbe = Color(red: 0.985, green: 0.975, blue: 0.955)
     private let dokumenteKartenFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
-    private let dokumenteAkzentFarbe = Color(red: 0.22, green: 0.43, blue: 0.68)
+    private let dokumenteAkzentFarbe = Color(red: 0.16, green: 0.36, blue: 0.42)
 
     var body: some View {
         NavigationStack {
@@ -76,15 +79,21 @@ struct DokumenteView: View {
             }
             .sheet(isPresented: $showDocumentScanner) {
                 DocumentScanner { pdfData in
-                    let dokument = DokumenteModell(
-                        dateiName: "Scan_\(Date().formatted(.dateTime.year().month().day().hour().minute())).pdf",
-                        kategorie: "Weitere Dokumente",
-                        hochgeladenAm: Date(),
-                        dateiDaten: pdfData
-                    )
-                    modelContext.insert(dokument)
-                    try? modelContext.save()
+                    pendingScanDateiName = "Scan_\(Date().formatted(.dateTime.year().month().day().hour().minute())).pdf"
+                    pendingScanData = pdfData
+                    showDownloadSpeichernAbfrage = true
                 }
+            }
+            .alert("Scan zusätzlich speichern?", isPresented: $showDownloadSpeichernAbfrage) {
+                Button("Nein") {
+                    speichereGescanntesDokument(sollInDownloadsSpeichern: false)
+                }
+
+                Button("Ja") {
+                    speichereGescanntesDokument(sollInDownloadsSpeichern: true)
+                }
+            } message: {
+                Text("Möchtest du den Scan zusätzlich ausserhalb der App speichern? In der App wird das Dokument in jedem Fall gespeichert. Bei Ja öffnet sich anschliessend das Speichern-Menü.")
             }
             .sheet(item: $selectedDocument) { document in
                 DocumentPreview(url: document.fileURL)
@@ -145,13 +154,13 @@ struct DokumenteView: View {
 
     private var fotoalbumSection: some View {
         Section {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 16) {
                 Text("Mein persönliches Fotoalbum")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.title3.weight(.semibold))
                     .foregroundStyle(.primary)
 
                 Text("Lade hier Fotos hoch, die für deine Vertrauenspersonen wichtig oder besonders wertvoll sind.")
-                    .font(.caption2)
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .textCase(nil)
 
@@ -165,94 +174,117 @@ struct DokumenteView: View {
                     matching: .images
                 ) {
                     Label("Bild für Fotoalbum hochladen", systemImage: "photo.on.rectangle.angled")
-                        .font(.caption.weight(.semibold))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(dokumenteAkzentFarbe)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
+                        .padding(.vertical, 13)
                         .background(dokumenteAkzentFarbe.opacity(0.10))
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
-            .padding(14)
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.white.opacity(0.65))
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .stroke(dokumenteAkzentFarbe.opacity(0.12), lineWidth: 1)
             }
         }
+        .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
         .listRowBackground(Color.clear)
     }
 
     private var weitereDokumenteSection: some View {
         Section {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 16) {
                 Text("Weitere Dokumente hochladen")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.title3.weight(.semibold))
                     .foregroundStyle(.primary)
 
-                Text("Lade weitere Dokumente hoch, zum Beispiel Ehevertrag, Vollmachten für Konten oder Post, Wohnsitzbestätigung oder ähnliche Unterlagen.")
-                    .font(.caption2)
+                Text("Ergänze wichtige Unterlagen, die nicht direkt zu Wünsche oder Finanzen gehören.")
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .textCase(nil)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                Button {
-                    showDocumentPicker = true
-                } label: {
-                    Label("Hinzufügen", systemImage: "doc.badge.arrow.up")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(dokumenteAkzentFarbe)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(dokumenteAkzentFarbe.opacity(0.10))
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                }
-                .buttonStyle(.plain)
-
-                Button {
-                    showDocumentScanner = true
-                } label: {
-                    Label("Scannen", systemImage: "doc.viewfinder")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(dokumenteAkzentFarbe)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(dokumenteAkzentFarbe.opacity(0.10))
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                }
-                .buttonStyle(.plain)
-
-                if !weitereDokumente.isEmpty {
-                    ForEach(Array(weitereDokumente.enumerated()), id: \.element.id) { index, document in
-                        readOnlyDocumentRow(document) {
-                            if let previewURL = previewURL(for: document) {
-                                selectedDocument = UploadedDocument(
-                                    fileName: document.fileName,
-                                    uploadDate: document.uploadDate ?? Date(),
-                                    fileURL: previewURL
-                                )
-                            }
-                        }
+                HStack(spacing: 10) {
+                    Button {
+                        showDocumentPicker = true
+                    } label: {
+                        Label("Hinzufügen", systemImage: "doc.badge.plus")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                            .background(dokumenteAkzentFarbe)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
-                    .onDelete { indexSet in
-                        for index in indexSet {
-                            let dokument = gespeicherteWeitereDokumente[index]
-                            modelContext.delete(dokument)
-                        }
-                        try? modelContext.save()
+                    .buttonStyle(.plain)
+
+                    Button {
+                        showDocumentScanner = true
+                    } label: {
+                        Label("Scannen", systemImage: "doc.viewfinder")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(dokumenteAkzentFarbe)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                            .background(dokumenteAkzentFarbe.opacity(0.10))
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
+                    .buttonStyle(.plain)
                 }
             }
-            .padding(14)
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.white.opacity(0.65))
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .stroke(dokumenteAkzentFarbe.opacity(0.12), lineWidth: 1)
             }
+            .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
+            .listRowBackground(Color.clear)
+
+            let weitereDokumenteModelle = gespeicherteWeitereDokumente.filter { $0.kategorie == "Weitere Dokumente" }
+
+            if !weitereDokumenteModelle.isEmpty {
+                ForEach(weitereDokumenteModelle) { dokument in
+                    let document = ReadOnlyDocument(
+                        title: dokumentTitel(for: dokument.dateiName),
+                        fileName: dokument.dateiName,
+                        uploadDate: dokument.hochgeladenAm,
+                        fileURL: nil,
+                        fileData: dokument.dateiDaten,
+                        preferredFileExtension: nil
+                    )
+
+                    readOnlyDocumentRow(document) {
+                        if let previewURL = previewURL(for: document) {
+                            selectedDocument = UploadedDocument(
+                                fileName: document.fileName,
+                                uploadDate: document.uploadDate ?? Date(),
+                                fileURL: previewURL
+                            )
+                        }
+                    }
+                    .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            modelContext.delete(dokument)
+                            try? modelContext.save()
+                        } label: {
+                            Label("Löschen", systemImage: "trash")
+                        }
+                        .tint(.red)
+                    }
+                }
+            }
         }
-        .listRowBackground(Color.clear)
     }
 
     private var fotoalbumInhalt: some View {
@@ -312,15 +344,19 @@ struct DokumenteView: View {
                 if let photoBundleURL {
                     ShareLink(item: photoBundleURL) {
                         Label("Album teilen", systemImage: "square.and.arrow.up")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(dokumenteAkzentFarbe)
                     }
-                    .font(.caption)
+                    .buttonStyle(.borderless)
                 } else {
                     Button {
                         photoBundleURL = erstelleFotoBundle()
                     } label: {
                         Label("Album bereitstellen", systemImage: "tray.and.arrow.down")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(dokumenteAkzentFarbe)
                     }
-                    .font(.caption)
+                    .buttonStyle(.borderless)
                 }
             }
 
@@ -332,8 +368,9 @@ struct DokumenteView: View {
                 try? modelContext.save()
             } label: {
                 Label("Fotoalbum leeren", systemImage: "trash")
+                    .font(.caption.weight(.semibold))
             }
-            .font(.caption)
+            .buttonStyle(.borderless)
         }
     }
 
@@ -383,7 +420,7 @@ struct DokumenteView: View {
                     .foregroundStyle(dokumenteAkzentFarbe)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.borderless)
     }
 
 
@@ -396,7 +433,7 @@ struct DokumenteView: View {
             .filter { $0.kategorie == "Weitere Dokumente" }
             .map { dokument in
                 ReadOnlyDocument(
-                    title: "Weiteres Dokument",
+                    title: dokumentTitel(for: dokument.dateiName),
                     fileName: dokument.dateiName,
                     uploadDate: dokument.hochgeladenAm,
                     fileURL: nil,
@@ -488,56 +525,149 @@ struct DokumenteView: View {
         }
     }
 
+    private func dokumentTitel(for fileName: String) -> String {
+        let lowercasedFileName = fileName.lowercased()
+
+        if lowercasedFileName.hasSuffix(".pdf") {
+            return "PDF-Dokument"
+        }
+
+        if lowercasedFileName.hasSuffix(".jpg")
+            || lowercasedFileName.hasSuffix(".jpeg")
+            || lowercasedFileName.hasSuffix(".png")
+            || lowercasedFileName.hasSuffix(".heic") {
+            return "Bild"
+        }
+
+        if lowercasedFileName.hasSuffix(".txt")
+            || lowercasedFileName.hasSuffix(".rtf")
+            || lowercasedFileName.hasSuffix(".doc")
+            || lowercasedFileName.hasSuffix(".docx") {
+            return "Textdokument"
+        }
+
+        return "Dokument"
+    }
+
     private func readOnlyDocumentRow(_ document: ReadOnlyDocument, previewAction: @escaping () -> Void) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: "doc.text.fill")
-                .font(.title3)
+            Image(systemName: dokumentIcon(for: document.fileName))
+                .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(dokumenteAkzentFarbe)
-                .frame(width: 34, height: 34)
-                .background(dokumenteAkzentFarbe.opacity(0.12), in: Circle())
+                .frame(width: 44, height: 44)
+                .background(dokumenteAkzentFarbe.opacity(0.10), in: Circle())
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(document.title)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.headline.weight(.semibold))
                     .foregroundStyle(.primary)
 
                 Text(document.fileName)
-                    .font(.footnote)
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
 
                 if let uploadDate = document.uploadDate {
-                    Text("Hochgeladen am \(uploadDate.formatted(date: .abbreviated, time: .shortened))")
+                    Text(uploadDate.formatted(date: .abbreviated, time: .shortened))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
                 if !document.hasPreview {
-                    Text("Vorschau nicht verfügbar, da aktuell nur der Dateiname gespeichert ist.")
-                        .font(.caption2)
+                    Text("Vorschau nicht verfügbar")
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
 
-            Spacer()
+            Spacer(minLength: 8)
 
             Button(action: previewAction) {
                 Image(systemName: "eye.fill")
-                    .font(.title3)
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(document.hasPreview ? dokumenteAkzentFarbe : Color.secondary.opacity(0.35))
+                    .frame(width: 40, height: 40)
+                    .background(
+                        document.hasPreview
+                        ? dokumenteAkzentFarbe.opacity(0.10)
+                        : Color.secondary.opacity(0.08),
+                        in: Circle()
+                    )
             }
-            .buttonStyle(.plain)
+                .buttonStyle(.borderless)
             .disabled(!document.hasPreview)
             .accessibilityLabel("Dokument ansehen")
         }
-        .padding(12)
-        .background(Color.white.opacity(0.65))
+        .padding(14)
+        .background(Color.white.opacity(0.72))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(dokumenteAkzentFarbe.opacity(0.12), lineWidth: 1)
+                .stroke(dokumenteAkzentFarbe.opacity(0.10), lineWidth: 1)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 3)
+    }
+
+    private func dokumentIcon(for fileName: String) -> String {
+        let lowercasedFileName = fileName.lowercased()
+
+        if lowercasedFileName.hasSuffix(".pdf") {
+            return "doc.richtext.fill"
+        }
+
+        if lowercasedFileName.hasSuffix(".jpg")
+            || lowercasedFileName.hasSuffix(".jpeg")
+            || lowercasedFileName.hasSuffix(".png")
+            || lowercasedFileName.hasSuffix(".heic") {
+            return "photo.fill"
+        }
+
+        if lowercasedFileName.hasSuffix(".txt")
+            || lowercasedFileName.hasSuffix(".rtf")
+            || lowercasedFileName.hasSuffix(".doc")
+            || lowercasedFileName.hasSuffix(".docx") {
+            return "doc.text.fill"
+        }
+
+        return "doc.fill"
+    }
+
+    private func speichereGescanntesDokument(sollInDownloadsSpeichern: Bool) {
+        guard let pdfData = pendingScanData, !pendingScanDateiName.isEmpty else {
+            pendingScanData = nil
+            pendingScanDateiName = ""
+            return
+        }
+
+        if sollInDownloadsSpeichern,
+           let scanDateiURL = speichereScanFuerDateienApp(pdfData, dateiName: pendingScanDateiName) {
+            exportURL = scanDateiURL
+        }
+
+        let dokument = DokumenteModell(
+            dateiName: pendingScanDateiName,
+            kategorie: "Weitere Dokumente",
+            hochgeladenAm: Date(),
+            dateiDaten: pdfData
+        )
+
+        modelContext.insert(dokument)
+        try? modelContext.save()
+
+        pendingScanData = nil
+        pendingScanDateiName = ""
+    }
+
+    private func speichereScanFuerDateienApp(_ pdfData: Data, dateiName: String) -> URL? {
+        let dateiURL = FileManager.default.temporaryDirectory.appendingPathComponent(dateiName)
+
+        do {
+            try pdfData.write(to: dateiURL, options: .atomic)
+            return dateiURL
+        } catch {
+            print("Scan konnte nicht für die Dateien-App bereitgestellt werden: \(error.localizedDescription)")
+            return nil
+        }
     }
 
     private func previewURL(for document: ReadOnlyDocument) -> URL? {
@@ -883,6 +1013,7 @@ struct ReadOnlyDocument: Identifiable {
     }
 }
 
+
 struct DocumentPicker: UIViewControllerRepresentable {
     var onDocumentsPicked: ([URL]) -> Void
 
@@ -1008,4 +1139,5 @@ struct DocumentPreview: UIViewControllerRepresentable {
         }
     }
 }
+
 
