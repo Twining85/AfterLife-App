@@ -535,42 +535,37 @@ struct WuenscheView: View {
 
     private var haustiereSection: some View {
         styleGuideSection(titel: "Haustiere", systemImage: "pawprint.fill", entfernenAktion: { themaEntfernen(.haustiere) }) {
-            Toggle("Ich habe Haustiere", isOn: $hatHaustiere)
-                .tint(wuenscheAccentColor)
+            if haustiere.isEmpty {
+                leerText("Noch keine Haustiere erfasst.")
+            }
 
-            if hatHaustiere {
-                if haustiere.isEmpty {
-                    leerText("Noch keine Haustiere erfasst.")
-                }
-
-                ForEach($haustiere) { haustier in
-                    if haustiere.count > 2 {
-                        DisclosureGroup(
-                            isExpanded: Binding(
-                                get: { ausgeklappteHaustierIDs.contains(haustier.wrappedValue.id) },
-                                set: { istOffen in
-                                    if istOffen {
-                                        ausgeklappteHaustierIDs.insert(haustier.wrappedValue.id)
-                                    } else {
-                                        ausgeklappteHaustierIDs.remove(haustier.wrappedValue.id)
-                                    }
+            ForEach($haustiere) { haustier in
+                if haustiere.count > 2 {
+                    DisclosureGroup(
+                        isExpanded: Binding(
+                            get: { ausgeklappteHaustierIDs.contains(haustier.wrappedValue.id) },
+                            set: { istOffen in
+                                if istOffen {
+                                    ausgeklappteHaustierIDs.insert(haustier.wrappedValue.id)
+                                } else {
+                                    ausgeklappteHaustierIDs.remove(haustier.wrappedValue.id)
                                 }
-                            )
-                        ) {
-                            haustierDetailFormular(haustier: haustier)
-                        } label: {
-                            listHeader(title: haustier.wrappedValue.anzeigename, subtitle: haustier.wrappedValue.art.rawValue, icon: "pawprint")
-                        }
-                        .tint(wuenscheAccentColor)
-                    } else {
+                            }
+                        )
+                    ) {
                         haustierDetailFormular(haustier: haustier)
+                    } label: {
+                        listHeader(title: haustier.wrappedValue.anzeigename, subtitle: haustier.wrappedValue.art.rawValue, icon: "pawprint")
                     }
+                    .tint(wuenscheAccentColor)
+                } else {
+                    haustierDetailFormular(haustier: haustier)
                 }
-                .onDelete(perform: haustierLoeschen)
+            }
+            .onDelete(perform: haustierLoeschen)
 
-                accentButton(title: "Haustier erfassen", systemImage: "plus.circle.fill") {
-                    haustierPopupAnzeigen = true
-                }
+            accentButton(title: "Haustier erfassen", systemImage: "plus.circle.fill") {
+                haustierPopupAnzeigen = true
             }
         }
     }
@@ -622,160 +617,140 @@ struct WuenscheView: View {
 
     private var zeremonieSection: some View {
         styleGuideSection(titel: "Zeremonie", systemImage: "sparkles", entfernenAktion: { themaEntfernen(.zeremonie) }) {
-            Toggle("Zeremonie", isOn: $zeremonie)
-                .tint(wuenscheAccentColor)
+            DetailBox(accentColor: wuenscheAccentColor) {
+                styledTextField("Wie soll die Zeremonie gestaltet sein?", text: $zeremonieText, axis: .vertical, lineLimit: 2...6)
 
-            if zeremonie {
-                DetailBox(accentColor: wuenscheAccentColor) {
-                    styledTextField("Wie soll die Zeremonie gestaltet sein?", text: $zeremonieText, axis: .vertical, lineLimit: 2...6)
+                Divider()
 
-                    Divider()
+                Toggle("Keine Blumengeschenke, bitte spendet das Geld lieber", isOn: $keineBlumengeschenkeBitte)
+                    .tint(wuenscheAccentColor)
 
-                    Toggle("Keine Blumengeschenke, bitte spendet das Geld lieber", isOn: $keineBlumengeschenkeBitte)
-                        .tint(wuenscheAccentColor)
+                Divider()
 
-                    Divider()
+                Toggle("Bereits organisiert", isOn: $zeremonieBereitsOrganisiert)
+                    .tint(wuenscheAccentColor)
 
-                    Toggle("Bereits organisiert", isOn: $zeremonieBereitsOrganisiert)
-                        .tint(wuenscheAccentColor)
-
-                    if zeremonieBereitsOrganisiert {
-                        DetailBox(accentColor: wuenscheAccentColor) {
-                            styledTextField("Details zur Organisation", text: $zeremonieOrganisiertDetails, axis: .vertical, lineLimit: 2...6)
-                        }
+                if zeremonieBereitsOrganisiert {
+                    DetailBox(accentColor: wuenscheAccentColor) {
+                        styledTextField("Details zur Organisation", text: $zeremonieOrganisiertDetails, axis: .vertical, lineLimit: 2...6)
                     }
-
-                    Divider()
-
-                    Button {
-                        zeremonieFinanziellAbgesichert.toggle()
-                    } label: {
-                        HStack {
-                            Image(systemName: zeremonieFinanziellAbgesichert ? "checkmark.square.fill" : "square")
-                                .foregroundStyle(wuenscheAccentColor)
-                            Text("Finanziell abgesichert, diese zu begleichen")
-                            Spacer()
-                        }
-                    }
-                    .buttonStyle(.plain)
                 }
+
+                Divider()
+
+                Button {
+                    zeremonieFinanziellAbgesichert.toggle()
+                } label: {
+                    HStack {
+                        Image(systemName: zeremonieFinanziellAbgesichert ? "checkmark.square.fill" : "square")
+                            .foregroundStyle(wuenscheAccentColor)
+                        Text("Finanziell abgesichert, diese zu begleichen")
+                        Spacer()
+                    }
+                }
+                .buttonStyle(.plain)
             }
         }
     }
 
     private var musikSection: some View {
         styleGuideSection(titel: "Musik", systemImage: "music.note", entfernenAktion: { themaEntfernen(.musik) }) {
-            Toggle("Besondere Musik", isOn: $besondereMusik)
-                .tint(wuenscheAccentColor)
-
-            if besondereMusik {
-                DetailBox(accentColor: wuenscheAccentColor) {
-                    styledTextField("Welche Musik soll gespielt werden?", text: $besondereMusikText, axis: .vertical, lineLimit: 2...6)
-                }
+            DetailBox(accentColor: wuenscheAccentColor) {
+                styledTextField("Welche Musik soll gespielt werden?", text: $besondereMusikText, axis: .vertical, lineLimit: 2...6)
             }
         }
     }
 
     private var letzteWorteSection: some View {
         styleGuideSection(titel: "Letzte Worte", systemImage: "video.fill", entfernenAktion: { themaEntfernen(.letzteWorte) }) {
-            Toggle("Persönliche Botschaft", isOn: $moechteNochWasSagen)
-                .tint(wuenscheAccentColor)
+            DetailBox(accentColor: wuenscheAccentColor) {
+                styledTextField("Was möchtest du noch sagen?", text: $letzteWorteText, axis: .vertical, lineLimit: 3...8)
 
-            if moechteNochWasSagen {
-                DetailBox(accentColor: wuenscheAccentColor) {
-                    styledTextField("Was möchtest du noch sagen?", text: $letzteWorteText, axis: .vertical, lineLimit: 3...8)
+                Divider()
 
-                    Divider()
-
-                    VStack(spacing: 12) {
-                        if letzteWorteVideoData != nil {
-                            if letzteWorteVideoVorschauAnzeigen, let letzteWorteVideoPlayer {
-                                VideoPlayer(player: letzteWorteVideoPlayer)
-                                    .frame(height: 240)
-                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            }
-                        } else {
-                            Image(systemName: "video.badge.plus")
-                                .font(.system(size: 44))
-                                .foregroundStyle(wuenscheAccentColor.opacity(0.75))
+                VStack(spacing: 12) {
+                    if letzteWorteVideoData != nil {
+                        if letzteWorteVideoVorschauAnzeigen, let letzteWorteVideoPlayer {
+                            VideoPlayer(player: letzteWorteVideoPlayer)
+                                .frame(height: 240)
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                         }
+                    } else {
+                        Image(systemName: "video.badge.plus")
+                            .font(.system(size: 44))
+                            .foregroundStyle(wuenscheAccentColor.opacity(0.75))
+                    }
 
-                        PhotosPicker(
-                            selection: $letzteWorteVideoAuswahl,
-                            matching: .videos,
-                            photoLibrary: .shared()
-                        ) {
-                            Label(letzteWorteVideoData == nil ? "Video hochladen" : "Video ändern", systemImage: "video.badge.plus")
+                    PhotosPicker(
+                        selection: $letzteWorteVideoAuswahl,
+                        matching: .videos,
+                        photoLibrary: .shared()
+                    ) {
+                        Label(letzteWorteVideoData == nil ? "Video hochladen" : "Video ändern", systemImage: "video.badge.plus")
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(wuenscheAccentColor)
+
+                    if letzteWorteVideoData != nil {
+                        Button(role: .destructive) {
+                            letzteWorteVideoEntfernen()
+                        } label: {
+                            Label("Video entfernen", systemImage: "trash")
+                                .font(.caption)
                         }
                         .buttonStyle(.borderless)
-                        .foregroundStyle(wuenscheAccentColor)
-
-                        if letzteWorteVideoData != nil {
-                            Button(role: .destructive) {
-                                letzteWorteVideoEntfernen()
-                            } label: {
-                                Label("Video entfernen", systemImage: "trash")
-                                    .font(.caption)
-                            }
-                            .buttonStyle(.borderless)
-                        }
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
                 }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
             }
         }
     }
 
     private var nachrufSection: some View {
         styleGuideSection(titel: "Nachruf", systemImage: "newspaper.fill", entfernenAktion: { themaEntfernen(.nachruf) }) {
-            Toggle("Ich habe eine Vorstellung, wie der Nachruf sein soll", isOn: $nachrufVorstellung)
-                .tint(wuenscheAccentColor)
+            DetailBox(accentColor: wuenscheAccentColor) {
+                styledTextField("Wie soll der Nachruf sein? z.B Zeitung, Karte", text: $nachrufText, axis: .vertical, lineLimit: 3...8)
 
-            if nachrufVorstellung {
-                DetailBox(accentColor: wuenscheAccentColor) {
-                    styledTextField("Wie soll der Nachruf sein? z.B Zeitung, Karte", text: $nachrufText, axis: .vertical, lineLimit: 3...8)
+                Divider()
 
-                    Divider()
+                VStack(spacing: 12) {
+                    if let nachrufBildData,
+                       let uiImage = UIImage(data: nachrufBildData) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 140, height: 140)
+                            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                            .clipped()
+                    } else {
+                        Image(systemName: "photo.fill")
+                            .font(.system(size: 48))
+                            .foregroundStyle(wuenscheAccentColor.opacity(0.75))
+                    }
 
-                    VStack(spacing: 12) {
-                        if let nachrufBildData,
-                           let uiImage = UIImage(data: nachrufBildData) {
-                            Image(uiImage: uiImage)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 140, height: 140)
-                                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                                .clipped()
-                        } else {
-                            Image(systemName: "photo.fill")
-                                .font(.system(size: 48))
-                                .foregroundStyle(wuenscheAccentColor.opacity(0.75))
-                        }
+                    PhotosPicker(
+                        selection: $nachrufBildAuswahl,
+                        matching: .images,
+                        photoLibrary: .shared()
+                    ) {
+                        Label(nachrufBildData == nil ? "Bild für Nachruf hochladen" : "Bild für Nachruf ändern", systemImage: "photo.on.rectangle")
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(wuenscheAccentColor)
 
-                        PhotosPicker(
-                            selection: $nachrufBildAuswahl,
-                            matching: .images,
-                            photoLibrary: .shared()
-                        ) {
-                            Label(nachrufBildData == nil ? "Bild für Nachruf hochladen" : "Bild für Nachruf ändern", systemImage: "photo.on.rectangle")
+                    if nachrufBildData != nil {
+                        Button(role: .destructive) {
+                            nachrufBildEntfernen()
+                        } label: {
+                            Label("Bild entfernen", systemImage: "trash")
+                                .font(.caption)
                         }
                         .buttonStyle(.borderless)
-                        .foregroundStyle(wuenscheAccentColor)
-
-                        if nachrufBildData != nil {
-                            Button(role: .destructive) {
-                                nachrufBildEntfernen()
-                            } label: {
-                                Label("Bild entfernen", systemImage: "trash")
-                                    .font(.caption)
-                            }
-                            .buttonStyle(.borderless)
-                        }
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
                 }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
             }
         }
     }
@@ -831,162 +806,142 @@ struct WuenscheView: View {
 
     private var testamentSection: some View {
         styleGuideSection(titel: "Testament", systemImage: "doc.text.fill", entfernenAktion: { themaEntfernen(.testament) }) {
-            Toggle("Ich habe ein Testament", isOn: $hatTestament)
-                .tint(wuenscheAccentColor)
+            DetailBox(accentColor: wuenscheAccentColor) {
+                Text("Ein Testament muss den gesetzlichen und formellen Anforderungen entsprechen. Du bist selbst dafür verantwortlich, dass Inhalt, Form und Aufbewahrung korrekt und rechtsgültig sind. Diese App ersetzt keine rechtliche Beratung.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
 
-            if hatTestament {
-                DetailBox(accentColor: wuenscheAccentColor) {
-                    Text("Ein Testament muss den gesetzlichen und formellen Anforderungen entsprechen. Du bist selbst dafür verantwortlich, dass Inhalt, Form und Aufbewahrung korrekt und rechtsgültig sind. Diese App ersetzt keine rechtliche Beratung.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                Divider()
 
-                    Divider()
+                styledTextField("Ablageort", text: $testamentAblageort, axis: .vertical, lineLimit: 2...4)
+                    .textContentType(.location)
 
-                    styledTextField("Ablageort", text: $testamentAblageort, axis: .vertical, lineLimit: 2...4)
-                        .textContentType(.location)
+                Divider()
 
-                    Divider()
-
-                    DokumentUploadBox(
-                        accentColor: wuenscheAccentColor,
-                        dateiName: testamentDateiName,
-                        hochgeladenAm: testamentHochgeladenAm,
-                        timestampTitel: "Testament hochgeladen am",
-                        uploadTitel: testamentDateiName == nil ? "Testament hochladen" : "Testament ändern",
-                        entfernenTitel: "Testament entfernen",
-                        erinnerungAktiv: $testamentErinnerungAktiv,
-                        erinnerungDatum: $testamentErinnerungDatum,
-                        vorschauAktion: {
-                            dokumentVorschauAnzeigen(testamentDateiURL, dateiName: testamentDateiName, dateiData: testamentDateiData)
-                        },
-                        uploadAktion: {
-                            dokumentImportStarten(.testament)
-                        },
-                        entfernenAktion: {
-                            testamentDateiEntfernen()
-                        }
-                    )
-                }
+                DokumentUploadBox(
+                    accentColor: wuenscheAccentColor,
+                    dateiName: testamentDateiName,
+                    hochgeladenAm: testamentHochgeladenAm,
+                    timestampTitel: "Testament hochgeladen am",
+                    uploadTitel: testamentDateiName == nil ? "Testament hochladen" : "Testament ändern",
+                    entfernenTitel: "Testament entfernen",
+                    erinnerungAktiv: $testamentErinnerungAktiv,
+                    erinnerungDatum: $testamentErinnerungDatum,
+                    vorschauAktion: {
+                        dokumentVorschauAnzeigen(testamentDateiURL, dateiName: testamentDateiName, dateiData: testamentDateiData)
+                    },
+                    uploadAktion: {
+                        dokumentImportStarten(.testament)
+                    },
+                    entfernenAktion: {
+                        testamentDateiEntfernen()
+                    }
+                )
             }
         }
     }
 
     private var patientenverfuegungSection: some View {
         styleGuideSection(titel: "Patientenverfügung", systemImage: "cross.case.fill", entfernenAktion: { themaEntfernen(.patientenverfuegung) }) {
-            Toggle("Ich habe eine Patientenverfügung", isOn: $hatPatientenverfuegung)
-                .tint(wuenscheAccentColor)
-
-            if hatPatientenverfuegung {
-                DetailBox(accentColor: wuenscheAccentColor) {
-                    DokumentUploadBox(
-                        accentColor: wuenscheAccentColor,
-                        dateiName: patientenverfuegungDateiName,
-                        hochgeladenAm: patientenverfuegungHochgeladenAm,
-                        timestampTitel: "Patientenverfügung hochgeladen am",
-                        uploadTitel: patientenverfuegungDateiName == nil ? "Patientenverfügung hochladen" : "Patientenverfügung ändern",
-                        entfernenTitel: "Patientenverfügung entfernen",
-                        erinnerungAktiv: $patientenverfuegungErinnerungAktiv,
-                        erinnerungDatum: $patientenverfuegungErinnerungDatum,
-                        vorschauAktion: {
-                            dokumentVorschauAnzeigen(patientenverfuegungDateiURL, dateiName: patientenverfuegungDateiName, dateiData: patientenverfuegungDateiData)
-                        },
-                        uploadAktion: {
-                            dokumentImportStarten(.patientenverfuegung)
-                        },
-                        entfernenAktion: {
-                            patientenverfuegungDateiEntfernen()
-                        }
-                    )
-                }
+            DetailBox(accentColor: wuenscheAccentColor) {
+                DokumentUploadBox(
+                    accentColor: wuenscheAccentColor,
+                    dateiName: patientenverfuegungDateiName,
+                    hochgeladenAm: patientenverfuegungHochgeladenAm,
+                    timestampTitel: "Patientenverfügung hochgeladen am",
+                    uploadTitel: patientenverfuegungDateiName == nil ? "Patientenverfügung hochladen" : "Patientenverfügung ändern",
+                    entfernenTitel: "Patientenverfügung entfernen",
+                    erinnerungAktiv: $patientenverfuegungErinnerungAktiv,
+                    erinnerungDatum: $patientenverfuegungErinnerungDatum,
+                    vorschauAktion: {
+                        dokumentVorschauAnzeigen(patientenverfuegungDateiURL, dateiName: patientenverfuegungDateiName, dateiData: patientenverfuegungDateiData)
+                    },
+                    uploadAktion: {
+                        dokumentImportStarten(.patientenverfuegung)
+                    },
+                    entfernenAktion: {
+                        patientenverfuegungDateiEntfernen()
+                    }
+                )
             }
         }
     }
 
     private var vorsorgeauftragSection: some View {
         styleGuideSection(titel: "Vorsorgeauftrag", systemImage: "checkmark.shield.fill", entfernenAktion: { themaEntfernen(.vorsorgeauftrag) }) {
-            Toggle("Ich habe einen Vorsorgeauftrag", isOn: $hatVorsorgeauftrag)
-                .tint(wuenscheAccentColor)
-
-            if hatVorsorgeauftrag {
-                DetailBox(accentColor: wuenscheAccentColor) {
-                    DokumentUploadBox(
-                        accentColor: wuenscheAccentColor,
-                        dateiName: vorsorgeauftragDateiName,
-                        hochgeladenAm: vorsorgeauftragHochgeladenAm,
-                        timestampTitel: "Vorsorgeauftrag hochgeladen am",
-                        uploadTitel: vorsorgeauftragDateiName == nil ? "Vorsorgeauftrag hochladen" : "Vorsorgeauftrag ändern",
-                        entfernenTitel: "Vorsorgeauftrag entfernen",
-                        erinnerungAktiv: $vorsorgeauftragErinnerungAktiv,
-                        erinnerungDatum: $vorsorgeauftragErinnerungDatum,
-                        vorschauAktion: {
-                            dokumentVorschauAnzeigen(vorsorgeauftragDateiURL, dateiName: vorsorgeauftragDateiName, dateiData: vorsorgeauftragDateiData)
-                        },
-                        uploadAktion: {
-                            dokumentImportStarten(.vorsorgeauftrag)
-                        },
-                        entfernenAktion: {
-                            vorsorgeauftragDateiEntfernen()
-                        }
-                    )
-                }
+            DetailBox(accentColor: wuenscheAccentColor) {
+                DokumentUploadBox(
+                    accentColor: wuenscheAccentColor,
+                    dateiName: vorsorgeauftragDateiName,
+                    hochgeladenAm: vorsorgeauftragHochgeladenAm,
+                    timestampTitel: "Vorsorgeauftrag hochgeladen am",
+                    uploadTitel: vorsorgeauftragDateiName == nil ? "Vorsorgeauftrag hochladen" : "Vorsorgeauftrag ändern",
+                    entfernenTitel: "Vorsorgeauftrag entfernen",
+                    erinnerungAktiv: $vorsorgeauftragErinnerungAktiv,
+                    erinnerungDatum: $vorsorgeauftragErinnerungDatum,
+                    vorschauAktion: {
+                        dokumentVorschauAnzeigen(vorsorgeauftragDateiURL, dateiName: vorsorgeauftragDateiName, dateiData: vorsorgeauftragDateiData)
+                    },
+                    uploadAktion: {
+                        dokumentImportStarten(.vorsorgeauftrag)
+                    },
+                    entfernenAktion: {
+                        vorsorgeauftragDateiEntfernen()
+                    }
+                )
             }
         }
     }
 
     private var sterbebegleitungSection: some View {
         styleGuideSection(titel: "Sterbebegleitung", systemImage: "hands.sparkles.fill", entfernenAktion: { themaEntfernen(.sterbebegleitung) }) {
-            Toggle("Ich bin offen für eine Sterbebegleitung", isOn: $offenFuerSterbebegleitung)
-                .tint(wuenscheAccentColor)
+            DetailBox(accentColor: wuenscheAccentColor) {
+                Toggle("Ich habe eine schwerwiegende gesundheitliche Erkrankung", isOn: $hatSchwereGesundheitlicheErkrankung)
+                    .tint(wuenscheAccentColor)
 
-            if offenFuerSterbebegleitung {
-                DetailBox(accentColor: wuenscheAccentColor) {
-                    Toggle("Ich habe eine schwerwiegende gesundheitliche Erkrankung", isOn: $hatSchwereGesundheitlicheErkrankung)
+                if hatSchwereGesundheitlicheErkrankung {
+                    DetailBox(accentColor: wuenscheAccentColor) {
+                        Picker("Erkrankung", selection: $schwereErkrankung) {
+                            Text("Bitte wählen").tag(nil as SchwereErkrankung?)
+                            ForEach(SchwereErkrankung.allCases) { erkrankung in
+                                Text(erkrankung.rawValue).tag(erkrankung as SchwereErkrankung?)
+                            }
+                        }
                         .tint(wuenscheAccentColor)
 
-                    if hatSchwereGesundheitlicheErkrankung {
-                        DetailBox(accentColor: wuenscheAccentColor) {
-                            Picker("Erkrankung", selection: $schwereErkrankung) {
-                                Text("Bitte wählen").tag(nil as SchwereErkrankung?)
-                                ForEach(SchwereErkrankung.allCases) { erkrankung in
-                                    Text(erkrankung.rawValue).tag(erkrankung as SchwereErkrankung?)
-                                }
-                            }
+                        styledTextField("Das ist für mich wichtig", text: $sterbebegleitungWichtig, axis: .vertical, lineLimit: 3...8)
+
+                        if schwereErkrankung != nil {
+                            Toggle(
+                                "Ich möchte regelmässig bewusst beurteilen, ob mein Leben für mich noch lebenswert ist und welcher Weg sich für mich stimmig anfühlt.",
+                                isOn: $lebensqualitaetRegelmaessigBeurteilen
+                            )
                             .tint(wuenscheAccentColor)
-
-                            styledTextField("Das ist für mich wichtig", text: $sterbebegleitungWichtig, axis: .vertical, lineLimit: 3...8)
-
-                            if schwereErkrankung != nil {
-                                Toggle(
-                                    "Ich möchte regelmässig bewusst beurteilen, ob mein Leben für mich noch lebenswert ist und welcher Weg sich für mich stimmig anfühlt.",
-                                    isOn: $lebensqualitaetRegelmaessigBeurteilen
-                                )
-                                .tint(wuenscheAccentColor)
-                            }
                         }
                     }
-
-                    Divider()
-
-                    DokumentUploadBox(
-                        accentColor: wuenscheAccentColor,
-                        dateiName: sterbebegleitungDateiName,
-                        hochgeladenAm: sterbebegleitungHochgeladenAm,
-                        timestampTitel: "Sterbebegleitung hochgeladen am",
-                        uploadTitel: sterbebegleitungDateiName == nil ? "Dokument zur Sterbebegleitung hochladen" : "Dokument zur Sterbebegleitung ändern",
-                        entfernenTitel: "Dokument zur Sterbebegleitung entfernen",
-                        erinnerungAktiv: $sterbebegleitungErinnerungAktiv,
-                        erinnerungDatum: $sterbebegleitungErinnerungDatum,
-                        vorschauAktion: {
-                            dokumentVorschauAnzeigen(sterbebegleitungDateiURL, dateiName: sterbebegleitungDateiName, dateiData: sterbebegleitungDateiData)
-                        },
-                        uploadAktion: {
-                            dokumentImportStarten(.sterbebegleitung)
-                        },
-                        entfernenAktion: {
-                            sterbebegleitungDateiEntfernen()
-                        }
-                    )
                 }
+
+                Divider()
+
+                DokumentUploadBox(
+                    accentColor: wuenscheAccentColor,
+                    dateiName: sterbebegleitungDateiName,
+                    hochgeladenAm: sterbebegleitungHochgeladenAm,
+                    timestampTitel: "Sterbebegleitung hochgeladen am",
+                    uploadTitel: sterbebegleitungDateiName == nil ? "Dokument zur Sterbebegleitung hochladen" : "Dokument zur Sterbebegleitung ändern",
+                    entfernenTitel: "Dokument zur Sterbebegleitung entfernen",
+                    erinnerungAktiv: $sterbebegleitungErinnerungAktiv,
+                    erinnerungDatum: $sterbebegleitungErinnerungDatum,
+                    vorschauAktion: {
+                        dokumentVorschauAnzeigen(sterbebegleitungDateiURL, dateiName: sterbebegleitungDateiName, dateiData: sterbebegleitungDateiData)
+                    },
+                    uploadAktion: {
+                        dokumentImportStarten(.sterbebegleitung)
+                    },
+                    entfernenAktion: {
+                        sterbebegleitungDateiEntfernen()
+                    }
+                )
             }
         }
     }
@@ -1132,21 +1087,21 @@ struct WuenscheView: View {
 
         wuensche.sonstigeBemerkungen = sonstigeBemerkungen
         wuensche.keineBlumengeschenkeBitte = keineBlumengeschenkeBitte
-        wuensche.besondereMusik = besondereMusik
+        wuensche.besondereMusik = ausgewaehlteThemen.contains(.musik)
         wuensche.musikWunsch = besondereMusikText
-        wuensche.zeremonieGewuenscht = zeremonie
+        wuensche.zeremonieGewuenscht = ausgewaehlteThemen.contains(.zeremonie)
         wuensche.zeremonieDetails = zeremonieText
         wuensche.zeremonieOrganisiert = zeremonieBereitsOrganisiert
         wuensche.zeremonieFinanziellAbgesichert = zeremonieFinanziellAbgesichert
-        wuensche.moechteNochEtwasSagen = moechteNochWasSagen
+        wuensche.moechteNochEtwasSagen = ausgewaehlteThemen.contains(.letzteWorte)
         wuensche.letzteBotschaft = letzteWorteText
         wuensche.letzteBotschaftVideoName = letzteWorteVideoName ?? ""
         wuensche.letzteBotschaftVideoData = letzteWorteVideoData
-        wuensche.nachrufGewuenscht = nachrufVorstellung
+        wuensche.nachrufGewuenscht = ausgewaehlteThemen.contains(.nachruf)
         wuensche.nachrufText = nachrufText
         wuensche.nachrufBildData = nachrufBildData
 
-        wuensche.testamentVorhanden = hatTestament
+        wuensche.testamentVorhanden = ausgewaehlteThemen.contains(.testament)
         wuensche.testamentAblageort = testamentAblageort
         wuensche.testamentDateiName = testamentDateiName ?? ""
         wuensche.testamentDateiData = testamentDateiData
@@ -1154,21 +1109,21 @@ struct WuenscheView: View {
         wuensche.testamentErinnerungAktiv = testamentErinnerungAktiv
         wuensche.testamentErinnerungAm = testamentErinnerungDatum
 
-        wuensche.patientenverfuegungVorhanden = hatPatientenverfuegung
+        wuensche.patientenverfuegungVorhanden = ausgewaehlteThemen.contains(.patientenverfuegung)
         wuensche.patientenverfuegungDateiName = patientenverfuegungDateiName ?? ""
         wuensche.patientenverfuegungDateiData = patientenverfuegungDateiData
         wuensche.patientenverfuegungHochgeladenAm = patientenverfuegungHochgeladenAm
         wuensche.patientenverfuegungErinnerungAktiv = patientenverfuegungErinnerungAktiv
         wuensche.patientenverfuegungErinnerungAm = patientenverfuegungErinnerungDatum
 
-        wuensche.vorsorgeauftragVorhanden = hatVorsorgeauftrag
+        wuensche.vorsorgeauftragVorhanden = ausgewaehlteThemen.contains(.vorsorgeauftrag)
         wuensche.vorsorgeauftragDateiName = vorsorgeauftragDateiName ?? ""
         wuensche.vorsorgeauftragDateiData = vorsorgeauftragDateiData
         wuensche.vorsorgeauftragHochgeladenAm = vorsorgeauftragHochgeladenAm
         wuensche.vorsorgeauftragErinnerungAktiv = vorsorgeauftragErinnerungAktiv
         wuensche.vorsorgeauftragErinnerungAm = vorsorgeauftragErinnerungDatum
 
-        wuensche.sterbebegleitungGewuenscht = offenFuerSterbebegleitung
+        wuensche.sterbebegleitungGewuenscht = ausgewaehlteThemen.contains(.sterbebegleitung)
         wuensche.sterbebegleitungDateiName = sterbebegleitungDateiName ?? ""
         wuensche.sterbebegleitungDateiData = sterbebegleitungDateiData
         wuensche.sterbebegleitungHochgeladenAm = sterbebegleitungHochgeladenAm
@@ -1179,7 +1134,7 @@ struct WuenscheView: View {
         wuensche.schwereErkrankungArt = schwereErkrankung?.rawValue ?? ""
         wuensche.mirIstWichtig = sterbebegleitungWichtig
         wuensche.regelmaessigBeurteilen = lebensqualitaetRegelmaessigBeurteilen
-        wuensche.hatHaustiere = hatHaustiere
+        wuensche.hatHaustiere = ausgewaehlteThemen.contains(.haustiere)
         wuensche.haustiereData = try? JSONEncoder().encode(haustiere)
 
         do {
@@ -1984,13 +1939,7 @@ struct DetailBox<Content: View>: View {
         VStack(alignment: .leading, spacing: 12) {
             content
         }
-        .padding(12)
-        .background(Color.white.opacity(0.72))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(accentColor.opacity(0.16), lineWidth: 1)
-        )
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
