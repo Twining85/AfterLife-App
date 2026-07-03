@@ -30,6 +30,11 @@ final class GesundheitModell {
 
     /// Fallback / Anzeige für den Hausarzt, solange noch keine Kontakt-Auswahl angebunden ist.
     var hausarztName: String
+    var hausarztTelefon: String
+    var hausarztEmail: String
+    var hausarztAdresse: String
+    var hausarztPLZ: String
+    var hausarztOrt: String
 
     // MARK: - Medizinische Informationen
 
@@ -59,6 +64,11 @@ final class GesundheitModell {
         hatHausarzt: Bool = false,
         hausarztKontaktID: UUID? = nil,
         hausarztName: String = "",
+        hausarztTelefon: String = "",
+        hausarztEmail: String = "",
+        hausarztAdresse: String = "",
+        hausarztPLZ: String = "",
+        hausarztOrt: String = "",
         blutgruppe: String = GesundheitBlutgruppe.unbekannt,
         organspende: String = GesundheitOrganspendeStatus.nichtAngegeben,
         hatAllergien: Bool = false,
@@ -75,6 +85,11 @@ final class GesundheitModell {
         self.hatHausarzt = hatHausarzt
         self.hausarztKontaktID = hausarztKontaktID
         self.hausarztName = hausarztName
+        self.hausarztTelefon = hausarztTelefon
+        self.hausarztEmail = hausarztEmail
+        self.hausarztAdresse = hausarztAdresse
+        self.hausarztPLZ = hausarztPLZ
+        self.hausarztOrt = hausarztOrt
         self.blutgruppe = blutgruppe
         self.organspende = organspende
         self.hatAllergien = hatAllergien
@@ -123,11 +138,21 @@ final class GesundheitModell {
     func hausarztAktualisieren(
         hatHausarzt: Bool,
         hausarztKontaktID: UUID? = nil,
-        hausarztName: String = ""
+        hausarztName: String = "",
+        hausarztTelefon: String = "",
+        hausarztEmail: String = "",
+        hausarztAdresse: String = "",
+        hausarztPLZ: String = "",
+        hausarztOrt: String = ""
     ) {
         self.hatHausarzt = hatHausarzt
         self.hausarztKontaktID = hatHausarzt ? hausarztKontaktID : nil
         self.hausarztName = hatHausarzt ? hausarztName.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+        self.hausarztTelefon = hatHausarzt ? hausarztTelefon.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+        self.hausarztEmail = hatHausarzt ? hausarztEmail.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+        self.hausarztAdresse = hatHausarzt ? hausarztAdresse.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+        self.hausarztPLZ = hatHausarzt ? hausarztPLZ.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+        self.hausarztOrt = hatHausarzt ? hausarztOrt.trimmingCharacters(in: .whitespacesAndNewlines) : ""
         markiereAlsGeaendert()
     }
 

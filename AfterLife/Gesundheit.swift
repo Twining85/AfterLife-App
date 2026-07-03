@@ -18,6 +18,11 @@ struct GesundheitView: View {
     // Bis dahin KEINE neue Persistenz über @AppStorage einführen!
     @State private var hatHausarzt = false
     @State private var hausarztName = ""
+    @State private var hausarztTelefon = ""
+    @State private var hausarztEmail = ""
+    @State private var hausarztAdresse = ""
+    @State private var hausarztPLZ = ""
+    @State private var hausarztOrt = ""
     @State private var blutgruppe = ""
     @State private var organspende = "Nicht angegeben"
     @State private var hatAllergien = false
@@ -563,24 +568,48 @@ struct GesundheitView: View {
         let getrimmterName = vollerName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !getrimmterName.isEmpty else { return }
 
+        let telefon = kontakt.phoneNumbers.first?.value.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let email = kontakt.emailAddresses.first.map { String($0.value).trimmingCharacters(in: .whitespacesAndNewlines) } ?? ""
+
+        let postAdresse = kontakt.postalAddresses.first?.value
+        let strasse = postAdresse?.street.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let plz = postAdresse?.postalCode.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let ort = postAdresse?.city.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
 #if canImport(SwiftData)
-        datensatz?.hatHausarzt = true
-        datensatz?.hausarztName = getrimmterName
+        datensatz?.hausarztAktualisieren(
+            hatHausarzt: true,
+            hausarztName: getrimmterName,
+            hausarztTelefon: telefon,
+            hausarztEmail: email,
+            hausarztAdresse: strasse,
+            hausarztPLZ: plz,
+            hausarztOrt: ort
+        )
         speichern()
 #else
         hatHausarzt = true
         hausarztName = getrimmterName
+        hausarztTelefon = telefon
+        hausarztEmail = email
+        hausarztAdresse = strasse
+        hausarztPLZ = plz
+        hausarztOrt = ort
 #endif
     }
 
     private func hausarztEntfernen() {
 #if canImport(SwiftData)
-        datensatz?.hatHausarzt = false
-        datensatz?.hausarztName = ""
+        datensatz?.hausarztAktualisieren(hatHausarzt: false)
         speichern()
 #else
         hatHausarzt = false
         hausarztName = ""
+        hausarztTelefon = ""
+        hausarztEmail = ""
+        hausarztAdresse = ""
+        hausarztPLZ = ""
+        hausarztOrt = ""
 #endif
     }
 

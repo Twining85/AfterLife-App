@@ -48,47 +48,45 @@ struct AbosView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
-                abosHero
-                    .padding(.horizontal, 16)
-                    .padding(.top, 20)
+            ScrollViewReader { scrollProxy in
+                ScrollView {
+                    VStack(spacing: 24) {
+                        abosHero
+                            .padding(.horizontal, 16)
+                            .padding(.top, 20)
 
-                abosTypChips
-                    .padding(.horizontal, 16)
+                        abosTypChips
+                            .padding(.horizontal, 16)
 
-
-                if (aktuellesAboModell?.abos.isEmpty ?? true) && ausgewaehlteAboTypen.isEmpty {
-                    Text("Hier kannst du digitale Abonnemente, Online-Profile, Streamingdienste, ÖV-Abos o.ä erfassen.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                } else {
-                    ScrollViewReader { scrollProxy in
-                        ScrollView {
+                        if (aktuellesAboModell?.abos.isEmpty ?? true) && ausgewaehlteAboTypen.isEmpty {
+                            Text("Hier kannst du digitale Abonnemente, Online-Profile, Streamingdienste, ÖV-Abos o.ä erfassen.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                        } else {
                             VStack(spacing: 16) {
                                 ForEach(gefilterteGruppierteAbos, id: \.typ) { gruppe in
                                     aboSection(gruppe)
                                 }
                             }
                             .padding(.horizontal, 16)
-                            .padding(.bottom, 24)
-                        }
-                        .background(abosHintergrundFarbe)
-                        .onChange(of: scrollZuAboEintragID) { _, zielID in
-                            guard let zielID else { return }
-
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-                                withAnimation(.easeInOut(duration: 0.25)) {
-                                    scrollProxy.scrollTo(zielID, anchor: .center)
-                                }
-                                scrollZuAboEintragID = nil
-                            }
                         }
                     }
+                    .padding(.bottom, 24)
+                    .frame(maxWidth: .infinity, alignment: .top)
                 }
+                .background(abosHintergrundFarbe)
+                .onChange(of: scrollZuAboEintragID) { _, zielID in
+                    guard let zielID else { return }
 
-                Spacer()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            scrollProxy.scrollTo(zielID, anchor: .center)
+                        }
+                        scrollZuAboEintragID = nil
+                    }
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(abosHintergrundFarbe)
@@ -491,34 +489,11 @@ struct AbosView: View {
     private func aboSection(_ gruppe: (typ: AboType, abos: [AboEintrag])) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(gruppe.typ.rawValue)
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(.primary)
-
-                    Text("\(gruppe.abos.count) Eintrag\(gruppe.abos.count == 1 ? "" : "e")")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+                Text(gruppe.typ.rawValue)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.primary)
 
                 Spacer()
-
-                if gruppe.abos.count > 1 {
-                    Button {
-                        withAnimation(.spring(response: 0.26, dampingFraction: 0.88)) {
-                            if ausgeklappteAboSektionen.contains(gruppe.typ.rawValue) {
-                                ausgeklappteAboSektionen.remove(gruppe.typ.rawValue)
-                            } else {
-                                ausgeklappteAboSektionen.insert(gruppe.typ.rawValue)
-                            }
-                        }
-                    } label: {
-                        Image(systemName: istSektionAusgeklappt(gruppe) ? "chevron.up.circle.fill" : "chevron.down.circle.fill")
-                            .font(.title3.weight(.semibold))
-                            .foregroundStyle(abosAkzentFarbe)
-                    }
-                    .buttonStyle(.plain)
-                }
             }
 
             if gruppe.abos.isEmpty {
@@ -678,6 +653,7 @@ struct AbosView: View {
     }
 
     private func oeffneAboZumBearbeiten(_ abo: AboEintrag) {
+        aktiverAboSheetKontext = nil
         showAddAboSheet = false
         selectedAboID = abo.id
         selectedAbo = abo
@@ -686,7 +662,10 @@ struct AbosView: View {
         sectionAboType = nil
         sheetID = UUID()
 
+        loadAbo(abo)
+
         DispatchQueue.main.async {
+            aktiverAboSheetKontext = AboSheetKontext(typ: selectedAboType)
             showAddAboSheet = true
         }
     }

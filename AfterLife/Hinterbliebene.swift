@@ -8,38 +8,60 @@ struct HinterbliebeneView: View {
     @Query private var gespeicherteKontakte: [HinterbliebeneModell]
     @Query private var gesundheitsDatensaetze: [GesundheitModell]
 
+    private let vertrauenHintergrundFarbe = Color(red: 0.985, green: 0.975, blue: 0.955)
+    private let vertrauenKartenFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
+    private let vertrauenAkzentFarbe = Color(red: 0.24, green: 0.50, blue: 0.34)
+    private let vertrauenTextFarbe = Color.black.opacity(0.86)
+
     @State private var aktiveKategorie: VertrauenspersonKategorie = .partner
     @State private var showKontaktPicker = false
     @State private var eingeklappteKategorien: Set<VertrauenspersonKategorie> = []
 
     var body: some View {
         NavigationStack {
-            Form {
-                vertrauenspersonSection(
-                    titel: "Partner",
-                    kategorie: .partner,
-                    kontakte: kontakteFuerKategorie(.partner)
-                )
+            ScrollView {
+                VStack(spacing: 18) {
+                    vertrauensHero
+                        .padding(.top, 18)
 
-                vertrauenspersonSection(
-                    titel: "Familie",
-                    kategorie: .familie,
-                    kontakte: kontakteFuerKategorie(.familie)
-                )
+                    vertrauenspersonSection(
+                        titel: "Partner",
+                        untertitel: "Die wichtigste Bezugsperson in deinem Alltag.",
+                        icon: "heart.fill",
+                        kategorie: .partner,
+                        kontakte: kontakteFuerKategorie(.partner)
+                    )
 
-                vertrauenspersonSection(
-                    titel: "Freunde",
-                    kategorie: .freunde,
-                    kontakte: kontakteFuerKategorie(.freunde)
-                )
+                    vertrauenspersonSection(
+                        titel: "Familie",
+                        untertitel: "Familienmitglieder, die informiert oder einbezogen werden sollen.",
+                        icon: "figure.2.and.child.holdinghands",
+                        kategorie: .familie,
+                        kontakte: kontakteFuerKategorie(.familie)
+                    )
 
-                vertrauenspersonSection(
-                    titel: "Andere",
-                    kategorie: .beguenstigte,
-                    kontakte: kontakteFuerKategorie(.beguenstigte)
-                )
+                    vertrauenspersonSection(
+                        titel: "Freunde",
+                        untertitel: "Freundinnen und Freunde, die dir nahestehen.",
+                        icon: "person.2.fill",
+                        kategorie: .freunde,
+                        kontakte: kontakteFuerKategorie(.freunde)
+                    )
+
+                    vertrauenspersonSection(
+                        titel: "Andere",
+                        untertitel: "Weitere wichtige Personen oder Fachkontakte.",
+                        icon: "person.crop.circle.badge.checkmark",
+                        kategorie: .beguenstigte,
+                        kontakte: kontakteFuerKategorie(.beguenstigte)
+                    )
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 28)
             }
+            .background(vertrauenHintergrundFarbe.ignoresSafeArea())
             .navigationTitle("Menschen meines Vertrauens")
+            .tint(vertrauenAkzentFarbe)
             .sheet(isPresented: $showKontaktPicker) {
                 HinterbliebeneKontaktPicker { kontakt in
                     if let kontakt {
@@ -51,35 +73,82 @@ struct HinterbliebeneView: View {
         }
     }
 
+    private var vertrauensHero: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 14) {
+                Image(systemName: "person.3.sequence.fill")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 48, height: 48)
+                    .background(Circle().fill(vertrauenAkzentFarbe))
+                    .shadow(color: vertrauenAkzentFarbe.opacity(0.22), radius: 8, x: 0, y: 4)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Dein Vertrauenskreis")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(vertrauenTextFarbe)
+
+                    Text("Hinterlege die Menschen, die informiert werden oder im Ernstfall helfen sollen.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(vertrauenKartenFarbe)
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .stroke(vertrauenAkzentFarbe.opacity(0.12), lineWidth: 1)
+        }
+        .shadow(color: Color.black.opacity(0.04), radius: 10, x: 0, y: 4)
+    }
+
     private func vertrauenspersonSection(
         titel: String,
+        untertitel: String,
+        icon: String,
         kategorie: VertrauenspersonKategorie,
         kontakte: [HinterbliebeneModell]
     ) -> some View {
-        Section(titel) {
-            Button {
-                aktiveKategorie = kategorie
-                showKontaktPicker = true
-            } label: {
-                Label("Kontakt hinzufügen", systemImage: "person.crop.circle.badge.plus")
+        let istEingeklappt = eingeklappteKategorien.contains(kategorie)
+        let sichtbareKontakte = istEingeklappt ? Array(kontakte.prefix(2)) : kontakte
+
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: icon)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(vertrauenAkzentFarbe)
+                    .frame(width: 36, height: 36)
+                    .background(Circle().fill(vertrauenAkzentFarbe.opacity(0.12)))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(titel)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(vertrauenTextFarbe)
+
+                    Text(untertitel)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer()
             }
+
 
             if kontakte.isEmpty {
                 Text("Noch kein Kontakt hinterlegt.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 10)
             } else {
-                let istEingeklappt = eingeklappteKategorien.contains(kategorie)
-                let sichtbareKontakte = istEingeklappt ? Array(kontakte.prefix(2)) : kontakte
-
-                ForEach(sichtbareKontakte) { kontakt in
-                    kontaktZeile(kontakt)
-                }
-                .onDelete { indexSet in
-                    let zuLoeschendeKontakte = indexSet.map { sichtbareKontakte[$0] }
-                    zuLoeschendeKontakte.forEach { kontakt in
-                        guard !istAbgeleiteterHausarztKontakt(kontakt) else { return }
-                        modelContext.delete(kontakt)
+                VStack(spacing: 10) {
+                    ForEach(sichtbareKontakte) { kontakt in
+                        kontaktZeile(kontakt)
                     }
                 }
 
@@ -87,49 +156,119 @@ struct HinterbliebeneView: View {
                     Button {
                         toggleKategorie(kategorie)
                     } label: {
-                        HStack {
+                        HStack(spacing: 8) {
                             Text(istEingeklappt ? "Alle Kontakte anzeigen" : "Kontakte einklappen")
+                                .font(.footnote.weight(.semibold))
+
                             Spacer()
+
                             Image(systemName: istEingeklappt ? "chevron.down" : "chevron.up")
+                                .font(.footnote.weight(.semibold))
                         }
+                        .foregroundStyle(vertrauenAkzentFarbe)
+                        .padding(.vertical, 8)
                     }
+                    .buttonStyle(.plain)
                 }
             }
+            Button {
+                aktiveKategorie = kategorie
+                showKontaktPicker = true
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "plus")
+                        .font(.subheadline.weight(.bold))
+
+                    Text("Kontakt hinzufügen")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(vertrauenAkzentFarbe)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(.plain)
         }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(vertrauenKartenFarbe)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(vertrauenAkzentFarbe.opacity(0.12), lineWidth: 1)
+        }
+        .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 3)
     }
 
     private func kontaktZeile(_ kontakt: HinterbliebeneModell) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(anzeigenameFuerKontakt(kontakt))
-                .font(.headline)
+        HStack(alignment: .top, spacing: 12) {
+            Text(initialenFuerKontakt(kontakt))
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(.white)
+                .frame(width: 38, height: 38)
+                .background(Circle().fill(vertrauenAkzentFarbe.opacity(0.88)))
 
-            let angezeigteRolle = angezeigteRolleFuerKontakt(kontakt)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(anzeigenameFuerKontakt(kontakt))
+                    .font(.headline)
+                    .foregroundStyle(vertrauenTextFarbe)
 
-            if !angezeigteRolle.isEmpty {
-                Text(angezeigteRolle)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                if !kontakt.adresse.isEmpty || !kontakt.plz.isEmpty || !kontakt.stadt.isEmpty {
+                    Text([kontakt.adresse, plzOrtFuerKontakt(kontakt)].filter { !$0.isEmpty }.joined(separator: ", "))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if !kontakt.email.isEmpty {
+                    Label(kontakt.email, systemImage: "envelope")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if !kontakt.telefon.isEmpty {
+                    Label(kontakt.telefon, systemImage: "phone")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             }
 
-            if !kontakt.adresse.isEmpty || !kontakt.plz.isEmpty || !kontakt.stadt.isEmpty {
-                Text([kontakt.adresse, plzOrtFuerKontakt(kontakt)].filter { !$0.isEmpty }.joined(separator: ", "))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
+            Spacer(minLength: 0)
 
-            if !kontakt.email.isEmpty {
-                Label(kontakt.email, systemImage: "envelope")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-
-            if !kontakt.telefon.isEmpty {
-                Label(kontakt.telefon, systemImage: "phone")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+            if !istAbgeleiteterHausarztKontakt(kontakt) {
+                Button(role: .destructive) {
+                    modelContext.delete(kontakt)
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.red.opacity(0.75))
+                        .frame(width: 34, height: 34)
+                        .background(Circle().fill(Color.red.opacity(0.08)))
+                }
+                .buttonStyle(.plain)
             }
         }
-        .padding(.vertical, 4)
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.58))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(vertrauenAkzentFarbe.opacity(0.08), lineWidth: 1)
+        }
+    }
+
+    private func initialenFuerKontakt(_ kontakt: HinterbliebeneModell) -> String {
+        let vornameInitial = kontakt.vorname.trimmingCharacters(in: .whitespacesAndNewlines).first
+        let nameInitial = kontakt.name.trimmingCharacters(in: .whitespacesAndNewlines).first
+        let initialen = [vornameInitial, nameInitial]
+            .compactMap { $0 }
+            .map { String($0).uppercased() }
+            .joined()
+
+        return initialen.isEmpty ? "?" : initialen
     }
 
     private func kontaktHinzufuegen(_ kontakt: HinterbliebeneKontakt, zu kategorie: VertrauenspersonKategorie) {
@@ -161,7 +300,13 @@ struct HinterbliebeneView: View {
         }
 
         return kontakte
-            .sorted { anzeigenameFuerKontakt($0) < anzeigenameFuerKontakt($1) }
+            .sorted { linkerKontakt, rechterKontakt in
+                if istAbgeleiteterHausarztKontakt(linkerKontakt) != istAbgeleiteterHausarztKontakt(rechterKontakt) {
+                    return istAbgeleiteterHausarztKontakt(linkerKontakt)
+                }
+
+                return anzeigenameFuerKontakt(linkerKontakt) < anzeigenameFuerKontakt(rechterKontakt)
+            }
     }
 
     private func abgeleiteterHausarztKontakt() -> HinterbliebeneModell? {
@@ -178,13 +323,13 @@ struct HinterbliebeneView: View {
         return HinterbliebeneModell(
             vorname: "",
             name: getrimmterName,
-            rolle: "Andere|Hausarzt",
+            rolle: "Arzt",
             beziehung: VertrauenspersonKategorie.beguenstigte.rawValue,
-            telefon: "",
-            email: "",
-            adresse: "",
-            plz: "",
-            stadt: "",
+            telefon: gesundheit.hausarztTelefon.trimmingCharacters(in: .whitespacesAndNewlines),
+            email: gesundheit.hausarztEmail.trimmingCharacters(in: .whitespacesAndNewlines),
+            adresse: gesundheit.hausarztAdresse.trimmingCharacters(in: .whitespacesAndNewlines),
+            plz: gesundheit.hausarztPLZ.trimmingCharacters(in: .whitespacesAndNewlines),
+            stadt: gesundheit.hausarztOrt.trimmingCharacters(in: .whitespacesAndNewlines),
             istVertrauensperson: false,
             sollInformiertWerden: false
         )
@@ -200,7 +345,9 @@ struct HinterbliebeneView: View {
     }
 
     private func istAbgeleiteterHausarztKontakt(_ kontakt: HinterbliebeneModell) -> Bool {
-        kontakt.rolle == "Andere|Hausarzt"
+        let rolle = kontakt.rolle.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return (rolle == "Arzt" || rolle == "Andere|Hausarzt" || rolle == "Hausarzt")
             && kontakt.beziehung == VertrauenspersonKategorie.beguenstigte.rawValue
     }
 
@@ -212,25 +359,6 @@ struct HinterbliebeneView: View {
         return name.isEmpty ? "Unbenannter Kontakt" : name
     }
 
-    private func angezeigteRolleFuerKontakt(_ kontakt: HinterbliebeneModell) -> String {
-        let roheRolle = kontakt.rolle.components(separatedBy: "|").first ?? kontakt.rolle
-
-        switch roheRolle.lowercased() {
-        case VertrauenspersonKategorie.partner.rawValue:
-            return "Partner"
-        case VertrauenspersonKategorie.familie.rawValue:
-            return "Familie"
-        case VertrauenspersonKategorie.freunde.rawValue:
-            return "Freunde"
-        case VertrauenspersonKategorie.beguenstigte.rawValue:
-            if kontakt.rolle.contains("Hausarzt") {
-                return "Andere · Hausarzt"
-            }
-            return "Andere"
-        default:
-            return roheRolle
-        }
-    }
 
     private func plzOrtFuerKontakt(_ kontakt: HinterbliebeneModell) -> String {
         [kontakt.plz, kontakt.stadt]
@@ -283,7 +411,7 @@ enum VertrauenspersonKategorie: String, Identifiable, Hashable {
         case .freunde:
             return "Freunde"
         case .beguenstigte:
-            return "Begünstigte"
+            return "Andere"
         }
     }
 }

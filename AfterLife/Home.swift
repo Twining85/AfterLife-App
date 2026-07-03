@@ -9,6 +9,7 @@ struct Home: View {
     private let verknuepfteVorsorgedossiers = ["René Engeler"]
     @AppStorage("aktiveUserID") private var aktiveUserID = ""
     @AppStorage("dossierZuletztGeprueftAmISO") private var dossierZuletztGeprueftAmISO = ""
+    @AppStorage("homeBereicheReihenfolge") private var homeBereicheReihenfolge = ""
     @Query private var gespeicherteProfile: [ProfilModell]
     @Query private var gespeicherteGesundheitsdaten: [GesundheitModell]
     @Query private var gespeicherteDossierZugriffe: [DossierZugriffModell]
@@ -18,15 +19,18 @@ struct Home: View {
     @Query private var gespeicherteDokumente: [DokumenteModell]
     @Query private var gespeicherteAbos: [AboModell]
     @State private var kachelnSindSichtbar = false
+    @State private var homeBearbeitungsmodus = false
+    @State private var kachelWackelPhase = false
     @State private var vorsorgedossierAuswahlAnzeigen = false
     @State private var direktesVorsorgedossierOeffnen = false
     @State private var ausgewaehltesVorsorgedossier = ""
+    @State private var bearbeiteteHomeBereiche: [HomeBereich] = []
     private let heroDossierTitelGroesse: CGFloat = 19
     private let heroDossierStatusGroesse: CGFloat = 16
     private let heroDossierBeschreibungGroesse: CGFloat = 14
     private let heroDossierAktionGroesse: CGFloat = 13
     private let heroProzentGroesse: CGFloat = 14
-    
+        
     private var tageszeitBegruessung: String {
         let kalender = Calendar.current
         let jetzt = Date()
@@ -70,6 +74,25 @@ struct Home: View {
     private var homeAnzeigename: String {
         let vorname = aktivesProfil?.vorname.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return vorname.isEmpty ? "Willkommen" : vorname
+    }
+
+    private var sortierteHomeBereiche: [HomeBereich] {
+        let gespeicherteIDs = homeBereicheReihenfolge
+            .split(separator: ",")
+            .map { String($0) }
+
+        let gespeicherteBereiche = gespeicherteIDs.compactMap { HomeBereich(rawValue: $0) }
+        let fehlendeBereiche = HomeBereich.allCases.filter { !gespeicherteBereiche.contains($0) }
+
+        if gespeicherteBereiche.isEmpty {
+            return HomeBereich.allCases
+        }
+
+        return gespeicherteBereiche + fehlendeBereiche
+    }
+
+    private var angezeigteHomeBereiche: [HomeBereich] {
+        bearbeiteteHomeBereiche.isEmpty ? sortierteHomeBereiche : bearbeiteteHomeBereiche
     }
     
     private var dossierWurdeGeprueft: Bool {
@@ -310,6 +333,14 @@ struct Home: View {
                     }
                     .frame(height: 360)
                     .padding(.top, 14)
+                    .opacity(homeBearbeitungsmodus ? 0.42 : 1)
+                    .allowsHitTesting(!homeBearbeitungsmodus)
+                    .overlay {
+                        Color(.systemBackground)
+                            .opacity(homeBearbeitungsmodus ? 0.26 : 0)
+                            .allowsHitTesting(false)
+                    }
+                    .animation(.easeInOut(duration: 0.22), value: homeBearbeitungsmodus)
                     
                     HStack(spacing: 8) {
                         Spacer(minLength: 0)
@@ -322,6 +353,14 @@ struct Home: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, -2)
+                    .opacity(homeBearbeitungsmodus ? 0.38 : 1)
+                    .allowsHitTesting(!homeBearbeitungsmodus)
+                    .overlay {
+                        Capsule()
+                            .fill(Color(.systemBackground).opacity(homeBearbeitungsmodus ? 0.22 : 0))
+                            .allowsHitTesting(false)
+                    }
+                    .animation(.easeInOut(duration: 0.22), value: homeBearbeitungsmodus)
                     
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Bereiche")
@@ -334,6 +373,14 @@ struct Home: View {
                     }
                     .padding(.horizontal, 24)
                     .padding(.top, 28)
+                    .opacity(homeBearbeitungsmodus ? 0.45 : 1)
+                    .allowsHitTesting(!homeBearbeitungsmodus)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(Color(.systemBackground).opacity(homeBearbeitungsmodus ? 0.20 : 0))
+                            .allowsHitTesting(false)
+                    }
+                    .animation(.easeInOut(duration: 0.22), value: homeBearbeitungsmodus)
                     
                     alleKacheln
                         .padding(.horizontal, 24)
@@ -352,7 +399,14 @@ struct Home: View {
                             .padding(.top, 18)
                             .padding(.bottom, 28)
                             .offset(y: kachelnSindSichtbar ? 0 : 20)
-                            .opacity(kachelnSindSichtbar ? 1 : 0)
+                            .opacity(kachelnSindSichtbar ? (homeBearbeitungsmodus ? 0.38 : 1) : 0)
+                            .allowsHitTesting(!homeBearbeitungsmodus)
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                    .fill(Color(.systemBackground).opacity(homeBearbeitungsmodus ? 0.24 : 0))
+                                    .allowsHitTesting(false)
+                            }
+                            .animation(.easeInOut(duration: 0.22), value: homeBearbeitungsmodus)
                     }
                     
 #if DEBUG
@@ -360,6 +414,14 @@ struct Home: View {
                         .padding(.horizontal, 24)
                         .padding(.top, 8)
                         .padding(.bottom, 32)
+                        .opacity(homeBearbeitungsmodus ? 0.35 : 1)
+                        .allowsHitTesting(!homeBearbeitungsmodus)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .fill(Color(.systemBackground).opacity(homeBearbeitungsmodus ? 0.24 : 0))
+                                .allowsHitTesting(false)
+                        }
+                        .animation(.easeInOut(duration: 0.22), value: homeBearbeitungsmodus)
 #endif
                 }
                 .background(Color(.systemBackground))
@@ -383,6 +445,22 @@ struct Home: View {
                     Text("Wähle aus, welches Vorsorgedossier du öffnen möchtest.")
                 }
                 .navigationBarBackButtonHidden(true)
+                .toolbar {
+                    if homeBearbeitungsmodus {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Fertig") {
+                                speichereHomeBereichReihenfolge()
+
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    homeBearbeitungsmodus = false
+                                    kachelWackelPhase = false
+                                }
+                            }
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(schluessliAkzent)
+                        }
+                    }
+                }
             }
         }
     }
@@ -446,6 +524,35 @@ struct Home: View {
             }
         }
         
+        private func initialisiereHomeBereicheFallsNoetig() {
+            if bearbeiteteHomeBereiche.isEmpty {
+                bearbeiteteHomeBereiche = sortierteHomeBereiche
+            }
+        }
+
+        private func speichereHomeBereichReihenfolge() {
+            initialisiereHomeBereicheFallsNoetig()
+            homeBereicheReihenfolge = bearbeiteteHomeBereiche
+                .map(\.rawValue)
+                .joined(separator: ",")
+        }
+
+        private func verschiebeHomeBereich(_ bereich: HomeBereich, richtung: Int) {
+            initialisiereHomeBereicheFallsNoetig()
+
+            guard let aktuellerIndex = bearbeiteteHomeBereiche.firstIndex(of: bereich) else { return }
+
+            let neuerIndex = aktuellerIndex + richtung
+            guard bearbeiteteHomeBereiche.indices.contains(neuerIndex) else { return }
+
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.84)) {
+                bearbeiteteHomeBereiche.move(
+                    fromOffsets: IndexSet(integer: aktuellerIndex),
+                    toOffset: richtung > 0 ? neuerIndex + 1 : neuerIndex
+                )
+            }
+        }
+
         private var alleKacheln: some View {
             LazyVGrid(
                 columns: [
@@ -454,104 +561,127 @@ struct Home: View {
                 ],
                 spacing: 20
             ) {
-                NavigationLink {
-                    ProfilView()
-                } label: {
-                    HomeKachel(
-                        icon: "person.text.rectangle.fill",
-                        titel: "Mein Profil",
-                        untertitel: "Persönliche Angaben",
-                        details: "Kontaktdaten, Einstellungen und Sicherheit verwalten",
-                        farbe: kachelFarbe,
-                        akzentFarbe: schluessliAkzent
+                ForEach(angezeigteHomeBereiche) { bereich in
+                    Group {
+                        if homeBearbeitungsmodus {
+                            homeKachel(fuer: bereich)
+                                .overlay(alignment: .topTrailing) {
+                                    VStack(spacing: 8) {
+                                        Button {
+                                            verschiebeHomeBereich(bereich, richtung: -1)
+                                        } label: {
+                                            Image(systemName: "chevron.up")
+                                                .font(.caption.weight(.bold))
+                                                .foregroundStyle(bereich.akzentFarbe)
+                                                .frame(width: 32, height: 32)
+                                                .background(
+                                                    Circle()
+                                                        .fill(Color(.systemBackground).opacity(0.94))
+                                                )
+                                        }
+                                        .buttonStyle(.plain)
+                                        .disabled(angezeigteHomeBereiche.first == bereich)
+                                        .opacity(angezeigteHomeBereiche.first == bereich ? 0.35 : 1)
+
+                                        Button {
+                                            verschiebeHomeBereich(bereich, richtung: 1)
+                                        } label: {
+                                            Image(systemName: "chevron.down")
+                                                .font(.caption.weight(.bold))
+                                                .foregroundStyle(bereich.akzentFarbe)
+                                                .frame(width: 32, height: 32)
+                                                .background(
+                                                    Circle()
+                                                        .fill(Color(.systemBackground).opacity(0.94))
+                                                )
+                                        }
+                                        .buttonStyle(.plain)
+                                        .disabled(angezeigteHomeBereiche.last == bereich)
+                                        .opacity(angezeigteHomeBereiche.last == bereich ? 0.35 : 1)
+                                    }
+                                    .padding(10)
+                                }
+                        } else {
+                            NavigationLink {
+                                zielView(fuer: bereich)
+                            } label: {
+                                homeKachel(fuer: bereich)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .rotationEffect(.degrees(homeBearbeitungsmodus ? (kachelWackelPhase ? 0.75 : -0.75) : 0))
+                    .scaleEffect(homeBearbeitungsmodus ? (kachelWackelPhase ? 1.006 : 0.996) : 1)
+                    .animation(.easeInOut(duration: 0.16), value: kachelWackelPhase)
+                    .animation(.easeInOut(duration: 0.2), value: homeBearbeitungsmodus)
+                    .contentShape(Rectangle())
+                    .highPriorityGesture(
+                        LongPressGesture(minimumDuration: 0.45)
+                            .onEnded { _ in
+                                initialisiereHomeBereicheFallsNoetig()
+
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    homeBearbeitungsmodus = true
+                                    kachelWackelPhase = false
+                                }
+                            }
                     )
                 }
-                .buttonStyle(.plain)
-                
-                NavigationLink {
-                    GesundheitView()
-                } label: {
-                    HomeKachel(
-                        icon: "heart.text.square.fill",
-                        titel: "Gesundheit",
-                        untertitel: "Für den Ernstfall",
-                        details: "Hausarzt, Medikamente, Allergien und wichtige medizinische Informationen",
-                        farbe: kachelFarbe,
-                        akzentFarbe: Color(red: 0.76, green: 0.24, blue: 0.30)
-                    )
-                }
-                .buttonStyle(.plain)
-                
-                NavigationLink {
-                    WuenscheView()
-                } label: {
-                    HomeKachel(
-                        icon: "sparkles",
-                        titel: "Meine Wünsche",
-                        untertitel: "Was dir wichtig ist",
-                        details: "Testament und persönliche Wünsche festhalten",
-                        farbe: kachelFarbe,
-                        akzentFarbe: Color(red: 0.72, green: 0.42, blue: 0.28)
-                    )
-                }
-                .buttonStyle(.plain)
-                
-                NavigationLink {
-                    FinanzenView()
-                } label: {
-                    HomeKachel(
-                        icon: "dollarsign.circle.fill",
-                        titel: "Finanzen",
-                        untertitel: "Deine finanzielle Übersicht",
-                        details: "Konten, Schulden und Wertsachen auflisten",
-                        farbe: kachelFarbe,
-                        akzentFarbe: Color(red: 0.62, green: 0.47, blue: 0.18)
-                    )
-                }
-                .buttonStyle(.plain)
-                
-                NavigationLink {
-                    HinterbliebeneView()
-                } label: {
-                    HomeKachel(
-                        icon: "person.3.fill",
-                        titel: "Menschen meines Vertrauens",
-                        untertitel: "Menschen, die dir wichtig sind",
-                        details: "Familie & Freunde als Kontakte hinterlegen",
-                        farbe: kachelFarbe,
-                        akzentFarbe: Color(red: 0.24, green: 0.50, blue: 0.34)
-                    )
-                }
-                .buttonStyle(.plain)
-                
-                NavigationLink {
-                    DokumenteView()
-                } label: {
-                    HomeKachel(
-                        icon: "folder.fill",
-                        titel: "Dokumente & Fotoalbum",
-                        untertitel: "Alles sicher abgelegt",
-                        details: "Dokumente hochladen und Fotoalbum erstellen",
-                        farbe: kachelFarbe,
-                        akzentFarbe: Color(red: 0.22, green: 0.43, blue: 0.68)
-                    )
-                }
-                .buttonStyle(.plain)
-                
-                NavigationLink {
-                    AbosView()
-                } label: {
-                    HomeKachel(
-                        icon: "rectangle.stack.badge.person.crop.fill",
-                        titel: "Abos & Profile",
-                        untertitel: "Digitales Leben",
-                        details: "Digitale Profile, Zugänge und Abos",
-                        farbe: kachelFarbe,
-                        akzentFarbe: Color(red: 0.46, green: 0.36, blue: 0.62)
-                    )
-                }
-                .buttonStyle(.plain)
             }
+            .onAppear {
+                initialisiereHomeBereicheFallsNoetig()
+            }
+            .task(id: homeBearbeitungsmodus) {
+                guard homeBearbeitungsmodus else {
+                    kachelWackelPhase = false
+                    return
+                }
+
+                kachelWackelPhase = false
+
+                while homeBearbeitungsmodus && !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 160_000_000)
+
+                    guard homeBearbeitungsmodus && !Task.isCancelled else { break }
+
+                    await MainActor.run {
+                        withAnimation(.easeInOut(duration: 0.16)) {
+                            kachelWackelPhase.toggle()
+                        }
+                    }
+                }
+            }
+        }
+
+        @ViewBuilder
+        private func zielView(fuer bereich: HomeBereich) -> some View {
+            switch bereich {
+            case .profil:
+                ProfilView()
+            case .gesundheit:
+                GesundheitView()
+            case .wuensche:
+                WuenscheView()
+            case .finanzen:
+                FinanzenView()
+            case .hinterbliebene:
+                HinterbliebeneView()
+            case .dokumente:
+                DokumenteView()
+            case .abos:
+                AbosView()
+            }
+        }
+
+        private func homeKachel(fuer bereich: HomeBereich) -> HomeKachel {
+            HomeKachel(
+                icon: bereich.icon,
+                titel: bereich.titel,
+                untertitel: bereich.untertitel,
+                details: bereich.details,
+                farbe: kachelFarbe,
+                akzentFarbe: bereich.akzentFarbe
+            )
         }
         
         struct HomeKachel: View {
@@ -609,6 +739,115 @@ struct Home: View {
         }
     }
     
+    enum HomeBereich: String, CaseIterable, Identifiable {
+        case profil
+        case gesundheit
+        case wuensche
+        case finanzen
+        case hinterbliebene
+        case dokumente
+        case abos
+
+        var id: String { rawValue }
+
+        var icon: String {
+            switch self {
+            case .profil:
+                return "person.text.rectangle.fill"
+            case .gesundheit:
+                return "heart.text.square.fill"
+            case .wuensche:
+                return "sparkles"
+            case .finanzen:
+                return "dollarsign.circle.fill"
+            case .hinterbliebene:
+                return "person.3.fill"
+            case .dokumente:
+                return "folder.fill"
+            case .abos:
+                return "rectangle.stack.badge.person.crop.fill"
+            }
+        }
+
+        var titel: String {
+            switch self {
+            case .profil:
+                return "Mein Profil"
+            case .gesundheit:
+                return "Gesundheit"
+            case .wuensche:
+                return "Meine Wünsche"
+            case .finanzen:
+                return "Finanzen"
+            case .hinterbliebene:
+                return "Menschen meines Vertrauens"
+            case .dokumente:
+                return "Dokumente & Fotoalbum"
+            case .abos:
+                return "Abos & Profile"
+            }
+        }
+
+        var untertitel: String {
+            switch self {
+            case .profil:
+                return "Persönliche Angaben"
+            case .gesundheit:
+                return "Für den Ernstfall"
+            case .wuensche:
+                return "Was dir wichtig ist"
+            case .finanzen:
+                return "Deine finanzielle Übersicht"
+            case .hinterbliebene:
+                return "Menschen, die dir wichtig sind"
+            case .dokumente:
+                return "Alles sicher abgelegt"
+            case .abos:
+                return "Digitales Leben"
+            }
+        }
+
+        var details: String {
+            switch self {
+            case .profil:
+                return "Kontaktdaten, Einstellungen und Sicherheit verwalten"
+            case .gesundheit:
+                return "Hausarzt, Medikamente, Allergien und wichtige medizinische Informationen"
+            case .wuensche:
+                return "Testament und persönliche Wünsche festhalten"
+            case .finanzen:
+                return "Konten, Schulden und Wertsachen auflisten"
+            case .hinterbliebene:
+                return "Familie & Freunde als Kontakte hinterlegen"
+            case .dokumente:
+                return "Dokumente hochladen und Fotoalbum erstellen"
+            case .abos:
+                return "Digitale Profile, Zugänge und Abos"
+            }
+        }
+
+        var akzentFarbe: Color {
+            switch self {
+            case .profil:
+                return Color(red: 0.16, green: 0.36, blue: 0.42)
+            case .gesundheit:
+                return Color(red: 0.76, green: 0.24, blue: 0.30)
+            case .wuensche:
+                return Color(red: 0.72, green: 0.42, blue: 0.28)
+            case .finanzen:
+                return Color(red: 0.62, green: 0.47, blue: 0.18)
+            case .hinterbliebene:
+                return Color(red: 0.24, green: 0.50, blue: 0.34)
+            case .dokumente:
+                return Color(red: 0.22, green: 0.43, blue: 0.68)
+            case .abos:
+                return Color(red: 0.46, green: 0.36, blue: 0.62)
+            }
+        }
+    }
+
+    
+
     struct DossierFortschritt {
         let prozent: Int
         let farbe: Color
