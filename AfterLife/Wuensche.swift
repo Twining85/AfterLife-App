@@ -539,34 +539,51 @@ struct WuenscheView: View {
                 leerText("Noch keine Haustiere erfasst.")
             }
 
-            ForEach($haustiere) { haustier in
-                if haustiere.count > 2 {
-                    DisclosureGroup(
-                        isExpanded: Binding(
-                            get: { ausgeklappteHaustierIDs.contains(haustier.wrappedValue.id) },
-                            set: { istOffen in
-                                if istOffen {
-                                    ausgeklappteHaustierIDs.insert(haustier.wrappedValue.id)
-                                } else {
-                                    ausgeklappteHaustierIDs.remove(haustier.wrappedValue.id)
-                                }
-                            }
-                        )
+            ForEach(haustiere) { haustier in
+                if let haustierBinding = bindingFuerHaustier(id: haustier.id) {
+                    SwipeToDeleteRow(
+                        accentColor: wuenscheAccentColor,
+                        deleteAction: {
+                            haustierLoeschen(id: haustier.id)
+                        }
                     ) {
-                        haustierDetailFormular(haustier: haustier)
-                    } label: {
-                        listHeader(title: haustier.wrappedValue.anzeigename, subtitle: haustier.wrappedValue.art.rawValue, icon: "pawprint")
+                        haustierEintragView(haustier: haustierBinding)
                     }
-                    .tint(wuenscheAccentColor)
-                } else {
-                    haustierDetailFormular(haustier: haustier)
                 }
             }
-            .onDelete(perform: haustierLoeschen)
 
             accentButton(title: "Haustier erfassen", systemImage: "plus.circle.fill") {
                 haustierPopupAnzeigen = true
             }
+        }
+    }
+
+    @ViewBuilder
+    private func haustierEintragView(haustier: Binding<WuenschePetEntry>) -> some View {
+        if haustiere.count > 2 {
+            DisclosureGroup(
+                isExpanded: Binding(
+                    get: { ausgeklappteHaustierIDs.contains(haustier.wrappedValue.id) },
+                    set: { istOffen in
+                        if istOffen {
+                            ausgeklappteHaustierIDs.insert(haustier.wrappedValue.id)
+                        } else {
+                            ausgeklappteHaustierIDs.remove(haustier.wrappedValue.id)
+                        }
+                    }
+                )
+            ) {
+                haustierDetailFormular(haustier: haustier)
+            } label: {
+                listHeader(
+                    title: haustier.wrappedValue.anzeigename,
+                    subtitle: haustier.wrappedValue.art.rawValue,
+                    icon: "pawprint"
+                )
+            }
+            .tint(wuenscheAccentColor)
+        } else {
+            haustierDetailFormular(haustier: haustier)
         }
     }
 
@@ -1145,14 +1162,29 @@ struct WuenscheView: View {
         }
     }
 
-    private func haustierLoeschen(at offsets: IndexSet) {
-        for index in offsets {
-            if haustiere.indices.contains(index) {
-                ausgeklappteHaustierIDs.remove(haustiere[index].id)
+    private func bindingFuerHaustier(id: UUID) -> Binding<WuenschePetEntry>? {
+        guard haustiere.contains(where: { $0.id == id }) else { return nil }
+
+        return Binding(
+            get: {
+                haustiere.first(where: { $0.id == id }) ?? WuenschePetEntry()
+            },
+            set: { neuesHaustier in
+                guard let index = haustiere.firstIndex(where: { $0.id == id }) else { return }
+                haustiere[index] = neuesHaustier
+                speichereWuenscheVerzoegert()
             }
+        )
+    }
+
+    private func haustierLoeschen(id: UUID) {
+        guard haustiere.contains(where: { $0.id == id }) else { return }
+
+        withAnimation(.easeInOut(duration: 0.18)) {
+            ausgeklappteHaustierIDs.remove(id)
+            haustiere.removeAll { $0.id == id }
         }
 
-        haustiere.remove(atOffsets: offsets)
         speichereWuenscheVerzoegert()
     }
 
