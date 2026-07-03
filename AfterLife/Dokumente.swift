@@ -21,6 +21,10 @@ struct DokumenteView: View {
     @State private var selectedDocument: UploadedDocument?
     @State private var exportURL: URL?
 
+    private let dokumenteHintergrundFarbe = Color(red: 0.985, green: 0.975, blue: 0.955)
+    private let dokumenteKartenFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
+    private let dokumenteAkzentFarbe = Color(red: 0.22, green: 0.43, blue: 0.68)
+
     var body: some View {
         NavigationStack {
             Form {
@@ -29,6 +33,9 @@ struct DokumenteView: View {
                 fotoalbumSection
                 weitereDokumenteSection
             }
+            .scrollContentBackground(.hidden)
+            .background(dokumenteHintergrundFarbe)
+            .tint(dokumenteAkzentFarbe)
             .navigationTitle("Dokumente")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -36,6 +43,7 @@ struct DokumenteView: View {
                         exportiereDokumenteUndOeffneVorschau()
                     } label: {
                         Image(systemName: "doc.richtext")
+                            .foregroundStyle(dokumenteAkzentFarbe)
                     }
                     .disabled(alleExportierbarenDokumente.isEmpty)
                     .accessibilityLabel("Dokumente als PDF exportieren")
@@ -99,6 +107,7 @@ struct DokumenteView: View {
                 }
             }
         }
+        .listRowBackground(dokumenteKartenFarbe)
     }
 
     private var finanzenDokumenteSection: some View {
@@ -117,6 +126,7 @@ struct DokumenteView: View {
                 }
             }
         }
+        .listRowBackground(dokumenteKartenFarbe)
     }
 
     private var fotoalbumSection: some View {
@@ -140,10 +150,12 @@ struct DokumenteView: View {
                 ) {
                     Image(systemName: "plus.circle.fill")
                         .font(.title3)
+                        .foregroundStyle(dokumenteAkzentFarbe)
                 }
                 .buttonStyle(.plain)
             }
         }
+        .listRowBackground(dokumenteKartenFarbe)
     }
 
     private var weitereDokumenteSection: some View {
@@ -172,20 +184,29 @@ struct DokumenteView: View {
                 }
             }
         } header: {
-            HStack {
-                Text("Weitere Dokumente hochladen")
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Weitere Dokumente hochladen")
 
-                Spacer()
+                    Spacer()
 
-                Button {
-                    showDocumentPicker = true
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title3)
+                    Button {
+                        showDocumentPicker = true
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(dokumenteAkzentFarbe)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+
+                Text("Lade weitere Dokumente hoch, zum Beispiel Ehevertrag, Vollmachten für Konten oder Post, Wohnsitzbestätigung oder ähnliche Unterlagen.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textCase(nil)
             }
         }
+        .listRowBackground(dokumenteKartenFarbe)
     }
 
     private var fotoalbumInhalt: some View {
@@ -297,15 +318,23 @@ struct DokumenteView: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack {
+            HStack(spacing: 10) {
                 Text(titel)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+
                 Spacer()
+
                 Text("\(anzahl)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(dokumenteAkzentFarbe)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(dokumenteAkzentFarbe.opacity(0.12), in: Capsule())
+
                 Image(systemName: eingeklappt ? "chevron.right" : "chevron.down")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(dokumenteAkzentFarbe)
             }
         }
         .buttonStyle(.plain)
@@ -414,15 +443,21 @@ struct DokumenteView: View {
 
     private func readOnlyDocumentRow(_ document: ReadOnlyDocument, previewAction: @escaping () -> Void) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: "doc.text")
-                .foregroundStyle(.secondary)
+            Image(systemName: "doc.text.fill")
+                .font(.title3)
+                .foregroundStyle(dokumenteAkzentFarbe)
+                .frame(width: 34, height: 34)
+                .background(dokumenteAkzentFarbe.opacity(0.12), in: Circle())
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(document.title)
-                    .font(.headline)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
 
                 Text(document.fileName)
-                    .font(.subheadline)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
 
                 if let uploadDate = document.uploadDate {
                     Text("Hochgeladen am \(uploadDate.formatted(date: .abbreviated, time: .shortened))")
@@ -440,13 +475,20 @@ struct DokumenteView: View {
             Spacer()
 
             Button(action: previewAction) {
-                Image(systemName: "eye")
+                Image(systemName: "eye.fill")
                     .font(.title3)
-                    .foregroundStyle(document.hasPreview ? .secondary : .tertiary)
+                    .foregroundStyle(document.hasPreview ? dokumenteAkzentFarbe : Color.secondary.opacity(0.35))
             }
             .buttonStyle(.plain)
             .disabled(!document.hasPreview)
             .accessibilityLabel("Dokument ansehen")
+        }
+        .padding(12)
+        .background(Color.white.opacity(0.65))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(dokumenteAkzentFarbe.opacity(0.12), lineWidth: 1)
         }
         .padding(.vertical, 4)
     }
@@ -519,8 +561,8 @@ struct DokumenteView: View {
         } label: {
             Image(systemName: "xmark.circle.fill")
                 .font(.title2)
-                .foregroundStyle(.white, .black.opacity(0.35))
-                .shadow(color: .black.opacity(0.35), radius: 3, x: 0, y: 1)
+                .foregroundStyle(.white, dokumenteAkzentFarbe.opacity(0.85))
+                .shadow(color: .black.opacity(0.25), radius: 3, x: 0, y: 1)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Foto löschen")

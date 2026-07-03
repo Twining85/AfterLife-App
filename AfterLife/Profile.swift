@@ -178,27 +178,6 @@ struct ProfilView: View {
                     
                     TextField("Name", text: $name)
                         .textContentType(.name)
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Geburtsdatum")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(profilAkzentFarbe)
-
-                        TextField("TT.MM.JJJJ", text: $geburtsdatumText)
-                            .keyboardType(.numberPad)
-                            .textContentType(.birthdate)
-                            .padding(.vertical, 10)
-                            .padding(.horizontal, 12)
-                            .background(profilKartenFarbe)
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .onChange(of: geburtsdatumText) { _, neuerWert in
-                                verarbeiteGeburtsdatumEingabe(neuerWert)
-                            }
-
-                        Text("Format: TT.MM.JJJJ")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 4)
 
                     TextField("Strasse", text: $adresse)
                         .textContentType(.streetAddressLine1)
@@ -299,6 +278,45 @@ struct ProfilView: View {
                                 .foregroundStyle(.red)
                         }
                     }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Geburtsdatum")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(profilAkzentFarbe)
+
+                        TextField("TT.MM.JJJJ", text: $geburtsdatumText)
+                            .keyboardType(.numberPad)
+                            .textContentType(.birthdate)
+                            .padding(.vertical, 7)
+                            .padding(.horizontal, 12)
+                            .background(profilKartenFarbe)
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .onChange(of: geburtsdatumText) { _, neuerWert in
+                                verarbeiteGeburtsdatumEingabe(neuerWert)
+                            }
+                    }
+                    .padding(.vertical, 4)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("AHV-Nr.")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(profilAkzentFarbe)
+
+                        TextField("756.XXXX.XXXX.XX", text: $ahvNummer)
+                            .keyboardType(.numberPad)
+                            .textContentType(.oneTimeCode)
+                            .padding(.vertical, 7)
+                            .padding(.horizontal, 12)
+                            .background(profilKartenFarbe)
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .onChange(of: ahvNummer) { _, neuerWert in
+                                let formatiert = formatiereAHVNummer(neuerWert)
+                                if formatiert != ahvNummer {
+                                    ahvNummer = formatiert
+                                }
+                            }
+                    }
+                    .padding(.vertical, 4)
                 }
                 .listRowBackground(profilKartenFarbe)
                 .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
@@ -541,6 +559,7 @@ struct ProfilView: View {
             .onChange(of: stadt) { _, _ in speichereProfil() }
             .onChange(of: land) { _, _ in speichereProfil() }
             .onChange(of: telefon) { _, _ in speichereProfil() }
+            .onChange(of: ahvNummer) { _, _ in speichereProfil() }
             .onChange(of: email) { _, _ in speichereProfil() }
             .onChange(of: adresse) { _, neueAdresse in
                 guard land == "Schweiz" else {
@@ -607,11 +626,30 @@ struct ProfilView: View {
         }
     }
 
+    @State private var ahvNummer = ""
+
     private func formatiereGeburtsdatum(_ datum: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "de_CH")
         formatter.dateFormat = "dd.MM.yyyy"
         return formatter.string(from: datum)
+    }
+
+    private func formatiereAHVNummer(_ eingabe: String) -> String {
+        let ziffern = eingabe.filter { $0.isNumber }
+        let begrenzteZiffern = String(ziffern.prefix(13))
+
+        var formatiert = ""
+
+        for (index, zeichen) in begrenzteZiffern.enumerated() {
+            if index == 3 || index == 7 || index == 11 {
+                formatiert.append(".")
+            }
+
+            formatiert.append(zeichen)
+        }
+
+        return formatiert
     }
 
     private func datumAusGeburtsdatumText(_ text: String) -> Date? {
@@ -620,6 +658,25 @@ struct ProfilView: View {
         formatter.dateFormat = "dd.MM.yyyy"
         formatter.isLenient = false
         return formatter.date(from: text)
+    }
+
+    private var technischesDefaultGeburtsdatum: Date {
+        Calendar.current.date(from: DateComponents(year: 1978, month: 6, day: 1)) ?? Date()
+    }
+
+    private func istTechnischesDefaultGeburtsdatum(_ datum: Date) -> Bool {
+        Calendar.current.isDate(datum, inSameDayAs: technischesDefaultGeburtsdatum)
+    }
+
+    private var geburtsdatumExportText: String {
+        let bereinigterText = geburtsdatumText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !bereinigterText.isEmpty,
+              datumAusGeburtsdatumText(bereinigterText) != nil else {
+            return "Nicht erfasst"
+        }
+
+        return bereinigterText
     }
 
     private func verarbeiteGeburtsdatumEingabe(_ eingabe: String) {
@@ -725,13 +782,14 @@ struct ProfilView: View {
             vorname = vorhandenesProfil.vorname
             name = vorhandenesProfil.name
             geburtsdatum = vorhandenesProfil.geburtsdatum
-            geburtsdatumText = formatiereGeburtsdatum(vorhandenesProfil.geburtsdatum)
+            geburtsdatumText = istTechnischesDefaultGeburtsdatum(vorhandenesProfil.geburtsdatum) ? "" : formatiereGeburtsdatum(vorhandenesProfil.geburtsdatum)
             adresse = vorhandenesProfil.strasse
             hausnummer = vorhandenesProfil.hausnummer
             plz = vorhandenesProfil.plz
             stadt = vorhandenesProfil.stadt
             land = vorhandenesProfil.land
             telefon = vorhandenesProfil.telefon
+            ahvNummer = vorhandenesProfil.ahvNummer
             email = vorhandenesProfil.email
             gespeicherteEmail = vorhandenesProfil.registrierungsEmail.isEmpty ? gespeicherteEmail : vorhandenesProfil.registrierungsEmail
             registrierungsArt = vorhandenesProfil.registrierungsart.isEmpty ? registrierungsArt : vorhandenesProfil.registrierungsart
@@ -754,7 +812,7 @@ struct ProfilView: View {
             )
             neuesProfil.biometrieAktiviert = biometrieAktiviert
             modelContext.insert(neuesProfil)
-            geburtsdatumText = formatiereGeburtsdatum(geburtsdatum)
+            geburtsdatumText = ""
         }
 
         profilGeladen = true
@@ -776,13 +834,16 @@ struct ProfilView: View {
 
         profil.vorname = vorname
         profil.name = name
-        profil.geburtsdatum = geburtsdatum
+        if let gueltigesGeburtsdatum = datumAusGeburtsdatumText(geburtsdatumText) {
+            profil.geburtsdatum = gueltigesGeburtsdatum
+        }
         profil.strasse = adresse
         profil.hausnummer = hausnummer
         profil.plz = plz
         profil.stadt = stadt
         profil.land = land
         profil.telefon = telefon
+        profil.ahvNummer = ahvNummer
         profil.email = email
         profil.registrierungsart = registrierungsArt
         profil.registrierungsEmail = gespeicherteEmail
@@ -1061,6 +1122,8 @@ struct ProfilView: View {
 
         telefon = ""
 
+        ahvNummer = ""
+
         email = ""
 
         profilbildData = nil
@@ -1075,8 +1138,8 @@ struct ProfilView: View {
         passwortAendernErfolg = ""
         registrierungsPasswortAnzeigen = false
 
-        geburtsdatum = Calendar.current.date(from: DateComponents(year: 1978, month: 6, day: 1)) ?? Date()
-        geburtsdatumText = formatiereGeburtsdatum(geburtsdatum)
+        geburtsdatum = technischesDefaultGeburtsdatum
+        geburtsdatumText = ""
 
         gespeicherteAboModelle.forEach { aboModell in
             aboModell.abos
@@ -1829,7 +1892,9 @@ struct ProfilView: View {
 
                 drawField("Name", name)
 
-                drawField("Geburtsdatum", dateFormatter.string(from: geburtsdatum))
+                drawField("Geburtsdatum", geburtsdatumExportText)
+
+                drawField("AHV-Nr.", ahvNummer)
 
                 let vollstaendigeAdresse = [adresse, hausnummer]
                     .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -2398,4 +2463,5 @@ private struct PDFHaustierEintrag: Decodable {
 }
 
 
+    
     

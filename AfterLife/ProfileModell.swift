@@ -23,6 +23,7 @@ final class ProfilModell {
     var stadt: String
     var land: String
     var telefon: String
+    var ahvNummer: String
     var email: String
     var notfallHinweis: String
 
@@ -55,6 +56,7 @@ final class ProfilModell {
         stadt: String = "",
         land: String = "Schweiz",
         telefon: String = "",
+        ahvNummer: String = "",
         email: String = "",
         notfallHinweis: String = "",
         registrierungsart: String = "E-Mail",
@@ -78,6 +80,7 @@ final class ProfilModell {
         self.stadt = stadt
         self.land = land
         self.telefon = telefon
+        self.ahvNummer = ahvNummer
         self.email = email
         self.notfallHinweis = notfallHinweis
         self.registrierungsart = registrierungsart
