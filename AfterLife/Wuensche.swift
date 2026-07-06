@@ -65,31 +65,36 @@ struct WuenscheView: View {
     @State private var testamentDateiURL: URL?
     @State private var testamentDateiData: Data?
     @State private var testamentHochgeladenAm: Date?
-    @State private var testamentErinnerungAktiv = true
-    @State private var testamentErinnerungDatum = Date()
+    @State private var testamentScannerAnzeigen = false
+    @State private var testamentScanSpeichernAbfrageAnzeigen = false
+    @State private var pendingTestamentScanData: Data?
+    @State private var pendingTestamentScanDateiName = ""
+    @State private var testamentExportURL: URL?
+    @State private var testamentExportSheetAnzeigen = false
+    @State private var dokumentScannerAnzeigen = false
+    @State private var dokumentScanSpeichernAbfrageAnzeigen = false
+    @State private var aktiverScanDokumentTyp: DokumentTyp?
+    @State private var pendingDokumentScanData: Data?
+    @State private var pendingDokumentScanDateiName = ""
+    @State private var dokumentExportURL: URL?
+    @State private var dokumentExportSheetAnzeigen = false
     @State private var hatPatientenverfuegung = false
     @State private var patientenverfuegungDateiName: String?
     @State private var patientenverfuegungDateiURL: URL?
     @State private var patientenverfuegungDateiData: Data?
     @State private var patientenverfuegungHochgeladenAm: Date?
-    @State private var patientenverfuegungErinnerungAktiv = true
-    @State private var patientenverfuegungErinnerungDatum = Date()
-
+    
     @State private var hatVorsorgeauftrag = false
     @State private var vorsorgeauftragDateiName: String?
     @State private var vorsorgeauftragDateiURL: URL?
     @State private var vorsorgeauftragDateiData: Data?
     @State private var vorsorgeauftragHochgeladenAm: Date?
-    @State private var vorsorgeauftragErinnerungAktiv = true
-    @State private var vorsorgeauftragErinnerungDatum = Date()
 
     @State private var offenFuerSterbebegleitung = false
     @State private var sterbebegleitungDateiName: String?
     @State private var sterbebegleitungDateiURL: URL?
     @State private var sterbebegleitungDateiData: Data?
     @State private var sterbebegleitungHochgeladenAm: Date?
-    @State private var sterbebegleitungErinnerungAktiv = true
-    @State private var sterbebegleitungErinnerungDatum = Date()
 
     @State private var hatSchwereGesundheitlicheErkrankung = false
     @State private var schwereErkrankung: SchwereErkrankung?
@@ -154,27 +159,20 @@ struct WuenscheView: View {
             testamentDateiName ?? "",
             testamentDateiData?.count.description ?? "",
             testamentHochgeladenAm?.timeIntervalSince1970.description ?? "",
-            String(testamentErinnerungAktiv),
-            testamentErinnerungDatum.timeIntervalSince1970.description,
             String(hatPatientenverfuegung),
             patientenverfuegungDateiName ?? "",
             patientenverfuegungDateiData?.count.description ?? "",
             patientenverfuegungHochgeladenAm?.timeIntervalSince1970.description ?? "",
-            String(patientenverfuegungErinnerungAktiv),
-            patientenverfuegungErinnerungDatum.timeIntervalSince1970.description,
+
             String(hatVorsorgeauftrag),
             vorsorgeauftragDateiName ?? "",
             vorsorgeauftragDateiData?.count.description ?? "",
             vorsorgeauftragHochgeladenAm?.timeIntervalSince1970.description ?? "",
-            String(vorsorgeauftragErinnerungAktiv),
-            vorsorgeauftragErinnerungDatum.timeIntervalSince1970.description,
+
             String(offenFuerSterbebegleitung),
             sterbebegleitungDateiName ?? "",
             sterbebegleitungDateiData?.count.description ?? "",
             sterbebegleitungHochgeladenAm?.timeIntervalSince1970.description ?? "",
-            String(sterbebegleitungErinnerungAktiv),
-            sterbebegleitungErinnerungDatum.timeIntervalSince1970.description,
-            String(hatSchwereGesundheitlicheErkrankung),
             schwereErkrankung?.rawValue ?? "",
             sterbebegleitungWichtig,
             String(lebensqualitaetRegelmaessigBeurteilen),
@@ -220,6 +218,64 @@ struct WuenscheView: View {
                 allowsMultipleSelection: false
             ) { result in
                 dokumentImportVerarbeiten(result)
+            }
+            .sheet(isPresented: $testamentScannerAnzeigen) {
+                DocumentScanner { pdfData in
+                    pendingTestamentScanDateiName = "Testament_\(Date().formatted(.dateTime.year().month().day().hour().minute())).pdf"
+                    pendingTestamentScanData = pdfData
+                    testamentScannerAnzeigen = false
+
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        testamentScanSpeichernAbfrageAnzeigen = true
+                    }
+                }
+            }
+            .alert("Scan zusätzlich speichern?", isPresented: $testamentScanSpeichernAbfrageAnzeigen) {
+                Button("Nein", role: .cancel) {
+                    speichereGescanntesTestament(sollZusätzlichSpeichern: false)
+                }
+
+                Button("Ja") {
+                    speichereGescanntesTestament(sollZusätzlichSpeichern: true)
+                }
+            } message: {
+                Text("Das Testament wird immer in der App gespeichert. Bei Ja öffnet sich zusätzlich das Speichern-Menü.")
+            }
+            .sheet(isPresented: $testamentExportSheetAnzeigen, onDismiss: {
+                testamentExportURL = nil
+            }) {
+                if let testamentExportURL {
+                    ShareSheet(activityItems: [testamentExportURL])
+                }
+            }
+            .sheet(isPresented: $dokumentScannerAnzeigen) {
+                DocumentScanner { pdfData in
+                    pendingDokumentScanDateiName = scanDateiNameFuerAktivenDokumentTyp()
+                    pendingDokumentScanData = pdfData
+                    dokumentScannerAnzeigen = false
+
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        dokumentScanSpeichernAbfrageAnzeigen = true
+                    }
+                }
+            }
+            .alert("Scan zusätzlich speichern?", isPresented: $dokumentScanSpeichernAbfrageAnzeigen) {
+                Button("Nein", role: .cancel) {
+                    speichereGescanntesDokument(sollZusätzlichSpeichern: false)
+                }
+
+                Button("Ja") {
+                    speichereGescanntesDokument(sollZusätzlichSpeichern: true)
+                }
+            } message: {
+                Text("Das Dokument wird immer in der App gespeichert. Bei Ja öffnet sich zusätzlich das Speichern-Menü.")
+            }
+            .sheet(isPresented: $dokumentExportSheetAnzeigen, onDismiss: {
+                dokumentExportURL = nil
+            }) {
+                if let dokumentExportURL {
+                    ShareSheet(activityItems: [dokumentExportURL])
+                }
             }
             .quickLookPreview($dokumentVorschauURL)
             .onChange(of: nachrufBildAuswahl) { _, neueAuswahl in
@@ -494,17 +550,14 @@ struct WuenscheView: View {
             testamentDateiURL = nil
             testamentDateiData = nil
             testamentHochgeladenAm = nil
-            testamentErinnerungAktiv = true
-            testamentErinnerungDatum = Date()
-
+            
         case .patientenverfuegung:
             hatPatientenverfuegung = false
             patientenverfuegungDateiName = nil
             patientenverfuegungDateiURL = nil
             patientenverfuegungDateiData = nil
             patientenverfuegungHochgeladenAm = nil
-            patientenverfuegungErinnerungAktiv = true
-            patientenverfuegungErinnerungDatum = Date()
+            
 
         case .vorsorgeauftrag:
             hatVorsorgeauftrag = false
@@ -512,8 +565,7 @@ struct WuenscheView: View {
             vorsorgeauftragDateiURL = nil
             vorsorgeauftragDateiData = nil
             vorsorgeauftragHochgeladenAm = nil
-            vorsorgeauftragErinnerungAktiv = true
-            vorsorgeauftragErinnerungDatum = Date()
+            
 
         case .sterbebegleitung:
             offenFuerSterbebegleitung = false
@@ -521,9 +573,7 @@ struct WuenscheView: View {
             sterbebegleitungDateiURL = nil
             sterbebegleitungDateiData = nil
             sterbebegleitungHochgeladenAm = nil
-            sterbebegleitungErinnerungAktiv = true
-            sterbebegleitungErinnerungDatum = Date()
-            hatSchwereGesundheitlicheErkrankung = false
+            
             schwereErkrankung = nil
             sterbebegleitungWichtig = ""
             lebensqualitaetRegelmaessigBeurteilen = true
@@ -832,25 +882,101 @@ struct WuenscheView: View {
 
                 Divider()
 
-                DokumentUploadBox(
-                    accentColor: wuenscheAccentColor,
-                    dateiName: testamentDateiName,
-                    hochgeladenAm: testamentHochgeladenAm,
-                    timestampTitel: "Testament hochgeladen am",
-                    uploadTitel: testamentDateiName == nil ? "Testament hochladen" : "Testament ändern",
-                    entfernenTitel: "Testament entfernen",
-                    erinnerungAktiv: $testamentErinnerungAktiv,
-                    erinnerungDatum: $testamentErinnerungDatum,
-                    vorschauAktion: {
-                        dokumentVorschauAnzeigen(testamentDateiURL, dateiName: testamentDateiName, dateiData: testamentDateiData)
-                    },
-                    uploadAktion: {
-                        dokumentImportStarten(.testament)
-                    },
-                    entfernenAktion: {
-                        testamentDateiEntfernen()
+                testamentDokumentBox
+            }
+        }
+    }
+
+    private var testamentDokumentBox: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Button {
+                    dokumentImportStarten(.testament)
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "doc.badge.plus")
+                            .font(.headline.weight(.semibold))
+
+                        Text("Hinzufügen")
+                            .font(.subheadline.weight(.semibold))
                     }
-                )
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 13)
+                    .background(wuenscheAccentColor, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .shadow(color: wuenscheAccentColor.opacity(0.18), radius: 6, x: 0, y: 3)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Testament hinzufügen")
+
+                Button {
+                    testamentScannerAnzeigen = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "doc.viewfinder")
+                            .font(.headline.weight(.semibold))
+
+                        Text("Scannen")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(wuenscheAccentColor)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(wuenscheAccentColor.opacity(0.24), lineWidth: 1)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Testament scannen")
+            }
+
+            if let testamentDateiName {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "doc.fill")
+                            .foregroundStyle(wuenscheAccentColor)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(testamentDateiName)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
+                                .lineLimit(2)
+
+                            if let testamentHochgeladenAm {
+                                Text("Testament hochgeladen am \(testamentHochgeladenAm.formatted(date: .abbreviated, time: .shortened))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Spacer()
+                    }
+
+                    HStack(spacing: 10) {
+                        Button {
+                            dokumentVorschauAnzeigen(testamentDateiURL, dateiName: testamentDateiName, dateiData: testamentDateiData)
+                        } label: {
+                            Label("Ansehen", systemImage: "eye")
+                                .font(.caption.weight(.semibold))
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(wuenscheAccentColor)
+
+                        Button(role: .destructive) {
+                            testamentDateiEntfernen()
+                        } label: {
+                            Label("Entfernen", systemImage: "trash")
+                                .font(.caption.weight(.semibold))
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                }
+                .padding(12)
+                .background(Color.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            } else {
+                leerText("Noch kein Testament hochgeladen.")
             }
         }
     }
@@ -864,14 +990,15 @@ struct WuenscheView: View {
                     hochgeladenAm: patientenverfuegungHochgeladenAm,
                     timestampTitel: "Patientenverfügung hochgeladen am",
                     uploadTitel: patientenverfuegungDateiName == nil ? "Patientenverfügung hochladen" : "Patientenverfügung ändern",
-                    entfernenTitel: "Patientenverfügung entfernen",
-                    erinnerungAktiv: $patientenverfuegungErinnerungAktiv,
-                    erinnerungDatum: $patientenverfuegungErinnerungDatum,
+                    entfernenTitel: "Entfernen",
                     vorschauAktion: {
                         dokumentVorschauAnzeigen(patientenverfuegungDateiURL, dateiName: patientenverfuegungDateiName, dateiData: patientenverfuegungDateiData)
                     },
                     uploadAktion: {
                         dokumentImportStarten(.patientenverfuegung)
+                    },
+                    scanAktion: {
+                        dokumentScanStarten(.patientenverfuegung)
                     },
                     entfernenAktion: {
                         patientenverfuegungDateiEntfernen()
@@ -890,14 +1017,15 @@ struct WuenscheView: View {
                     hochgeladenAm: vorsorgeauftragHochgeladenAm,
                     timestampTitel: "Vorsorgeauftrag hochgeladen am",
                     uploadTitel: vorsorgeauftragDateiName == nil ? "Vorsorgeauftrag hochladen" : "Vorsorgeauftrag ändern",
-                    entfernenTitel: "Vorsorgeauftrag entfernen",
-                    erinnerungAktiv: $vorsorgeauftragErinnerungAktiv,
-                    erinnerungDatum: $vorsorgeauftragErinnerungDatum,
+                    entfernenTitel: "Entfernen",
                     vorschauAktion: {
                         dokumentVorschauAnzeigen(vorsorgeauftragDateiURL, dateiName: vorsorgeauftragDateiName, dateiData: vorsorgeauftragDateiData)
                     },
                     uploadAktion: {
                         dokumentImportStarten(.vorsorgeauftrag)
+                    },
+                    scanAktion: {
+                        dokumentScanStarten(.vorsorgeauftrag)
                     },
                     entfernenAktion: {
                         vorsorgeauftragDateiEntfernen()
@@ -943,14 +1071,15 @@ struct WuenscheView: View {
                     hochgeladenAm: sterbebegleitungHochgeladenAm,
                     timestampTitel: "Sterbebegleitung hochgeladen am",
                     uploadTitel: sterbebegleitungDateiName == nil ? "Dokument zur Sterbebegleitung hochladen" : "Dokument zur Sterbebegleitung ändern",
-                    entfernenTitel: "Dokument zur Sterbebegleitung entfernen",
-                    erinnerungAktiv: $sterbebegleitungErinnerungAktiv,
-                    erinnerungDatum: $sterbebegleitungErinnerungDatum,
+                    entfernenTitel: "Entfernen",
                     vorschauAktion: {
                         dokumentVorschauAnzeigen(sterbebegleitungDateiURL, dateiName: sterbebegleitungDateiName, dateiData: sterbebegleitungDateiData)
                     },
                     uploadAktion: {
                         dokumentImportStarten(.sterbebegleitung)
+                    },
+                    scanAktion: {
+                        dokumentScanStarten(.sterbebegleitung)
                     },
                     entfernenAktion: {
                         sterbebegleitungDateiEntfernen()
@@ -1014,30 +1143,22 @@ struct WuenscheView: View {
             testamentDateiName = vorhandeneWuensche.testamentDateiName.isEmpty ? nil : vorhandeneWuensche.testamentDateiName
             testamentDateiData = vorhandeneWuensche.testamentDateiData
             testamentHochgeladenAm = vorhandeneWuensche.testamentHochgeladenAm
-            testamentErinnerungAktiv = vorhandeneWuensche.testamentErinnerungAktiv
-            testamentErinnerungDatum = vorhandeneWuensche.testamentErinnerungAm ?? Date()
-
+            
             hatPatientenverfuegung = vorhandeneWuensche.patientenverfuegungVorhanden
             patientenverfuegungDateiName = vorhandeneWuensche.patientenverfuegungDateiName.isEmpty ? nil : vorhandeneWuensche.patientenverfuegungDateiName
             patientenverfuegungDateiData = vorhandeneWuensche.patientenverfuegungDateiData
             patientenverfuegungHochgeladenAm = vorhandeneWuensche.patientenverfuegungHochgeladenAm
-            patientenverfuegungErinnerungAktiv = vorhandeneWuensche.patientenverfuegungErinnerungAktiv
-            patientenverfuegungErinnerungDatum = vorhandeneWuensche.patientenverfuegungErinnerungAm ?? Date()
-
+            
             hatVorsorgeauftrag = vorhandeneWuensche.vorsorgeauftragVorhanden
             vorsorgeauftragDateiName = vorhandeneWuensche.vorsorgeauftragDateiName.isEmpty ? nil : vorhandeneWuensche.vorsorgeauftragDateiName
             vorsorgeauftragDateiData = vorhandeneWuensche.vorsorgeauftragDateiData
             vorsorgeauftragHochgeladenAm = vorhandeneWuensche.vorsorgeauftragHochgeladenAm
-            vorsorgeauftragErinnerungAktiv = vorhandeneWuensche.vorsorgeauftragErinnerungAktiv
-            vorsorgeauftragErinnerungDatum = vorhandeneWuensche.vorsorgeauftragErinnerungAm ?? Date()
-
+            
             offenFuerSterbebegleitung = vorhandeneWuensche.sterbebegleitungGewuenscht
             sterbebegleitungDateiName = vorhandeneWuensche.sterbebegleitungDateiName.isEmpty ? nil : vorhandeneWuensche.sterbebegleitungDateiName
             sterbebegleitungDateiData = vorhandeneWuensche.sterbebegleitungDateiData
             sterbebegleitungHochgeladenAm = vorhandeneWuensche.sterbebegleitungHochgeladenAm
-            sterbebegleitungErinnerungAktiv = vorhandeneWuensche.sterbebegleitungErinnerungAktiv
-            sterbebegleitungErinnerungDatum = vorhandeneWuensche.sterbebegleitungErinnerungAm ?? Date()
-
+            
             hatSchwereGesundheitlicheErkrankung = vorhandeneWuensche.schwereErkrankungVorhanden
             schwereErkrankung = SchwereErkrankung(rawValue: vorhandeneWuensche.schwereErkrankungArt)
             sterbebegleitungWichtig = vorhandeneWuensche.mirIstWichtig
@@ -1120,30 +1241,22 @@ struct WuenscheView: View {
         wuensche.testamentDateiName = testamentDateiName ?? ""
         wuensche.testamentDateiData = testamentDateiData
         wuensche.testamentHochgeladenAm = testamentHochgeladenAm
-        wuensche.testamentErinnerungAktiv = testamentErinnerungAktiv
-        wuensche.testamentErinnerungAm = testamentErinnerungDatum
-
+        
         wuensche.patientenverfuegungVorhanden = ausgewaehlteThemen.contains(.patientenverfuegung)
         wuensche.patientenverfuegungDateiName = patientenverfuegungDateiName ?? ""
         wuensche.patientenverfuegungDateiData = patientenverfuegungDateiData
         wuensche.patientenverfuegungHochgeladenAm = patientenverfuegungHochgeladenAm
-        wuensche.patientenverfuegungErinnerungAktiv = patientenverfuegungErinnerungAktiv
-        wuensche.patientenverfuegungErinnerungAm = patientenverfuegungErinnerungDatum
-
+        
         wuensche.vorsorgeauftragVorhanden = ausgewaehlteThemen.contains(.vorsorgeauftrag)
         wuensche.vorsorgeauftragDateiName = vorsorgeauftragDateiName ?? ""
         wuensche.vorsorgeauftragDateiData = vorsorgeauftragDateiData
         wuensche.vorsorgeauftragHochgeladenAm = vorsorgeauftragHochgeladenAm
-        wuensche.vorsorgeauftragErinnerungAktiv = vorsorgeauftragErinnerungAktiv
-        wuensche.vorsorgeauftragErinnerungAm = vorsorgeauftragErinnerungDatum
-
+        
         wuensche.sterbebegleitungGewuenscht = ausgewaehlteThemen.contains(.sterbebegleitung)
         wuensche.sterbebegleitungDateiName = sterbebegleitungDateiName ?? ""
         wuensche.sterbebegleitungDateiData = sterbebegleitungDateiData
         wuensche.sterbebegleitungHochgeladenAm = sterbebegleitungHochgeladenAm
-        wuensche.sterbebegleitungErinnerungAktiv = sterbebegleitungErinnerungAktiv
-        wuensche.sterbebegleitungErinnerungAm = sterbebegleitungErinnerungDatum
-
+        
         wuensche.schwereErkrankungVorhanden = hatSchwereGesundheitlicheErkrankung
         wuensche.schwereErkrankungArt = schwereErkrankung?.rawValue ?? ""
         wuensche.mirIstWichtig = sterbebegleitungWichtig
@@ -1656,6 +1769,21 @@ struct WuenscheView: View {
         }
     }
 
+    private func erstelleTemporaereDokumentExportURL(dateiName: String, dateiData: Data) -> URL? {
+        let bereinigterName = dateiName
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(bereinigterName)
+
+        do {
+            try dateiData.write(to: url, options: .atomic)
+            return url
+        } catch {
+            return nil
+        }
+    }
+
     private func dokumentImportStarten(_ typ: DokumentTyp) {
         aktiverDokumentTyp = typ
         dokumentImporterAnzeigen = true
@@ -1681,29 +1809,25 @@ struct WuenscheView: View {
                 testamentDateiName = url.lastPathComponent
                 testamentDateiData = dateiData
                 testamentHochgeladenAm = Date()
-                testamentErinnerungAktiv = true
-                testamentErinnerungDatum = erinnerungsDatumInEinemJahr()
+                
             case .patientenverfuegung:
                 patientenverfuegungDateiURL = url
                 patientenverfuegungDateiName = url.lastPathComponent
                 patientenverfuegungDateiData = dateiData
                 patientenverfuegungHochgeladenAm = Date()
-                patientenverfuegungErinnerungAktiv = true
-                patientenverfuegungErinnerungDatum = erinnerungsDatumInEinemJahr()
+                
             case .vorsorgeauftrag:
                 vorsorgeauftragDateiURL = url
                 vorsorgeauftragDateiName = url.lastPathComponent
                 vorsorgeauftragDateiData = dateiData
                 vorsorgeauftragHochgeladenAm = Date()
-                vorsorgeauftragErinnerungAktiv = true
-                vorsorgeauftragErinnerungDatum = erinnerungsDatumInEinemJahr()
+               
             case .sterbebegleitung:
                 sterbebegleitungDateiURL = url
                 sterbebegleitungDateiName = url.lastPathComponent
                 sterbebegleitungDateiData = dateiData
                 sterbebegleitungHochgeladenAm = Date()
-                sterbebegleitungErinnerungAktiv = true
-                sterbebegleitungErinnerungDatum = erinnerungsDatumInEinemJahr()
+                
             case .none:
                 break
             }
@@ -1715,13 +1839,107 @@ struct WuenscheView: View {
         aktiverDokumentTyp = nil
     }
 
+    private func dokumentScanStarten(_ typ: DokumentTyp) {
+        aktiverScanDokumentTyp = typ
+        dokumentScannerAnzeigen = true
+    }
+
+    private func scanDateiNameFuerAktivenDokumentTyp() -> String {
+        let prefix: String
+
+        switch aktiverScanDokumentTyp {
+        case .patientenverfuegung:
+            prefix = "Patientenverfuegung"
+        case .vorsorgeauftrag:
+            prefix = "Vorsorgeauftrag"
+        case .sterbebegleitung:
+            prefix = "Sterbebegleitung"
+        case .testament:
+            prefix = "Testament"
+        case .none:
+            prefix = "Dokument"
+        }
+
+        return "\(prefix)_\(Date().formatted(.dateTime.year().month().day().hour().minute())).pdf"
+    }
+
+    private func speichereGescanntesDokument(sollZusätzlichSpeichern: Bool) {
+        guard let pdfData = pendingDokumentScanData,
+              let typ = aktiverScanDokumentTyp else { return }
+
+        let dateiName = pendingDokumentScanDateiName.isEmpty
+            ? scanDateiNameFuerAktivenDokumentTyp()
+            : pendingDokumentScanDateiName
+
+        switch typ {
+        case .testament:
+            testamentDateiName = dateiName
+            testamentDateiURL = nil
+            testamentDateiData = pdfData
+            testamentHochgeladenAm = Date()
+        
+
+        case .patientenverfuegung:
+            patientenverfuegungDateiName = dateiName
+            patientenverfuegungDateiURL = nil
+            patientenverfuegungDateiData = pdfData
+            patientenverfuegungHochgeladenAm = Date()
+            
+
+        case .vorsorgeauftrag:
+            vorsorgeauftragDateiName = dateiName
+            vorsorgeauftragDateiURL = nil
+            vorsorgeauftragDateiData = pdfData
+            vorsorgeauftragHochgeladenAm = Date()
+            
+
+        case .sterbebegleitung:
+            sterbebegleitungDateiName = dateiName
+            sterbebegleitungDateiURL = nil
+            sterbebegleitungDateiData = pdfData
+            sterbebegleitungHochgeladenAm = Date()
+        }
+
+        if sollZusätzlichSpeichern,
+           let exportURL = erstelleTemporaereDokumentExportURL(dateiName: dateiName, dateiData: pdfData) {
+            dokumentExportURL = exportURL
+            dokumentExportSheetAnzeigen = true
+        }
+
+        pendingDokumentScanData = nil
+        pendingDokumentScanDateiName = ""
+        aktiverScanDokumentTyp = nil
+        speichereWuenscheVerzoegert()
+    }
+
+    private func speichereGescanntesTestament(sollZusätzlichSpeichern: Bool) {
+        guard let pdfData = pendingTestamentScanData else { return }
+
+        let dateiName = pendingTestamentScanDateiName.isEmpty
+            ? "Testament_\(Date().formatted(.dateTime.year().month().day().hour().minute())).pdf"
+            : pendingTestamentScanDateiName
+
+        testamentDateiName = dateiName
+        testamentDateiURL = nil
+        testamentDateiData = pdfData
+        testamentHochgeladenAm = Date()
+
+        if sollZusätzlichSpeichern,
+           let exportURL = erstelleTemporaereDokumentExportURL(dateiName: dateiName, dateiData: pdfData) {
+            testamentExportURL = exportURL
+            testamentExportSheetAnzeigen = true
+        }
+
+        pendingTestamentScanData = nil
+        pendingTestamentScanDateiName = ""
+        speichereWuenscheVerzoegert()
+    }
+
     private func testamentDateiEntfernen() {
         testamentDateiName = nil
         testamentDateiURL = nil
         testamentDateiData = nil
         testamentHochgeladenAm = nil
-        testamentErinnerungAktiv = true
-        testamentErinnerungDatum = Date()
         speichereWuenscheVerzoegert()
     }
 
@@ -1730,8 +1948,6 @@ struct WuenscheView: View {
         patientenverfuegungDateiURL = nil
         patientenverfuegungDateiData = nil
         patientenverfuegungHochgeladenAm = nil
-        patientenverfuegungErinnerungAktiv = true
-        patientenverfuegungErinnerungDatum = Date()
         speichereWuenscheVerzoegert()
     }
 
@@ -1740,8 +1956,6 @@ struct WuenscheView: View {
         vorsorgeauftragDateiURL = nil
         vorsorgeauftragDateiData = nil
         vorsorgeauftragHochgeladenAm = nil
-        vorsorgeauftragErinnerungAktiv = true
-        vorsorgeauftragErinnerungDatum = Date()
         speichereWuenscheVerzoegert()
     }
 
@@ -1750,14 +1964,10 @@ struct WuenscheView: View {
         sterbebegleitungDateiURL = nil
         sterbebegleitungDateiData = nil
         sterbebegleitungHochgeladenAm = nil
-        sterbebegleitungErinnerungAktiv = true
-        sterbebegleitungErinnerungDatum = Date()
         speichereWuenscheVerzoegert()
     }
 
-    private func erinnerungsDatumInEinemJahr() -> Date {
-        Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
-    }
+    
 }
 
 struct WuenscheChipFlowLayout: Layout {
@@ -1998,309 +2208,340 @@ struct DokumentUploadBox: View {
     var timestampTitel: String
     var uploadTitel: String
     var entfernenTitel: String
-    @Binding var erinnerungAktiv: Bool
-    @Binding var erinnerungDatum: Date
     let vorschauAktion: () -> Void
     let uploadAktion: () -> Void
+    let scanAktion: (() -> Void)?
     let entfernenAktion: () -> Void
-
+    
     private var datumText: String {
         guard let hochgeladenAm else { return "" }
         return hochgeladenAm.formatted(date: .abbreviated, time: .omitted)
     }
-
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let dateiName, !dateiName.isEmpty {
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "doc.fill")
-                        .foregroundStyle(accentColor)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(dateiName)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.primary)
-                            .lineLimit(2)
-
-                        if !datumText.isEmpty {
-                            Text("\(timestampTitel): \(datumText)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    Spacer()
-
-                    Button {
-                        vorschauAktion()
-                    } label: {
-                        Image(systemName: "eye.fill")
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "doc.fill")
                             .foregroundStyle(accentColor)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(dateiName)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
+                                .lineLimit(2)
+                            
+                            if let hochgeladenAm {
+                                Text("\(timestampTitel): \(hochgeladenAm.formatted(date: .abbreviated, time: .shortened))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        
+                        Spacer()
                     }
-                    .buttonStyle(.plain)
+                    
+                    HStack(spacing: 10) {
+                        Button {
+                            vorschauAktion()
+                        } label: {
+                            Label("Ansehen", systemImage: "eye")
+                                .font(.caption.weight(.semibold))
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(accentColor)
+                        
+                        Button(role: .destructive) {
+                            entfernenAktion()
+                        } label: {
+                            Label(entfernenTitel, systemImage: "trash")
+                                .font(.caption.weight(.semibold))
+                        }
+                        .buttonStyle(.borderless)
+                    }
                 }
+                .padding(12)
+                .background(Color.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             } else {
                 Text("Noch kein Dokument hochgeladen.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 8)
             }
-
+            
             HStack(spacing: 10) {
                 Button {
                     uploadAktion()
                 } label: {
-                    Label(uploadTitel, systemImage: "doc.badge.plus")
-                        .font(.subheadline.weight(.semibold))
-                }
-                .buttonStyle(.borderless)
-                .foregroundStyle(accentColor)
-
-                Spacer()
-
-                if dateiName != nil {
-                    Button(role: .destructive) {
-                        entfernenAktion()
-                    } label: {
-                        Label(entfernenTitel, systemImage: "trash")
-                            .font(.caption)
+                    HStack(spacing: 8) {
+                        Image(systemName: "doc.badge.plus")
+                            .font(.headline.weight(.semibold))
+                        
+                        Text("Hinzufügen")
+                            .font(.subheadline.weight(.semibold))
                     }
-                    .buttonStyle(.borderless)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 13)
+                    .background(accentColor, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .shadow(color: accentColor.opacity(0.18), radius: 6, x: 0, y: 3)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(uploadTitel)
+                
+                if let scanAktion {
+                    Button {
+                        scanAktion()
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "doc.viewfinder")
+                                .font(.headline.weight(.semibold))
+                            
+                            Text("Scannen")
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        .foregroundStyle(accentColor)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(accentColor.opacity(0.24), lineWidth: 1)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Dokument scannen")
                 }
             }
-
-            Toggle("Erinnerung aktiv", isOn: $erinnerungAktiv)
-                .tint(accentColor)
-
-            if erinnerungAktiv {
-                DatePicker("Erinnerung", selection: $erinnerungDatum, displayedComponents: .date)
-                    .tint(accentColor)
-            }
+            
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
-
-enum WuenscheThema: String, CaseIterable, Identifiable, Hashable {
-    case beisetzung
-    case zeremonie
-    case musik
-    case letzteWorte
-    case nachruf
-    case kontakte
-    case haustiere
-    case testament
-    case patientenverfuegung
-    case vorsorgeauftrag
-    case sterbebegleitung
-
-    var id: String { rawValue }
-
-    var titel: String {
-        switch self {
-        case .beisetzung:
-            return "Beisetzung"
-        case .zeremonie:
-            return "Zeremonie"
-        case .musik:
-            return "Musik"
-        case .letzteWorte:
-            return "Letzte Worte"
-        case .nachruf:
-            return "Nachruf"
-        case .kontakte:
-            return "Personen informieren"
-        case .haustiere:
-            return "Haustiere"
-        case .testament:
-            return "Testament"
-        case .patientenverfuegung:
-            return "Patientenverfügung"
-        case .vorsorgeauftrag:
-            return "Vorsorgeauftrag"
-        case .sterbebegleitung:
-            return "Sterbebegleitung"
+    
+    enum WuenscheThema: String, CaseIterable, Identifiable, Hashable {
+        case beisetzung
+        case zeremonie
+        case musik
+        case letzteWorte
+        case nachruf
+        case kontakte
+        case haustiere
+        case testament
+        case patientenverfuegung
+        case vorsorgeauftrag
+        case sterbebegleitung
+        
+        var id: String { rawValue }
+        
+        var titel: String {
+            switch self {
+            case .beisetzung:
+                return "Beisetzung"
+            case .zeremonie:
+                return "Zeremonie"
+            case .musik:
+                return "Musik"
+            case .letzteWorte:
+                return "Letzte Worte"
+            case .nachruf:
+                return "Nachruf"
+            case .kontakte:
+                return "Personen informieren"
+            case .haustiere:
+                return "Haustiere"
+            case .testament:
+                return "Testament"
+            case .patientenverfuegung:
+                return "Patientenverfügung"
+            case .vorsorgeauftrag:
+                return "Vorsorgeauftrag"
+            case .sterbebegleitung:
+                return "Sterbebegleitung"
+            }
+        }
+        
+        var systemImage: String {
+            switch self {
+            case .beisetzung:
+                return "leaf.fill"
+            case .zeremonie:
+                return "sparkles"
+            case .musik:
+                return "music.note"
+            case .letzteWorte:
+                return "video.fill"
+            case .nachruf:
+                return "newspaper.fill"
+            case .kontakte:
+                return "person.2.fill"
+            case .haustiere:
+                return "pawprint.fill"
+            case .testament:
+                return "doc.text.fill"
+            case .patientenverfuegung:
+                return "cross.case.fill"
+            case .vorsorgeauftrag:
+                return "checkmark.shield.fill"
+            case .sterbebegleitung:
+                return "hands.sparkles.fill"
+            }
         }
     }
-
-    var systemImage: String {
-        switch self {
-        case .beisetzung:
-            return "leaf.fill"
-        case .zeremonie:
-            return "sparkles"
-        case .musik:
-            return "music.note"
-        case .letzteWorte:
-            return "video.fill"
-        case .nachruf:
-            return "newspaper.fill"
-        case .kontakte:
-            return "person.2.fill"
-        case .haustiere:
-            return "pawprint.fill"
-        case .testament:
-            return "doc.text.fill"
-        case .patientenverfuegung:
-            return "cross.case.fill"
-        case .vorsorgeauftrag:
-            return "checkmark.shield.fill"
-        case .sterbebegleitung:
-            return "hands.sparkles.fill"
+    
+    enum Bestattungsart: String, CaseIterable, Identifiable {
+        case kremation = "Kremation"
+        case erdbestattung = "Erdbestattung"
+        
+        var id: String { rawValue }
+    }
+    
+    enum KontaktArt: String, CaseIterable, Identifiable, Codable {
+        case partner = "Partner"
+        case familie = "Familie"
+        case freunde = "Freunde"
+        case anderes = "Andere"
+        
+        var id: String { rawValue }
+    }
+    
+    enum DokumentTyp {
+        case testament
+        case patientenverfuegung
+        case vorsorgeauftrag
+        case sterbebegleitung
+    }
+    
+    enum SchwereErkrankung: String, CaseIterable, Identifiable {
+        case demenz = "Demenz"
+        case alzheimer = "Alzheimer"
+        case fortgeschrittenerKrebs = "Fortgeschrittener Krebs"
+        case andere = "Andere"
+        
+        var id: String { rawValue }
+    }
+    
+    enum HaustierArt: String, CaseIterable, Identifiable, Codable {
+        case hund = "Hund"
+        case katze = "Katze"
+        case pferd = "Pferd"
+        case andere = "Andere"
+        
+        var id: String { rawValue }
+    }
+    
+    struct WuenschePetEntry: Identifiable, Codable, Equatable {
+        var id = UUID()
+        var art: HaustierArt = .hund
+        var name = ""
+        var tierarzt = ""
+        var bemerkungen = ""
+        
+        var anzeigename: String {
+            let bereinigterName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            return bereinigterName.isEmpty ? "Unbenanntes Haustier" : bereinigterName
         }
     }
-}
-
-enum Bestattungsart: String, CaseIterable, Identifiable {
-    case kremation = "Kremation"
-    case erdbestattung = "Erdbestattung"
-
-    var id: String { rawValue }
-}
-
-enum KontaktArt: String, CaseIterable, Identifiable, Codable {
-    case partner = "Partner"
-    case familie = "Familie"
-    case freunde = "Freunde"
-    case anderes = "Andere"
-
-    var id: String { rawValue }
-}
-
-enum DokumentTyp {
-    case testament
-    case patientenverfuegung
-    case vorsorgeauftrag
-    case sterbebegleitung
-}
-
-enum SchwereErkrankung: String, CaseIterable, Identifiable {
-    case demenz = "Demenz"
-    case alzheimer = "Alzheimer"
-    case fortgeschrittenerKrebs = "Fortgeschrittener Krebs"
-    case andere = "Andere"
-
-    var id: String { rawValue }
-}
-
-enum HaustierArt: String, CaseIterable, Identifiable, Codable {
-    case hund = "Hund"
-    case katze = "Katze"
-    case pferd = "Pferd"
-    case andere = "Andere"
-
-    var id: String { rawValue }
-}
-
-struct WuenschePetEntry: Identifiable, Codable, Equatable {
-    var id = UUID()
-    var art: HaustierArt = .hund
-    var name = ""
-    var tierarzt = ""
-    var bemerkungen = ""
-
-    var anzeigename: String {
-        let bereinigterName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return bereinigterName.isEmpty ? "Unbenanntes Haustier" : bereinigterName
+    
+    struct BeisetzungsKontakt: Identifiable, Codable, Equatable {
+        var id = UUID()
+        var vorname = ""
+        var name = ""
+        var strasse = ""
+        var hausnummer = ""
+        var plz = ""
+        var ort = ""
+        var telefon = ""
+        var email = ""
+        var art: KontaktArt = .familie
+        var informieren = true
+        var einladen = true
+        
+        var anzeigename: String {
+            let nameTeile = [vorname, name].filter { !$0.isEmpty }
+            return nameTeile.isEmpty ? "Unbenannter Kontakt" : nameTeile.joined(separator: " ")
+        }
+        
+        var vollstaendigeAdresse: String {
+            let strasseUndHausnummer = [strasse, hausnummer]
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+            
+            let plzUndOrt = [plz, ort]
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+            
+            return [strasseUndHausnummer, plzUndOrt]
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
+        }
     }
-}
-
-struct BeisetzungsKontakt: Identifiable, Codable, Equatable {
-    var id = UUID()
-    var vorname = ""
-    var name = ""
-    var strasse = ""
-    var hausnummer = ""
-    var plz = ""
-    var ort = ""
-    var telefon = ""
-    var email = ""
-    var art: KontaktArt = .familie
-    var informieren = true
-    var einladen = true
-
-    var anzeigename: String {
-        let nameTeile = [vorname, name].filter { !$0.isEmpty }
-        return nameTeile.isEmpty ? "Unbenannter Kontakt" : nameTeile.joined(separator: " ")
-    }
-
-    var vollstaendigeAdresse: String {
-        let strasseUndHausnummer = [strasse, hausnummer]
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-
-        let plzUndOrt = [plz, ort]
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-
-        return [strasseUndHausnummer, plzUndOrt]
-            .filter { !$0.isEmpty }
-            .joined(separator: "\n")
-    }
-}
-
-struct KontaktPicker: UIViewControllerRepresentable {
-    let kontaktAusgewaehlt: (BeisetzungsKontakt) -> Void
-
-    func makeUIViewController(context: Context) -> CNContactPickerViewController {
-        let picker = CNContactPickerViewController()
-        picker.delegate = context.coordinator
-        picker.displayedPropertyKeys = [
-            CNContactGivenNameKey,
-            CNContactFamilyNameKey,
-            CNContactPostalAddressesKey,
-            CNContactEmailAddressesKey,
-            CNContactPhoneNumbersKey
-        ]
-        return picker
-    }
-
-    func updateUIViewController(_ uiViewController: CNContactPickerViewController, context: Context) { }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(kontaktAusgewaehlt: kontaktAusgewaehlt)
-    }
-
-    final class Coordinator: NSObject, CNContactPickerDelegate {
+    
+    struct KontaktPicker: UIViewControllerRepresentable {
         let kontaktAusgewaehlt: (BeisetzungsKontakt) -> Void
-
-        init(kontaktAusgewaehlt: @escaping (BeisetzungsKontakt) -> Void) {
-            self.kontaktAusgewaehlt = kontaktAusgewaehlt
+        
+        func makeUIViewController(context: Context) -> CNContactPickerViewController {
+            let picker = CNContactPickerViewController()
+            picker.delegate = context.coordinator
+            picker.displayedPropertyKeys = [
+                CNContactGivenNameKey,
+                CNContactFamilyNameKey,
+                CNContactPostalAddressesKey,
+                CNContactEmailAddressesKey,
+                CNContactPhoneNumbersKey
+            ]
+            return picker
         }
-
-        func contactPicker(_ picker: CNContactPickerViewController, didSelect contact: CNContact) {
-            let adressTeile = contact.postalAddresses.first.map { adresseAufteilen($0.value) } ?? (strasse: "", hausnummer: "", plz: "", ort: "")
-            let telefon = contact.phoneNumbers.first?.value.stringValue ?? ""
-            let email = contact.emailAddresses.first.map { String($0.value) } ?? ""
-
-            let beisetzungsKontakt = BeisetzungsKontakt(
-                vorname: contact.givenName,
-                name: contact.familyName,
-                strasse: adressTeile.strasse,
-                hausnummer: adressTeile.hausnummer,
-                plz: adressTeile.plz,
-                ort: adressTeile.ort,
-                telefon: telefon,
-                email: email
-            )
-
-            kontaktAusgewaehlt(beisetzungsKontakt)
+        
+        func updateUIViewController(_ uiViewController: CNContactPickerViewController, context: Context) { }
+        
+        func makeCoordinator() -> Coordinator {
+            Coordinator(kontaktAusgewaehlt: kontaktAusgewaehlt)
         }
-
-        private func adresseAufteilen(_ adresse: CNPostalAddress) -> (strasse: String, hausnummer: String, plz: String, ort: String) {
-            let strassenText = adresse.street.trimmingCharacters(in: .whitespacesAndNewlines)
-            let komponenten = strassenText.components(separatedBy: " ").filter { !$0.isEmpty }
-
-            let hausnummer = komponenten.last?.rangeOfCharacter(from: .decimalDigits) != nil ? komponenten.last ?? "" : ""
-            let strasse = hausnummer.isEmpty ? strassenText : komponenten.dropLast().joined(separator: " ")
-
-            return (
-                strasse: strasse,
-                hausnummer: hausnummer,
-                plz: adresse.postalCode,
-                ort: adresse.city
-            )
+        
+        final class Coordinator: NSObject, CNContactPickerDelegate {
+            let kontaktAusgewaehlt: (BeisetzungsKontakt) -> Void
+            
+            init(kontaktAusgewaehlt: @escaping (BeisetzungsKontakt) -> Void) {
+                self.kontaktAusgewaehlt = kontaktAusgewaehlt
+            }
+            
+            func contactPicker(_ picker: CNContactPickerViewController, didSelect contact: CNContact) {
+                let adressTeile = contact.postalAddresses.first.map { adresseAufteilen($0.value) } ?? (strasse: "", hausnummer: "", plz: "", ort: "")
+                let telefon = contact.phoneNumbers.first?.value.stringValue ?? ""
+                let email = contact.emailAddresses.first.map { String($0.value) } ?? ""
+                
+                let beisetzungsKontakt = BeisetzungsKontakt(
+                    vorname: contact.givenName,
+                    name: contact.familyName,
+                    strasse: adressTeile.strasse,
+                    hausnummer: adressTeile.hausnummer,
+                    plz: adressTeile.plz,
+                    ort: adressTeile.ort,
+                    telefon: telefon,
+                    email: email
+                )
+                
+                kontaktAusgewaehlt(beisetzungsKontakt)
+            }
+            
+            private func adresseAufteilen(_ adresse: CNPostalAddress) -> (strasse: String, hausnummer: String, plz: String, ort: String) {
+                let strassenText = adresse.street.trimmingCharacters(in: .whitespacesAndNewlines)
+                let komponenten = strassenText.components(separatedBy: " ").filter { !$0.isEmpty }
+                
+                let hausnummer = komponenten.last?.rangeOfCharacter(from: .decimalDigits) != nil ? komponenten.last ?? "" : ""
+                let strasse = hausnummer.isEmpty ? strassenText : komponenten.dropLast().joined(separator: " ")
+                
+                return (
+                    strasse: strasse,
+                    hausnummer: hausnummer,
+                    plz: adresse.postalCode,
+                    ort: adresse.city
+                )
+            }
         }
     }
-}

@@ -39,6 +39,12 @@ struct FinanzenView: View {
     @State private var oldTaxReturnFilePath = ""
     @State private var oldTaxReturnFileData: Data?
     @State private var oldTaxReturnPreviewURL: URL?
+    @State private var showSteuerdokumentScanner = false
+    @State private var showSteuerdokumentSpeichernAbfrage = false
+    @State private var pendingSteuerdokumentScanData: Data?
+    @State private var pendingSteuerdokumentScanDateiName = ""
+    @State private var steuerdokumentExportURL: URL?
+    @State private var showSteuerdokumentExportSheet = false
     @State private var zuletztGepruefteIBANs: [UUID: String] = [:]
 
     private let finanzenHintergrundFarbe = Color(red: 0.985, green: 0.975, blue: 0.955)
@@ -273,25 +279,54 @@ struct FinanzenView: View {
                 .padding(.horizontal, 4)
 
             VStack(spacing: 14) {
-                Button {
-                    hasOldTaxReturn = true
-                    showOldTaxReturnImporter = true
-                } label: {
-                    Image(systemName: "doc.badge.plus")
-                        .font(.title2.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 42, height: 42)
-                        .background(Circle().fill(finanzenAkzentFarbe))
-                        .shadow(color: finanzenAkzentFarbe.opacity(0.22), radius: 6, x: 0, y: 3)
-                }
-                .frame(maxWidth: .infinity)
-                .buttonStyle(.plain)
-                .accessibilityLabel("Steuerdokument hochladen")
-
                 Text("Eine alte Steuererklärung kann den Hinterbliebenen und der Nachlassregelung als Orientierung dienen.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
+
+                HStack(spacing: 10) {
+                    Button {
+                        hasOldTaxReturn = true
+                        showOldTaxReturnImporter = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "doc.badge.plus")
+                                .font(.headline.weight(.semibold))
+
+                            Text("Hinzufügen")
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                        .background(finanzenAkzentFarbe, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .shadow(color: finanzenAkzentFarbe.opacity(0.18), radius: 6, x: 0, y: 3)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Steuerdokument hinzufügen")
+
+                    Button {
+                        showSteuerdokumentScanner = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "doc.viewfinder")
+                                .font(.headline.weight(.semibold))
+
+                            Text("Scannen")
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        .foregroundStyle(finanzenAkzentFarbe)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(finanzenAkzentFarbe.opacity(0.24), lineWidth: 1)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Steuerdokument scannen")
+                }
 
                 if oldTaxReturnFileName.isEmpty {
                     Text("Noch kein Dokument hochgeladen.")
@@ -299,37 +334,39 @@ struct FinanzenView: View {
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .center)
                 } else {
-                    HStack(spacing: 10) {
-                        Image(systemName: "doc.fill")
-                            .foregroundStyle(finanzenAkzentFarbe)
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "doc.fill")
+                                .foregroundStyle(finanzenAkzentFarbe)
 
-                        Button {
-                            zeigeSteuerdokumentVorschau()
-                        } label: {
                             Text(oldTaxReturnFileName)
-                                .lineLimit(1)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
+                                .lineLimit(2)
                                 .truncationMode(.middle)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Steuerdokument Vorschau öffnen")
 
-                        Button {
-                            zeigeSteuerdokumentVorschau()
-                        } label: {
-                            Image(systemName: "eye.fill")
-                                .foregroundStyle(finanzenAkzentFarbe)
-                        }
-                        .buttonStyle(.borderless)
-                        .accessibilityLabel("Steuerdokument anzeigen")
+                        HStack(spacing: 10) {
+                            Button {
+                                zeigeSteuerdokumentVorschau()
+                            } label: {
+                                Label("Ansehen", systemImage: "eye")
+                                    .font(.caption.weight(.semibold))
+                            }
+                            .buttonStyle(.borderless)
+                            .foregroundStyle(finanzenAkzentFarbe)
+                            .accessibilityLabel("Steuerdokument ansehen")
 
-                        Button(role: .destructive) {
-                            loescheSteuerdokument()
-                        } label: {
-                            Image(systemName: "trash")
+                            Button(role: .destructive) {
+                                loescheSteuerdokument()
+                            } label: {
+                                Label("Entfernen", systemImage: "trash")
+                                    .font(.caption.weight(.semibold))
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel("Steuerdokument entfernen")
                         }
-                        .buttonStyle(.borderless)
-                        .accessibilityLabel("Steuerdokument löschen")
                     }
                     .padding(12)
                     .background(Color.white.opacity(0.70))
@@ -625,6 +662,35 @@ struct FinanzenView: View {
                     speichereFinanzenInSwiftData()
                 }
             }
+                .sheet(isPresented: $showSteuerdokumentScanner) {
+                    DocumentScanner { pdfData in
+                        pendingSteuerdokumentScanDateiName = "Steuerdokument_\(Date().formatted(.dateTime.year().month().day().hour().minute())).pdf"
+                        pendingSteuerdokumentScanData = pdfData
+                        showSteuerdokumentScanner = false
+
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                            showSteuerdokumentSpeichernAbfrage = true
+                        }
+                    }
+                }
+                .alert("Scan zusätzlich speichern?", isPresented: $showSteuerdokumentSpeichernAbfrage) {
+                    Button("Nein", role: .cancel) {
+                        speichereGescanntesSteuerdokument(sollZusätzlichSpeichern: false)
+                    }
+
+                    Button("Ja") {
+                        speichereGescanntesSteuerdokument(sollZusätzlichSpeichern: true)
+                    }
+                } message: {
+                    Text("Das Steuerdokument wird immer in der App gespeichert. Bei Ja öffnet sich zusätzlich das Speichern-Menü.")
+                }
+                .sheet(isPresented: $showSteuerdokumentExportSheet, onDismiss: {
+                    steuerdokumentExportURL = nil
+                }) {
+                    if let steuerdokumentExportURL {
+                        ShareSheet(activityItems: [steuerdokumentExportURL])
+                    }
+                }
                 .quickLookPreview($oldTaxReturnPreviewURL)
                 .onChange(of: scrollZuFinanzEintragID) { _, zielID in
                     guard let zielID else { return }
@@ -1256,8 +1322,42 @@ struct FinanzenSwipeToDeleteRow<Content: View>: View {
             }
         }
 
-        let dateiDaten = try? Data(contentsOf: sourceURL)
+        guard let dateiDaten = try? Data(contentsOf: sourceURL) else {
+            print("Steuerdokument konnte nicht gelesen werden.")
+            return
+        }
 
+        speichereSteuerdokumentDatei(
+            dateiName: sourceURL.lastPathComponent,
+            dateiDaten: dateiDaten,
+            dateiendung: sourceURL.pathExtension.isEmpty ? "pdf" : sourceURL.pathExtension
+        )
+    }
+
+    private func speichereGescanntesSteuerdokument(sollZusätzlichSpeichern: Bool) {
+        guard let pdfData = pendingSteuerdokumentScanData else { return }
+
+        let dateiName = pendingSteuerdokumentScanDateiName.isEmpty
+            ? "Steuerdokument_\(Date().formatted(.dateTime.year().month().day().hour().minute())).pdf"
+            : pendingSteuerdokumentScanDateiName
+
+        speichereSteuerdokumentDatei(
+            dateiName: dateiName,
+            dateiDaten: pdfData,
+            dateiendung: "pdf"
+        )
+
+        if sollZusätzlichSpeichern,
+           let exportURL = erstelleTemporäreSteuerdokumentExportURL(dateiName: dateiName, dateiDaten: pdfData) {
+            steuerdokumentExportURL = exportURL
+            showSteuerdokumentExportSheet = true
+        }
+
+        pendingSteuerdokumentScanData = nil
+        pendingSteuerdokumentScanDateiName = ""
+    }
+
+    private func speichereSteuerdokumentDatei(dateiName: String, dateiDaten: Data, dateiendung: String) {
         do {
             let documentsDirectory = try FileManager.default.url(
                 for: .documentDirectory,
@@ -1279,19 +1379,34 @@ struct FinanzenSwipeToDeleteRow<Content: View>: View {
                 }
             }
 
-            let fileExtension = sourceURL.pathExtension
-            let safeFileName = "steuererklaerung-\(UUID().uuidString).\(fileExtension)"
+            let bereinigteDateiendung = dateiendung.isEmpty ? "pdf" : dateiendung
+            let safeFileName = "steuerdokument-\(UUID().uuidString).\(bereinigteDateiendung)"
             let targetURL = targetDirectory.appendingPathComponent(safeFileName)
 
-            try FileManager.default.copyItem(at: sourceURL, to: targetURL)
+            try dateiDaten.write(to: targetURL, options: .atomic)
 
-            oldTaxReturnFileName = sourceURL.lastPathComponent
+            oldTaxReturnFileName = dateiName
             oldTaxReturnFilePath = targetURL.path
             oldTaxReturnFileData = dateiDaten
             hasOldTaxReturn = true
             speichereFinanzenInSwiftData()
         } catch {
-            print("Steuerdokument konnte nicht importiert werden: \(error.localizedDescription)")
+            print("Steuerdokument konnte nicht gespeichert werden: \(error.localizedDescription)")
+        }
+    }
+
+    private func erstelleTemporäreSteuerdokumentExportURL(dateiName: String, dateiDaten: Data) -> URL? {
+        let bereinigterDateiname = dateiName
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(bereinigterDateiname)
+
+        do {
+            try dateiDaten.write(to: tempURL, options: .atomic)
+            return tempURL
+        } catch {
+            return nil
         }
     }
 
