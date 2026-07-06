@@ -9,6 +9,12 @@ import SwiftUI
 import SwiftData
 
 struct EinladungAngenommen: View {
+    private let hintergrundFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
+    private let kartenFarbe = Color.white.opacity(0.88)
+    private let akzentFarbe = Color(red: 0.16, green: 0.36, blue: 0.42)
+    private let akzentHell = Color(red: 0.16, green: 0.36, blue: 0.42).opacity(0.12)
+    private let textFarbe = Color.black.opacity(0.86)
+    private let sekundTextFarbe = Color.black.opacity(0.58)
     @Environment(\.modelContext) private var modelContext
     @Query private var dossierZugriffe: [DossierZugriffModell]
 
@@ -30,170 +36,92 @@ struct EinladungAngenommen: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 28) {
+            ZStack {
+                hintergrundFarbe
+                    .ignoresSafeArea()
 
-                    Image("Icon1_trans")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 90, height: 90)
-                        .padding(.top, 30)
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 14) {
+                        heroBild
 
-                    VStack(spacing: 12) {
-                        Text("Einladung als Vertrauensperson")
-                            .font(.title2.bold())
-                            .multilineTextAlignment(.center)
+                        VStack(spacing: 16) {
+                            VStack(spacing: 10) {
+                                ZStack {
+                                    Circle()
+                                        .fill(akzentHell)
+                                        .frame(width: 58, height: 58)
 
-                        Text("Du wurdest von")
-                            .font(.body)
-                            .foregroundStyle(.secondary)
+                                    Image(systemName: "person.crop.circle.badge.checkmark")
+                                        .font(.system(size: 26, weight: .semibold))
+                                        .foregroundStyle(akzentFarbe)
+                                }
 
-                        Text(einladenderName)
-                            .font(.headline)
+                                VStack(spacing: 6) {
+                                    Text("Einladung als Vertrauensperson")
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                        .foregroundStyle(textFarbe)
+                                        .multilineTextAlignment(.center)
 
-                        Text("als Vertrauensperson eingeladen.")
-                            .font(.body)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
+                                    Text("Du wurdest von \(einladenderName) als Vertrauensperson eingeladen.")
+                                        .font(.subheadline)
+                                        .foregroundStyle(sekundTextFarbe)
+                                        .multilineTextAlignment(.center)
+                                        .lineSpacing(2)
+                                }
+                            }
 
-                    VStack(spacing: 10) {
-                        Text("Diese Einladung wurde an folgende E-Mail-Adresse gesendet:")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
+                            VStack(alignment: .leading, spacing: 10) {
+                                einladungsInfoZeile(
+                                    icon: "person.fill",
+                                    titel: "Eingeladen von",
+                                    wert: einladenderName
+                                )
 
-                        Text(eingeladeneEmail)
-                            .font(.headline)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(Color(.systemGray6))
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
+                                einladungsInfoZeile(
+                                    icon: "envelope.fill",
+                                    titel: "Gesendet an",
+                                    wert: eingeladeneEmail
+                                )
+                            }
+                            .padding(12)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .fill(hintergrundFarbe.opacity(0.72))
+                            )
 
-                    if !fehlermeldung.isEmpty {
-                        Text(fehlermeldung)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                    }
+                            if !fehlermeldung.isEmpty {
+                                Text(fehlermeldung)
+                                    .font(.footnote)
+                                    .foregroundStyle(.red)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 4)
+                            }
 
-                    Divider()
-                        .padding(.top, 0)
-                        .padding(.bottom, 6)
+                            zustandsBereich
 
-                    if einladungWurdeAbgelehnt {
-                        VStack(spacing: 14) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 44))
-                                .foregroundStyle(.secondary)
-
-                            Text("Einladung abgelehnt")
-                                .font(.headline)
-
-                            Text("Die Einladung wurde erfolgreich abgelehnt. Der Einladungslink wurde ungültig gemacht. Die vorsorgende Person wird über die Ablehnung informiert.")
-                                .font(.body)
-                                .foregroundStyle(.secondary)
+                            Text("Diese Einladung ist persönlich und kann nur einmal verwendet werden.")
+                                .font(.caption)
+                                .foregroundStyle(sekundTextFarbe)
                                 .multilineTextAlignment(.center)
+                                .lineSpacing(1)
+                                .padding(.horizontal, 4)
                         }
-                        .padding(.top, 8)
-                    } else if einladungWurdeAngenommen {
-                        VStack(spacing: 24) {
-                            Text("Wie möchtest du fortfahren?")
-                                .font(.title3.bold())
-
-                            VStack(alignment: .leading, spacing: 16) {
-                                Label("Ich habe bereits ein Profil", systemImage: "person.crop.circle")
-                                    .font(.headline)
-
-                                Text("Melde dich mit deinem bestehenden Profil an, um die Einladung anzunehmen.")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-
-                                NavigationLink {
-                                    ReloginEinladung(
-                                        eingeladeneEmail: eingeladeneEmail,
-                                        einladungsToken: einladungsToken
-                                    )
-                                } label: {
-                                    Text("Anmelden")
-                                        .font(.headline)
-                                        .frame(maxWidth: .infinity)
-                                        .padding()
-                                        .background(Color.black)
-                                        .foregroundStyle(.white)
-                                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                                }
-                            }
-                            .padding()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color(.systemGray6))
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-
-                            VStack(alignment: .leading, spacing: 16) {
-                                Label("Ich bin neu bei AfterLife", systemImage: "person.badge.plus")
-                                    .font(.headline)
-
-                                Text("Erstelle ein neues Profil, um diese Einladung als Vertrauensperson anzunehmen.")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-
-                                NavigationLink {
-                                    Registrierung(einladungsToken: einladungsToken)
-                                } label: {
-                                    Text("Profil erstellen")
-                                        .font(.headline)
-                                        .frame(maxWidth: .infinity)
-                                        .padding()
-                                        .background(Color(.systemGray5))
-                                        .foregroundStyle(.black)
-                                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                                }
-                            }
-                            .padding()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color(.systemGray6))
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                        }
-                        .padding(.top, 8)
-                    } else {
-                        VStack(spacing: 12) {
-                            Button {
-                                einladungWurdeAngenommen = true
-                            } label: {
-                                Text("Einladung annehmen und fortfahren")
-                                    .font(.headline)
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color.black)
-                                    .foregroundStyle(.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                            }
-
-                            Button {
-                                bestaetigungAblehnenAnzeigen = true
-                            } label: {
-                                Text("Ablehnen")
-                                    .font(.headline)
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color(.systemGray5))
-                                    .foregroundStyle(.black)
-                                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                            }
-                        }
-                        .padding(.top, 8)
+                        .padding(18)
+                        .background(
+                            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                                .fill(kartenFarbe)
+                                .shadow(color: .black.opacity(0.07), radius: 18, x: 0, y: 10)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                                .stroke(Color.white.opacity(0.75), lineWidth: 1)
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 18)
                     }
-
-                    Text("🔒 Diese Einladung ist persönlich, an die angezeigte E-Mail-Adresse gebunden und kann nur einmal verwendet werden.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                        .padding(.bottom, 30)
+                    .padding(.top, 8)
                 }
-                .padding(24)
             }
             .alert("Einladung ablehnen?", isPresented: $bestaetigungAblehnenAnzeigen) {
                 Button("Abbrechen", role: .cancel) {
@@ -206,8 +134,220 @@ struct EinladungAngenommen: View {
             } message: {
                 Text("Möchtest du die Einladung als Vertrauensperson wirklich ablehnen? Danach verliert der Einladungslink seine Gültigkeit. Die vorsorgende Person wird über die Ablehnung informiert.")
             }
+            .navigationTitle("Einladung")
+            .navigationBarTitleDisplayMode(.inline)
             .navigationBarBackButtonHidden(true)
         }
+    }
+
+    private var heroBild: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .fill(kartenFarbe)
+                .shadow(color: .black.opacity(0.06), radius: 14, x: 0, y: 8)
+
+            Image("Home2")
+                .resizable()
+                .scaledToFill()
+                .frame(maxWidth: .infinity)
+                .frame(height: 150)
+                .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                .overlay(
+                    LinearGradient(
+                        colors: [
+                            Color.black.opacity(0.01),
+                            Color.black.opacity(0.16)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                )
+
+            Image("Icon1_trans")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 96, height: 96)
+                .accessibilityHidden(true)
+        }
+        .frame(height: 150)
+        .padding(.horizontal, 16)
+        .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var zustandsBereich: some View {
+        if einladungWurdeAbgelehnt {
+            statusKarte(
+                icon: "xmark.circle.fill",
+                titel: "Einladung abgelehnt",
+                text: "Die Einladung wurde erfolgreich abgelehnt. Der Einladungslink wurde ungültig gemacht. Die vorsorgende Person wird über die Ablehnung informiert."
+            )
+        } else if einladungWurdeAngenommen {
+            VStack(spacing: 16) {
+                Text("Wie möchtest du fortfahren?")
+                    .font(.title3.bold())
+                    .foregroundStyle(textFarbe)
+
+                fortfahrenKarte(
+                    icon: "person.badge.plus",
+                    titel: "Ich bin neu bei Tschlüssli",
+                    text: "Erstelle ein neues Profil, um diese Einladung als Vertrauensperson anzunehmen.",
+                    buttonTitel: "Profil erstellen",
+                    istPrimaer: true
+                ) {
+                    VertrauenspersonRegistrierung(
+                        eingeladeneEmail: eingeladeneEmail,
+                        einladungsToken: einladungsToken
+                    )
+                }
+                .padding(.vertical, 11)
+
+                fortfahrenKarte(
+                    icon: "person.crop.circle",
+                    titel: "Ich habe bereits ein Profil",
+                    text: "Melde dich mit deinem bestehenden Profil an, um die Einladung anzunehmen.",
+                    buttonTitel: "Anmelden",
+                    istPrimaer: false
+                ) {
+                    ReloginEinladung(
+                        eingeladeneEmail: eingeladeneEmail,
+                        einladungsToken: einladungsToken
+                    )
+                }
+                .padding(.vertical, 11)
+            }
+            .padding(.top, 2)
+        } else {
+            VStack(spacing: 10) {
+                Button {
+                    einladungWurdeAngenommen = true
+                } label: {
+                    Text("Einladung annehmen und fortfahren")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.white)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(akzentFarbe)
+                )
+
+                Button {
+                    bestaetigungAblehnenAnzeigen = true
+                } label: {
+                    Text("Ablehnen")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(textFarbe)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(hintergrundFarbe.opacity(0.9))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(akzentFarbe.opacity(0.16), lineWidth: 1)
+                )
+            }
+        }
+    }
+
+    private func einladungsInfoZeile(icon: String, titel: String, wert: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(akzentFarbe)
+                .frame(width: 24, height: 24)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(titel)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(sekundTextFarbe)
+
+                Text(wert)
+                    .font(.body)
+                    .fontWeight(.medium)
+                    .foregroundStyle(textFarbe)
+                    .multilineTextAlignment(.leading)
+            }
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func statusKarte(icon: String, titel: String, text: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 42, weight: .semibold))
+                .foregroundStyle(akzentFarbe.opacity(0.72))
+
+            Text(titel)
+                .font(.headline)
+                .foregroundStyle(textFarbe)
+
+            Text(text)
+                .font(.body)
+                .foregroundStyle(sekundTextFarbe)
+                .multilineTextAlignment(.center)
+                .lineSpacing(3)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(hintergrundFarbe.opacity(0.72))
+        )
+    }
+
+    private func fortfahrenKarte<Ziel: View>(
+        icon: String,
+        titel: String,
+        text: String,
+        buttonTitel: String,
+        istPrimaer: Bool,
+        @ViewBuilder ziel: @escaping () -> Ziel
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(titel, systemImage: icon)
+                .font(.headline)
+                .foregroundStyle(textFarbe)
+
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(sekundTextFarbe)
+                .lineSpacing(2)
+
+            NavigationLink {
+                ziel()
+            } label: {
+                Text(buttonTitel)
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(istPrimaer ? .white : textFarbe)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(istPrimaer ? akzentFarbe : hintergrundFarbe.opacity(0.9))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(istPrimaer ? Color.clear : akzentFarbe.opacity(0.16), lineWidth: 1)
+            )
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(hintergrundFarbe.opacity(0.72))
+        )
     }
 
     private func einladungAblehnen() {

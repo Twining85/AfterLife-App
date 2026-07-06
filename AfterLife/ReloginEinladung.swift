@@ -18,6 +18,12 @@ import SwiftData
 import LocalAuthentication
 
 struct ReloginEinladung: View {
+    private let hintergrundFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
+    private let kartenFarbe = Color.white.opacity(0.88)
+    private let akzentFarbe = Color(red: 0.16, green: 0.36, blue: 0.42)
+    private let akzentHell = Color(red: 0.16, green: 0.36, blue: 0.42).opacity(0.12)
+    private let textFarbe = Color.black.opacity(0.86)
+    private let sekundTextFarbe = Color.black.opacity(0.58)
     let eingeladeneEmail: String
     let einladungsToken: String
 
@@ -66,7 +72,10 @@ struct ReloginEinladung: View {
         NavigationStack {
             Group {
                 if istEingeloggt {
-                    EinladungEmailVerifizierung()
+                    EinladungEmailVerifizierung(
+                        eingeladeneEmail: eingeladeneEmail,
+                        einladungsToken: einladungsToken
+                    )
                 } else if hatBestehendenLogin {
                     loginAnsicht
                 } else {
@@ -80,116 +89,281 @@ struct ReloginEinladung: View {
     }
 
     private var loginAnsicht: some View {
-        VStack(spacing: 24) {
-            Spacer()
+        ZStack {
+            hintergrundFarbe
+                .ignoresSafeArea()
 
-            Image(systemName: "lock.shield.fill")
-                .font(.system(size: 56))
-                .foregroundStyle(.blue)
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    heroBild
 
-            Text("Bestehendes Profil")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-                .multilineTextAlignment(.center)
+                    VStack(spacing: 16) {
+                        VStack(spacing: 10) {
+                            ZStack {
+                                Circle()
+                                    .fill(akzentHell)
+                                    .frame(width: 58, height: 58)
 
-            Text("Melde dich mit deinem bestehenden Profil an, um die Einladung als Vertrauensperson zu prüfen.")
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
+                                Image(systemName: "lock.shield.fill")
+                                    .font(.system(size: 26, weight: .semibold))
+                                    .foregroundStyle(akzentFarbe)
+                            }
 
-            if biometrieAktiviert {
-                Button {
-                    loginMitFaceID()
-                } label: {
-                    Label("Mit Face ID anmelden", systemImage: "faceid")
-                        .frame(maxWidth: .infinity)
+                            VStack(spacing: 6) {
+                                Text("Bestehendes Profil")
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(textFarbe)
+                                    .multilineTextAlignment(.center)
+
+                                Text("Melde dich mit deinem bestehenden Profil an, um die Einladung als Vertrauensperson zu prüfen.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(sekundTextFarbe)
+                                    .multilineTextAlignment(.center)
+                                    .lineSpacing(2)
+                            }
+                        }
+
+                        if biometrieAktiviert {
+                            Button {
+                                loginMitFaceID()
+                            } label: {
+                                Label("Mit Face ID anmelden", systemImage: "faceid")
+                                    .font(.headline)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 11)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.white)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .fill(akzentFarbe)
+                            )
+                        }
+
+                        if zeigtEmailLogin {
+                            emailLoginBereich
+                        }
+
+                        if !fehlermeldung.isEmpty {
+                            warnHinweis(text: fehlermeldung)
+                        }
+
+                        Text("Die Einladung bleibt an die ursprünglich eingeladene E-Mail-Adresse gebunden und wird nach dem Login geprüft.")
+                            .font(.caption)
+                            .foregroundStyle(sekundTextFarbe)
+                            .multilineTextAlignment(.center)
+                            .lineSpacing(1)
+                            .padding(.horizontal, 4)
+                    }
+                    .padding(18)
+                    .background(
+                        RoundedRectangle(cornerRadius: 28, style: .continuous)
+                            .fill(kartenFarbe)
+                            .shadow(color: .black.opacity(0.07), radius: 18, x: 0, y: 10)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 28, style: .continuous)
+                            .stroke(Color.white.opacity(0.75), lineWidth: 1)
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 18)
                 }
-                .buttonStyle(.borderedProminent)
-                .padding(.horizontal)
+                .padding(.top, 8)
             }
-
-            if zeigtEmailLogin {
-                emailLoginBereich
-            }
-
-
-            if !fehlermeldung.isEmpty {
-                Text(fehlermeldung)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
-            }
-
-            Spacer()
         }
         .navigationTitle("Einladung")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private var keinBestehendesProfilAnsicht: some View {
-        VStack(spacing: 24) {
-            Spacer()
+        ZStack {
+            hintergrundFarbe
+                .ignoresSafeArea()
+
+            VStack(spacing: 14) {
+                heroBild
+
+                VStack(spacing: 16) {
+                    ZStack {
+                        Circle()
+                            .fill(akzentHell)
+                            .frame(width: 58, height: 58)
+
+                        Image(systemName: "person.crop.circle.badge.exclamationmark")
+                            .font(.system(size: 26, weight: .semibold))
+                            .foregroundStyle(akzentFarbe)
+                    }
+
+                    VStack(spacing: 6) {
+                        Text("Kein bestehendes Profil gefunden")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(textFarbe)
+                            .multilineTextAlignment(.center)
+
+                        Text("Auf diesem Gerät wurde noch kein bestehendes Profil gefunden. Bitte gehe zurück und erstelle ein neues Profil für die Einladung.")
+                            .font(.subheadline)
+                            .foregroundStyle(sekundTextFarbe)
+                            .multilineTextAlignment(.center)
+                            .lineSpacing(2)
+                    }
+                }
+                .padding(18)
+                .background(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .fill(kartenFarbe)
+                        .shadow(color: .black.opacity(0.07), radius: 18, x: 0, y: 10)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(Color.white.opacity(0.75), lineWidth: 1)
+                )
+                .padding(.horizontal, 16)
+
+                Spacer(minLength: 0)
+            }
+            .padding(.top, 8)
+        }
+        .navigationTitle("Einladung")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var emailLoginBereich: some View {
+        VStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 7) {
+                Text("E-Mail")
+                    .font(.footnote)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(textFarbe)
+
+                TextField("deine.email@beispiel.ch", text: $email)
+                    .keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(Color.white.opacity(0.92))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(akzentFarbe.opacity(0.18), lineWidth: 1)
+                    )
+            }
+
+            VStack(alignment: .leading, spacing: 7) {
+                Text("Passwort")
+                    .font(.footnote)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(textFarbe)
+
+                HStack(spacing: 10) {
+                    if showPassword {
+                        TextField("Passwort", text: $passwort)
+                    } else {
+                        SecureField("Passwort", text: $passwort)
+                    }
+
+                    Button {
+                        showPassword.toggle()
+                    } label: {
+                        Image(systemName: showPassword ? "eye.slash" : "eye")
+                            .foregroundStyle(akzentFarbe.opacity(0.85))
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.white.opacity(0.92))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(akzentFarbe.opacity(0.18), lineWidth: 1)
+                )
+            }
+
+            Button {
+                loginMitEmailUndPasswort()
+            } label: {
+                Text("Mit E-Mail anmelden")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.white)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(akzentFarbe)
+            )
+            .padding(.top, 2)
+        }
+    }
+
+    private var heroBild: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .fill(kartenFarbe)
+                .shadow(color: .black.opacity(0.06), radius: 14, x: 0, y: 8)
+
+            Image("Home2")
+                .resizable()
+                .scaledToFill()
+                .frame(maxWidth: .infinity)
+                .frame(height: 150)
+                .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                .overlay(
+                    LinearGradient(
+                        colors: [
+                            Color.black.opacity(0.01),
+                            Color.black.opacity(0.16)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                )
 
             Image("Icon1_trans")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 120, height: 120)
-                .opacity(0.65)
-
-            Text("Kein bestehendes Profil gefunden")
-                .font(.title2.bold())
-                .multilineTextAlignment(.center)
-
-            Text("Auf diesem Gerät wurde noch kein bestehendes Profil gefunden. Bitte gehe zurück und erstelle ein neues Profil für die Einladung.")
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-
-            Spacer()
+                .frame(width: 96, height: 96)
+                .accessibilityHidden(true)
         }
-        .padding()
-        .navigationTitle("Einladung")
+        .frame(height: 150)
+        .padding(.horizontal, 16)
+        .accessibilityHidden(true)
     }
 
-    private var emailLoginBereich: some View {
-        VStack(spacing: 16) {
-            TextField("E-Mail", text: $email)
-                .keyboardType(.emailAddress)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .textFieldStyle(.roundedBorder)
+    private func warnHinweis(text: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.red)
+                .frame(width: 24)
 
-            HStack {
-                if showPassword {
-                    TextField("Passwort", text: $passwort)
-                } else {
-                    SecureField("Passwort", text: $passwort)
-                }
+            Text(text)
+                .font(.footnote)
+                .foregroundStyle(.red.opacity(0.84))
+                .fixedSize(horizontal: false, vertical: true)
 
-                Button {
-                    showPassword.toggle()
-                } label: {
-                    Image(systemName: showPassword ? "eye.slash" : "eye")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.secondary.opacity(0.35))
-            )
-
-            Button("Mit E-Mail und Passwort anmelden") {
-                loginMitEmailUndPasswort()
-            }
-            .buttonStyle(.bordered)
-            .frame(maxWidth: .infinity)
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal)
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.red.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.red.opacity(0.20), lineWidth: 1)
+        )
     }
 
 
@@ -232,7 +406,7 @@ struct ReloginEinladung: View {
 
         context.evaluatePolicy(
             .deviceOwnerAuthenticationWithBiometrics,
-            localizedReason: "Melde dich sicher mit Face ID bei AfterLife an."
+            localizedReason: "Melde dich sicher mit Face ID bei Tschlüssli an."
         ) { success, authenticationError in
             DispatchQueue.main.async {
                 biometrieLoginLaeuft = false

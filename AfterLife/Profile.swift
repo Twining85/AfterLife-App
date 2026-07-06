@@ -27,6 +27,7 @@ struct ProfilView: View {
     @AppStorage("gespeichertesPasswort") private var gespeichertesPasswort = ""
     @AppStorage("registrierungsArt") private var registrierungsArt = "E-Mail"
     @AppStorage("biometrieAktiviert") private var biometrieAktiviert = false
+    @AppStorage("biometriePruefungImProfilLaeuft") private var biometriePruefungImProfilLaeuft = false
 
     @State private var vorname = ""
 
@@ -719,6 +720,7 @@ struct ProfilView: View {
         guard !biometriePruefungLaeuft else { return }
 
         biometriePruefungLaeuft = true
+        biometriePruefungImProfilLaeuft = true
         biometrieFehlermeldung = ""
 
         let context = LAContext()
@@ -727,6 +729,7 @@ struct ProfilView: View {
 
         guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
             biometriePruefungLaeuft = false
+            biometriePruefungImProfilLaeuft = false
             biometrieAktiviert = false
             biometrieFehlermeldung = "Face ID oder Touch ID ist auf diesem Gerät nicht verfügbar oder noch nicht eingerichtet."
             speichereProfil()
@@ -739,6 +742,7 @@ struct ProfilView: View {
         ) { success, authenticationError in
             DispatchQueue.main.async {
                 biometriePruefungLaeuft = false
+                biometriePruefungImProfilLaeuft = false
 
                 if success {
                     biometrieAktiviert = true

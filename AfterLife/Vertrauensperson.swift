@@ -24,6 +24,12 @@ struct VertrauenspersonView: View {
     @AppStorage("aktiveUserID") private var aktiveUserID = ""
     @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
 
+    private let hintergrundFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
+    private let kartenFarbe = Color.white.opacity(0.88)
+    private let akzentFarbe = Color(red: 0.16, green: 0.36, blue: 0.42)
+    private let textFarbe = Color(red: 0.12, green: 0.12, blue: 0.12)
+    private let sekundaerTextFarbe = Color.black.opacity(0.58)
+
     @State private var einladungsSimulationStarten = false
     @State private var logoutFuerEinladungstestAnzeigen = false
 
@@ -222,11 +228,12 @@ struct VertrauenspersonView: View {
             Section {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Vertrauensperson einladen")
-                        .font(.headline)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(textFarbe)
 
                     Text("Führe den Prozess Schritt für Schritt durch. Die App zeigt dir jeweils, was als Nächstes zu tun ist.")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(sekundaerTextFarbe)
 
                     VStack(alignment: .leading, spacing: 8) {
                         Label(kontaktIstAusgewaehlt ? "1. Kontakt ausgewählt" : "1. Kontakt auswählen", systemImage: kontaktIstAusgewaehlt ? "checkmark.circle.fill" : "circle")
@@ -241,12 +248,22 @@ struct VertrauenspersonView: View {
                     .font(.footnote)
 
                     Text(naechsterSchrittText)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(akzentFarbe)
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(akzentFarbe.opacity(0.08))
+                        )
                         .padding(.top, 4)
                 }
-                .padding(.vertical, 4)
+                .padding(18)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(cardHintergrund)
             }
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
 
             if !dossierZugriffeFuerAktivesDossier.isEmpty {
                 Section("Aktuelle Zugriffe") {
@@ -306,7 +323,8 @@ struct VertrauenspersonView: View {
                 }
             }
 
-            Section("Vertrauensperson") {
+            Section {
+                sectionTitel("Vertrauensperson", icon: "person.crop.circle.badge.plus")
                 if kontaktIstAusgewaehlt {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(kontaktAnzeigename)
@@ -343,7 +361,8 @@ struct VertrauenspersonView: View {
                 }
             }
 
-            Section("Einladung") {
+            Section {
+                sectionTitel("Einladung", icon: "envelope.fill")
                 Button {
                     einladungPerMailVorbereiten()
                 } label: {
@@ -394,7 +413,8 @@ struct VertrauenspersonView: View {
             }
 
             if einladungWurdeVorbereitet {
-                Section("Rückmeldung") {
+                Section {
+                    sectionTitel("Rückmeldung", icon: "lock.open.fill")
                     HStack(spacing: 10) {
                         if aktuellerDossierZugriff?.istFreigegeben == true {
                             Image(systemName: "lock.open.fill")
@@ -423,7 +443,8 @@ struct VertrauenspersonView: View {
             }
 
             if !fehlermeldung.isEmpty || !erfolgsmeldung.isEmpty {
-                Section("Hinweis") {
+                Section {
+                    sectionTitel("Hinweis", icon: "info.circle.fill")
                     if !fehlermeldung.isEmpty {
                         Text(fehlermeldung)
                             .font(.footnote)
@@ -438,7 +459,8 @@ struct VertrauenspersonView: View {
                 }
             }
 
-            Section("Protokoll") {
+            Section {
+                sectionTitel("Protokoll", icon: "list.bullet.clipboard.fill")
                 if einladungsHistorie.isEmpty {
                     Text("Noch keine Einladung verschickt oder vorbereitet.")
                         .font(.footnote)
@@ -564,7 +586,10 @@ struct VertrauenspersonView: View {
             .listRowBackground(Color.orange.opacity(0.12))
             #endif
         }
+        .scrollContentBackground(.hidden)
+        .background(hintergrundFarbe.ignoresSafeArea())
         .navigationTitle("Zugriff im Notfall")
+        .tint(akzentFarbe)
         .fullScreenCover(isPresented: $einladungsSimulationStarten) {
             EinladungAngenommen(
                 einladenderName: vorsorgendePersonName,
@@ -591,6 +616,38 @@ struct VertrauenspersonView: View {
                 uebernehmeKontakt(kontakt)
             }
         }
+        .formStyle(.grouped)
+    }
+
+    private var cardHintergrund: some View {
+        RoundedRectangle(cornerRadius: 24, style: .continuous)
+            .fill(kartenFarbe)
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(Color.white.opacity(0.75), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.06), radius: 16, x: 0, y: 8)
+    }
+
+    private func sectionTitel(_ titel: String, icon: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(akzentFarbe)
+                .frame(width: 28, height: 28)
+                .background(
+                    Circle()
+                        .fill(akzentFarbe.opacity(0.10))
+                )
+
+            Text(titel)
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(textFarbe)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.top, 2)
+        .padding(.bottom, 4)
     }
 
     private func markiereEinladungImTestAlsAngenommen() {
