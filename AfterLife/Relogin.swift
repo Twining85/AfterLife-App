@@ -11,6 +11,12 @@ import LocalAuthentication
 
 struct ReloginView: View {
 
+    private let hintergrundFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
+    private let kartenFarbe = Color.white.opacity(0.86)
+    private let akzentFarbe = Color(red: 0.16, green: 0.36, blue: 0.42)
+    private let textFarbe = Color.black.opacity(0.86)
+    private let sekundTextFarbe = Color.black.opacity(0.58)
+
     @Query private var gespeicherteProfile: [ProfilModell]
 
     @AppStorage("profilIstVorhanden") private var profilIstVorhanden = false
@@ -77,88 +83,170 @@ struct ReloginView: View {
     }
 
     private var loginAnsicht: some View {
-        VStack(spacing: 24) {
-            Spacer()
+        ZStack {
+            hintergrundFarbe
+                .ignoresSafeArea()
 
-            Image(systemName: "lock.shield.fill")
-                .font(.system(size: 56))
-                .foregroundStyle(.blue)
+            VStack(spacing: 12) {
+                Spacer(minLength: 0)
 
-            Text("Willkommen zurück")
-                .font(.largeTitle)
-                .fontWeight(.bold)
+                Image("Icon1_trans")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 118, height: 118)
+                    .accessibilityHidden(true)
+                    .padding(.top, -52)
 
-            Text("Melde dich an, um auf dein AfterLife-Dossier zuzugreifen.")
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
+                VStack(spacing: 18) {
+                    ZStack {
+                        Circle()
+                            .fill(akzentFarbe.opacity(0.12))
+                            .frame(width: 86, height: 86)
 
-            if biometrieAktiviert {
-                Button {
-                    loginMitFaceID()
-                } label: {
-                    Label("Mit Face ID anmelden", systemImage: "faceid")
-                        .frame(maxWidth: .infinity)
+                        Image(systemName: "lock.shield.fill")
+                            .font(.system(size: 38, weight: .semibold))
+                            .foregroundStyle(akzentFarbe)
+                    }
+
+                    VStack(spacing: 8) {
+                        Text("Willkommen zurück")
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                            .foregroundStyle(textFarbe)
+                            .multilineTextAlignment(.center)
+
+                        Text("Melde dich an, um sicher auf dein Tschlüssli-Dossier zuzugreifen.")
+                            .font(.body)
+                            .foregroundStyle(sekundTextFarbe)
+                            .multilineTextAlignment(.center)
+                            .lineSpacing(3)
+                    }
+
+                    if biometrieAktiviert {
+                        Button {
+                            loginMitFaceID()
+                        } label: {
+                            Label("Mit Face ID anmelden", systemImage: "faceid")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 6)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(akzentFarbe)
+                    }
+
+                    if zeigtEmailLogin {
+                        emailLoginBereich
+                    }
+
+                    if !fehlermeldung.isEmpty {
+                        Text(fehlermeldung)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.center)
+                            .padding(.top, 2)
+                    }
                 }
-                .buttonStyle(.borderedProminent)
-                .padding(.horizontal)
-            }
+                .padding(24)
+                .background(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .fill(kartenFarbe)
+                        .shadow(color: .black.opacity(0.07), radius: 18, x: 0, y: 10)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(Color.white.opacity(0.75), lineWidth: 1)
+                )
+                .padding(.horizontal, 22)
+                .padding(.top, -8)
 
-            if zeigtEmailLogin {
-                emailLoginBereich
-            }
-
-            if !fehlermeldung.isEmpty {
-                Text(fehlermeldung)
+                Text("Deine Angaben bleiben geschützt und sind nur nach erfolgreicher Anmeldung sichtbar.")
                     .font(.footnote)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(sekundTextFarbe)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal)
-            }
+                    .padding(.horizontal, 32)
 
-            Spacer()
+                Spacer(minLength: 72)
+            }
         }
         .navigationTitle("Login")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private var emailLoginBereich: some View {
-        VStack(spacing: 16) {
-            TextField("E-Mail", text: $email)
-                .keyboardType(.emailAddress)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .textFieldStyle(.roundedBorder)
+        VStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 7) {
+                Text("E-Mail")
+                    .font(.footnote)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(textFarbe)
 
-            HStack {
-                if showPassword {
-                    TextField("Passwort", text: $passwort)
-                } else {
-                    SecureField("Passwort", text: $passwort)
-                }
-
-                Button {
-                    showPassword.toggle()
-                } label: {
-                    Image(systemName: showPassword ? "eye.slash" : "eye")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
+                TextField("deine.email@beispiel.ch", text: $email)
+                    .keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(Color.white.opacity(0.92))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(akzentFarbe.opacity(0.18), lineWidth: 1)
+                    )
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.secondary.opacity(0.35))
-            )
 
-            Button("Mit E-Mail und Passwort anmelden") {
+            VStack(alignment: .leading, spacing: 7) {
+                Text("Passwort")
+                    .font(.footnote)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(textFarbe)
+
+                HStack(spacing: 10) {
+                    if showPassword {
+                        TextField("Passwort", text: $passwort)
+                    } else {
+                        SecureField("Passwort", text: $passwort)
+                    }
+
+                    Button {
+                        showPassword.toggle()
+                    } label: {
+                        Image(systemName: showPassword ? "eye.slash" : "eye")
+                            .foregroundStyle(akzentFarbe.opacity(0.85))
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.white.opacity(0.92))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(akzentFarbe.opacity(0.18), lineWidth: 1)
+                )
+            }
+
+            Button {
                 loginMitEmailUndPasswort()
+            } label: {
+                Text("Mit E-Mail anmelden")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 13)
             }
-            .buttonStyle(.bordered)
-            .frame(maxWidth: .infinity)
+            .buttonStyle(.plain)
+            .foregroundStyle(.white)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(akzentFarbe)
+            )
+            .padding(.top, 4)
         }
-        .padding(.horizontal)
     }
 
     private func bereiteLoginBeimStartVor() {
@@ -200,7 +288,7 @@ struct ReloginView: View {
 
         context.evaluatePolicy(
             .deviceOwnerAuthenticationWithBiometrics,
-            localizedReason: "Melde dich sicher mit Face ID bei AfterLife an."
+            localizedReason: "Melde dich sicher mit Face ID bei Tschlüssli an."
         ) { success, authenticationError in
             DispatchQueue.main.async {
                 biometrieLoginLaeuft = false

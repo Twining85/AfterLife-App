@@ -58,6 +58,8 @@ struct AfterLifeApp: App {
 
 struct AppStartView: View {
     @Query private var gespeicherteProfile: [ProfilModell]
+    @AppStorage("istEingeloggt") private var istEingeloggt = false
+    @AppStorage("direktNachRegistrierungEingeloggt") private var direktNachRegistrierungEingeloggt = false
 
     // MARK: - Entwicklungsmodus
     // Für die Entwicklung kann direkt die HomeView geöffnet werden.
@@ -87,7 +89,11 @@ struct AppStartView: View {
                     einladungsToken: "test-token-123"
                 )
             } else if istBereitsRegistriert {
-                Home()
+                if istEingeloggt || direktNachRegistrierungEingeloggt {
+                    Home()
+                } else {
+                    ReloginView()
+                }
             } else {
                 Registrierung()
             }
@@ -95,6 +101,12 @@ struct AppStartView: View {
         .onAppear {
             UIApplication.shared.aktiviereTastaturAusblendenBeiTap()
             NotificationService.shared.berechtigungAnfragen()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+            guard istBereitsRegistriert else { return }
+            guard !homeDirektStarten else { return }
+            istEingeloggt = false
+            direktNachRegistrierungEingeloggt = false
         }
     }
 }
