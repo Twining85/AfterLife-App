@@ -3,6 +3,7 @@ import SwiftData
 import UIKit
 
 struct Home: View {
+    @Environment(\.scenePhase) private var scenePhase
     private let kachelFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
     private let schluessliAkzent = Color(red: 0.16, green: 0.36, blue: 0.42)
     // TEST: später durch echte Beziehungen aus dem Einladungs-/VertrauenspersonModell ersetzen
@@ -25,6 +26,8 @@ struct Home: View {
     @State private var direktesVorsorgedossierOeffnen = false
     @State private var ausgewaehltesVorsorgedossier = ""
     @State private var bearbeiteteHomeBereiche: [HomeBereich] = []
+    @State private var dossierPruefungRefreshDatum = Date()
+    @State private var dossierPruefungSheetAnzeigen = false
     private let heroDossierTitelGroesse: CGFloat = 19
     private let heroDossierStatusGroesse: CGFloat = 16
     private let heroDossierBeschreibungGroesse: CGFloat = 14
@@ -95,28 +98,48 @@ struct Home: View {
         bearbeiteteHomeBereiche.isEmpty ? sortierteHomeBereiche : bearbeiteteHomeBereiche
     }
     
-    private var dossierWurdeGeprueft: Bool {
+    private var dossierNaechstePruefungAm: Date? {
+        _ = dossierPruefungRefreshDatum
+
         guard let datum = ISO8601DateFormatter().date(from: dossierZuletztGeprueftAmISO) else {
+            return nil
+        }
+
+        // TEST: Für den iPhone-Test bewusst auf 1 Minute gesetzt.
+        // Für Produktion wieder auf `.year, value: 1` ändern.
+        return Calendar.current.date(byAdding: .minute, value: 1, to: datum)
+    }
+
+    private var dossierPruefungIstFaellig: Bool {
+        guard let naechstePruefung = dossierNaechstePruefungAm else {
             return false
         }
-        
-        guard let naechstePruefung = Calendar.current.date(byAdding: .year, value: 1, to: datum) else {
+
+        return Date() >= naechstePruefung
+    }
+
+    private var dossierWurdeGeprueft: Bool {
+        guard dossierNaechstePruefungAm != nil else {
             return false
         }
-        
-        return Date() < naechstePruefung
+
+        return !dossierPruefungIstFaellig
     }
     
     private var dossierZuletztGeprueftText: String {
         guard let datum = ISO8601DateFormatter().date(from: dossierZuletztGeprueftAmISO) else {
             return dossierFortschritt.aktionsText
         }
-        
-        if dossierWurdeGeprueft {
-            return "Zuletzt überprüft am \(datum.formatted(date: .abbreviated, time: .omitted))"
+
+        if dossierPruefungIstFaellig {
+            return "Jährliche Prüfung fällig"
         }
-        
-        return "Erneut überprüfen"
+
+        if dossierWurdeGeprueft {
+            return "Zuletzt geprüft am \(datum.formatted(.dateTime.locale(Locale(identifier: "de_CH")).day().month(.wide).year()))"
+        }
+
+        return dossierFortschritt.aktionsText
     }
     
     // TODO: Fortschrittsberechnung fachlich weiter verfeinern.
@@ -295,7 +318,7 @@ struct Home: View {
                                             .fixedSize(horizontal: false, vertical: true)
                                         
                                         HStack(spacing: 6) {
-                                            Image(systemName: dossierWurdeGeprueft ? "arrow.clockwise.circle.fill" : dossierFortschritt.aktionsIcon)
+                                            Image(systemName: (dossierWurdeGeprueft || dossierPruefungIstFaellig) ? "arrow.clockwise.circle.fill" : dossierFortschritt.aktionsIcon)
                                                 .font(.system(size: heroDossierAktionGroesse, weight: .semibold, design: .rounded))
                                             
                                             Text(dossierZuletztGeprueftText)
@@ -319,11 +342,38 @@ struct Home: View {
                                 )
                                 .shadow(color: schluessliAkzent.opacity(0.11), radius: 14, x: 0, y: 7)
                                 .onTapGesture {
-                                    if dossierWurdeGeprueft {
-                                        dossierZuletztGeprueftAmISO = ""
-                                    } else {
-                                        dossierZuletztGeprueftAmISO = ISO8601DateFormatter().string(from: Date())
+                                    if dossierPruefungIstFaellig {
+                                        dossierPruefungSheetAnzeigen = true
+                                    } else if !dossierWurdeGeprueft {
+                                        dossierAlsGeprueftMarkieren()
                                     }
+                                }
+
+                                if dossierPruefungIstFaellig {
+                                    Button {
+                                        dossierPruefungSheetAnzeigen = true
+                                    } label: {
+                                        HStack(spacing: 8) {
+                                            Image(systemName: "arrow.clockwise.circle.fill")
+                                                .font(.body.weight(.semibold))
+
+                                            Text("Jährliche Prüfung starten")
+                                                .font(.body.weight(.semibold))
+
+                                            Spacer(minLength: 0)
+
+                                            Image(systemName: "chevron.right")
+                                                .font(.caption.weight(.bold))
+                                        }
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 13)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                                .fill(schluessliAkzent)
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
                                 }
                             }
                             .padding(.horizontal, 24)
@@ -345,9 +395,9 @@ struct Home: View {
                     HStack(spacing: 8) {
                         Spacer(minLength: 0)
                         
-                        HomeInfoChip(icon: "shield.checkered", titel: "Sicher gespeichert")
-                        HomeInfoChip(icon: "lock.fill", titel: "Privat")
-                        HomeInfoChip(icon: "icloud.fill", titel: "Jederzeit verfügbar")
+                       // HomeInfoChip(icon: "shield.checkered", titel: "Sicher gespeichert")
+                      //  HomeInfoChip(icon: "lock.fill", titel: "Privat")
+                      //  HomeInfoChip(icon: "icloud.fill", titel: "Jederzeit verfügbar")
                         
                         Spacer(minLength: 0)
                     }
@@ -444,7 +494,24 @@ struct Home: View {
                 } message: {
                     Text("Wähle aus, welches Vorsorgedossier du öffnen möchtest.")
                 }
+                .sheet(isPresented: $dossierPruefungSheetAnzeigen) {
+                    DossierPruefungSheet(accentColor: schluessliAkzent) {
+                        dossierAlsGeprueftMarkieren()
+                        dossierPruefungSheetAnzeigen = false
+                    }
+                    .presentationDetents([.fraction(0.72), .large])
+                    .presentationDragIndicator(.visible)
+                }
                 .navigationBarBackButtonHidden(true)
+                .onAppear {
+                    NotificationService.shared.berechtigungAnfragen()
+                    dossierPruefungRefreshDatum = Date()
+                }
+                .onChange(of: scenePhase) { _, neuePhase in
+                    if neuePhase == .active {
+                        dossierPruefungRefreshDatum = Date()
+                    }
+                }
                 .toolbar {
                     if homeBearbeitungsmodus {
                         ToolbarItem(placement: .topBarTrailing) {
@@ -524,6 +591,12 @@ struct Home: View {
             }
         }
         
+        private func dossierAlsGeprueftMarkieren() {
+            let pruefDatum = Date()
+            dossierZuletztGeprueftAmISO = ISO8601DateFormatter().string(from: pruefDatum)
+            NotificationService.shared.jaehrlicheDossierPruefungPlanen(ab: pruefDatum)
+        }
+
         private func initialisiereHomeBereicheFallsNoetig() {
             if bearbeiteteHomeBereiche.isEmpty {
                 bearbeiteteHomeBereiche = sortierteHomeBereiche
@@ -739,6 +812,105 @@ struct Home: View {
         }
     }
     
+    struct DossierPruefungSheet: View {
+        let accentColor: Color
+        let abschliessenAktion: () -> Void
+        @State private var istAbgeschlossen = false
+        
+        var body: some View {
+            VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: 10) {
+                    ZStack {
+                        Circle()
+                            .fill((istAbgeschlossen ? Color.green : accentColor).opacity(0.14))
+                            .frame(width: istAbgeschlossen ? 68 : 54, height: istAbgeschlossen ? 68 : 54)
+                        
+                        Image(systemName: istAbgeschlossen ? "checkmark.circle.fill" : "checkmark.seal.fill")
+                            .font(.system(size: istAbgeschlossen ? 34 : 25, weight: .semibold))
+                            .foregroundStyle(istAbgeschlossen ? Color.green : accentColor)
+                            .scaleEffect(istAbgeschlossen ? 1.08 : 1.0)
+                    }
+                    .animation(.spring(response: 0.34, dampingFraction: 0.72), value: istAbgeschlossen)
+                    
+                    Text(istAbgeschlossen ? "Dossier geprüft" : "Jährliche Prüfung deines Dossiers")
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+                    
+                    Text(istAbgeschlossen ? "Dein Dossier ist jetzt wieder auf dem aktuellsten Stand. Wir erinnern dich nächstes Jahr erneut." : "Nimm dir kurz Zeit und prüfe, ob deine wichtigsten Angaben noch stimmen. Insbesondere deine persönlichen Daten, Wünsche und Personen denen du Zugriffe erteilt hast.")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                
+                if !istAbgeschlossen {
+                    VStack(alignment: .leading, spacing: 12) {
+                        pruefpunkt("Persönliche Angaben")
+                        pruefpunkt("Meine Wünsche")
+                        pruefpunkt("Zugriffe auf dein Dossier")
+                        pruefpunkt("Gesundheit")
+                        pruefpunkt("Finanzen")
+                        pruefpunkt("Dokumente & Fotoalbum")
+                        pruefpunkt("Abos & Profile")
+                        pruefpunkt("Menschen meines Vertrauens")
+                    }
+                    .padding(16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .fill(Color(.secondarySystemBackground))
+                    )
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
+                
+                Spacer(minLength: 0)
+                
+                Button {
+                    guard !istAbgeschlossen else { return }
+                    
+                    withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) {
+                        istAbgeschlossen = true
+                    }
+                    
+                    Task {
+                        try? await Task.sleep(nanoseconds: 2_050_000_000)
+                        await MainActor.run {
+                            abschliessenAktion()
+                        }
+                    }
+                } label: {
+                    Text(istAbgeschlossen ? "Erledigt" : "Alles geprüft, das Dossier ist auf dem aktuellsten Stand")
+                        .font(.body.weight(.semibold))
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 15)
+                        .foregroundStyle(.white)
+                        .background(
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .fill(istAbgeschlossen ? Color.green : accentColor)
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(istAbgeschlossen)
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 30)
+            .padding(.bottom, 24)
+        }
+        
+        private func pruefpunkt(_ titel: String) -> some View {
+            HStack(spacing: 10) {
+                Image(systemName: "circle")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(accentColor)
+                
+                Text(titel)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+                
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
     enum HomeBereich: String, CaseIterable, Identifiable {
         case profil
         case gesundheit

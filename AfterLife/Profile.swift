@@ -628,6 +628,13 @@ struct ProfilView: View {
 
     @State private var ahvNummer = ""
 
+    @FocusState private var profilFokus: ProfilFokusFeld?
+
+    private enum ProfilFokusFeld: Hashable {
+        case adresse
+        case hausnummer
+    }
+
     private func formatiereGeburtsdatum(_ datum: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "de_CH")
@@ -1062,6 +1069,7 @@ struct ProfilView: View {
             plz = verifizierteAdresse.zipCode
             stadt = verifizierteAdresse.townName
             speichereProfil()
+            profilFokus = .hausnummer
         } catch {
             print("Post Adresse konnte nicht verifiziert werden: \(error.localizedDescription)")
         }

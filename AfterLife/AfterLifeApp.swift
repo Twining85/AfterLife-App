@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import UIKit
 
 @main
 struct AfterLifeApp: App {
@@ -50,8 +51,8 @@ struct AfterLifeApp: App {
     var body: some Scene {
         WindowGroup {
             AppStartView()
+                .modelContainer(sharedModelContainer)
         }
-        .modelContainer(sharedModelContainer)
     }
 }
 
@@ -76,18 +77,68 @@ struct AppStartView: View {
     }
 
     var body: some View {
-        if homeDirektStarten {
-            Home()
-        } else if einladungsSimulationAktiv {
-            EinladungAngenommen(
-                einladenderName: "René Engeler",
-                eingeladeneEmail: "vertrauensperson@mail.ch",
-                einladungsToken: "test-token-123"
-            )
-        } else if istBereitsRegistriert {
-            Home()
-        } else {
-            Registrierung()
+        Group {
+            if homeDirektStarten {
+                Home()
+            } else if einladungsSimulationAktiv {
+                EinladungAngenommen(
+                    einladenderName: "René Engeler",
+                    eingeladeneEmail: "vertrauensperson@mail.ch",
+                    einladungsToken: "test-token-123"
+                )
+            } else if istBereitsRegistriert {
+                Home()
+            } else {
+                Registrierung()
+            }
         }
+        .onAppear {
+            UIApplication.shared.aktiviereTastaturAusblendenBeiTap()
+            NotificationService.shared.berechtigungAnfragen()
+        }
+    }
+}
+
+final class TastaturAusblendenGestureDelegate: NSObject, UIGestureRecognizerDelegate {
+    static let shared = TastaturAusblendenGestureDelegate()
+    
+    private override init() {}
+    
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        var aktuelleView: UIView? = touch.view
+        
+        while let view = aktuelleView {
+            if view is UIControl || view is UITextView {
+                return false
+            }
+            
+            aktuelleView = view.superview
+        }
+        
+        return true
+    }
+}
+
+extension UIApplication {
+    func aktiviereTastaturAusblendenBeiTap() {
+        connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .forEach { window in
+                let gestureName = "GlobaleTastaturAusblendenGesture"
+                let gestureExistiertBereits = window.gestureRecognizers?.contains { $0.name == gestureName } ?? false
+                
+                guard !gestureExistiertBereits else { return }
+                
+                let tapGesture = UITapGestureRecognizer(target: self, action: #selector(tastaturAusblenden))
+                tapGesture.name = gestureName
+                tapGesture.cancelsTouchesInView = false
+                tapGesture.delegate = TastaturAusblendenGestureDelegate.shared
+                window.addGestureRecognizer(tapGesture)
+            }
+    }
+    
+    @objc private func tastaturAusblenden() {
+        sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 }
