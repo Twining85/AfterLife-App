@@ -62,7 +62,7 @@ struct AppStartView: View {
     // MARK: - Entwicklungsmodus
     // Für die Entwicklung kann direkt die HomeView geöffnet werden.
     // Vor einem Release wieder auf false setzen.
-    private let homeDirektStarten = true
+    private let homeDirektStarten = false
 
     // Testschalter für den Einladungs-Use-Case
     private let einladungsSimulationAktiv = false
