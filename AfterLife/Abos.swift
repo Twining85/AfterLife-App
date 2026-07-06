@@ -43,6 +43,9 @@ struct AbosView: View {
     @State private var onlineMagazineCompany = ""
     @State private var membershipAboType = ""
     @State private var membershipNumber = ""
+    @State private var selectedMobileInternetProvider: MobileInternetProvider = .pleaseSelect
+    @State private var customMobileInternetProvider = ""
+    @State private var mobileInternetContractDetails = ""
     @State private var customAboName = ""
     @State private var showPassword = false
 
@@ -220,6 +223,21 @@ struct AbosView: View {
                             Section("Mitgliedschaft") {
                                 labelledTextField("Mitglied bei", text: $membershipAboType)
                                 labelledTextField("Kontakt", text: $membershipNumber)
+                            }
+                        }
+                        if sheetKontext.typ == .mobileInternet {
+                            Section("Mobile & Internet") {
+                                styledPicker("Anbieter", selection: $selectedMobileInternetProvider) {
+                                    ForEach(MobileInternetProvider.allCases) { provider in
+                                        Text(provider.rawValue).tag(provider)
+                                    }
+                                }
+
+                                if selectedMobileInternetProvider == .other {
+                                    labelledTextField("Anbietername", text: $customMobileInternetProvider)
+                                }
+
+                                labelledTextField("Vertragsdetails", text: $mobileInternetContractDetails)
                             }
                         }
                         if sheetKontext.typ == .cloudStorage {
@@ -615,14 +633,22 @@ struct AbosView: View {
                 .font(.headline.weight(.semibold))
                 .foregroundStyle(.primary)
 
-            if !abo.unternehmen.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(abo.unternehmen)
+            let unternehmenText = abo.aboTyp == AboType.mobileInternet.rawValue
+                ? abo.mobileInternetAnbieter
+                : abo.unternehmen
+
+            let detailText = abo.aboTyp == AboType.mobileInternet.rawValue
+                ? abo.mobileInternetVertragsdetails
+                : abo.aboArt
+
+            if !unternehmenText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && unternehmenText != "Bitte wählen" {
+                Text(unternehmenText)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
 
-            if !abo.aboArt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(abo.aboArt)
+            if !detailText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(detailText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -704,6 +730,17 @@ struct AbosView: View {
                 && !onlineMagazineCompany.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .membership:
             return !membershipAboType.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .mobileInternet:
+            if selectedMobileInternetProvider == .pleaseSelect {
+                return false
+            }
+
+            if selectedMobileInternetProvider == .other,
+               customMobileInternetProvider.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return false
+            }
+
+            return !mobileInternetContractDetails.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .devices:
             return selectedDeviceType != .pleaseSelect
                 && !devicePIN.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -775,6 +812,15 @@ struct AbosView: View {
             abo.oevAboTyp = "Bitte wählen"
             abo.andereBezeichnung = ""
         }
+
+        if aktiverAboType == .mobileInternet {
+            abo.mobileInternetAnbieter = mobileInternetProviderWert
+            abo.mobileInternetVertragsdetails = mobileInternetContractDetails
+        } else {
+            abo.mobileInternetAnbieter = "Bitte wählen"
+            abo.mobileInternetVertragsdetails = ""
+        }
+
         abo.bankkontoName = ""
         abo.bankkontoArt = ""
         abo.aktualisiertAm = Date()
@@ -847,6 +893,23 @@ struct AbosView: View {
         onlineMagazineCompany = selectedAboType == .news ? abo.unternehmen : ""
         membershipAboType = selectedAboType == .membership ? abo.aboArt : ""
         membershipNumber = selectedAboType == .membership ? abo.aboNummer : ""
+        selectedMobileInternetProvider = .pleaseSelect
+        customMobileInternetProvider = ""
+        if selectedAboType == .mobileInternet {
+            let gespeicherterAnbieter = !abo.mobileInternetAnbieter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && abo.mobileInternetAnbieter != "Bitte wählen"
+                ? abo.mobileInternetAnbieter
+                : (abo.unternehmen.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? abo.bezeichnung : abo.unternehmen)
+
+            if let provider = MobileInternetProvider(rawValue: gespeicherterAnbieter) {
+                selectedMobileInternetProvider = provider
+            } else if !gespeicherterAnbieter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                selectedMobileInternetProvider = .other
+                customMobileInternetProvider = gespeicherterAnbieter
+            }
+        }
+        mobileInternetContractDetails = selectedAboType == .mobileInternet
+            ? (abo.mobileInternetVertragsdetails.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? abo.aboArt : abo.mobileInternetVertragsdetails)
+            : ""
         customAboName = selectedAboType == .other || selectedAboType == .cloudStorage ? abo.bezeichnung : (selectedAboType == .devices ? (abo.geraeteBezeichnung.isEmpty ? abo.bezeichnung : abo.geraeteBezeichnung) : "")
 
         if selectedAboType == .digitalIdentity && selectedDigitalIdentityProvider == .pleaseSelect,
@@ -884,6 +947,9 @@ struct AbosView: View {
         onlineMagazineCompany = ""
         membershipAboType = ""
         membershipNumber = ""
+        selectedMobileInternetProvider = .pleaseSelect
+        customMobileInternetProvider = ""
+        mobileInternetContractDetails = ""
         customAboName = ""
         showPassword = false
     }
@@ -952,12 +1018,22 @@ struct AbosView: View {
         gespeicherteAboModelle.first
     }
 
+    private var mobileInternetProviderWert: String {
+        if selectedMobileInternetProvider == .other {
+            return customMobileInternetProvider.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        return selectedMobileInternetProvider.rawValue
+    }
+
     private var unternehmenWert: String {
         switch aktiverAboType {
         case .fitness:
             return fitnessCompany
         case .news:
             return onlineMagazineCompany
+        case .mobileInternet:
+            return ""
         case .publicTransport:
             return publicTransportCompany == .other ? customPublicTransportCompany : publicTransportCompany.rawValue
         default:
@@ -981,6 +1057,8 @@ struct AbosView: View {
             return magazineName
         case .software:
             return softwareName
+        case .mobileInternet:
+            return mobileInternetProviderWert
         case .cloudStorage:
             return customAboName
         case .other:
@@ -1013,6 +1091,8 @@ struct AbosView: View {
             return onlineMagazineAboType
         case .membership:
             return membershipAboType
+        case .mobileInternet:
+            return ""
         case .publicTransport:
             return publicTransportType.rawValue
         case .devices:
@@ -1083,6 +1163,24 @@ struct AbosView: View {
                 return art
             }
         }
+
+        if abo.aboTyp == AboType.mobileInternet.rawValue {
+            let anbieter = abo.mobileInternetAnbieter.trimmingCharacters(in: .whitespacesAndNewlines)
+            let details = abo.mobileInternetVertragsdetails.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if !anbieter.isEmpty && anbieter != "Bitte wählen" && !details.isEmpty {
+                return "\(anbieter) – \(details)"
+            }
+
+            if !anbieter.isEmpty && anbieter != "Bitte wählen" {
+                return anbieter
+            }
+
+            if !details.isEmpty {
+                return details
+            }
+        }
+
         if !abo.bezeichnung.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return abo.bezeichnung
         }
@@ -1288,6 +1386,7 @@ enum AboType: String, CaseIterable, Identifiable, Hashable {
     case emailAccount = "E-Mail-Konten"
     case fitness = "Fitness / Sport"
     case membership = "Mitgliedschaft"
+    case mobileInternet = "Mobile & Internet"
     case news = "Online Zeitschriften"
     case publicTransport = "Öffentlicher Verkehr"
     case socialMedia = "Social Media"
@@ -1307,6 +1406,7 @@ enum AboType: String, CaseIterable, Identifiable, Hashable {
         case .emailAccount: return "E-Mail"
         case .fitness: return "Fitness"
         case .membership: return "Mitgliedschaft"
+        case .mobileInternet: return "Mobile & Internet"
         case .news: return "Online-Magazine"
         case .publicTransport: return "ÖV"
         case .socialMedia: return "Social Media"
@@ -1326,6 +1426,7 @@ enum AboType: String, CaseIterable, Identifiable, Hashable {
         case .emailAccount: return "envelope.fill"
         case .fitness: return "figure.run"
         case .membership: return "person.2.fill"
+        case .mobileInternet: return "antenna.radiowaves.left.and.right"
         case .news: return "newspaper.fill"
         case .publicTransport: return "tram.fill"
         case .socialMedia: return "bubble.left.and.bubble.right.fill"
@@ -1464,6 +1565,31 @@ enum DeviceType: String, CaseIterable, Identifiable {
     case gamingConsole = "Spielkonsole"
     case tablet = "Tablet"
     case other = "Andere"
+
+    var id: String { rawValue }
+}
+
+enum MobileInternetProvider: String, CaseIterable, Identifiable {
+    case pleaseSelect = "Bitte wählen"
+    case other = "Andere"
+    case swisscom = "Swisscom"
+    case sunrise = "Sunrise"
+    case salt = "Salt"
+    case wingo = "Wingo"
+    case yallo = "yallo"
+    case mbudget = "M-Budget Mobile"
+    case migrosMobile = "Migros Mobile"
+    case coopMobile = "Coop Mobile"
+    case galaxusMobile = "Galaxus Mobile"
+    case lebara = "Lebara"
+    case digitalRepublic = "Digital Republic"
+    case quickline = "Quickline"
+    case teleboy = "Teleboy"
+    case green = "Green"
+    case iway = "iWay"
+    case init7 = "Init7"
+    case spusu = "spusu"
+    case talkTalk = "TalkTalk"
 
     var id: String { rawValue }
 }

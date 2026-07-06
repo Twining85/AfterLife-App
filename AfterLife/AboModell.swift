@@ -72,6 +72,12 @@ final class AboEintrag {
     var bankkontoName: String
     var bankkontoArt: String
 
+    // MARK: - Mobile & Internet
+    /// Anbieter für Mobile-, Internet- oder Kombiverträge, z.B. Swisscom, Sunrise, Salt oder eigene Anbieter.
+    var mobileInternetAnbieter: String
+    /// Vertragsdetails zum Mobile-, Internet- oder Kombivertrag, z.B. Abo-Name, Laufzeit, Kündigungsfrist oder Kundennummer.
+    var mobileInternetVertragsdetails: String
+
     // MARK: - Zusatzinformationen
     var notizen: String
     var istAktiv: Bool
@@ -102,6 +108,8 @@ final class AboEintrag {
         andereBezeichnung: String = "",
         bankkontoName: String = "",
         bankkontoArt: String = "",
+        mobileInternetAnbieter: String = "Bitte wählen",
+        mobileInternetVertragsdetails: String = "",
         notizen: String = "",
         istAktiv: Bool = true,
         istSystemEintrag: Bool = false
@@ -130,6 +138,8 @@ final class AboEintrag {
         self.andereBezeichnung = andereBezeichnung
         self.bankkontoName = bankkontoName
         self.bankkontoArt = bankkontoArt
+        self.mobileInternetAnbieter = mobileInternetAnbieter
+        self.mobileInternetVertragsdetails = mobileInternetVertragsdetails
         self.notizen = notizen
         self.istAktiv = istAktiv
         self.istSystemEintrag = istSystemEintrag

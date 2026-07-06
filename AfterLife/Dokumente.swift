@@ -203,11 +203,25 @@ struct DokumenteView: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.primary)
 
-                Text("Ergänze wichtige Unterlagen, die nicht direkt zu Wünsche oder Finanzen gehören.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .textCase(nil)
-                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Ergänze wichtige Unterlagen, die nicht direkt zu Wünsche oder Finanzen gehören.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .textCase(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Beispiele")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(dokumenteAkzentFarbe)
+
+                        beispielZeile("Aktueller Mietvertrag")
+                        beispielZeile("Wohnsitzbestätigung")
+                        beispielZeile("Familienbuch")
+                        beispielZeile("Handyverträge")
+                        beispielZeile("Fahrzeugpapiere")
+                    }
+                }
 
                 HStack(spacing: 10) {
                     Button {
@@ -421,6 +435,19 @@ struct DokumenteView: View {
             }
         }
         .buttonStyle(.borderless)
+    }
+
+    private func beispielZeile(_ text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text("•")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(dokumenteAkzentFarbe)
+
+            Text(text)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .textCase(nil)
     }
 
 
@@ -1139,5 +1166,6 @@ struct DocumentPreview: UIViewControllerRepresentable {
         }
     }
 }
+
 
 

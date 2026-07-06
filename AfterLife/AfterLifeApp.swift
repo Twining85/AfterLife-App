@@ -48,15 +48,10 @@ struct AfterLifeApp: App {
     }()
 
     var body: some Scene {
-
         WindowGroup {
-
             AppStartView()
-
         }
-
         .modelContainer(sharedModelContainer)
-
     }
 }
 
