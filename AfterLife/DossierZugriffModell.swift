@@ -170,11 +170,36 @@ final class DossierZugriffModell {
         aktualisiertAm = Date()
     }
 
-    func zugriffWiderrufen() {
+    func zugriffWiderrufen(notizText: String? = nil) {
         status = DossierZugriffStatus.widerrufen
         widerrufenAm = Date()
         istAktiv = false
         aktualisiertAm = Date()
+
+        if einladungsLinkVerwendet == false {
+            einladungAlsVerwendetMarkieren()
+        }
+
+        if let notizText,
+           !notizText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let bereinigteNotiz = notizText.trimmingCharacters(in: .whitespacesAndNewlines)
+            notiz = (notiz?.isEmpty == false ? notiz! + "\n" : "") + bereinigteNotiz
+        }
+    }
+
+    func einladungOderZugriffEntfernen() {
+        if status == DossierZugriffStatus.erstellt {
+            status = DossierZugriffStatus.widerrufen
+            widerrufenAm = Date()
+            istAktiv = false
+            aktualisiertAm = Date()
+
+            if einladungsLinkVerwendet == false {
+                einladungAlsVerwendetMarkieren()
+            }
+        } else {
+            zugriffWiderrufen(notizText: "Zugriff durch die vorsorgende Person widerrufen am \(Date().formatted(date: .abbreviated, time: .shortened)).")
+        }
     }
 
     func archivieren() {
@@ -228,7 +253,7 @@ final class DossierZugriffModell {
     }
 
     var istAbgeschlossen: Bool {
-        wurdeAbgelehnt || istFreigegeben || istWiderrufen
+        wurdeAngenommen || wurdeAbgelehnt || istFreigegeben || istWiderrufen
     }
 
     var anzeigename: String {

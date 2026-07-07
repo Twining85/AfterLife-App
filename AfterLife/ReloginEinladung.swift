@@ -18,6 +18,7 @@ import SwiftData
 import LocalAuthentication
 
 struct ReloginEinladung: View {
+    @Environment(\.modelContext) private var modelContext
     private let hintergrundFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
     private let kartenFarbe = Color.white.opacity(0.88)
     private let akzentFarbe = Color(red: 0.16, green: 0.36, blue: 0.42)
@@ -33,17 +34,23 @@ struct ReloginEinladung: View {
     }
 
     @Query private var gespeicherteProfile: [ProfilModell]
+    @Query private var gespeicherteDossierZugriffe: [DossierZugriffModell]
 
     @AppStorage("profilIstVorhanden") private var profilIstVorhanden = false
     @AppStorage("gespeicherteEmail") private var appStorageEmail = ""
+    @AppStorage("istEingeloggt") private var istEingeloggt = false
+    @AppStorage("direktNachRegistrierungEingeloggt") private var direktNachRegistrierungEingeloggt = false
+    @AppStorage("aktiveUserID") private var aktiveUserID = ""
+    @AppStorage("eingehenderEinladungsToken") private var eingehenderEinladungsToken = ""
 
     @State private var email = ""
     @State private var passwort = ""
     @State private var fehlermeldung = ""
-    @State private var istEingeloggt = false
     @State private var zeigtEmailLogin = true
     @State private var showPassword = false
     @State private var biometrieLoginLaeuft = false
+    @State private var showHome = false
+    @State private var showEinladungEmailVerifizierung = false
 
     private var profil: ProfilModell? {
         gespeicherteProfile.first
@@ -68,10 +75,30 @@ struct ReloginEinladung: View {
         profilIstVorhanden || !registrierungsEmail.isEmpty || profil != nil
     }
 
+    private var bereinigterEinladungsToken: String {
+        einladungsToken.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var bereinigteEingeladeneEmail: String {
+        eingeladeneEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private var bereinigteRegistrierungsEmail: String {
+        registrierungsEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private var eingeladeneEmailStimmtMitProfilUeberein: Bool {
+        guard !bereinigteEingeladeneEmail.isEmpty else { return false }
+        guard !bereinigteRegistrierungsEmail.isEmpty else { return false }
+        return bereinigteEingeladeneEmail == bereinigteRegistrierungsEmail
+    }
+
     var body: some View {
         NavigationStack {
             Group {
-                if istEingeloggt {
+                if showHome {
+                    Home()
+                } else if showEinladungEmailVerifizierung {
                     EinladungEmailVerifizierung(
                         eingeladeneEmail: eingeladeneEmail,
                         einladungsToken: einladungsToken
@@ -376,7 +403,7 @@ struct ReloginEinladung: View {
         email = registrierungsEmail
         passwort = ""
         zeigtEmailLogin = true
-        fehlermeldung = ""
+        einladungVorabValidieren()
     }
 
     private func loginMitFaceID(zeigeFehlerBeiAbbruch: Bool = true) {
@@ -412,8 +439,7 @@ struct ReloginEinladung: View {
                 biometrieLoginLaeuft = false
 
                 if success {
-                    istEingeloggt = true
-                    fehlermeldung = ""
+                    loginErfolgreichAbschliessen()
                     return
                 }
 
@@ -468,10 +494,93 @@ struct ReloginEinladung: View {
                 return
             }
 
-            fehlermeldung = ""
-            istEingeloggt = true
+            loginErfolgreichAbschliessen()
         } catch {
             fehlermeldung = "Login-Daten konnten nicht sicher gelesen werden. Bitte registriere dich erneut."
+        }
+    }
+
+
+    private func einladungVorabValidieren() {
+        fehlermeldung = ""
+
+        guard !bereinigterEinladungsToken.isEmpty else {
+            fehlermeldung = "Der Einladungslink enthält keinen gültigen Schlüssel. Bitte öffne den Link nochmals aus der E-Mail."
+            return
+        }
+
+        guard let zugriff = gespeicherterDossierZugriff() else {
+            fehlermeldung = "Diese Einladung konnte nicht gefunden werden. Bitte prüfe, ob du den vollständigen Link geöffnet hast."
+            return
+        }
+
+        guard zugriff.status == DossierZugriffStatus.erstellt else {
+            if zugriff.status == DossierZugriffStatus.abgelehnt {
+                fehlermeldung = "Diese Einladung wurde bereits abgelehnt und kann nicht nochmals verwendet werden."
+            } else {
+                fehlermeldung = "Diese Einladung wurde bereits bearbeitet und kann nicht nochmals verwendet werden."
+            }
+            return
+        }
+    }
+
+    private func loginErfolgreichAbschliessen() {
+        fehlermeldung = ""
+
+        guard let profil else {
+            fehlermeldung = "Es wurde kein bestehendes Profil gefunden. Bitte erstelle ein neues Profil für diese Einladung."
+            return
+        }
+
+        guard !bereinigterEinladungsToken.isEmpty else {
+            fehlermeldung = "Der Einladungslink enthält keinen gültigen Schlüssel. Bitte öffne den Link nochmals aus der E-Mail."
+            return
+        }
+
+        guard let zugriff = gespeicherterDossierZugriff() else {
+            fehlermeldung = "Diese Einladung konnte nicht gefunden werden. Bitte prüfe, ob du den vollständigen Link geöffnet hast."
+            return
+        }
+
+        guard zugriff.status == DossierZugriffStatus.erstellt else {
+            if zugriff.status == DossierZugriffStatus.abgelehnt {
+                fehlermeldung = "Diese Einladung wurde bereits abgelehnt und kann nicht nochmals verwendet werden."
+            } else {
+                fehlermeldung = "Diese Einladung wurde bereits bearbeitet und kann nicht nochmals verwendet werden."
+            }
+            return
+        }
+
+        istEingeloggt = true
+        direktNachRegistrierungEingeloggt = true
+        aktiveUserID = profil.userID.uuidString
+
+        if eingeladeneEmailStimmtMitProfilUeberein {
+            einladungDirektAnnehmen(zugriff: zugriff, profil: profil)
+        } else {
+            showEinladungEmailVerifizierung = true
+        }
+    }
+
+    private func einladungDirektAnnehmen(zugriff: DossierZugriffModell, profil: ProfilModell) {
+        zugriff.einladungAnnehmen(
+            vertrauenspersonUserID: profil.userID,
+            registrierungsEmail: registrierungsEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+
+        do {
+            try modelContext.save()
+            eingehenderEinladungsToken = ""
+            showHome = true
+        } catch {
+            fehlermeldung = "Die Einladung konnte nicht gespeichert werden. Bitte versuche es nochmals."
+            showHome = false
+        }
+    }
+
+    private func gespeicherterDossierZugriff() -> DossierZugriffModell? {
+        gespeicherteDossierZugriffe.first { zugriff in
+            (zugriff.einladungsToken ?? "").trimmingCharacters(in: .whitespacesAndNewlines) == bereinigterEinladungsToken
         }
     }
 

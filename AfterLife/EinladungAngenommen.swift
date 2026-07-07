@@ -18,6 +18,10 @@ struct EinladungAngenommen: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var dossierZugriffe: [DossierZugriffModell]
 
+    @AppStorage("eingehenderEinladungsToken") private var eingehenderEinladungsToken = ""
+    @AppStorage("istEingeloggt") private var istEingeloggt = false
+    @AppStorage("direktNachRegistrierungEingeloggt") private var direktNachRegistrierungEingeloggt = false
+
     let einladenderName: String
     let eingeladeneEmail: String
     let einladungsToken: String
@@ -25,13 +29,44 @@ struct EinladungAngenommen: View {
     @State private var einladungWurdeAngenommen = false
     @State private var einladungWurdeAbgelehnt = false
     @State private var bestaetigungAblehnenAnzeigen = false
+    @State private var einladungIstUngueltig = false
+    @State private var einladungIstBereitsVerwendet = false
 
     @State private var fehlermeldung = ""
 
     private var aktuellerDossierZugriff: DossierZugriffModell? {
         dossierZugriffe.first { zugriff in
-            zugriff.einladungsToken == einladungsToken
+            (zugriff.einladungsToken ?? "").trimmingCharacters(in: .whitespacesAndNewlines) == bereinigterEinladungsToken
         }
+    }
+
+    private var bereinigterEinladungsToken: String {
+        einladungsToken.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var angezeigterEinladenderName: String {
+        let uebergebenerName = einladenderName.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if !uebergebenerName.isEmpty {
+            return uebergebenerName
+        }
+
+        return "Eine vorsorgende Person"
+    }
+
+    private var angezeigteEingeladeneEmail: String {
+        let gespeicherteEmail = (aktuellerDossierZugriff?.eingeladeneEmail ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let uebergebeneEmail = eingeladeneEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if !gespeicherteEmail.isEmpty {
+            return gespeicherteEmail
+        }
+
+        return uebergebeneEmail
+    }
+
+    private var istEinladungOffen: Bool {
+        aktuellerDossierZugriff?.status == DossierZugriffStatus.erstellt
     }
 
     var body: some View {
@@ -63,7 +98,7 @@ struct EinladungAngenommen: View {
                                         .foregroundStyle(textFarbe)
                                         .multilineTextAlignment(.center)
 
-                                    Text("Du wurdest von \(einladenderName) als Vertrauensperson eingeladen.")
+                                    Text("Du wurdest von \(angezeigterEinladenderName) als Vertrauensperson eingeladen.")
                                         .font(.subheadline)
                                         .foregroundStyle(sekundTextFarbe)
                                         .multilineTextAlignment(.center)
@@ -75,14 +110,16 @@ struct EinladungAngenommen: View {
                                 einladungsInfoZeile(
                                     icon: "person.fill",
                                     titel: "Eingeladen von",
-                                    wert: einladenderName
+                                    wert: angezeigterEinladenderName
                                 )
 
-                                einladungsInfoZeile(
-                                    icon: "envelope.fill",
-                                    titel: "Gesendet an",
-                                    wert: eingeladeneEmail
-                                )
+                                if !angezeigteEingeladeneEmail.isEmpty {
+                                    einladungsInfoZeile(
+                                        icon: "envelope.fill",
+                                        titel: "Gesendet an",
+                                        wert: angezeigteEingeladeneEmail
+                                    )
+                                }
                             }
                             .padding(12)
                             .background(
@@ -137,6 +174,9 @@ struct EinladungAngenommen: View {
             .navigationTitle("Einladung")
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarBackButtonHidden(true)
+            .onAppear {
+                einladungValidieren()
+            }
         }
     }
 
@@ -177,12 +217,81 @@ struct EinladungAngenommen: View {
 
     @ViewBuilder
     private var zustandsBereich: some View {
-        if einladungWurdeAbgelehnt {
-            statusKarte(
-                icon: "xmark.circle.fill",
-                titel: "Einladung abgelehnt",
-                text: "Die Einladung wurde erfolgreich abgelehnt. Der Einladungslink wurde ungültig gemacht. Die vorsorgende Person wird über die Ablehnung informiert."
-            )
+        if einladungIstUngueltig {
+            VStack(spacing: 14) {
+                statusKarte(
+                    icon: "exclamationmark.triangle.fill",
+                    titel: "Einladung nicht gültig",
+                    text: fehlermeldung.isEmpty ? "Diese Einladung konnte nicht gefunden werden oder ist nicht mehr gültig." : fehlermeldung
+                )
+
+                Button {
+                    eingehenderEinladungsToken = ""
+                    istEingeloggt = false
+                    direktNachRegistrierungEingeloggt = false
+                } label: {
+                    Text("Zur Anmeldung")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.white)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(akzentFarbe)
+                )
+            }
+        } else if einladungIstBereitsVerwendet {
+            VStack(spacing: 14) {
+                statusKarte(
+                    icon: "checkmark.seal.fill",
+                    titel: "Einladung bereits abgeschlossen",
+                    text: fehlermeldung.isEmpty ? "Diese Einladung wurde bereits bearbeitet. Der Einladungslink kann nicht nochmals verwendet werden." : fehlermeldung
+                )
+
+                Button {
+                    eingehenderEinladungsToken = ""
+                    istEingeloggt = true
+                    direktNachRegistrierungEingeloggt = true
+                } label: {
+                    Text("Weiter")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.white)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(akzentFarbe)
+                )
+            }
+        } else if einladungWurdeAbgelehnt {
+            VStack(spacing: 14) {
+                statusKarte(
+                    icon: "xmark.circle.fill",
+                    titel: "Einladung abgelehnt",
+                    text: "Die Einladung wurde erfolgreich abgelehnt. Der Einladungslink wurde ungültig gemacht. Die vorsorgende Person wird über die Ablehnung informiert."
+                )
+
+                Button {
+                    eingehenderEinladungsToken = ""
+                    istEingeloggt = false
+                    direktNachRegistrierungEingeloggt = false
+                } label: {
+                    Text("Schliessen")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.white)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(akzentFarbe)
+                )
+            }
         } else if einladungWurdeAngenommen {
             VStack(spacing: 16) {
                 Text("Wie möchtest du fortfahren?")
@@ -197,7 +306,7 @@ struct EinladungAngenommen: View {
                     istPrimaer: true
                 ) {
                     VertrauenspersonRegistrierung(
-                        eingeladeneEmail: eingeladeneEmail,
+                        eingeladeneEmail: angezeigteEingeladeneEmail,
                         einladungsToken: einladungsToken
                     )
                 }
@@ -211,7 +320,7 @@ struct EinladungAngenommen: View {
                     istPrimaer: false
                 ) {
                     ReloginEinladung(
-                        eingeladeneEmail: eingeladeneEmail,
+                        eingeladeneEmail: angezeigteEingeladeneEmail,
                         einladungsToken: einladungsToken
                     )
                 }
@@ -221,7 +330,7 @@ struct EinladungAngenommen: View {
         } else {
             VStack(spacing: 10) {
                 Button {
-                    einladungWurdeAngenommen = true
+                    einladungAnnehmenUndFortfahren()
                 } label: {
                     Text("Einladung annehmen und fortfahren")
                         .font(.headline)
@@ -349,17 +458,57 @@ struct EinladungAngenommen: View {
                 .fill(hintergrundFarbe.opacity(0.72))
         )
     }
+    private func einladungValidieren() {
+        fehlermeldung = ""
+        einladungIstUngueltig = false
+        einladungIstBereitsVerwendet = false
+
+        guard !bereinigterEinladungsToken.isEmpty else {
+            fehlermeldung = "Der Einladungslink enthält keinen gültigen Schlüssel. Bitte öffne den Link nochmals aus der E-Mail."
+            einladungIstUngueltig = true
+            return
+        }
+
+        guard let zugriff = aktuellerDossierZugriff else {
+            fehlermeldung = "Diese Einladung konnte nicht gefunden werden. Bitte prüfe, ob du den vollständigen Link geöffnet hast."
+            einladungIstUngueltig = true
+            return
+        }
+
+        guard zugriff.status == DossierZugriffStatus.erstellt else {
+            if zugriff.status == DossierZugriffStatus.abgelehnt {
+                fehlermeldung = "Diese Einladung wurde bereits abgelehnt und kann nicht nochmals verwendet werden."
+            } else {
+                fehlermeldung = "Diese Einladung wurde bereits bearbeitet und kann nicht nochmals verwendet werden."
+            }
+
+            einladungIstBereitsVerwendet = true
+            return
+        }
+    }
+
+    private func einladungAnnehmenUndFortfahren() {
+        einladungValidieren()
+
+        guard !einladungIstUngueltig, !einladungIstBereitsVerwendet, istEinladungOffen else {
+            return
+        }
+
+        einladungWurdeAngenommen = true
+    }
 
     private func einladungAblehnen() {
         fehlermeldung = ""
 
         guard let zugriff = aktuellerDossierZugriff else {
-            fehlermeldung = "Diese Einladung konnte nicht gefunden werden."
+            fehlermeldung = "Diese Einladung konnte nicht gefunden werden. Bitte prüfe, ob du den vollständigen Link geöffnet hast."
+            einladungIstUngueltig = true
             return
         }
 
         guard zugriff.status == DossierZugriffStatus.erstellt else {
-            fehlermeldung = "Diese Einladung kann nicht mehr abgelehnt werden."
+            fehlermeldung = "Diese Einladung kann nicht mehr abgelehnt werden, da sie bereits bearbeitet wurde."
+            einladungIstBereitsVerwendet = true
             return
         }
 
@@ -367,9 +516,10 @@ struct EinladungAngenommen: View {
 
         do {
             try modelContext.save()
+            eingehenderEinladungsToken = ""
             einladungWurdeAbgelehnt = true
         } catch {
-            fehlermeldung = "Die Ablehnung konnte nicht gespeichert werden."
+            fehlermeldung = "Die Ablehnung konnte nicht gespeichert werden. Bitte versuche es nochmals."
         }
     }
 }

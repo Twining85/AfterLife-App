@@ -9,6 +9,8 @@ import SwiftUI
 import SwiftData
 import ContactsUI
 import UIKit
+import MessageUI
+import CoreImage.CIFilterBuiltins
 
 struct VertrauenspersonView: View {
     @Environment(\.modelContext) private var modelContext
@@ -29,6 +31,8 @@ struct VertrauenspersonView: View {
     private let akzentFarbe = Color(red: 0.16, green: 0.36, blue: 0.42)
     private let textFarbe = Color(red: 0.12, green: 0.12, blue: 0.12)
     private let sekundaerTextFarbe = Color.black.opacity(0.58)
+    private let qrCodeKontext = CIContext()
+    private let qrCodeFilter = CIFilter.qrCodeGenerator()
 
     @State private var einladungsSimulationStarten = false
     @State private var logoutFuerEinladungstestAnzeigen = false
@@ -51,6 +55,11 @@ struct VertrauenspersonView: View {
     @State private var einladungsEmail: String?
     @State private var einladungsLinkErstelltAm: Date?
     @State private var simulierterEinladungsLink = ""
+    @State private var mailComposerAnzeigen = false
+    @State private var mailEmpfaenger = ""
+    @State private var mailBetreff = ""
+    @State private var mailNachrichtHTML = ""
+    @State private var qrCodeAnzeigen = false
 
     private var kontaktIstAusgewaehlt: Bool {
         !vorname.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
@@ -74,15 +83,25 @@ struct VertrauenspersonView: View {
             .joined(separator: " ")
     }
 
+    private var sichererEinladungsLink: String {
+        guard let einladungsToken else { return "" }
+        let bereinigterToken = einladungsToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !bereinigterToken.isEmpty else { return "" }
+
+        let kodierterToken = bereinigterToken.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? bereinigterToken
+        return "https://tschluessli.ch/einladung?token=\(kodierterToken)"
+    }
+
     private var dossierZugriffService: DossierZugriffService {
         DossierZugriffService()
     }
 
     private var aktuellerDossierZugriff: DossierZugriffModell? {
         guard let einladungsToken else { return nil }
+        let bereinigterToken = einladungsToken.trimmingCharacters(in: .whitespacesAndNewlines)
 
         return gespeicherteDossierZugriffe.first { zugriff in
-            zugriff.einladungsToken == einladungsToken
+            (zugriff.einladungsToken ?? "").trimmingCharacters(in: .whitespacesAndNewlines) == bereinigterToken
         }
     }
 
@@ -410,6 +429,8 @@ struct VertrauenspersonView: View {
                     .disabled(!einladungKannManuellAngenommenWerden)
                     #endif
                 }
+
+                qrCodeBereich
             }
 
             if einladungWurdeVorbereitet {
@@ -616,7 +637,122 @@ struct VertrauenspersonView: View {
                 uebernehmeKontakt(kontakt)
             }
         }
+        .sheet(isPresented: $mailComposerAnzeigen) {
+            MailComposeView(
+                empfaenger: mailEmpfaenger,
+                betreff: mailBetreff,
+                nachrichtHTML: mailNachrichtHTML
+            ) { ergebnis in
+                switch ergebnis {
+                case .sent:
+                    erfolgsmeldung = "E-Mail wurde gesendet."
+                    fehlermeldung = ""
+                case .saved:
+                    erfolgsmeldung = "E-Mail wurde als Entwurf gespeichert."
+                    fehlermeldung = ""
+                case .cancelled:
+                    erfolgsmeldung = "Mail-Fenster wurde geschlossen. Bitte prüfe bei Bedarf in der Mail-App, ob die E-Mail gesendet oder als Entwurf gespeichert wurde."
+                    fehlermeldung = ""
+                case .failed:
+                    fehlermeldung = "Die E-Mail konnte nicht gesendet werden."
+                    erfolgsmeldung = ""
+                @unknown default:
+                    erfolgsmeldung = "Mail-Fenster wurde geschlossen."
+                    fehlermeldung = ""
+                }
+            }
+        }
         .formStyle(.grouped)
+    }
+
+    @ViewBuilder
+    private var qrCodeBereich: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Button {
+                qrCodeFuerDossierZugriffGenerieren()
+            } label: {
+                Label("QR-Code für Dossier-Zugriff generieren", systemImage: "qrcode")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.white)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(akzentFarbe)
+            )
+            .disabled(!kontaktIstAusgewaehlt || bereinigteEmail.isEmpty)
+            .opacity((kontaktIstAusgewaehlt && !bereinigteEmail.isEmpty) ? 1 : 0.45)
+
+            if qrCodeAnzeigen, !sichererEinladungsLink.isEmpty {
+                VStack(alignment: .center, spacing: 14) {
+                    VStack(spacing: 6) {
+                        Image(systemName: "qrcode.viewfinder")
+                            .font(.system(size: 30, weight: .semibold))
+                            .foregroundStyle(akzentFarbe)
+
+                        Text("Dossier-Zugriff per QR-Code")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(textFarbe)
+
+                        Text("Deine Vertrauensperson kann diesen Code mit der iPhone-Kamera scannen. Der Code enthält nur den einmalig nutzbaren Einladungslink.")
+                            .font(.footnote)
+                            .foregroundStyle(sekundaerTextFarbe)
+                            .multilineTextAlignment(.center)
+                            .lineSpacing(2)
+                    }
+
+                    if let qrBild = qrCodeBild(aus: sichererEinladungsLink) {
+                        Image(uiImage: qrBild)
+                            .interpolation(.none)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 210, height: 210)
+                            .padding(18)
+                            .background(
+                                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                    .fill(Color.white)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                    .stroke(akzentFarbe.opacity(0.12), lineWidth: 1)
+                            )
+                            .shadow(color: Color.black.opacity(0.06), radius: 14, x: 0, y: 8)
+                    } else {
+                        Text("Der QR-Code konnte nicht erstellt werden.")
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Einmalig nutzbar", systemImage: "1.circle.fill")
+                        Label("Nur für diese Einladung gültig", systemImage: "person.badge.key.fill")
+                        Label("Läuft nach 30 Tagen ab", systemImage: "calendar.badge.clock")
+                    }
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(akzentFarbe)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(akzentFarbe.opacity(0.08))
+                    )
+
+                    Text(sichererEinladungsLink)
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(sekundaerTextFarbe)
+                        .multilineTextAlignment(.center)
+                        .textSelection(.enabled)
+                        .lineLimit(3)
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity)
+                .background(cardHintergrund)
+                .padding(.top, 4)
+            }
+        }
+        .padding(.top, 8)
     }
 
     private var cardHintergrund: some View {
@@ -648,6 +784,54 @@ struct VertrauenspersonView: View {
         }
         .padding(.top, 2)
         .padding(.bottom, 4)
+    }
+
+    private func qrCodeFuerDossierZugriffGenerieren() {
+        fehlermeldung = ""
+        erfolgsmeldung = ""
+
+        guard kontaktIstAusgewaehlt else {
+            fehlermeldung = "Bitte wähle zuerst eine Vertrauensperson aus."
+            return
+        }
+
+        let empfaengerEmail = bereinigteEmail
+
+        guard empfaengerEmail.contains("@"), empfaengerEmail.contains(".") else {
+            fehlermeldung = "Bitte hinterlege zuerst eine gültige E-Mail-Adresse für die Vertrauensperson."
+            return
+        }
+
+        stelleEinladungsTokenSicher(fuer: empfaengerEmail)
+
+        guard fehlermeldung.isEmpty else { return }
+
+        guard !sichererEinladungsLink.isEmpty else {
+            fehlermeldung = "Der QR-Code konnte nicht erstellt werden, weil kein gültiger Einladungslink vorhanden ist."
+            return
+        }
+
+        qrCodeAnzeigen = true
+        erfolgsmeldung = "QR-Code wurde erstellt. Deine Vertrauensperson kann ihn mit der iPhone-Kamera scannen."
+    }
+
+    private func qrCodeBild(aus text: String) -> UIImage? {
+        let bereinigterText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !bereinigterText.isEmpty else { return nil }
+
+        qrCodeFilter.message = Data(bereinigterText.utf8)
+        qrCodeFilter.correctionLevel = "M"
+
+        guard let outputImage = qrCodeFilter.outputImage else { return nil }
+
+        let skalierung = CGAffineTransform(scaleX: 12, y: 12)
+        let skaliertesBild = outputImage.transformed(by: skalierung)
+
+        guard let cgBild = qrCodeKontext.createCGImage(skaliertesBild, from: skaliertesBild.extent) else {
+            return nil
+        }
+
+        return UIImage(cgImage: cgBild)
     }
 
     private func markiereEinladungImTestAlsAngenommen() {
@@ -721,6 +905,7 @@ struct VertrauenspersonView: View {
 
         fehlermeldung = ""
         erfolgsmeldung = "Kontakt wurde übernommen."
+        qrCodeAnzeigen = false
         speichereVertrauensperson()
     }
 
@@ -791,58 +976,78 @@ struct VertrauenspersonView: View {
 
         guard fehlermeldung.isEmpty else { return }
 
-        let anredeName = bereinigterEmpfaengerName.isEmpty ? "" : " \(bereinigterEmpfaengerName)"
+        let anredeName = vorname.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? (bereinigterEmpfaengerName.isEmpty ? "" : " \(bereinigterEmpfaengerName)")
+            : " \(vorname.trimmingCharacters(in: .whitespacesAndNewlines))"
 
         let betreff = "Einladung als Vertrauensperson"
-        let nachricht = """
-        Hallo\(anredeName)
 
-        Ich möchte dich als Vertrauensperson in meiner Vorsorge-App hinterlegen.
+        guard let einladungsToken else {
+            fehlermeldung = "Es konnte kein Einladungslink erzeugt werden. Bitte versuche es erneut."
+            return
+        }
 
-        Diese Einladung wurde von \(vorsorgendePersonName) erstellt.
+        let sichererEinladungsLink = "https://tschluessli.ch/einladung?token=\(einladungsToken)"
+        let einladungsBildHTML = erstelleEinladungsBildHTML()
+        let nachrichtHTML = """
+        <html>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.45; color: #1F1F1F;">
+            <p>Hallo\(anredeName)</p>
 
-        In der App erfasse ich wichtige Informationen, Wünsche und Dokumente, damit im Ereignisfall alles geordnet verfügbar ist.
+            <p>Meine persönliche Vorsorge und die Vorsorge für meine liebsten Menschen sind mir wichtig. Deshalb habe ich in der Tschlüssli App meine wichtigsten Wünsche, Informationen und Dokumente zusammengetragen.</p>
 
-        Aktuell ist dies eine Vorabinformation. Bitte bewahre diese E-Mail auf und melde dich bei mir, falls sich deine Kontaktdaten ändern.
+            <p>Du bist für mich eine vertrauensvolle und nahe Person. Deshalb möchte ich dir Zugriff auf mein persönliches Dossier geben – entweder bereits heute zur Orientierung oder dann, wenn diese Informationen wirklich gebraucht werden.</p>
 
-        Dein persönlicher Einladungslink lautet:
-        \(simulierterEinladungsLink)
+            <p>Mit dieser E-Mail erhältst du einen persönlichen Einladungslink. Damit kannst du die Einladung in der Tschlüssli App annehmen.</p>
 
-        Liebe Grüsse
+            \(einladungsBildHTML)
+
+            <p><strong>So gehst du vor:</strong></p>
+
+            <ul style="padding-left: 20px; margin-top: 0;">
+                <li>Installiere die Tschlüssli App über den Apple App Store auf deinem iPhone.</li>
+                <li>Du kannst direkt ein eigenes Profil erstellen oder dies bei der Annahme der Einladung machen.</li>
+                <li>Öffne danach den persönlichen Einladungslink in dieser E-Mail.</li>
+                <li>Der Link <a href="\(sichererEinladungsLink)" style="color: #295C6B; font-weight: 700; text-decoration: underline;">Einladungs-Link</a> enthält einen einmalig nutzbaren Schlüssel, der nur für diese Einladung gilt.</li>
+                <li>Die Tschlüssli App öffnet sich und du kannst die Einladung annehmen.</li>
+                <li>Danach findest du auf dem Home-Bildschirm der App die Möglichkeit, auf mein Dossier zuzugreifen.</li>
+                <li>Du kannst mein Dossier ansehen und bei Bedarf Dokumente, Fotos oder weitere hinterlegte Informationen herunterladen.</li>
+            </ul>
+
+            <p>Für mich ist es wichtig, dass du weisst, was mir wichtig ist, und im richtigen Moment in meinem Sinne handeln kannst.</p>
+
+            <p>Herzlichen Dank, dass ich dir dieses Vertrauen schenken darf.</p>
+
+            <p>Lieber Gruss<br>
+            \(vorsorgendePersonName)</p>
+        </body>
+        </html>
         """
 
-        var components = URLComponents()
-        components.scheme = "mailto"
-        components.path = empfaengerEmail
-        components.queryItems = [
-            URLQueryItem(name: "subject", value: betreff),
-            URLQueryItem(name: "body", value: nachricht)
-        ]
-
-        guard let url = components.url else {
-            fehlermeldung = "Die E-Mail konnte nicht vorbereitet werden."
+        guard MFMailComposeViewController.canSendMail() else {
+            fehlermeldung = "Auf diesem iPhone ist keine E-Mail-App für den Versand eingerichtet. Bitte prüfe die Mail-Einstellungen."
             return
         }
 
-        guard UIApplication.shared.canOpenURL(url) else {
-            fehlermeldung = "Auf diesem Gerät ist keine E-Mail-App eingerichtet."
-            return
+        mailEmpfaenger = empfaengerEmail
+        mailBetreff = betreff
+        mailNachrichtHTML = nachrichtHTML
+        mailComposerAnzeigen = true
+    }
+
+    private func erstelleEinladungsBildHTML() -> String {
+        guard let bild = UIImage(named: "Prozess_Vertrauensperson"),
+              let bildDaten = bild.jpegData(compressionQuality: 0.88) else {
+            return ""
         }
 
-        UIApplication.shared.open(url)
+        let base64Bild = bildDaten.base64EncodedString()
 
-        einladungsStatus = .offen
-        vorsorgeprozessStatus = .nichtGestartet
-        einladungsHistorie.insert(
-            EinladungsHistorieEintrag(
-                datum: Date(),
-                beschreibung: "Einladung per E-Mail vorbereitet an \(empfaengerEmail)."
-            ),
-            at: 0
-        )
-
-        erfolgsmeldung = "E-Mail wurde vorbereitet. Bitte in der Mail-App prüfen und senden."
-        speichereVertrauensperson()
+        return """
+        <p style="margin: 22px 0;">
+            <img src="data:image/jpeg;base64,\(base64Bild)" alt="In 4 Schritten zu meinem Dossier" style="width: 100%; max-width: 680px; height: auto; border-radius: 16px; display: block;">
+        </p>
+        """
     }
 
     private func kontaktLoeschen() {
@@ -858,6 +1063,7 @@ struct VertrauenspersonView: View {
         einladungsEmail = nil
         einladungsLinkErstelltAm = nil
         simulierterEinladungsLink = ""
+        qrCodeAnzeigen = false
         fehlermeldung = ""
         erfolgsmeldung = "Kontakt wurde entfernt."
 
@@ -974,6 +1180,57 @@ struct VertrauenspersonView: View {
         } catch {
             fehlermeldung = "Vertrauensperson konnte nicht gespeichert werden."
             erfolgsmeldung = ""
+        }
+    }
+}
+
+private struct MailComposeView: UIViewControllerRepresentable {
+    let empfaenger: String
+    let betreff: String
+    let nachrichtHTML: String
+    let abschluss: (MFMailComposeResult) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    func makeUIViewController(context: Context) -> MFMailComposeViewController {
+        let controller = MFMailComposeViewController()
+        controller.mailComposeDelegate = context.coordinator
+        controller.setToRecipients([empfaenger])
+        controller.setSubject(betreff)
+        controller.setMessageBody(nachrichtHTML, isHTML: true)
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: MFMailComposeViewController, context: Context) {
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(
+            dismiss: dismiss,
+            abschluss: abschluss
+        )
+    }
+
+    final class Coordinator: NSObject, MFMailComposeViewControllerDelegate {
+        let dismiss: DismissAction
+        let abschluss: (MFMailComposeResult) -> Void
+
+        init(dismiss: DismissAction, abschluss: @escaping (MFMailComposeResult) -> Void) {
+            self.dismiss = dismiss
+            self.abschluss = abschluss
+        }
+
+        func mailComposeController(
+            _ controller: MFMailComposeViewController,
+            didFinishWith result: MFMailComposeResult,
+            error: Error?
+        ) {
+            if error != nil {
+                abschluss(.failed)
+            } else {
+                abschluss(result)
+            }
+
+            dismiss()
         }
     }
 }

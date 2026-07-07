@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1050" height="740" viewBox="0 0 1050 740" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#4B5563"/>
+    </marker>
+  </defs>
+  <rect width="1050" height="740" fill="#FBFAF7"/>
+  <text x="525" y="34" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="700" fill="#1F2933">
+    Statusdiagramm Einladungsprozess
+  </text>
+  <text x="525" y="58" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#6B7280">
+    Tschlüssli App · Deep Link / Token / Einladung annehmen oder ablehnen
+  </text>
+  
+    <line x1="420.0" y1="98.0" x2="420.0" y2="142.0" stroke="#4B5563" stroke-width="1.8" marker-end="url(#arrow)"/>
+    <rect x="342.0" y="106.0" width="156" height="22" rx="11" fill="#FFFFFF" opacity="0.92"/>
+    <text x="420.0" y="124.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#374151">E-Mail mit Link/Token</text>
+    
+    <line x1="420.0" y1="198.0" x2="420.0" y2="242.0" stroke="#4B5563" stroke-width="1.8" marker-end="url(#arrow)"/>
+    <rect x="342.0" y="206.0" width="156" height="22" rx="11" fill="#FFFFFF" opacity="0.92"/>
+    <text x="420.0" y="224.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#374151">Link wird geöffnet</text>
+    
+    <line x1="386.2" y1="285.0" x2="263.8" y2="375.0" stroke="#4B5563" stroke-width="1.8" marker-end="url(#arrow)"/>
+    <rect x="247.0" y="316.0" width="156" height="22" rx="11" fill="#FFFFFF" opacity="0.92"/>
+    <text x="325.0" y="334.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#374151">Einladung annehmen</text>
+    
+    <line x1="453.8" y1="285.0" x2="576.2" y2="375.0" stroke="#4B5563" stroke-width="1.8" marker-end="url(#arrow)"/>
+    <rect x="437.0" y="316.0" width="156" height="22" rx="11" fill="#FFFFFF" opacity="0.92"/>
+    <text x="515.0" y="334.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#374151">Einladung ablehnen</text>
+    
+    <line x1="230.0" y1="418.0" x2="230.0" y2="482.0" stroke="#4B5563" stroke-width="1.8" marker-end="url(#arrow)"/>
+    <rect x="152.0" y="436.0" width="156" height="22" rx="11" fill="#FFFFFF" opacity="0.92"/>
+    <text x="230.0" y="454.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#374151">Verknüpfung erstellt</text>
+    
+    <line x1="230.0" y1="538.0" x2="230.0" y2="602.0" stroke="#4B5563" stroke-width="1.8" marker-end="url(#arrow)"/>
+    <rect x="152.0" y="556.0" width="156" height="22" rx="11" fill="#FFFFFF" opacity="0.92"/>
+    <text x="230.0" y="574.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#374151">Zugriff entfernen</text>
+    
+    <line x1="269.3" y1="624.9" x2="570.7" y2="565.1" stroke="#4B5563" stroke-width="1.8" marker-end="url(#arrow)"/>
+    <rect x="342.0" y="581.0" width="156" height="22" rx="11" fill="#FFFFFF" opacity="0.92"/>
+    <text x="420.0" y="599.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#374151">bei Bedarf</text>
+    
+    <line x1="610.0" y1="418.0" x2="610.0" y2="532.0" stroke="#4B5563" stroke-width="1.8" marker-end="url(#arrow)"/>
+    <rect x="532.0" y="461.0" width="156" height="22" rx="11" fill="#FFFFFF" opacity="0.92"/>
+    <text x="610.0" y="479.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#374151">neue Einladung</text>
+    
+    <line x1="780.0" y1="254.3" x2="630.0" y2="535.7" stroke="#4B5563" stroke-width="1.8" marker-end="url(#arrow)"/>
+    <rect x="627.0" y="381.0" width="156" height="22" rx="11" fill="#FFFFFF" opacity="0.92"/>
+    <text x="705.0" y="399.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#374151">neu starten</text>
+    
+    <line x1="774.5" y1="351.6" x2="635.5" y2="538.4" stroke="#4B5563" stroke-width="1.8" marker-end="url(#arrow)"/>
+    <rect x="627.0" y="431.0" width="156" height="22" rx="11" fill="#FFFFFF" opacity="0.92"/>
+    <text x="705.0" y="449.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#374151">neu starten</text>
+    
+    <line x1="459.5" y1="174.4" x2="760.5" y2="225.6" stroke="#4B5563" stroke-width="1.8" marker-end="url(#arrow)"/>
+    <rect x="532.0" y="186.0" width="156" height="22" rx="11" fill="#FFFFFF" opacity="0.92"/>
+    <text x="610.0" y="204.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#374151">widerrufen</text>
+    
+    <line x1="459.8" y1="267.1" x2="760.2" y2="232.9" stroke="#4B5563" stroke-width="1.8" marker-end="url(#arrow)"/>
+    <rect x="532.0" y="236.0" width="156" height="22" rx="11" fill="#FFFFFF" opacity="0.92"/>
+    <text x="610.0" y="254.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#374151">widerrufen</text>
+    
+    <line x1="456.9" y1="180.9" x2="763.1" y2="319.1" stroke="#4B5563" stroke-width="1.8" marker-end="url(#arrow)"/>
+    <rect x="532.0" y="236.0" width="156" height="22" rx="11" fill="#FFFFFF" opacity="0.92"/>
+    <text x="610.0" y="254.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#374151">Token läuft ab</text>
+    
+    <line x1="459.5" y1="274.4" x2="760.5" y2="325.6" stroke="#4B5563" stroke-width="1.8" marker-end="url(#arrow)"/>
+    <rect x="532.0" y="286.0" width="156" height="22" rx="11" fill="#FFFFFF" opacity="0.92"/>
+    <text x="610.0" y="304.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#374151">Token läuft ab</text>
+    
+    <line x1="595.5" y1="533.9" x2="434.5" y2="96.1" stroke="#4B5563" stroke-width="1.8" marker-end="url(#arrow)"/>
+    <rect x="437.0" y="301.0" width="156" height="22" rx="11" fill="#FFFFFF" opacity="0.92"/>
+    <text x="515.0" y="319.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#374151">neue Einladung erstellen</text>
+    
+    <rect x="325.0" y="43.0" width="190" height="54" rx="18" fill="#F5F1EA" stroke="#2B5B64" stroke-width="2"/>
+    <text x="420" y="75" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="600" fill="#1F2933">Erstellt</text>
+    
+    <rect x="325.0" y="143.0" width="190" height="54" rx="18" fill="#F5F1EA" stroke="#2B5B64" stroke-width="2"/>
+    <text x="420" y="175" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="600" fill="#1F2933">Versendet</text>
+    
+    <rect x="325.0" y="243.0" width="190" height="54" rx="18" fill="#F5F1EA" stroke="#2B5B64" stroke-width="2"/>
+    <text x="420" y="275" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="600" fill="#1F2933">Geöffnet</text>
+    
+    <rect x="135.0" y="363.0" width="190" height="54" rx="18" fill="#F5F1EA" stroke="#2B5B64" stroke-width="2"/>
+    <text x="230" y="395" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="600" fill="#1F2933">Angenommen</text>
+    
+    <rect x="515.0" y="363.0" width="190" height="54" rx="18" fill="#F5F1EA" stroke="#2B5B64" stroke-width="2"/>
+    <text x="610" y="395" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="600" fill="#1F2933">Abgelehnt</text>
+    
+    <rect x="135.0" y="483.0" width="190" height="54" rx="18" fill="#F5F1EA" stroke="#2B5B64" stroke-width="2"/>
+    <text x="230" y="515" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="600" fill="#1F2933">Zugriff aktiv</text>
+    
+    <rect x="705.0" y="203.0" width="190" height="54" rx="18" fill="#F5F1EA" stroke="#2B5B64" stroke-width="2"/>
+    <text x="800" y="235" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="600" fill="#1F2933">Widerrufen</text>
+    
+    <rect x="705.0" y="303.0" width="190" height="54" rx="18" fill="#F5F1EA" stroke="#2B5B64" stroke-width="2"/>
+    <text x="800" y="335" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="600" fill="#1F2933">Abgelaufen</text>
+    
+    <rect x="515.0" y="533.0" width="190" height="54" rx="18" fill="#F5F1EA" stroke="#2B5B64" stroke-width="2"/>
+    <text x="610" y="565" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="600" fill="#1F2933">Neue Einladung möglich</text>
+    
+    <rect x="135.0" y="603.0" width="190" height="54" rx="18" fill="#F5F1EA" stroke="#2B5B64" stroke-width="2"/>
+    <text x="230" y="635" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="600" fill="#1F2933">Zugriff gesperrt</text>
+    
+</svg>

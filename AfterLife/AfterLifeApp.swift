@@ -61,6 +61,12 @@ struct AppStartView: View {
     @AppStorage("istEingeloggt") private var istEingeloggt = false
     @AppStorage("direktNachRegistrierungEingeloggt") private var direktNachRegistrierungEingeloggt = false
 
+    // MARK: - Eingehende Einladung
+    // Der Token wird über Deep Links gesetzt, z. B.:
+    // tschluessli://einladung?token=...
+    // https://tschluessli.ch/einladung?token=...
+    @AppStorage("eingehenderEinladungsToken") private var eingehenderEinladungsToken = ""
+
     // MARK: - Entwicklungsmodus
     // Für die Entwicklung kann direkt die HomeView geöffnet werden.
     // Vor einem Release wieder auf false setzen.
@@ -78,9 +84,25 @@ struct AppStartView: View {
         return !registrierungsEmail.isEmpty || !profilEmail.isEmpty
     }
 
+    private var vorsorgendePersonName: String {
+        guard let profil = gespeicherteProfile.first else { return "eine vorsorgende Person" }
+
+        let vorname = profil.vorname.trimmingCharacters(in: .whitespacesAndNewlines)
+        let nachname = profil.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let vollerName = "\(vorname) \(nachname)".trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return vollerName.isEmpty ? "eine vorsorgende Person" : vollerName
+    }
+
     var body: some View {
         Group {
-            if homeDirektStarten {
+            if !eingehenderEinladungsToken.isEmpty {
+                EinladungAngenommen(
+                    einladenderName: vorsorgendePersonName,
+                    eingeladeneEmail: "",
+                    einladungsToken: eingehenderEinladungsToken
+                )
+            } else if homeDirektStarten {
                 Home()
             } else if einladungsSimulationAktiv {
                 EinladungAngenommen(
@@ -102,12 +124,65 @@ struct AppStartView: View {
             UIApplication.shared.aktiviereTastaturAusblendenBeiTap()
             NotificationService.shared.berechtigungAnfragen()
         }
+        .onOpenURL { url in
+            verarbeiteEinladungsURL(url)
+        }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
             guard istBereitsRegistriert else { return }
             guard !homeDirektStarten else { return }
+            guard eingehenderEinladungsToken.isEmpty else { return }
             istEingeloggt = false
             direktNachRegistrierungEingeloggt = false
         }
+    }
+
+    private func verarbeiteEinladungsURL(_ url: URL) {
+        guard istGueltigerEinladungsLink(url) else { return }
+        guard let token = einladungsToken(aus: url) else { return }
+
+        eingehenderEinladungsToken = token
+        istEingeloggt = false
+        direktNachRegistrierungEingeloggt = false
+    }
+
+    private func istGueltigerEinladungsLink(_ url: URL) -> Bool {
+        let istUniversalLink = url.scheme == "https"
+            && url.host == "tschluessli.ch"
+            && url.path == "/einladung"
+
+        let istTschluessliSchemeMitHost = url.scheme == "tschluessli"
+            && url.host == "einladung"
+
+        let istTschluessliSchemeMitPfad = url.scheme == "tschluessli"
+            && url.path == "/einladung"
+
+        let istAfterLifeSchemeMitHost = url.scheme == "afterlife"
+            && url.host == "einladung"
+
+        let istAfterLifeSchemeMitPfad = url.scheme == "afterlife"
+            && url.path == "/einladung"
+
+        let istAlterRegistrierungsLink = url.scheme == "afterlife"
+            && url.host == "registrierung"
+
+        return istUniversalLink
+            || istTschluessliSchemeMitHost
+            || istTschluessliSchemeMitPfad
+            || istAfterLifeSchemeMitHost
+            || istAfterLifeSchemeMitPfad
+            || istAlterRegistrierungsLink
+    }
+
+    private func einladungsToken(aus url: URL) -> String? {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
+
+        let token = components.queryItems?
+            .first { $0.name == "token" }?
+            .value?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let token, !token.isEmpty else { return nil }
+        return token
     }
 }
 

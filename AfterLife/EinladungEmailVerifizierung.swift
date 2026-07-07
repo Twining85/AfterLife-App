@@ -15,6 +15,9 @@ struct EinladungEmailVerifizierung: View {
 
     @AppStorage("aktiveUserID") private var aktiveUserID = ""
     @AppStorage("gespeicherteEmail") private var appStorageEmail = ""
+    @AppStorage("istEingeloggt") private var istEingeloggt = false
+    @AppStorage("direktNachRegistrierungEingeloggt") private var direktNachRegistrierungEingeloggt = false
+    @AppStorage("eingehenderEinladungsToken") private var eingehenderEinladungsToken = ""
 
     let eingeladeneEmail: String
     let einladungsToken: String
@@ -25,6 +28,7 @@ struct EinladungEmailVerifizierung: View {
     @State private var fehlermeldung = ""
     @State private var simulierterCode = ""
     @State private var einladungBereitsGeprueft = false
+    @State private var showHome = false
 
     private let hintergrundFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
     private let kartenFarbe = Color.white.opacity(0.88)
@@ -47,7 +51,9 @@ struct EinladungEmailVerifizierung: View {
                             kopfBereich
                             emailInfoKarte
 
-                            if emailStimmtUeberein || verifizierungErfolgreich {
+                            if showHome {
+                                erfolgreichAnsicht
+                            } else if emailStimmtUeberein || verifizierungErfolgreich {
                                 erfolgreichAnsicht
                             } else {
                                 zusaetzlicheVerifizierungAnsicht
@@ -91,9 +97,13 @@ struct EinladungEmailVerifizierung: View {
     }
 
     private var aktuellerDossierZugriff: DossierZugriffModell? {
-        gespeicherteDossierZugriffe.first {
-            $0.einladungsToken == einladungsToken
+        gespeicherteDossierZugriffe.first { zugriff in
+            (zugriff.einladungsToken ?? "").trimmingCharacters(in: .whitespacesAndNewlines) == bereinigterEinladungsToken
         }
+    }
+
+    private var bereinigterEinladungsToken: String {
+        einladungsToken.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var profilEmail: String {
@@ -246,8 +256,11 @@ struct EinladungEmailVerifizierung: View {
                 .multilineTextAlignment(.center)
                 .lineSpacing(2)
 
-            NavigationLink {
-                Home()
+            Button {
+                istEingeloggt = true
+                direktNachRegistrierungEingeloggt = true
+                eingehenderEinladungsToken = ""
+                showHome = true
             } label: {
                 Text("Weiter zu Tschlüssli")
                     .font(.headline)
@@ -389,6 +402,25 @@ struct EinladungEmailVerifizierung: View {
         einladungBereitsGeprueft = true
         fehlermeldung = ""
 
+        guard !bereinigterEinladungsToken.isEmpty else {
+            fehlermeldung = "Der Einladungslink enthält keinen gültigen Schlüssel. Bitte öffne den Link nochmals aus der E-Mail."
+            return
+        }
+
+        guard let zugriff = aktuellerDossierZugriff else {
+            fehlermeldung = "Diese Einladung konnte nicht gefunden werden. Bitte prüfe, ob du den vollständigen Link geöffnet hast."
+            return
+        }
+
+        guard zugriff.status == DossierZugriffStatus.erstellt else {
+            if zugriff.status == DossierZugriffStatus.abgelehnt {
+                fehlermeldung = "Diese Einladung wurde bereits abgelehnt und kann nicht nochmals verwendet werden."
+            } else {
+                fehlermeldung = "Diese Einladung wurde bereits bearbeitet und kann nicht nochmals verwendet werden."
+            }
+            return
+        }
+
         guard aktuellesProfil != nil else {
             fehlermeldung = "Es wurde kein bestehendes Profil gefunden."
             return
@@ -410,6 +442,8 @@ struct EinladungEmailVerifizierung: View {
     }
 
     private func sendeCode() {
+        guard einladungKannBearbeitetWerden() else { return }
+
         simulierterCode = String(Int.random(in: 100000...999999))
         eingegebenerCode = ""
         codeWurdeGesendet = true
@@ -422,7 +456,32 @@ struct EinladungEmailVerifizierung: View {
             return
         }
 
+        guard einladungKannBearbeitetWerden() else { return }
+
         einladungAnnehmen()
+    }
+
+    private func einladungKannBearbeitetWerden() -> Bool {
+        guard !bereinigterEinladungsToken.isEmpty else {
+            fehlermeldung = "Der Einladungslink enthält keinen gültigen Schlüssel. Bitte öffne den Link nochmals aus der E-Mail."
+            return false
+        }
+
+        guard let zugriff = aktuellerDossierZugriff else {
+            fehlermeldung = "Diese Einladung konnte nicht gefunden werden. Bitte prüfe, ob du den vollständigen Link geöffnet hast."
+            return false
+        }
+
+        guard zugriff.status == DossierZugriffStatus.erstellt else {
+            if zugriff.status == DossierZugriffStatus.abgelehnt {
+                fehlermeldung = "Diese Einladung wurde bereits abgelehnt und kann nicht nochmals verwendet werden."
+            } else {
+                fehlermeldung = "Diese Einladung wurde bereits bearbeitet und kann nicht nochmals verwendet werden."
+            }
+            return false
+        }
+
+        return true
     }
 
     private func einladungAnnehmen() {
@@ -432,12 +491,16 @@ struct EinladungEmailVerifizierung: View {
         }
 
         guard let zugriff = aktuellerDossierZugriff else {
-            fehlermeldung = "Diese Einladung konnte nicht gefunden werden."
+            fehlermeldung = "Diese Einladung konnte nicht gefunden werden. Bitte prüfe, ob du den vollständigen Link geöffnet hast."
             return
         }
 
-        guard zugriff.kannRegistrierungFortsetzen else {
-            fehlermeldung = "Diese Einladung ist ungültig oder wurde bereits verwendet."
+        guard zugriff.status == DossierZugriffStatus.erstellt else {
+            if zugriff.status == DossierZugriffStatus.abgelehnt {
+                fehlermeldung = "Diese Einladung wurde bereits abgelehnt und kann nicht nochmals verwendet werden."
+            } else {
+                fehlermeldung = "Diese Einladung wurde bereits bearbeitet und kann nicht nochmals verwendet werden."
+            }
             return
         }
 
@@ -448,7 +511,11 @@ struct EinladungEmailVerifizierung: View {
 
         do {
             try modelContext.save()
+            istEingeloggt = true
+            direktNachRegistrierungEingeloggt = true
+            eingehenderEinladungsToken = ""
             verifizierungErfolgreich = true
+            showHome = true
             fehlermeldung = ""
         } catch {
             fehlermeldung = "Die Einladung konnte nicht gespeichert werden. Bitte versuche es erneut."

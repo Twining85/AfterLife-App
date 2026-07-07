@@ -18,8 +18,10 @@ struct VertrauenspersonRegistrierung: View {
     @AppStorage("gespeichertesPasswort") private var gespeichertesPasswort = ""
     @AppStorage("registrierungsArt") private var registrierungsArt = "E-Mail"
     @AppStorage("direktNachRegistrierungEingeloggt") private var direktNachRegistrierungEingeloggt = false
+    @AppStorage("istEingeloggt") private var istEingeloggt = false
     @AppStorage("aktiveUserID") private var aktiveUserID = ""
     @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
+    @AppStorage("eingehenderEinladungsToken") private var eingehenderEinladungsToken = ""
 
     let eingeladeneEmail: String
     let einladungsToken: String
@@ -129,6 +131,8 @@ struct VertrauenspersonRegistrierung: View {
                 if email.isEmpty {
                     email = eingeladeneEmail
                 }
+
+                einladungVorabValidieren()
             }
         }
     }
@@ -480,6 +484,32 @@ struct VertrauenspersonRegistrierung: View {
         return bereinigteEmailOriginalschreibweise.range(of: emailRegex, options: .regularExpression) != nil
     }
 
+    private var bereinigterEinladungsToken: String {
+        einladungsToken.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    private func einladungVorabValidieren() {
+        fehlermeldung = ""
+
+        guard !bereinigterEinladungsToken.isEmpty else {
+            fehlermeldung = "Der Einladungslink enthält keinen gültigen Schlüssel. Bitte öffne den Link nochmals aus der E-Mail."
+            return
+        }
+
+        guard let zugriff = gespeicherterDossierZugriff() else {
+            fehlermeldung = "Diese Einladung konnte nicht gefunden werden. Bitte prüfe, ob du den vollständigen Link geöffnet hast."
+            return
+        }
+
+        guard zugriff.status == DossierZugriffStatus.erstellt else {
+            if zugriff.status == DossierZugriffStatus.abgelehnt {
+                fehlermeldung = "Diese Einladung wurde bereits abgelehnt und kann nicht nochmals verwendet werden."
+            } else {
+                fehlermeldung = "Diese Einladung wurde bereits bearbeitet und kann nicht nochmals verwendet werden."
+            }
+            return
+        }
+    }
+
     private func codeAnEingeladeneEmailSenden() {
         fehlermeldung = ""
         emailValidierungWurdeAusgeloest = true
@@ -512,6 +542,25 @@ struct VertrauenspersonRegistrierung: View {
     private func registrierenMitEmail() {
         fehlermeldung = ""
         emailValidierungWurdeAusgeloest = true
+
+        guard !bereinigterEinladungsToken.isEmpty else {
+            fehlermeldung = "Der Einladungslink enthält keinen gültigen Schlüssel. Bitte öffne den Link nochmals aus der E-Mail."
+            return
+        }
+
+        guard let zugriff = gespeicherterDossierZugriff() else {
+            fehlermeldung = "Diese Einladung konnte nicht gefunden werden. Bitte prüfe, ob du den vollständigen Link geöffnet hast."
+            return
+        }
+
+        guard zugriff.status == DossierZugriffStatus.erstellt else {
+            if zugriff.status == DossierZugriffStatus.abgelehnt {
+                fehlermeldung = "Diese Einladung wurde bereits abgelehnt und kann nicht nochmals verwendet werden."
+            } else {
+                fehlermeldung = "Diese Einladung wurde bereits bearbeitet und kann nicht nochmals verwendet werden."
+            }
+            return
+        }
 
         guard akzeptiertDisclaimer else {
             fehlermeldung = "Bitte akzeptiere zuerst den Hinweis."
@@ -593,15 +642,17 @@ struct VertrauenspersonRegistrierung: View {
             try modelContext.save()
 
             direktNachRegistrierungEingeloggt = true
+            istEingeloggt = true
             profilIstVorhanden = true
 
             if benoetigtEinladungsVerifizierung {
                 showEinladungEmailVerifizierung = true
             } else {
+                eingehenderEinladungsToken = ""
                 showHome = true
             }
         } catch {
-            fehlermeldung = "Das Passwort konnte nicht sicher gespeichert werden. Bitte versuche es erneut."
+            fehlermeldung = "Die Registrierung konnte nicht abgeschlossen werden. Bitte versuche es erneut."
         }
     }
 
@@ -615,7 +666,17 @@ struct VertrauenspersonRegistrierung: View {
         profil.email = bereinigteEmail
         profil.istVertrauensperson = true
 
-        if einladungDirektAnnehmen, let zugriff = gespeicherterDossierZugriff() {
+        if einladungDirektAnnehmen {
+            guard let zugriff = gespeicherterDossierZugriff() else {
+                fehlermeldung = "Diese Einladung konnte nicht gefunden werden. Bitte prüfe, ob du den vollständigen Link geöffnet hast."
+                return
+            }
+
+            guard zugriff.status == DossierZugriffStatus.erstellt else {
+                fehlermeldung = "Diese Einladung wurde bereits bearbeitet und kann nicht nochmals verwendet werden."
+                return
+            }
+
             zugriff.einladungAnnehmen(
                 vertrauenspersonUserID: profil.userID,
                 registrierungsEmail: bereinigteEmail
@@ -625,14 +686,15 @@ struct VertrauenspersonRegistrierung: View {
         erstelleDossierFallsNoetig(fuer: profil, email: bereinigteEmail)
         aktiveUserID = profil.userID.uuidString
         direktNachRegistrierungEingeloggt = true
+        istEingeloggt = true
         gespeicherteEmail = bereinigteEmail
         registrierungsArt = art
 
     }
 
     private func gespeicherterDossierZugriff() -> DossierZugriffModell? {
-        gespeicherteDossierZugriffe.first {
-            $0.einladungsToken == einladungsToken
+        gespeicherteDossierZugriffe.first { zugriff in
+            (zugriff.einladungsToken ?? "").trimmingCharacters(in: .whitespacesAndNewlines) == bereinigterEinladungsToken
         }
     }
 
