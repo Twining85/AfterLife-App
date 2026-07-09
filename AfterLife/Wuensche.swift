@@ -354,7 +354,7 @@ struct WuenscheView: View {
                     .frame(width: 42, height: 42)
                     .background(Circle().fill(wuenscheAccentColor))
 
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 8) {
                     Text("Meine Wünsche")
                         .font(.title2.weight(.bold))
                         .foregroundStyle(.black)
@@ -363,6 +363,15 @@ struct WuenscheView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+
+                    if let lesemodusHinweis = dossierKontext.lesemodusHinweis {
+                        Text(lesemodusHinweis)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(wuenscheAccentColor)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                            .background(wuenscheAccentColor.opacity(0.10), in: Capsule())
+                    }
                 }
             }
 
@@ -453,6 +462,8 @@ struct WuenscheView: View {
         let istAusgewaehlt = ausgewaehlteThemen.contains(thema)
 
         return Button {
+            guard dossierKontext.kannBearbeiten else { return }
+
             withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
                 if istAusgewaehlt {
                     ausgewaehlteThemen.remove(thema)
@@ -486,6 +497,7 @@ struct WuenscheView: View {
             )
         }
         .buttonStyle(.plain)
+        .disabled(dossierKontext.istReadOnly)
     }
 
     private func themaEntfernen(_ thema: WuenscheThema) {
@@ -594,24 +606,30 @@ struct WuenscheView: View {
     private var haustiereSection: some View {
         styleGuideSection(titel: "Haustiere", systemImage: "pawprint.fill", entfernenAktion: { themaEntfernen(.haustiere) }) {
             if haustiere.isEmpty {
-                leerText("Noch keine Haustiere erfasst.")
+                leerText("Es ist kein Dokument vorhanden.")
             }
 
             ForEach(haustiere) { haustier in
                 if let haustierBinding = bindingFuerHaustier(id: haustier.id) {
-                    SwipeToDeleteRow(
-                        accentColor: wuenscheAccentColor,
-                        deleteAction: {
-                            haustierLoeschen(id: haustier.id)
+                    if dossierKontext.kannLoeschen {
+                        SwipeToDeleteRow(
+                            accentColor: wuenscheAccentColor,
+                            deleteAction: {
+                                haustierLoeschen(id: haustier.id)
+                            }
+                        ) {
+                            haustierEintragView(haustier: haustierBinding)
                         }
-                    ) {
+                    } else {
                         haustierEintragView(haustier: haustierBinding)
                     }
                 }
             }
 
-            accentButton(title: "Haustier erfassen", systemImage: "plus.circle.fill") {
-                haustierPopupAnzeigen = true
+            if dossierKontext.kannBearbeiten {
+                accentButton(title: "Haustier erfassen", systemImage: "plus.circle.fill") {
+                    haustierPopupAnzeigen = true
+                }
             }
         }
     }
@@ -654,6 +672,7 @@ struct WuenscheView: View {
                 }
             }
             .tint(wuenscheAccentColor)
+            .disabled(dossierKontext.istReadOnly)
 
             styledTextField("Name", text: haustier.name)
             styledTextField("Tierarzt", text: haustier.tierarzt)
@@ -677,6 +696,7 @@ struct WuenscheView: View {
             }
             .pickerStyle(.segmented)
             .tint(wuenscheAccentColor)
+            .disabled(dossierKontext.istReadOnly)
 
             if bestattungsart == .kremation {
                 styledTextField("Was ist bei der Kremation zu beachten? z.B. Art der Urne, Urnengrab, Waldfriedhof", text: $kremationHinweise, axis: .vertical, lineLimit: 3...8)
@@ -699,11 +719,13 @@ struct WuenscheView: View {
 
                 Toggle("Keine Blumengeschenke, bitte spendet das Geld lieber", isOn: $keineBlumengeschenkeBitte)
                     .tint(wuenscheAccentColor)
+                    .disabled(dossierKontext.istReadOnly)
 
                 Divider()
 
                 Toggle("Bereits organisiert", isOn: $zeremonieBereitsOrganisiert)
                     .tint(wuenscheAccentColor)
+                    .disabled(dossierKontext.istReadOnly)
 
                 if zeremonieBereitsOrganisiert {
                     DetailBox(accentColor: wuenscheAccentColor) {
@@ -724,6 +746,7 @@ struct WuenscheView: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .disabled(dossierKontext.istReadOnly)
             }
         }
     }
@@ -756,15 +779,17 @@ struct WuenscheView: View {
                             .foregroundStyle(wuenscheAccentColor.opacity(0.75))
                     }
 
-                    PhotosPicker(
-                        selection: $letzteWorteVideoAuswahl,
-                        matching: .videos,
-                        photoLibrary: .shared()
-                    ) {
-                        Label(letzteWorteVideoData == nil ? "Video hochladen" : "Video ändern", systemImage: "video.badge.plus")
+                    if dossierKontext.kannDokumenteHochladen {
+                        PhotosPicker(
+                            selection: $letzteWorteVideoAuswahl,
+                            matching: .videos,
+                            photoLibrary: .shared()
+                        ) {
+                            Label(letzteWorteVideoData == nil ? "Video hochladen" : "Video ändern", systemImage: "video.badge.plus")
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(wuenscheAccentColor)
                     }
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(wuenscheAccentColor)
 
                     if letzteWorteVideoData != nil {
                         HStack(spacing: 12) {
@@ -819,17 +844,19 @@ struct WuenscheView: View {
                             .foregroundStyle(wuenscheAccentColor.opacity(0.75))
                     }
 
-                    PhotosPicker(
-                        selection: $nachrufBildAuswahl,
-                        matching: .images,
-                        photoLibrary: .shared()
-                    ) {
-                        Label(nachrufBildData == nil ? "Bild für Nachruf hochladen" : "Bild für Nachruf ändern", systemImage: "photo.on.rectangle")
+                    if dossierKontext.kannDokumenteHochladen {
+                        PhotosPicker(
+                            selection: $nachrufBildAuswahl,
+                            matching: .images,
+                            photoLibrary: .shared()
+                        ) {
+                            Label(nachrufBildData == nil ? "Bild für Nachruf hochladen" : "Bild für Nachruf ändern", systemImage: "photo.on.rectangle")
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(wuenscheAccentColor)
                     }
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(wuenscheAccentColor)
 
-                    if nachrufBildData != nil {
+                    if nachrufBildData != nil, dossierKontext.kannLoeschen {
                         Button(role: .destructive) {
                             nachrufBildEntfernen()
                         } label: {
@@ -853,19 +880,25 @@ struct WuenscheView: View {
 // MARK swipe funktio analog Finanzen später anpassen
             ForEach(kontakte) { kontakt in
                 if let kontaktBinding = bindingFuerKontakt(id: kontakt.id) {
-                    SwipeToDeleteRow(
-                        accentColor: wuenscheAccentColor,
-                        deleteAction: {
-                            kontaktLoeschen(id: kontakt.id)
+                    if dossierKontext.kannLoeschen {
+                        SwipeToDeleteRow(
+                            accentColor: wuenscheAccentColor,
+                            deleteAction: {
+                                kontaktLoeschen(id: kontakt.id)
+                            }
+                        ) {
+                            kontaktEintragView(kontakt: kontaktBinding)
                         }
-                    ) {
+                    } else {
                         kontaktEintragView(kontakt: kontaktBinding)
                     }
                 }
             }
 
-            accentButton(title: "Aus Adressbuch hinzufügen", systemImage: "person.crop.circle.badge.plus") {
-                kontaktPickerAnzeigen = true
+            if dossierKontext.kannBearbeiten {
+                accentButton(title: "Aus Adressbuch hinzufügen", systemImage: "person.crop.circle.badge.plus") {
+                    kontaktPickerAnzeigen = true
+                }
             }
         }
     }
@@ -915,47 +948,49 @@ struct WuenscheView: View {
 
     private var testamentDokumentBox: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                Button {
-                    dokumentImportStarten(.testament)
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "doc.badge.plus")
-                            .font(.headline.weight(.semibold))
+            if dossierKontext.kannDokumenteHochladen {
+                HStack(spacing: 10) {
+                    Button {
+                        dokumentImportStarten(.testament)
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "doc.badge.plus")
+                                .font(.headline.weight(.semibold))
 
-                        Text("Hinzufügen")
-                            .font(.subheadline.weight(.semibold))
+                            Text("Hinzufügen")
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                        .background(wuenscheAccentColor, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .shadow(color: wuenscheAccentColor.opacity(0.18), radius: 6, x: 0, y: 3)
                     }
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
-                    .background(wuenscheAccentColor, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .shadow(color: wuenscheAccentColor.opacity(0.18), radius: 6, x: 0, y: 3)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Testament hinzufügen")
+
+                    Button {
+                        dokumentScanStarten(.testament)
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "doc.viewfinder")
+                                .font(.headline.weight(.semibold))
+
+                            Text("Scannen")
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        .foregroundStyle(wuenscheAccentColor)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(wuenscheAccentColor.opacity(0.24), lineWidth: 1)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Testament scannen")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Testament hinzufügen")
-
-                Button {
-                    testamentScannerAnzeigen = true
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "doc.viewfinder")
-                            .font(.headline.weight(.semibold))
-
-                        Text("Scannen")
-                            .font(.subheadline.weight(.semibold))
-                    }
-                    .foregroundStyle(wuenscheAccentColor)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(Color.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(wuenscheAccentColor.opacity(0.24), lineWidth: 1)
-                    }
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Testament scannen")
             }
 
             if let testamentDateiName {
@@ -1002,7 +1037,7 @@ struct WuenscheView: View {
                 .padding(12)
                 .background(Color.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             } else {
-                leerText("Noch kein Testament hochgeladen.")
+                leerText("Es ist kein Dokument vorhanden.")
             }
         }
     }
@@ -1066,6 +1101,7 @@ struct WuenscheView: View {
             DetailBox(accentColor: wuenscheAccentColor) {
                 Toggle("Ich habe eine schwerwiegende gesundheitliche Erkrankung", isOn: $hatSchwereGesundheitlicheErkrankung)
                     .tint(wuenscheAccentColor)
+                    .disabled(dossierKontext.istReadOnly)
 
                 if hatSchwereGesundheitlicheErkrankung {
                     DetailBox(accentColor: wuenscheAccentColor) {
@@ -1076,6 +1112,7 @@ struct WuenscheView: View {
                             }
                         }
                         .tint(wuenscheAccentColor)
+                        .disabled(dossierKontext.istReadOnly)
 
                         styledTextField("Das ist für mich wichtig", text: $sterbebegleitungWichtig, axis: .vertical, lineLimit: 3...8)
 
@@ -1085,6 +1122,7 @@ struct WuenscheView: View {
                                 isOn: $lebensqualitaetRegelmaessigBeurteilen
                             )
                             .tint(wuenscheAccentColor)
+                            .disabled(dossierKontext.istReadOnly)
                         }
                     }
                 }
@@ -1203,6 +1241,7 @@ struct WuenscheView: View {
     }
 
     private func speichereWuenscheVerzoegert() {
+        guard dossierKontext.kannBearbeiten else { return }
         guard wuenscheGeladen else { return }
         guard !speicherungLaeuft else { return }
 
@@ -1216,6 +1255,7 @@ struct WuenscheView: View {
     }
 
     private func speichereWuensche() {
+        guard dossierKontext.kannBearbeiten else { return }
         guard wuenscheGeladen else { return }
         guard !speicherungLaeuft else { return }
         guard wuenscheSpeicherSignatur != letzteGespeicherteWuenscheSignatur else { return }
@@ -1314,6 +1354,7 @@ struct WuenscheView: View {
     }
 
     private func haustierLoeschen(id: UUID) {
+        guard dossierKontext.kannLoeschen else { return }
         guard haustiere.contains(where: { $0.id == id }) else { return }
 
         withAnimation(.easeInOut(duration: 0.18)) {
@@ -1341,6 +1382,7 @@ struct WuenscheView: View {
     }
 
     private func kontaktLoeschen(id: UUID) {
+        guard dossierKontext.kannLoeschen else { return }
         guard kontakte.contains(where: { $0.id == id }) else { return }
 
         withAnimation(.easeInOut(duration: 0.18)) {
@@ -1383,6 +1425,7 @@ struct WuenscheView: View {
     }
 
     private func synchronisiereKontakteMitHinterbliebenen() {
+        guard dossierKontext.kannBearbeiten else { return }
         guard kontakteGeladen else { return }
 
         let gueltigeKontakte = kontakte.filter { kontakt in
@@ -1568,6 +1611,7 @@ struct WuenscheView: View {
                     Text(art.rawValue).tag(art)
                 }
             }
+            .disabled(dossierKontext.istReadOnly)
 
             kontaktAnzeigeZeile(titel: "Vorname", wert: kontakt.wrappedValue.vorname)
             kontaktAnzeigeZeile(titel: "Name", wert: kontakt.wrappedValue.name)
@@ -1580,8 +1624,11 @@ struct WuenscheView: View {
 
             Toggle("Informieren", isOn: kontakt.informieren)
                 .tint(wuenscheAccentColor)
+                .disabled(dossierKontext.istReadOnly)
+
             Toggle("Zur Beisetzung einladen", isOn: kontakt.einladen)
                 .tint(wuenscheAccentColor)
+                .disabled(dossierKontext.istReadOnly)
         }
         .padding(12)
         .background(Color.white.opacity(0.72))
@@ -1604,7 +1651,7 @@ struct WuenscheView: View {
 
                 Spacer()
 
-                if let entfernenAktion {
+                if let entfernenAktion, dossierKontext.kannLoeschen {
                     Button {
                         entfernenAktion()
                     } label: {
@@ -1645,6 +1692,7 @@ struct WuenscheView: View {
             TextField(placeholder, text: text, axis: axis)
                 .lineLimit(lineLimit)
                 .textFieldStyle(.plain)
+                .disabled(dossierKontext.istReadOnly)
                 .padding(12)
                 .background(Color.white.opacity(0.8))
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -1655,6 +1703,7 @@ struct WuenscheView: View {
         } else {
             TextField(placeholder, text: text, axis: axis)
                 .textFieldStyle(.plain)
+                .disabled(dossierKontext.istReadOnly)
                 .padding(12)
                 .background(Color.white.opacity(0.8))
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -1726,12 +1775,14 @@ struct WuenscheView: View {
 
 
     private func nachrufBildEntfernen() {
+        guard dossierKontext.kannLoeschen else { return }
         nachrufBildData = nil
         nachrufBildAuswahl = nil
         speichereWuenscheVerzoegert()
     }
 
     private func letzteWorteVideoEntfernen() {
+        guard dossierKontext.kannLoeschen else { return }
         letzteWorteVideoData = nil
         letzteWorteVideoName = nil
         letzteWorteVideoAuswahl = nil
@@ -1893,11 +1944,13 @@ struct WuenscheView: View {
     }
 
     private func dokumentImportStarten(_ typ: DokumentTyp) {
+        guard dossierKontext.kannDokumenteHochladen else { return }
         aktiverDokumentTyp = typ
         dokumentImporterAnzeigen = true
     }
 
     private func dokumentImportVerarbeiten(_ result: Result<[URL], Error>) {
+        guard dossierKontext.kannDokumenteHochladen else { return }
         switch result {
         case .success(let urls):
             guard let url = urls.first else { return }
@@ -1948,6 +2001,7 @@ struct WuenscheView: View {
     }
 
     private func dokumentScanStarten(_ typ: DokumentTyp) {
+        guard dossierKontext.kannDokumenteScannen else { return }
         aktiverScanDokumentTyp = typ
         dokumentScannerAnzeigen = true
     }
@@ -1972,6 +2026,7 @@ struct WuenscheView: View {
     }
 
     private func speichereGescanntesDokument(sollZusätzlichSpeichern: Bool) {
+        guard dossierKontext.kannDokumenteScannen else { return }
         guard let pdfData = pendingDokumentScanData,
               let typ = aktiverScanDokumentTyp else { return }
 
@@ -2021,6 +2076,7 @@ struct WuenscheView: View {
     }
 
     private func speichereGescanntesTestament(sollZusätzlichSpeichern: Bool) {
+        guard dossierKontext.kannDokumenteScannen else { return }
         guard let pdfData = pendingTestamentScanData else { return }
 
         let dateiName = pendingTestamentScanDateiName.isEmpty
@@ -2044,6 +2100,7 @@ struct WuenscheView: View {
     }
 
     private func testamentDateiEntfernen() {
+        guard dossierKontext.kannLoeschen else { return }
         testamentDateiName = nil
         testamentDateiURL = nil
         testamentDateiData = nil
@@ -2052,6 +2109,7 @@ struct WuenscheView: View {
     }
 
     private func patientenverfuegungDateiEntfernen() {
+        guard dossierKontext.kannLoeschen else { return }
         patientenverfuegungDateiName = nil
         patientenverfuegungDateiURL = nil
         patientenverfuegungDateiData = nil
@@ -2060,6 +2118,7 @@ struct WuenscheView: View {
     }
 
     private func vorsorgeauftragDateiEntfernen() {
+        guard dossierKontext.kannLoeschen else { return }
         vorsorgeauftragDateiName = nil
         vorsorgeauftragDateiURL = nil
         vorsorgeauftragDateiData = nil
@@ -2068,6 +2127,7 @@ struct WuenscheView: View {
     }
 
     private func sterbebegleitungDateiEntfernen() {
+        guard dossierKontext.kannLoeschen else { return }
         sterbebegleitungDateiName = nil
         sterbebegleitungDateiURL = nil
         sterbebegleitungDateiData = nil
@@ -2372,7 +2432,7 @@ struct DokumentUploadBox: View {
                 .padding(12)
                 .background(Color.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             } else {
-                Text("Noch kein Dokument hochgeladen.")
+                Text("Es ist kein Dokument vorhanden.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)

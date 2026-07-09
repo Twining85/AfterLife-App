@@ -1331,7 +1331,7 @@ struct Home: View {
             case .gesundheit:
                 GesundheitView()
             case .wuensche:
-                WuenscheView()
+                WuenscheView(dossierKontext: dossierKontext)
             case .finanzen:
                 FinanzenView()
             case .hinterbliebene:
