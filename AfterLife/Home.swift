@@ -19,6 +19,8 @@ struct Home: View {
     @Query private var gespeicherteWertsachen: [WertsacheModell]
     @Query private var gespeicherteDokumente: [DokumenteModell]
     @Query private var gespeicherteAbos: [AboModell]
+    @State private var heroIstSichtbar = false
+    @State private var bereicheTitelIstSichtbar = false
     @State private var kachelnSindSichtbar = false
     @State private var homeBearbeitungsmodus = false
     @State private var kachelWackelPhase = false
@@ -127,7 +129,7 @@ struct Home: View {
     }
 
     private var bereicheTitelTopAbstand: CGFloat {
-        dossierPruefungIstFaellig ? 22 : 8
+        dossierPruefungIstFaellig ? 34 : 8
     }
     
     private var dossierZuletztGeprueftText: String {
@@ -387,14 +389,16 @@ struct Home: View {
                     }
                     .frame(height: 360)
                     .padding(.top, 14)
-                    .opacity(homeBearbeitungsmodus ? 0.42 : 1)
-                    .allowsHitTesting(!homeBearbeitungsmodus)
+                    .opacity(heroIstSichtbar ? (homeBearbeitungsmodus ? 0.42 : 1) : 0)
+                    .offset(y: heroIstSichtbar ? 0 : 14)
+                    .allowsHitTesting(!homeBearbeitungsmodus && heroIstSichtbar)
                     .overlay {
                         Color(.systemBackground)
                             .opacity(homeBearbeitungsmodus ? 0.26 : 0)
                             .allowsHitTesting(false)
                     }
                     .animation(.easeInOut(duration: 0.22), value: homeBearbeitungsmodus)
+                    .animation(.easeOut(duration: 0.55), value: heroIstSichtbar)
                     
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Bereiche")
@@ -407,8 +411,9 @@ struct Home: View {
                     }
                     .padding(.horizontal, 24)
                     .padding(.top, bereicheTitelTopAbstand)
-                    .opacity(homeBearbeitungsmodus ? 0.45 : 1)
-                    .allowsHitTesting(!homeBearbeitungsmodus)
+                    .opacity(bereicheTitelIstSichtbar ? (homeBearbeitungsmodus ? 0.45 : 1) : 0)
+                    .offset(y: bereicheTitelIstSichtbar ? 0 : 10)
+                    .allowsHitTesting(!homeBearbeitungsmodus && bereicheTitelIstSichtbar)
                     .overlay {
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
                             .fill(Color(.systemBackground).opacity(homeBearbeitungsmodus ? 0.20 : 0))
@@ -416,17 +421,14 @@ struct Home: View {
                     }
                     .animation(.easeInOut(duration: 0.22), value: homeBearbeitungsmodus)
                     .animation(.easeInOut(duration: 0.22), value: dossierPruefungIstFaellig)
+                    .animation(.easeOut(duration: 0.45), value: bereicheTitelIstSichtbar)
                     
                     alleKacheln
                         .padding(.horizontal, 24)
                         .padding(.top, 18)
-                        .onAppear {
-                            withAnimation(.easeOut(duration: 0.8).delay(0.15)) {
-                                kachelnSindSichtbar = true
-                            }
-                        }
-                        .offset(y: kachelnSindSichtbar ? 0 : 20)
+                        .offset(y: kachelnSindSichtbar ? 0 : 18)
                         .opacity(kachelnSindSichtbar ? 1 : 0)
+                        .animation(.easeOut(duration: 0.55), value: kachelnSindSichtbar)
                     
                     if !verknuepfteVorsorgedossiers.isEmpty {
                         vorsorgedossierWechselAktion
@@ -491,6 +493,7 @@ struct Home: View {
                 .onAppear {
                     NotificationService.shared.berechtigungAnfragen()
                     dossierPruefungRefreshDatum = Date()
+                    starteHomeEinstiegsanimation()
                 }
                 .onChange(of: scenePhase) { _, neuePhase in
                     if neuePhase == .active {
@@ -514,6 +517,24 @@ struct Home: View {
                     }
                 }
             }
+        }
+    }
+    
+    private func starteHomeEinstiegsanimation() {
+        heroIstSichtbar = false
+        bereicheTitelIstSichtbar = false
+        kachelnSindSichtbar = false
+
+        withAnimation(.easeOut(duration: 0.55)) {
+            heroIstSichtbar = true
+        }
+
+        withAnimation(.easeOut(duration: 0.45).delay(0.16)) {
+            bereicheTitelIstSichtbar = true
+        }
+
+        withAnimation(.easeOut(duration: 0.55).delay(0.28)) {
+            kachelnSindSichtbar = true
         }
     }
     
@@ -751,39 +772,39 @@ struct Home: View {
             let akzentFarbe: Color
             
             var body: some View {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 8) {
                     ZStack {
                         Circle()
                             .fill(akzentFarbe.opacity(0.14))
-                            .frame(width: 54, height: 54)
+                            .frame(width: 48, height: 48)
                         
                         Image(systemName: icon)
-                            .font(.system(size: 25, weight: .semibold))
+                            .font(.system(size: 23, weight: .semibold))
                             .foregroundStyle(akzentFarbe)
                     }
                     
-                    VStack(alignment: .leading, spacing: 5) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text(titel)
-                            .font(.title3.weight(.semibold))
+                            .font(.headline.weight(.semibold))
                             .multilineTextAlignment(.leading)
                             .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
                             .lineLimit(2)
                         
                         Text(untertitel)
-                            .font(.body.weight(.medium))
+                            .font(.subheadline.weight(.medium))
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
                         
                         Text(details)
-                            .font(.subheadline)
+                            .font(.footnote)
                             .foregroundStyle(.secondary)
                             .lineLimit(nil)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                .padding(18)
+                .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(minHeight: 232, alignment: .topLeading)
+                .frame(minHeight: 198, alignment: .topLeading)
                 .background(
                     RoundedRectangle(cornerRadius: 28, style: .continuous)
                         .fill(farbe.opacity(0.98))
@@ -1347,3 +1368,5 @@ struct Home: View {
     }
 #endif
 
+
+       
