@@ -125,6 +125,10 @@ struct Home: View {
 
         return !dossierPruefungIstFaellig
     }
+
+    private var bereicheTitelTopAbstand: CGFloat {
+        dossierPruefungIstFaellig ? 22 : 8
+    }
     
     private var dossierZuletztGeprueftText: String {
         guard let datum = ISO8601DateFormatter().date(from: dossierZuletztGeprueftAmISO) else {
@@ -392,26 +396,6 @@ struct Home: View {
                     }
                     .animation(.easeInOut(duration: 0.22), value: homeBearbeitungsmodus)
                     
-                    HStack(spacing: 8) {
-                        Spacer(minLength: 0)
-                        
-                       // HomeInfoChip(icon: "shield.checkered", titel: "Sicher gespeichert")
-                      //  HomeInfoChip(icon: "lock.fill", titel: "Privat")
-                      //  HomeInfoChip(icon: "icloud.fill", titel: "Jederzeit verfügbar")
-                        
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, -2)
-                    .opacity(homeBearbeitungsmodus ? 0.38 : 1)
-                    .allowsHitTesting(!homeBearbeitungsmodus)
-                    .overlay {
-                        Capsule()
-                            .fill(Color(.systemBackground).opacity(homeBearbeitungsmodus ? 0.22 : 0))
-                            .allowsHitTesting(false)
-                    }
-                    .animation(.easeInOut(duration: 0.22), value: homeBearbeitungsmodus)
-                    
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Bereiche")
                             .font(.title.weight(.bold))
@@ -422,7 +406,7 @@ struct Home: View {
                             .foregroundStyle(.secondary)
                     }
                     .padding(.horizontal, 24)
-                    .padding(.top, 28)
+                    .padding(.top, bereicheTitelTopAbstand)
                     .opacity(homeBearbeitungsmodus ? 0.45 : 1)
                     .allowsHitTesting(!homeBearbeitungsmodus)
                     .overlay {
@@ -431,6 +415,7 @@ struct Home: View {
                             .allowsHitTesting(false)
                     }
                     .animation(.easeInOut(duration: 0.22), value: homeBearbeitungsmodus)
+                    .animation(.easeInOut(duration: 0.22), value: dossierPruefungIstFaellig)
                     
                     alleKacheln
                         .padding(.horizontal, 24)

@@ -25,20 +25,236 @@ struct DokumenteView: View {
     @State private var pendingScanData: Data?
     @State private var pendingScanDateiName = ""
     @State private var showDownloadSpeichernAbfrage = false
+    @State private var ausgewaehlteDokumentBereiche: Set<DokumentBereich> = [.weitere]
+
+    private enum DokumentBereich: CaseIterable {
+        case wuensche
+        case finanzen
+        case weitere
+        case fotoalbum
+
+        var titel: String {
+            switch self {
+            case .wuensche:
+                return "Meine Wünsche"
+            case .finanzen:
+                return "Finanzen"
+            case .fotoalbum:
+                return "Fotoalbum"
+            case .weitere:
+                return "Weitere"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .wuensche:
+                return "heart.text.square"
+            case .finanzen:
+                return "creditcard"
+            case .fotoalbum:
+                return "photo.on.rectangle.angled"
+            case .weitere:
+                return "folder.badge.plus"
+            }
+        }
+    }
 
     private let dokumenteHintergrundFarbe = Color(red: 0.985, green: 0.975, blue: 0.955)
     private let dokumenteKartenFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
     private let dokumenteAkzentFarbe = Color(red: 0.16, green: 0.36, blue: 0.42)
 
+    private var dokumenteHero: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "folder.fill.badge.person.crop")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(dokumenteAkzentFarbe)
+                    .frame(width: 42, height: 42)
+                    .background(dokumenteAkzentFarbe.opacity(0.12), in: Circle())
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Dokumente & Nachweise")
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    Text("Sammle wichtige Unterlagen an einem Ort – damit sie im Ernstfall schnell gefunden und richtig zugeordnet werden können.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    ForEach(DokumentBereich.allCases, id: \.self) { bereich in
+                        dokumenteHeroChip(bereich: bereich)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        dokumenteHeroChip(bereich: .wuensche)
+                        dokumenteHeroChip(bereich: .finanzen)
+                    }
+
+                    HStack(spacing: 8) {
+                        dokumenteHeroChip(bereich: .weitere)
+                        dokumenteHeroChip(bereich: .fotoalbum)
+                    }
+                }
+            }
+            .padding(.top, 2)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(dokumenteKartenFarbe)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(dokumenteAkzentFarbe.opacity(0.12), lineWidth: 1)
+        }
+        .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
+    }
+
+    private func dokumenteHeroChip(bereich: DokumentBereich) -> some View {
+        let anzahl = dokumenteAnzahl(for: bereich)
+        let istVerfuegbar = dokumentBereichIstVerfuegbar(bereich)
+        let istAusgewaehlt = ausgewaehlteDokumentBereiche.contains(bereich)
+
+        return Button {
+            guard istVerfuegbar else { return }
+            withAnimation(.easeInOut(duration: 0.2)) {
+                if ausgewaehlteDokumentBereiche.contains(bereich) {
+                    ausgewaehlteDokumentBereiche.remove(bereich)
+                } else {
+                    ausgewaehlteDokumentBereiche.insert(bereich)
+                }
+
+                if ausgewaehlteDokumentBereiche.isEmpty {
+                    ausgewaehlteDokumentBereiche.insert(.weitere)
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: bereich.icon)
+                    .font(.caption.weight(.semibold))
+
+                Text(bereich.titel)
+                    .font(.caption.weight(.semibold))
+
+                if anzahl > 0 {
+                    Text("\(anzahl)")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(istAusgewaehlt ? dokumenteAkzentFarbe : .white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(
+                            istAusgewaehlt
+                            ? Color.white.opacity(0.9)
+                            : dokumenteAkzentFarbe.opacity(0.78),
+                            in: Capsule()
+                        )
+                }
+            }
+            .foregroundStyle(
+                istAusgewaehlt
+                ? Color.white
+                : istVerfuegbar ? dokumenteAkzentFarbe : Color.secondary.opacity(0.65)
+            )
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(
+                istAusgewaehlt
+                ? dokumenteAkzentFarbe
+                : Color.white.opacity(0.68),
+                in: Capsule()
+            )
+            .overlay {
+                Capsule()
+                    .stroke(
+                        istAusgewaehlt
+                        ? dokumenteAkzentFarbe.opacity(0.35)
+                        : dokumenteAkzentFarbe.opacity(0.16),
+                        lineWidth: 1
+                    )
+            }
+            .opacity(istVerfuegbar ? 1 : 0.48)
+        }
+        .buttonStyle(.plain)
+        .disabled(!istVerfuegbar)
+        .accessibilityLabel(anzahl > 0 ? "Bereich \(bereich.titel), \(anzahl) Dokumente" : "Bereich \(bereich.titel)")
+    }
+
+    private func dokumenteAnzahl(for bereich: DokumentBereich) -> Int {
+        switch bereich {
+        case .wuensche:
+            return wuenscheDokumente.count
+        case .finanzen:
+            return finanzDokumente.count
+        case .fotoalbum:
+            return gespeicherteFotos.count
+        case .weitere:
+            return weitereDokumente.count
+        }
+    }
+
+    private func dokumentBereichIstVerfuegbar(_ bereich: DokumentBereich) -> Bool {
+        switch bereich {
+        case .wuensche, .finanzen:
+            return dokumenteAnzahl(for: bereich) > 0
+        case .fotoalbum, .weitere:
+            return true
+        }
+    }
+
+    private func pruefeDokumentBereichAuswahl() {
+        var relevanteBereiche: Set<DokumentBereich> = []
+
+        for bereich in DokumentBereich.allCases where dokumenteAnzahl(for: bereich) > 0 {
+            relevanteBereiche.insert(bereich)
+        }
+
+        if relevanteBereiche.isEmpty {
+            relevanteBereiche.insert(.weitere)
+        }
+
+        ausgewaehlteDokumentBereiche.formUnion(relevanteBereiche)
+        ausgewaehlteDokumentBereiche = ausgewaehlteDokumentBereiche.filter { dokumentBereichIstVerfuegbar($0) }
+
+        if ausgewaehlteDokumentBereiche.isEmpty {
+            ausgewaehlteDokumentBereiche.insert(.weitere)
+        }
+    }
+
     var body: some View {
         NavigationStack {
             Form {
-                wuenscheDokumenteSection
-                finanzenDokumenteSection
-                fotoalbumSection
-                weitereDokumenteSection
+                Section {
+                    dokumenteHero
+                }
+                .listRowInsets(EdgeInsets(top: 16, leading: 16, bottom: 4, trailing: 16))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+
+                if ausgewaehlteDokumentBereiche.contains(.wuensche), !wuenscheDokumente.isEmpty {
+                    wuenscheDokumenteSection
+                }
+
+                if ausgewaehlteDokumentBereiche.contains(.finanzen), !finanzDokumente.isEmpty {
+                    finanzenDokumenteSection
+                }
+
+                if ausgewaehlteDokumentBereiche.contains(.weitere) {
+                    weitereDokumenteSection
+                }
+
+                if ausgewaehlteDokumentBereiche.contains(.fotoalbum) {
+                    fotoalbumSection
+                }
             }
             .scrollContentBackground(.hidden)
+            .listSectionSpacing(10)
             .background(dokumenteHintergrundFarbe)
             .tint(dokumenteAkzentFarbe)
             .navigationTitle("Dokumente")
@@ -111,15 +327,17 @@ struct DokumenteView: View {
                     await fotosAusMediathekLaden(newItems)
                 }
             }
+            .onChange(of: [wuenscheDokumente.count, finanzDokumente.count, gespeicherteFotos.count, weitereDokumente.count]) { _, _ in
+                pruefeDokumentBereichAuswahl()
+            }
+            .onAppear {
+                pruefeDokumentBereichAuswahl()
+            }
         }
     }
 
     private var wuenscheDokumenteSection: some View {
-        Section {
-            if !wuenscheDokumenteEingeklappt {
-                dokumenteListe(wuenscheDokumente)
-            }
-        } header: {
+        VStack(alignment: .leading, spacing: 14) {
             einklappHeader(
                 titel: "Dokumente - Meine Wünsche",
                 anzahl: wuenscheDokumente.count,
@@ -129,16 +347,28 @@ struct DokumenteView: View {
                     wuenscheDokumenteEingeklappt.toggle()
                 }
             }
+
+            if !wuenscheDokumenteEingeklappt {
+                VStack(spacing: 10) {
+                    dokumenteListe(wuenscheDokumente)
+                }
+            }
         }
-        .listRowBackground(dokumenteKartenFarbe)
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.65))
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(dokumenteAkzentFarbe.opacity(0.12), lineWidth: 1)
+        }
+        .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 2, trailing: 8))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
     }
 
     private var finanzenDokumenteSection: some View {
-        Section {
-            if !finanzenDokumenteEingeklappt {
-                dokumenteListe(finanzDokumente)
-            }
-        } header: {
+        VStack(alignment: .leading, spacing: 14) {
             einklappHeader(
                 titel: "Dokumente - Finanzen",
                 anzahl: finanzDokumente.count,
@@ -148,8 +378,24 @@ struct DokumenteView: View {
                     finanzenDokumenteEingeklappt.toggle()
                 }
             }
+
+            if !finanzenDokumenteEingeklappt {
+                VStack(spacing: 10) {
+                    dokumenteListe(finanzDokumente)
+                }
+            }
         }
-        .listRowBackground(dokumenteKartenFarbe)
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.65))
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(dokumenteAkzentFarbe.opacity(0.12), lineWidth: 1)
+        }
+        .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 8, trailing: 8))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
     }
 
     private var fotoalbumSection: some View {
@@ -157,7 +403,7 @@ struct DokumenteView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Mein persönliches Fotoalbum")
                     .font(.title3.weight(.semibold))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(.black)
 
                 Text("Lade hier Fotos hoch, die für deine Vertrauenspersonen wichtig oder besonders wertvoll sind.")
                     .font(.subheadline)
@@ -183,7 +429,7 @@ struct DokumenteView: View {
                 }
                 .buttonStyle(.plain)
             }
-            .padding(18)
+            .padding(15)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.white.opacity(0.65))
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
@@ -201,7 +447,7 @@ struct DokumenteView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Weitere Dokumente hochladen")
                     .font(.title3.weight(.semibold))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(.black)
 
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Ergänze wichtige Unterlagen, die nicht direkt zu Wünsche oder Finanzen gehören.")
@@ -417,8 +663,8 @@ struct DokumenteView: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 Text(titel)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.black)
 
                 Spacer()
 
