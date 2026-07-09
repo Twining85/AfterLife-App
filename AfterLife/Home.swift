@@ -1228,6 +1228,9 @@ struct Home: View {
         private let kachelFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
         private let akzentFarbe = Color.orange
         private let schluessliAkzent = Color(red: 0.16, green: 0.36, blue: 0.42)
+        @State private var dossierBereicheAnzeigen = false
+        @State private var dossierGeoeffnetBestaetigungAnzeigen = false
+        @State private var dossierGeoeffnetHaekchenAnimieren = false
 
         private var dossierName: String {
             dossierKontext.besitzerName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
@@ -1275,6 +1278,7 @@ struct Home: View {
                         }
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(schluessliAkzent)
+
                     }
                     .padding(18)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -1286,34 +1290,157 @@ struct Home: View {
                     }
                     .shadow(color: akzentFarbe.opacity(0.10), radius: 14, x: 0, y: 8)
 
-                    Text("Dossierbereiche")
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+                    if !dossierBereicheAnzeigen {
+                        Button {
+                            dossierGeoeffnetHaekchenAnimieren = false
 
-                    LazyVGrid(
-                        columns: [
-                            GridItem(.flexible(), spacing: 16),
-                            GridItem(.flexible(), spacing: 16)
-                        ],
-                        spacing: 16
-                    ) {
-                        ForEach(HomeBereich.allCases) { bereich in
-                            NavigationLink {
-                                zielView(fuer: bereich)
+                            withAnimation(.spring(response: 0.42, dampingFraction: 0.90)) {
+                                dossierBereicheAnzeigen = true
+                                dossierGeoeffnetBestaetigungAnzeigen = true
+                            }
+
+                            Task {
+                                try? await Task.sleep(nanoseconds: 120_000_000)
+                                await MainActor.run {
+                                    withAnimation(.spring(response: 0.32, dampingFraction: 0.58)) {
+                                        dossierGeoeffnetHaekchenAnimieren = true
+                                    }
+                                }
+
+                                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                                await MainActor.run {
+                                    withAnimation(.easeOut(duration: 0.28)) {
+                                        dossierGeoeffnetBestaetigungAnzeigen = false
+                                        dossierGeoeffnetHaekchenAnimieren = false
+                                    }
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "folder.fill.badge.person.crop")
+                                    .font(.body.weight(.semibold))
+
+                                Text("Dossier öffnen")
+                                    .font(.body.weight(.semibold))
+
+                                Spacer(minLength: 0)
+
+                                Image(systemName: "chevron.down")
+                                    .font(.caption.weight(.bold))
+                            }
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 14)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .fill(akzentFarbe)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+
+                    if dossierBereicheAnzeigen {
+                        VStack(alignment: .leading, spacing: 10) {
+                            if dossierGeoeffnetBestaetigungAnzeigen {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.subheadline.weight(.semibold))
+                                        .scaleEffect(dossierGeoeffnetHaekchenAnimieren ? 1.16 : 0.72)
+                                        .opacity(dossierGeoeffnetHaekchenAnimieren ? 1 : 0.35)
+
+                                    Text("Dossier von \(dossierName) geöffnet")
+                                        .font(.subheadline.weight(.semibold))
+                                }
+                                .foregroundStyle(Color.green)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 9)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.green.opacity(0.12))
+                                )
+                                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                            }
+
+                            Button {
+                                withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+                                    dossierBereicheAnzeigen = false
+                                    dossierGeoeffnetBestaetigungAnzeigen = false
+                                    dossierGeoeffnetHaekchenAnimieren = false
+                                }
                             } label: {
-                                Home.HomeKachel(
-                                    icon: bereich.icon,
-                                    titel: bereich.titel,
-                                    untertitel: bereich.untertitel,
-                                    details: bereich.details,
-                                    farbe: kachelFarbe,
-                                    akzentFarbe: bereich.akzentFarbe
+                                HStack(spacing: 8) {
+                                    Text("Dossier")
+                                        .font(.title3.weight(.bold))
+
+                                    Image(systemName: "chevron.up.circle.fill")
+                                        .font(.subheadline.weight(.semibold))
+
+                                    Spacer(minLength: 0)
+                                }
+                                .foregroundStyle(akzentFarbe)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+
+                            Button {
+                                // TODO: PDFExportService später hier anschliessen.
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "doc.richtext.fill")
+                                        .font(.body.weight(.semibold))
+
+                                    Text("Dossier als PDF exportieren")
+                                        .font(.body.weight(.semibold))
+
+                                    Spacer(minLength: 0)
+
+                                    Image(systemName: "square.and.arrow.up")
+                                        .font(.caption.weight(.bold))
+                                }
+                                .foregroundStyle(akzentFarbe)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 12)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        .fill(akzentFarbe.opacity(0.10))
                                 )
                             }
                             .buttonStyle(.plain)
                         }
+                        .transition(.opacity.animation(.easeInOut(duration: 0.28)))
+
+                        LazyVGrid(
+                            columns: [
+                                GridItem(.flexible(), spacing: 16),
+                                GridItem(.flexible(), spacing: 16)
+                            ],
+                            spacing: 16
+                        ) {
+                            ForEach(HomeBereich.allCases) { bereich in
+                                NavigationLink {
+                                    zielView(fuer: bereich)
+                                } label: {
+                                    Home.HomeKachel(
+                                        icon: bereich.icon,
+                                        titel: bereich.titel,
+                                        untertitel: bereich.untertitel,
+                                        details: bereich.details,
+                                        farbe: kachelFarbe,
+                                        akzentFarbe: bereich.akzentFarbe
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
                 }
+                .animation(.easeInOut(duration: 0.30), value: dossierBereicheAnzeigen)
+                .animation(.easeInOut(duration: 0.24), value: dossierGeoeffnetBestaetigungAnzeigen)
+                .animation(.spring(response: 0.32, dampingFraction: 0.58), value: dossierGeoeffnetHaekchenAnimieren)
                 .padding(.horizontal, 24)
                 .padding(.top, 20)
                 .padding(.bottom, 32)
