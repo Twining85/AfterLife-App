@@ -1327,7 +1327,7 @@ struct Home: View {
         private func zielView(fuer bereich: HomeBereich) -> some View {
             switch bereich {
             case .profil:
-                ProfilView()
+                ProfilView(dossierKontext: dossierKontext)
             case .gesundheit:
                 GesundheitView()
             case .wuensche:

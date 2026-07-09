@@ -6,6 +6,7 @@ import LocalAuthentication
 
 
 struct ProfilView: View {
+    var dossierKontext: DossierKontext = .eigenesDossier(dossierID: UUID())
     @Environment(\.modelContext) private var modelContext
     @Query private var gespeicherteProfile: [ProfilModell]
     @Query private var gespeicherteWuensche: [WuenscheModell]
@@ -148,14 +149,16 @@ struct ProfilView: View {
                                 .frame(width: 90, height: 90)
                                 .foregroundStyle(profilAkzentFarbe.opacity(0.65))
                         }
-                        PhotosPicker(
-                            selection: $profilbildAuswahl,
-                            matching: .images,
-                            photoLibrary: .shared()
-                        ) {
-                            Text(profilbildData == nil ? "Profilbild auswählen" : "Profilbild ändern")
-                                .font(.headline)
-                                .foregroundStyle(profilAkzentFarbe)
+                        if dossierKontext.kannBearbeiten {
+                            PhotosPicker(
+                                selection: $profilbildAuswahl,
+                                matching: .images,
+                                photoLibrary: .shared()
+                            ) {
+                                Text(profilbildData == nil ? "Profilbild auswählen" : "Profilbild ändern")
+                                    .font(.headline)
+                                    .foregroundStyle(profilAkzentFarbe)
+                            }
                         }
                     }
                     .frame(maxWidth: .infinity)
@@ -176,12 +179,15 @@ struct ProfilView: View {
                 Section("Persönliche Angaben") {
                     TextField("Vorname", text: $vorname)
                         .textContentType(.name)
+                        .disabled(dossierKontext.istReadOnly)
                     
                     TextField("Name", text: $name)
                         .textContentType(.name)
+                        .disabled(dossierKontext.istReadOnly)
 
                     TextField("Strasse", text: $adresse)
                         .textContentType(.streetAddressLine1)
+                        .disabled(dossierKontext.istReadOnly)
                         .onChange(of: adresse) { _, _ in
                             guard profilGeladen else { return }
                             adresseManuellBearbeitet = true
@@ -196,7 +202,7 @@ struct ProfilView: View {
                         }
                     }
 
-                    if !adressVorschlaege.isEmpty {
+                    if !adressVorschlaege.isEmpty, dossierKontext.kannBearbeiten {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 0) {
                                 ForEach(adressVorschlaege) { vorschlag in
@@ -249,11 +255,14 @@ struct ProfilView: View {
 
                     TextField("Hausnummer", text: $hausnummer)
                         .textContentType(.streetAddressLine2)
+                        .disabled(dossierKontext.istReadOnly)
 
                     HStack {
                         TextField("PLZ", text: $plz)
                             .keyboardType(.numberPad)
+                            .disabled(dossierKontext.istReadOnly)
                         TextField("Stadt", text: $stadt)
+                            .disabled(dossierKontext.istReadOnly)
                     }
 
                     Picker("Land", selection: $land) {
@@ -261,10 +270,12 @@ struct ProfilView: View {
                             Text(land).tag(land)
                         }
                     }
+                    .disabled(dossierKontext.istReadOnly)
 
                     TextField("Telefon", text: $telefon)
                         .keyboardType(.phonePad)
                         .textContentType(.telephoneNumber)
+                        .disabled(dossierKontext.istReadOnly)
 
                     VStack(alignment: .leading, spacing: 6) {
                         TextField("E-Mail", text: $email)
@@ -272,6 +283,7 @@ struct ProfilView: View {
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .textContentType(.emailAddress)
+                            .disabled(dossierKontext.istReadOnly)
 
                         if !istEmailGueltig {
                             Text("Bitte gib eine gültige E-Mail-Adresse ein.")
@@ -288,6 +300,7 @@ struct ProfilView: View {
                         TextField("TT.MM.JJJJ", text: $geburtsdatumText)
                             .keyboardType(.numberPad)
                             .textContentType(.birthdate)
+                            .disabled(dossierKontext.istReadOnly)
                             .padding(.vertical, 7)
                             .padding(.horizontal, 12)
                             .background(profilKartenFarbe)
@@ -306,6 +319,7 @@ struct ProfilView: View {
                         TextField("756.XXXX.XXXX.XX", text: $ahvNummer)
                             .keyboardType(.numberPad)
                             .textContentType(.oneTimeCode)
+                            .disabled(dossierKontext.istReadOnly)
                             .padding(.vertical, 7)
                             .padding(.horizontal, 12)
                             .background(profilKartenFarbe)
@@ -322,24 +336,26 @@ struct ProfilView: View {
                 .listRowBackground(profilKartenFarbe)
                 .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
 
-                Section("Zugriff im Notfall") {
-                    NavigationLink {
-                        VertrauenspersonView()
-                    } label: {
-                        Label(
-                            gespeicherteDossierZugriffe.isEmpty
-                                ? "Vertrauensperson Zugriff geben"
-                                : "Vertrauenspersonen verwalten",
-                            systemImage: "person.badge.key.fill"
-                        )
-                        .foregroundStyle(profilAkzentFarbe)
+                if dossierKontext.kannBearbeiten {
+                    Section("Zugriff im Notfall") {
+                        NavigationLink {
+                            VertrauenspersonView()
+                        } label: {
+                            Label(
+                                gespeicherteDossierZugriffe.isEmpty
+                                    ? "Vertrauensperson Zugriff geben"
+                                    : "Vertrauenspersonen verwalten",
+                                systemImage: "person.badge.key.fill"
+                            )
+                            .foregroundStyle(profilAkzentFarbe)
+                        }
+                        Text("Hier kannst du Vertrauenspersonen einladen und verwalten, damit deine Daten im Notfall kontrolliert abrufbar sind.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
-                    Text("Hier kannst du Vertrauenspersonen einladen und verwalten, damit deine Daten im Notfall kontrolliert abrufbar sind.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    .listRowBackground(profilKartenFarbe)
+                    .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
                 }
-                .listRowBackground(profilKartenFarbe)
-                .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
                 Section("Dossier exportieren") {
                     Button {
                         passwortExportAuswahlAnzeigen = true
@@ -354,88 +370,92 @@ struct ProfilView: View {
                 .listRowBackground(profilKartenFarbe)
                 .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
 
-                Section("Zugangsdaten") {
-                    if registrierungsArt == "Google" {
-                        LabeledContent("Registrierungsart", value: "Mit Google registriert")
-                        LabeledContent("E-Mail-Adresse", value: gespeicherteEmail.isEmpty ? "Nicht erfasst" : gespeicherteEmail)
-                    } else if registrierungsArt == "Apple" || registrierungsArt == "Apple ID" {
-                        LabeledContent("Registrierungsart", value: "Mit Apple ID registriert")
-                        LabeledContent("E-Mail-Adresse", value: gespeicherteEmail.isEmpty ? "Nicht erfasst" : gespeicherteEmail)
-                    } else {
-                        LabeledContent("Benutzername", value: gespeicherteEmail.isEmpty ? "Nicht erfasst" : gespeicherteEmail)
-                        HStack {
-                            Text("Passwort")
-                            Spacer()
-                            Text(angezeigtesRegistrierungsPasswort)
-                                .foregroundStyle(.secondary)
+                if dossierKontext.kannBearbeiten {
+                    Section("Zugangsdaten") {
+                        if registrierungsArt == "Google" {
+                            LabeledContent("Registrierungsart", value: "Mit Google registriert")
+                            LabeledContent("E-Mail-Adresse", value: gespeicherteEmail.isEmpty ? "Nicht erfasst" : gespeicherteEmail)
+                        } else if registrierungsArt == "Apple" || registrierungsArt == "Apple ID" {
+                            LabeledContent("Registrierungsart", value: "Mit Apple ID registriert")
+                            LabeledContent("E-Mail-Adresse", value: gespeicherteEmail.isEmpty ? "Nicht erfasst" : gespeicherteEmail)
+                        } else {
+                            LabeledContent("Benutzername", value: gespeicherteEmail.isEmpty ? "Nicht erfasst" : gespeicherteEmail)
+                            HStack {
+                                Text("Passwort")
+                                Spacer()
+                                Text(angezeigtesRegistrierungsPasswort)
+                                    .foregroundStyle(.secondary)
+                                Button {
+                                    registrierungsPasswortAnzeigen.toggle()
+                                } label: {
+                                    Image(systemName: registrierungsPasswortAnzeigen ? "eye.slash" : "eye")
+                                        .foregroundStyle(profilAkzentFarbe)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(registrierungsPasswortAnzeigen ? "Passwort ausblenden" : "Passwort anzeigen")
+                            }
                             Button {
-                                registrierungsPasswortAnzeigen.toggle()
+                                passwortAendernAnzeigen = true
                             } label: {
-                                Image(systemName: registrierungsPasswortAnzeigen ? "eye.slash" : "eye")
+                                Label("Passwort ändern", systemImage: "key.fill")
                                     .foregroundStyle(profilAkzentFarbe)
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(registrierungsPasswortAnzeigen ? "Passwort ausblenden" : "Passwort anzeigen")
                         }
-                        Button {
-                            passwortAendernAnzeigen = true
-                        } label: {
-                            Label("Passwort ändern", systemImage: "key.fill")
-                                .foregroundStyle(profilAkzentFarbe)
-                        }
-                    }
-                    Divider()
-                    Toggle("Biometrische Anmeldung verwenden", isOn: Binding(
-                        get: {
-                            biometrieAktiviert
-                        },
-                        set: { neuerWert in
-                            if neuerWert {
-                                pruefeUndAktiviereBiometrie()
-                            } else {
-                                biometrieAktiviert = false
-                                biometrieFehlermeldung = ""
-                                speichereProfil()
+                        Divider()
+                        Toggle("Biometrische Anmeldung verwenden", isOn: Binding(
+                            get: {
+                                biometrieAktiviert
+                            },
+                            set: { neuerWert in
+                                if neuerWert {
+                                    pruefeUndAktiviereBiometrie()
+                                } else {
+                                    biometrieAktiviert = false
+                                    biometrieFehlermeldung = ""
+                                    speichereProfil()
+                                }
+                            }
+                        ))
+                        .disabled(biometriePruefungLaeuft)
+                        if biometriePruefungLaeuft {
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                Text("Face ID wird geprüft …")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
                             }
                         }
-                    ))
-                    .disabled(biometriePruefungLaeuft)
-                    if biometriePruefungLaeuft {
-                        HStack(spacing: 8) {
-                            ProgressView()
-                            Text("Face ID wird geprüft …")
+                        if !biometrieFehlermeldung.isEmpty {
+                            Text(biometrieFehlermeldung)
                                 .font(.footnote)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(.red)
+                        }
+                        Text("Wenn aktiviert, kann die App beim Öffnen Face ID oder Touch ID für die Anmeldung verwenden.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        Text("Diese Angaben stammen aus der Registrierung. Für eine produktive App sollten Passwörter nicht im Klartext gespeichert oder angezeigt werden, sondern sicher über die Keychain verwaltet werden.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    .listRowBackground(profilKartenFarbe)
+                    .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
+                }
+                if dossierKontext.kannBearbeiten {
+                    Section {
+                        Button {
+                            showLogout = true
+                        } label: {
+                            Label("Logout", systemImage: "rectangle.portrait.and.arrow.right")
+                        }
+                        Button(role: .destructive) {
+                            profilLoeschenBestaetigen = true
+                        } label: {
+                            Label("Profil löschen", systemImage: "trash.fill")
                         }
                     }
-                    if !biometrieFehlermeldung.isEmpty {
-                        Text(biometrieFehlermeldung)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
-                    }
-                    Text("Wenn aktiviert, kann die App beim Öffnen Face ID oder Touch ID für die Anmeldung verwenden.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    Text("Diese Angaben stammen aus der Registrierung. Für eine produktive App sollten Passwörter nicht im Klartext gespeichert oder angezeigt werden, sondern sicher über die Keychain verwaltet werden.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    .listRowBackground(profilKartenFarbe)
+                    .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
                 }
-                .listRowBackground(profilKartenFarbe)
-                .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
-                Section {
-                    Button {
-                        showLogout = true
-                    } label: {
-                        Label("Logout", systemImage: "rectangle.portrait.and.arrow.right")
-                    }
-                    Button(role: .destructive) {
-                        profilLoeschenBestaetigen = true
-                    } label: {
-                        Label("Profil löschen", systemImage: "trash.fill")
-                    }
-                }
-                .listRowBackground(profilKartenFarbe)
-                .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
 
             }
             .scrollContentBackground(.hidden)
@@ -563,6 +583,7 @@ struct ProfilView: View {
             .onChange(of: ahvNummer) { _, _ in speichereProfil() }
             .onChange(of: email) { _, _ in speichereProfil() }
             .onChange(of: adresse) { _, neueAdresse in
+                guard dossierKontext.kannBearbeiten else { return }
                 guard land == "Schweiz" else {
                     adressVorschlaege = []
                     adresseManuellBearbeitet = false
@@ -601,6 +622,7 @@ struct ProfilView: View {
                 }
             }
             .onChange(of: plz) { _, neuePLZ in
+                guard dossierKontext.kannBearbeiten else { return }
                 guard land == "Schweiz" else { return }
 
                 let bereinigtePLZ = neuePLZ.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -615,6 +637,8 @@ struct ProfilView: View {
                 }
             }
             .onChange(of: profilbildAuswahl) { _, neueAuswahl in
+                guard dossierKontext.kannBearbeiten else { return }
+
                 Task {
                     if let data = try? await neueAuswahl?.loadTransferable(type: Data.self),
                        let image = UIImage(data: data),
@@ -717,6 +741,7 @@ struct ProfilView: View {
     
 
     private func pruefeUndAktiviereBiometrie() {
+        guard dossierKontext.kannBearbeiten else { return }
         guard !biometriePruefungLaeuft else { return }
 
         biometriePruefungLaeuft = true
@@ -831,6 +856,7 @@ struct ProfilView: View {
     }
 
     private func speichereProfil() {
+        guard dossierKontext.kannBearbeiten else { return }
         guard profilGeladen else { return }
 
         let profil: ProfilModell
@@ -865,6 +891,7 @@ struct ProfilView: View {
     }
 
     private func synchronisiereAfterLifeDigitaleIdentitaet(email: String? = nil, passwort: String? = nil) {
+        guard dossierKontext.kannBearbeiten else { return }
         let zielEmail = (email ?? gespeicherteEmail).trimmingCharacters(in: .whitespacesAndNewlines)
         let zielPasswort = passwort ?? gespeichertesPasswort
 
@@ -915,6 +942,7 @@ struct ProfilView: View {
     }
 
     private func passwortAendern() {
+        guard dossierKontext.kannBearbeiten else { return }
         passwortAendernFehler = ""
         passwortAendernErfolg = ""
 
@@ -1116,6 +1144,7 @@ struct ProfilView: View {
     }
 
     private func profilLoeschen() {
+        guard dossierKontext.kannLoeschen else { return }
 
         vorname = ""
 
