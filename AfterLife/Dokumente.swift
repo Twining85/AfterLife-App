@@ -3,11 +3,13 @@ import SwiftData
 import UniformTypeIdentifiers
 import QuickLook
 import PhotosUI
+import Photos
 import UIKit
 import PDFKit
 import VisionKit
 
 struct DokumenteView: View {
+    var dossierKontext: DossierKontext = .eigenesDossier(dossierID: UUID())
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \FotoalbumBildModell.reihenfolge) private var gespeicherteFotos: [FotoalbumBildModell]
     @Query private var gespeicherteWuensche: [WuenscheModell]
@@ -25,6 +27,9 @@ struct DokumenteView: View {
     @State private var pendingScanData: Data?
     @State private var pendingScanDateiName = ""
     @State private var showDownloadSpeichernAbfrage = false
+    @State private var showFotoalbumSpeichernHinweis = false
+    @State private var fotoalbumSpeichernHinweisTitel = ""
+    @State private var fotoalbumSpeichernHinweisText = ""
     @State private var ausgewaehlteDokumentBereiche: Set<DokumentBereich> = [.weitere]
 
     private enum DokumentBereich: CaseIterable {
@@ -82,6 +87,15 @@ struct DokumenteView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+
+                    if let lesemodusHinweis = dossierKontext.lesemodusHinweis {
+                        Text(lesemodusHinweis)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(dokumenteAkzentFarbe)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                            .background(dokumenteAkzentFarbe.opacity(0.10), in: Capsule())
+                    }
                 }
             }
 
@@ -266,12 +280,14 @@ struct DokumenteView: View {
                         Image(systemName: "doc.richtext")
                             .foregroundStyle(dokumenteAkzentFarbe)
                     }
-                    .disabled(alleExportierbarenDokumente.isEmpty)
+                    .disabled(alleExportierbarenDokumente.isEmpty || !dossierKontext.kannPDFExportieren)
                     .accessibilityLabel("Dokumente als PDF exportieren")
                 }
             }
             .sheet(isPresented: $showDocumentPicker) {
                 DocumentPicker { urls in
+                    guard dossierKontext.kannDokumenteHochladen else { return }
+
                     for url in urls {
                         let hatZugriffErhalten = url.startAccessingSecurityScopedResource()
                         defer {
@@ -295,6 +311,7 @@ struct DokumenteView: View {
             }
             .sheet(isPresented: $showDocumentScanner) {
                 DocumentScanner { pdfData in
+                    guard dossierKontext.kannDokumenteScannen else { return }
                     pendingScanDateiName = "Scan_\(Date().formatted(.dateTime.year().month().day().hour().minute())).pdf"
                     pendingScanData = pdfData
                     showDownloadSpeichernAbfrage = true
@@ -310,6 +327,11 @@ struct DokumenteView: View {
                 }
             } message: {
                 Text("Möchtest du den Scan zusätzlich ausserhalb der App speichern? In der App wird das Dokument in jedem Fall gespeichert. Bei Ja öffnet sich anschliessend das Speichern-Menü.")
+            }
+            .alert(fotoalbumSpeichernHinweisTitel, isPresented: $showFotoalbumSpeichernHinweis) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(fotoalbumSpeichernHinweisText)
             }
             .sheet(item: $selectedDocument) { document in
                 DocumentPreview(url: document.fileURL)
@@ -414,20 +436,26 @@ struct DokumenteView: View {
                     fotoalbumInhalt
                 }
 
-                PhotosPicker(
-                    selection: $selectedPhotoItems,
-                    maxSelectionCount: 20,
-                    matching: .images
-                ) {
-                    Label("Bild für Fotoalbum hochladen", systemImage: "photo.on.rectangle.angled")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(dokumenteAkzentFarbe)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 13)
-                        .background(dokumenteAkzentFarbe.opacity(0.10))
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                if dossierKontext.kannDokumenteHochladen {
+                    PhotosPicker(
+                        selection: $selectedPhotoItems,
+                        maxSelectionCount: 20,
+                        matching: .images
+                    ) {
+                        Label("Bild für Fotoalbum hochladen", systemImage: "photo.on.rectangle.angled")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(dokumenteAkzentFarbe)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                            .background(dokumenteAkzentFarbe.opacity(0.10))
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                } else if gespeicherteFotos.isEmpty {
+                    Text("Kein Fotoalbum hinterlegt.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.plain)
             }
             .padding(15)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -469,32 +497,42 @@ struct DokumenteView: View {
                     }
                 }
 
-                HStack(spacing: 10) {
-                    Button {
-                        showDocumentPicker = true
-                    } label: {
-                        Label("Hinzufügen", systemImage: "doc.badge.plus")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 13)
-                            .background(dokumenteAkzentFarbe)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
+                if dossierKontext.kannDokumenteHochladen || dossierKontext.kannDokumenteScannen {
+                    HStack(spacing: 10) {
+                        if dossierKontext.kannDokumenteHochladen {
+                            Button {
+                                showDocumentPicker = true
+                            } label: {
+                                Label("Hinzufügen", systemImage: "doc.badge.plus")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 13)
+                                    .background(dokumenteAkzentFarbe)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                        }
 
-                    Button {
-                        showDocumentScanner = true
-                    } label: {
-                        Label("Scannen", systemImage: "doc.viewfinder")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(dokumenteAkzentFarbe)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 13)
-                            .background(dokumenteAkzentFarbe.opacity(0.10))
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        if dossierKontext.kannDokumenteScannen {
+                            Button {
+                                showDocumentScanner = true
+                            } label: {
+                                Label("Scannen", systemImage: "doc.viewfinder")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(dokumenteAkzentFarbe)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 13)
+                                    .background(dokumenteAkzentFarbe.opacity(0.10))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
-                    .buttonStyle(.plain)
+                } else if weitereDokumente.isEmpty {
+                    Text("Keine weiteren Dokumente hinterlegt.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
             }
             .padding(18)
@@ -534,13 +572,15 @@ struct DokumenteView: View {
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                        Button(role: .destructive) {
-                            modelContext.delete(dokument)
-                            try? modelContext.save()
-                        } label: {
-                            Label("Löschen", systemImage: "trash")
+                        if dossierKontext.kannLoeschen {
+                            Button(role: .destructive) {
+                                modelContext.delete(dokument)
+                                try? modelContext.save()
+                            } label: {
+                                Label("Löschen", systemImage: "trash")
+                            }
+                            .tint(.red)
                         }
-                        .tint(.red)
                     }
                 }
             }
@@ -601,18 +641,11 @@ struct DokumenteView: View {
 
                 Spacer()
 
-                if let photoBundleURL {
-                    ShareLink(item: photoBundleURL) {
-                        Label("Album teilen", systemImage: "square.and.arrow.up")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(dokumenteAkzentFarbe)
-                    }
-                    .buttonStyle(.borderless)
-                } else {
+                if dossierKontext.kannFotoalbumHerunterladen {
                     Button {
-                        photoBundleURL = erstelleFotoBundle()
+                        fotoalbumInFotomediathekSpeichern()
                     } label: {
-                        Label("Album bereitstellen", systemImage: "tray.and.arrow.down")
+                        Label("Album herunterladen", systemImage: "square.and.arrow.down")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(dokumenteAkzentFarbe)
                     }
@@ -620,17 +653,19 @@ struct DokumenteView: View {
                 }
             }
 
-            Button(role: .destructive) {
-                for photo in gespeicherteFotos {
-                    modelContext.delete(photo)
+            if dossierKontext.kannLoeschen {
+                Button(role: .destructive) {
+                    for photo in gespeicherteFotos {
+                        modelContext.delete(photo)
+                    }
+                    photoBundleURL = nil
+                    try? modelContext.save()
+                } label: {
+                    Label("Fotoalbum leeren", systemImage: "trash")
+                        .font(.caption.weight(.semibold))
                 }
-                photoBundleURL = nil
-                try? modelContext.save()
-            } label: {
-                Label("Fotoalbum leeren", systemImage: "trash")
-                    .font(.caption.weight(.semibold))
+                .buttonStyle(.borderless)
             }
-            .buttonStyle(.borderless)
         }
     }
 
@@ -906,6 +941,7 @@ struct DokumenteView: View {
     }
 
     private func speichereGescanntesDokument(sollInDownloadsSpeichern: Bool) {
+        guard dossierKontext.kannDokumenteScannen else { return }
         guard let pdfData = pendingScanData, !pendingScanDateiName.isEmpty else {
             pendingScanData = nil
             pendingScanDateiName = ""
@@ -1003,22 +1039,26 @@ struct DokumenteView: View {
         .frame(height: 260)
     }
 
+    @ViewBuilder
     private func deletePhotoButton(for photo: FotoalbumBildModell) -> some View {
-        Button {
-            modelContext.delete(photo)
-            photoBundleURL = nil
-            try? modelContext.save()
-        } label: {
-            Image(systemName: "xmark.circle.fill")
-                .font(.title2)
-                .foregroundStyle(.white, dokumenteAkzentFarbe.opacity(0.85))
-                .shadow(color: .black.opacity(0.25), radius: 3, x: 0, y: 1)
+        if dossierKontext.kannLoeschen {
+            Button {
+                modelContext.delete(photo)
+                photoBundleURL = nil
+                try? modelContext.save()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(.white, dokumenteAkzentFarbe.opacity(0.85))
+                    .shadow(color: .black.opacity(0.25), radius: 3, x: 0, y: 1)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Foto löschen")
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Foto löschen")
     }
 
     private func fotosAusMediathekLaden(_ items: [PhotosPickerItem]) async {
+        guard dossierKontext.kannDokumenteHochladen else { return }
         var neueFotos: [FotoalbumBildModell] = []
 
         for item in items {
@@ -1210,27 +1250,103 @@ struct DokumenteView: View {
         return drawRect.maxY
     }
 
-    // Erstellt einen temporären Ordner mit allen Fotos.
-    // FileManager besitzt keine native zipItem-Funktion.
-    // Für echtes ZIP-Exportieren müsste zusätzlich ZIPFoundation eingebunden werden.
-    private func erstelleFotoBundle() -> URL? {
-        guard !gespeicherteFotos.isEmpty else { return nil }
-
-        let fileManager = FileManager.default
-        let folderURL = fileManager.temporaryDirectory
-            .appendingPathComponent("Mein_persoenliches_Fotoalbum_\(UUID().uuidString)", isDirectory: true)
-
-        do {
-            try fileManager.createDirectory(at: folderURL, withIntermediateDirectories: true)
-
-            for (index, photo) in gespeicherteFotos.enumerated() {
-                let fileURL = folderURL.appendingPathComponent("Foto_\(index + 1).jpg")
-                try photo.bildDaten.write(to: fileURL)
-            }
-            return folderURL
-        } catch {
-            return nil
+    private func fotoalbumInFotomediathekSpeichern() {
+        guard dossierKontext.kannFotoalbumHerunterladen else { return }
+        guard !gespeicherteFotos.isEmpty else {
+            zeigeFotoalbumSpeichernHinweis(
+                titel: "Kein Fotoalbum vorhanden",
+                text: "Es sind aktuell keine Fotos hinterlegt, die gespeichert werden können."
+            )
+            return
         }
+
+        let bilder = gespeicherteFotos.compactMap { UIImage(data: $0.bildDaten) }
+
+        guard !bilder.isEmpty else {
+            zeigeFotoalbumSpeichernHinweis(
+                titel: "Fotos nicht lesbar",
+                text: "Die hinterlegten Fotos konnten nicht für die Foto-Mediathek vorbereitet werden."
+            )
+            return
+        }
+
+        let albumTitel = "Tschlüssli Fotoalbum"
+
+        PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
+            guard status == .authorized || status == .limited else {
+                DispatchQueue.main.async {
+                    zeigeFotoalbumSpeichernHinweis(
+                        titel: "Zugriff nicht erlaubt",
+                        text: "Bitte erlaube Tschlüssli den Zugriff, um Fotos in deiner Foto-Mediathek zu speichern."
+                    )
+                }
+                return
+            }
+
+            let bestehendesAlbum = findeFotoalbum(titel: albumTitel)
+
+            PHPhotoLibrary.shared().performChanges {
+                let albumChangeRequest: PHAssetCollectionChangeRequest?
+
+                if let bestehendesAlbum {
+                    albumChangeRequest = PHAssetCollectionChangeRequest(for: bestehendesAlbum)
+                } else {
+                    albumChangeRequest = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: albumTitel)
+                }
+
+                var platzhalter: [PHObjectPlaceholder] = []
+
+                for bild in bilder {
+                    let assetRequest = PHAssetChangeRequest.creationRequestForAsset(from: bild)
+                    assetRequest.creationDate = Date()
+
+                    if let placeholder = assetRequest.placeholderForCreatedAsset {
+                        platzhalter.append(placeholder)
+                    }
+                }
+
+                albumChangeRequest?.addAssets(platzhalter as NSArray)
+            } completionHandler: { erfolgreich, fehler in
+                DispatchQueue.main.async {
+                    if let fehler {
+                        zeigeFotoalbumSpeichernHinweis(
+                            titel: "Speichern fehlgeschlagen",
+                            text: "Das Fotoalbum konnte nicht gespeichert werden: \(fehler.localizedDescription)"
+                        )
+                    } else if erfolgreich {
+                        zeigeFotoalbumSpeichernHinweis(
+                            titel: "Fotoalbum gespeichert",
+                            text: "Die Fotos wurden in deiner Foto-Mediathek gespeichert und dem Album \"\(albumTitel)\" hinzugefügt."
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private func findeFotoalbum(titel: String) -> PHAssetCollection? {
+        let fetchResult = PHAssetCollection.fetchAssetCollections(
+            with: .album,
+            subtype: .albumRegular,
+            options: nil
+        )
+
+        var gefundenesAlbum: PHAssetCollection?
+
+        fetchResult.enumerateObjects { collection, _, stop in
+            if collection.localizedTitle == titel {
+                gefundenesAlbum = collection
+                stop.pointee = true
+            }
+        }
+
+        return gefundenesAlbum
+    }
+
+    private func zeigeFotoalbumSpeichernHinweis(titel: String, text: String) {
+        fotoalbumSpeichernHinweisTitel = titel
+        fotoalbumSpeichernHinweisText = text
+        showFotoalbumSpeichernHinweis = true
     }
 }
 

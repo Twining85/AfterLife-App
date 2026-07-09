@@ -2,11 +2,14 @@ import SwiftUI
 import SwiftData
 import ContactsUI
 import PhotosUI
+import Photos
 import UniformTypeIdentifiers
 import QuickLook
 import AVKit
 
+
 struct WuenscheView: View {
+    var dossierKontext: DossierKontext = .eigenesDossier(dossierID: UUID())
     @Environment(\.modelContext) private var modelContext
     @Query private var gespeicherteWuensche: [WuenscheModell]
     @Query private var gespeicherteHinterbliebeneKontakte: [HinterbliebeneModell]
@@ -44,6 +47,9 @@ struct WuenscheView: View {
     @State private var letzteWorteVideoURL: URL?
     @State private var letzteWorteVideoVorschauAnzeigen = false
     @State private var letzteWorteVideoPlayer: AVPlayer?
+    @State private var videoSpeichernHinweisAnzeigen = false
+    @State private var videoSpeichernHinweisTitel = ""
+    @State private var videoSpeichernHinweisText = ""
 
     @State private var nachrufVorstellung = false
     @State private var nachrufText = ""
@@ -311,6 +317,11 @@ struct WuenscheView: View {
                 guard wuenscheGeladen else { return }
                 guard neueSignatur != letzteGespeicherteWuenscheSignatur else { return }
                 speichereWuenscheVerzoegert()
+            }
+            .alert(videoSpeichernHinweisTitel, isPresented: $videoSpeichernHinweisAnzeigen) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(videoSpeichernHinweisText)
             }
             .alert(
                 "Wunsch entfernen?",
@@ -756,13 +767,28 @@ struct WuenscheView: View {
                     .foregroundStyle(wuenscheAccentColor)
 
                     if letzteWorteVideoData != nil {
-                        Button(role: .destructive) {
-                            letzteWorteVideoEntfernen()
-                        } label: {
-                            Label("Video entfernen", systemImage: "trash")
-                                .font(.caption)
+                        HStack(spacing: 12) {
+                            if dossierKontext.kannVideoHerunterladen {
+                                Button {
+                                    letzteWorteVideoInFotomediathekSpeichern()
+                                } label: {
+                                    Label("Video herunterladen", systemImage: "square.and.arrow.down")
+                                        .font(.caption.weight(.semibold))
+                                }
+                                .buttonStyle(.borderless)
+                                .foregroundStyle(wuenscheAccentColor)
+                            }
+
+                            if dossierKontext.kannLoeschen {
+                                Button(role: .destructive) {
+                                    letzteWorteVideoEntfernen()
+                                } label: {
+                                    Label("Video entfernen", systemImage: "trash")
+                                        .font(.caption)
+                                }
+                                .buttonStyle(.borderless)
+                            }
                         }
-                        .buttonStyle(.borderless)
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -1712,6 +1738,88 @@ struct WuenscheView: View {
         letzteWorteVideoURL = nil
         letzteWorteVideoVorschauAnzeigen = false
         speichereWuenscheVerzoegert()
+    }
+
+    private func letzteWorteVideoInFotomediathekSpeichern() {
+        guard dossierKontext.kannVideoHerunterladen else { return }
+
+        guard let letzteWorteVideoData else {
+            zeigeVideoSpeichernHinweis(
+                titel: "Kein Video vorhanden",
+                text: "Es ist aktuell kein Video hinterlegt, das gespeichert werden kann."
+            )
+            return
+        }
+
+        let dateiname = letzteWorteVideoName?.isEmpty == false
+            ? letzteWorteVideoName!
+            : "Persönliche_Botschaft.mov"
+
+        guard let videoURL = temporaereVideoURL(dateiName: dateiname, videoData: letzteWorteVideoData) else {
+            zeigeVideoSpeichernHinweis(
+                titel: "Video nicht bereit",
+                text: "Das Video konnte nicht für den Export vorbereitet werden."
+            )
+            return
+        }
+
+        PHPhotoLibrary.requestAuthorization(for: .readWrite) { status in
+            guard status == .authorized || status == .limited else {
+                DispatchQueue.main.async {
+                    zeigeVideoSpeichernHinweis(
+                        titel: "Zugriff nicht erlaubt",
+                        text: "Bitte erlaube Tschlüssli den Zugriff auf deine Foto-Mediathek, damit das Video gespeichert werden kann."
+                    )
+                }
+                return
+            }
+
+            PHPhotoLibrary.shared().performChanges {
+                let assetRequest = PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: videoURL)
+                assetRequest?.creationDate = Date()
+            } completionHandler: { erfolgreich, fehler in
+                DispatchQueue.main.async {
+                    if let fehler {
+                        zeigeVideoSpeichernHinweis(
+                            titel: "Speichern fehlgeschlagen",
+                            text: "Das Video konnte nicht gespeichert werden: \(fehler.localizedDescription)"
+                        )
+                    } else if erfolgreich {
+                        zeigeVideoSpeichernHinweis(
+                            titel: "Video gespeichert",
+                            text: "Das Video wurde in deiner Foto-Mediathek gespeichert und sollte unter den neuesten Elementen sichtbar sein."
+                        )
+                    } else {
+                        zeigeVideoSpeichernHinweis(
+                            titel: "Nicht gespeichert",
+                            text: "Das Video konnte nicht in der Foto-Mediathek gespeichert werden."
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private func zeigeVideoSpeichernHinweis(titel: String, text: String) {
+        videoSpeichernHinweisTitel = titel
+        videoSpeichernHinweisText = text
+        videoSpeichernHinweisAnzeigen = true
+    }
+
+    private func temporaereVideoURL(dateiName: String, videoData: Data) -> URL? {
+        let bereinigterName = dateiName
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(bereinigterName)
+
+        do {
+            try videoData.write(to: url, options: .atomic)
+            return url
+        } catch {
+            print("Video konnte nicht temporär gespeichert werden: \(error.localizedDescription)")
+            return nil
+        }
     }
 
     private func oeffneLetzteWorteVideo() {

@@ -463,7 +463,14 @@ struct Home: View {
                 }
                 .background(Color(.systemBackground))
                 .navigationDestination(isPresented: $direktesVorsorgedossierOeffnen) {
-                    VorsorgedossierPlatzhalter(name: ausgewaehltesVorsorgedossier)
+                    FreigegebenesDossierDetailView(
+                        dossierKontext: .freigegebenesDossier(
+                            dossierID: UUID(uuidString: "11111111-1111-1111-1111-111111111111") ?? UUID(),
+                            zugriffID: UUID(uuidString: "22222222-2222-2222-2222-222222222222") ?? UUID(),
+                            besitzerName: ausgewaehltesVorsorgedossier.isEmpty ? "Testperson" : ausgewaehltesVorsorgedossier,
+                            besitzerEmail: "testperson@example.com"
+                        )
+                    )
                 }
                 .confirmationDialog(
                     "Vorsorgedossier auswählen",
@@ -1216,30 +1223,124 @@ struct Home: View {
         Home()
     }
     
-    struct VorsorgedossierPlatzhalter: View {
-        let name: String
-        
+    struct FreigegebenesDossierDetailView: View {
+        let dossierKontext: DossierKontext
+        private let kachelFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
+        private let akzentFarbe = Color.orange
+        private let schluessliAkzent = Color(red: 0.16, green: 0.36, blue: 0.42)
+
+        private var dossierName: String {
+            dossierKontext.besitzerName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            ? (dossierKontext.besitzerName ?? "Freigegebenes Dossier")
+            : "Freigegebenes Dossier"
+        }
+
         var body: some View {
-            VStack(spacing: 20) {
-                Image(systemName: "folder.badge.person.crop")
-                    .font(.system(size: 52))
-                    .foregroundStyle(.orange)
-                
-                Text("Vorsorgedossier")
-                    .font(.largeTitle.bold())
-                
-                Text(name)
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-                
-                Text("Diese Ansicht wird später das freigegebene Dossier der vorsorgenden Person anzeigen.")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack(alignment: .top, spacing: 14) {
+                            ZStack {
+                                Circle()
+                                    .fill(akzentFarbe.opacity(0.14))
+                                    .frame(width: 54, height: 54)
+
+                                Image(systemName: "folder.badge.person.crop")
+                                    .font(.system(size: 26, weight: .semibold))
+                                    .foregroundStyle(akzentFarbe)
+                            }
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Freigegebenes Dossier")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(akzentFarbe)
+                                    .textCase(.uppercase)
+
+                                Text(dossierName)
+                                    .font(.title2.weight(.bold))
+                                    .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+
+                                if let lesemodusHinweis = dossierKontext.lesemodusHinweis {
+                                    Text(lesemodusHinweis)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        }
+
+                        HStack(spacing: 8) {
+                            Label("Lesemodus", systemImage: "eye")
+                            Label("Nicht bearbeitbar", systemImage: "lock.fill")
+                        }
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(schluessliAkzent)
+                    }
+                    .padding(18)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(kachelFarbe)
+                    .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 26, style: .continuous)
+                            .stroke(Color.white.opacity(0.72), lineWidth: 1)
+                    }
+                    .shadow(color: akzentFarbe.opacity(0.10), radius: 14, x: 0, y: 8)
+
+                    Text("Dossierbereiche")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+
+                    LazyVGrid(
+                        columns: [
+                            GridItem(.flexible(), spacing: 16),
+                            GridItem(.flexible(), spacing: 16)
+                        ],
+                        spacing: 16
+                    ) {
+                        ForEach(HomeBereich.allCases) { bereich in
+                            NavigationLink {
+                                zielView(fuer: bereich)
+                            } label: {
+                                Home.HomeKachel(
+                                    icon: bereich.icon,
+                                    titel: bereich.titel,
+                                    untertitel: bereich.untertitel,
+                                    details: bereich.details,
+                                    farbe: kachelFarbe,
+                                    akzentFarbe: bereich.akzentFarbe
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 20)
+                .padding(.bottom, 32)
             }
-            .padding()
-            .navigationTitle("Vorsorgedossier")
+            .background(Color(.systemBackground))
+            .navigationTitle("Dossier")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+
+        @ViewBuilder
+        private func zielView(fuer bereich: HomeBereich) -> some View {
+            switch bereich {
+            case .profil:
+                ProfilView()
+            case .gesundheit:
+                GesundheitView()
+            case .wuensche:
+                WuenscheView()
+            case .finanzen:
+                FinanzenView()
+            case .hinterbliebene:
+                HinterbliebeneView()
+            case .dokumente:
+                DokumenteView(dossierKontext: dossierKontext)
+            case .abos:
+                AbosView()
+            }
         }
     }
     
@@ -1283,6 +1384,50 @@ struct Home: View {
                             .textSelection(.enabled)
                     }
                     
+                    Divider()
+
+                    NavigationLink {
+                        FreigegebenesDossierDetailView(
+                            dossierKontext: .freigegebenesDossier(
+                                dossierID: UUID(uuidString: "11111111-1111-1111-1111-111111111111") ?? UUID(),
+                                zugriffID: UUID(uuidString: "22222222-2222-2222-2222-222222222222") ?? UUID(),
+                                besitzerName: "Testperson",
+                                besitzerEmail: "testperson@example.com"
+                            )
+                        )
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "person.2.badge.key")
+                                .font(.headline.weight(.semibold))
+                                .foregroundStyle(.orange)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Freigegebenes Dossier testen")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.primary)
+
+                                Text("Öffnet die spätere Vertrauenspersonen-Ansicht im Lesemodus.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.orange.opacity(0.10))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(Color.orange.opacity(0.22), lineWidth: 1)
+                        }
+                    }
+                    .buttonStyle(.plain)
+
                     Divider()
                     
                     VStack(alignment: .leading, spacing: 4) {
