@@ -3,12 +3,14 @@ import SwiftData
 import PhotosUI
 import UIKit
 import LocalAuthentication
+import PDFKit
 
 
 struct ProfilView: View {
     var dossierKontext: DossierKontext = .eigenesDossier(dossierID: UUID())
     @Environment(\.modelContext) private var modelContext
     @Query private var gespeicherteProfile: [ProfilModell]
+    @Query private var gespeicherteGesundheitsdaten: [GesundheitModell]
     @Query private var gespeicherteWuensche: [WuenscheModell]
     @Query private var gespeicherteHinterbliebene: [HinterbliebeneModell]
     @Query private var gespeicherteBankkonten: [BankkontoModell]
@@ -17,6 +19,8 @@ struct ProfilView: View {
     @Query private var gespeicherteLiegenschaften: [LiegenschaftModell]
     @Query private var gespeicherteWertsachen: [WertsacheModell]
     @Query private var gespeicherteSteuerdokumente: [SteuerdokumentModell]
+    @Query(sort: \FotoalbumBildModell.reihenfolge) private var gespeicherteFotos: [FotoalbumBildModell]
+    @Query(sort: \DokumenteModell.hochgeladenAm) private var gespeicherteWeitereDokumente: [DokumenteModell]
     @Query private var gespeicherteAboModelle: [AboModell]
     @Query private var gespeicherteDossierZugriffe: [DossierZugriffModell]
 
@@ -103,7 +107,11 @@ struct ProfilView: View {
 
 
     @State private var dossierPDF: ExportiertesDossier?
-    @State private var passwortExportAuswahlAnzeigen = false
+    @State private var dossierExportSheetAnzeigen = false
+    @State private var sensibleDatenExportieren = false
+    @State private var dokumenteAlsAnhangBeruecksichtigen = true
+    @State private var dossierExportLaeuft = false
+    @State private var dossierExportFehlermeldung = ""
     @State private var profilGeladen = false
     @State private var biometriePruefungLaeuft = false
     @State private var biometrieFehlermeldung = ""
@@ -127,6 +135,66 @@ struct ProfilView: View {
     private var angezeigtesRegistrierungsPasswort: String {
         guard !gespeichertesPasswort.isEmpty else { return "Nicht erfasst" }
         return registrierungsPasswortAnzeigen ? gespeichertesPasswort : String(repeating: "•", count: max(6, gespeichertesPasswort.count))
+    }
+
+    private var anzahlFinanzEintraege: Int {
+        gespeicherteBankkonten.count
+            + gespeicherteSchulden.count
+            + gespeicherteVersicherungen.count
+            + gespeicherteLiegenschaften.count
+            + gespeicherteWertsachen.count
+            + gespeicherteSteuerdokumente.count
+    }
+
+    private var anzahlAboEintraege: Int {
+        gespeicherteAboModelle.reduce(0) { summe, modell in
+            summe + modell.abos.filter { !$0.istSystemEintrag }.count
+        }
+    }
+
+    private var dossierExportBereiche: [DossierExportBereich] {
+        [
+            DossierExportBereich(
+                titel: "Profil",
+                detail: "Persönliche Angaben und Kontaktdaten",
+                status: gespeicherteProfile.isEmpty ? "Noch nicht erfasst" : "Bereit",
+                istGefuellt: !gespeicherteProfile.isEmpty
+            ),
+            DossierExportBereich(
+                titel: "Gesundheit",
+                detail: "Hausarzt, medizinische Hinweise, Allergien und Medikamente",
+                status: gespeicherteGesundheitsdaten.isEmpty ? "Noch nicht erfasst" : "Bereit",
+                istGefuellt: !gespeicherteGesundheitsdaten.isEmpty
+            ),
+            DossierExportBereich(
+                titel: "Wünsche",
+                detail: "Vorsorge, letzte Worte, Dokumente und Hinweise",
+                status: gespeicherteWuensche.isEmpty ? "Noch nicht erfasst" : "Bereit",
+                istGefuellt: !gespeicherteWuensche.isEmpty
+            ),
+            DossierExportBereich(
+                titel: "Menschen meines Vertrauens",
+                detail: "Kontakte, Rollen und Informationshinweise",
+                status: gespeicherteHinterbliebene.isEmpty ? "Noch keine Kontakte" : "\(gespeicherteHinterbliebene.count) Einträge",
+                istGefuellt: !gespeicherteHinterbliebene.isEmpty
+            ),
+            DossierExportBereich(
+                titel: "Finanzen & Werte",
+                detail: "Bankkonten, Schulden, Versicherungen und Werte",
+                status: anzahlFinanzEintraege == 0 ? "Noch keine Einträge" : "\(anzahlFinanzEintraege) Einträge",
+                istGefuellt: anzahlFinanzEintraege > 0
+            ),
+            DossierExportBereich(
+                titel: "Abos & digitale Zugänge",
+                detail: "Verträge, Mitgliedschaften und Logins",
+                status: anzahlAboEintraege == 0 ? "Noch keine Einträge" : "\(anzahlAboEintraege) Einträge",
+                istGefuellt: anzahlAboEintraege > 0
+            )
+        ]
+    }
+
+    private var anzahlBereiteExportBereiche: Int {
+        dossierExportBereiche.filter(\.istGefuellt).count
     }
 
     var body: some View {
@@ -336,7 +404,8 @@ struct ProfilView: View {
                 .listRowBackground(profilKartenFarbe)
                 .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
 
-                if dossierKontext.kannBearbeiten {
+                // MARK: - nicht im MVP 1
+               /* if dossierKontext.kannBearbeiten {
                     Section("Zugriff im Notfall") {
                         NavigationLink {
                             VertrauenspersonView()
@@ -356,19 +425,13 @@ struct ProfilView: View {
                     .listRowBackground(profilKartenFarbe)
                     .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
                 }
-                Section("Dossier exportieren") {
-                    Button {
-                        passwortExportAuswahlAnzeigen = true
-                    } label: {
-                        Label("Dossier als PDF exportieren", systemImage: "doc.richtext.fill")
-                            .foregroundStyle(profilAkzentFarbe)
-                    }
-                    Text("Erzeugt ein PDF-Dossier mit den aktuell erfassten Informationen aus Profil, Wünsche, Finanzen, Hinterbliebenen, Dokumenten sowie weiteren gespeicherten Bereichen.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                */
+                Section {
+                    dossierExportKarte
+                        .listRowInsets(EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                 }
-                .listRowBackground(profilKartenFarbe)
-                .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
 
                 if dossierKontext.kannBearbeiten {
                     Section("Zugangsdaten") {
@@ -497,26 +560,10 @@ struct ProfilView: View {
                 ShareSheet(activityItems: [dossier.url])
 
             }
-            .confirmationDialog(
-                "Sollen Passwörter im PDF mitgedruckt werden?",
-                isPresented: $passwortExportAuswahlAnzeigen,
-                titleVisibility: .visible
-            ) {
-                Button("Ja, Passwörter mitdrucken") {
-                    if let url = erstelleDossierPDF(passwoerterMitdrucken: true) {
-                        dossierPDF = ExportiertesDossier(url: url)
-                    }
-                }
-
-                Button("Nein, ohne Passwörter exportieren") {
-                    if let url = erstelleDossierPDF(passwoerterMitdrucken: false) {
-                        dossierPDF = ExportiertesDossier(url: url)
-                    }
-                }
-
-                Button("Abbrechen", role: .cancel) { }
-            } message: {
-                Text("Aus Sicherheitsgründen kannst du entscheiden, ob Passwörter und Abo-Logins im Dossier erscheinen sollen.")
+            .sheet(isPresented: $dossierExportSheetAnzeigen) {
+                dossierExportSheet
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
             }
 
             .sheet(isPresented: $passwortAendernAnzeigen) {
@@ -1200,6 +1247,256 @@ struct ProfilView: View {
         profilGeladen = false
     }
 
+    private var dossierExportKarte: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(Color.white.opacity(0.14))
+                        .frame(width: 56, height: 56)
+
+                    Image(systemName: "doc.text.magnifyingglass")
+                        .font(.system(size: 27, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Dein Vorsorge-Dossier")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(.white)
+
+                    Text("Aus deinen erfassten Angaben wird ein vollständiges PDF-Dossier erstellt.")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.82))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.seal.fill")
+                    .foregroundStyle(.white)
+
+                Text("\(anzahlBereiteExportBereiche) von \(dossierExportBereiche.count) Bereichen mit Daten bereit")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.white)
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 11)
+            .background(Color.white.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+            Button {
+                dossierExportFehlermeldung = ""
+                dossierExportSheetAnzeigen = true
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "square.and.arrow.up.fill")
+                        .font(.body.weight(.semibold))
+
+                    Text("Dossier erstellen")
+                        .font(.body.weight(.semibold))
+
+                    Spacer(minLength: 0)
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                }
+                .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 13)
+                .background(profilKartenFarbe)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(dossierExportLaeuft)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(profilAkzentFarbe)
+        )
+        .padding(6)
+        .background(
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(profilAkzentFarbe.opacity(0.16))
+        )
+        .shadow(color: profilAkzentFarbe.opacity(0.12), radius: 10, x: 0, y: 5)
+    }
+
+    private var dossierExportSheet: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Vollständiges PDF-Dossier")
+                            .font(.title3.weight(.bold))
+
+                        Text("Bereiche prüfen und Exportoptionen wählen.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    LazyVGrid(
+                        columns: [
+                            GridItem(.flexible(), spacing: 8),
+                            GridItem(.flexible(), spacing: 8)
+                        ],
+                        spacing: 8
+                    ) {
+                        ForEach(dossierExportBereiche) { bereich in
+                            dossierExportBereichZeile(bereich)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle(isOn: $sensibleDatenExportieren) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Sensible Zugangsdaten einschliessen")
+                                    .font(.subheadline.weight(.semibold))
+                                Text("Passwörter und Abo-Logins erscheinen nur im PDF, wenn diese Option aktiv ist.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .tint(profilAkzentFarbe)
+
+                        Divider()
+
+                        Toggle(isOn: $dokumenteAlsAnhangBeruecksichtigen) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Dokumente als Anhang berücksichtigen")
+                                    .font(.subheadline.weight(.semibold))
+                                Text("Hochgeladene Dokumente werden als Anhang hinzugefügt. Video und Fotoalben müssen separat heruntergeladen werden.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .tint(profilAkzentFarbe)
+
+                        if sensibleDatenExportieren {
+                            Label("Teile dieses PDF nur mit Personen, denen du vollständig vertraust.", systemImage: "exclamationmark.shield.fill")
+                                .font(.footnote)
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                    .padding(12)
+                    .background(profilKartenFarbe)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                    if !dossierExportFehlermeldung.isEmpty {
+                        Text(dossierExportFehlermeldung)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    }
+                }
+                .padding(.horizontal, 18)
+                .padding(.top, 16)
+                .padding(.bottom, 8)
+            }
+            .safeAreaInset(edge: .bottom) {
+                dossierExportButton
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+                    .padding(.bottom, 12)
+                    .background(.regularMaterial)
+            }
+            .background(profilHintergrundFarbe.ignoresSafeArea())
+            .navigationTitle("Dossier erstellen")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") {
+                        dossierExportSheetAnzeigen = false
+                    }
+                    .disabled(dossierExportLaeuft)
+                }
+            }
+        }
+    }
+
+    private var dossierExportButton: some View {
+        Button {
+            erstelleUndTeileDossier()
+        } label: {
+            HStack(spacing: 10) {
+                Spacer(minLength: 0)
+
+                if dossierExportLaeuft {
+                    ProgressView()
+                        .tint(.white)
+                } else {
+                    Image(systemName: "doc.richtext.fill")
+                        .font(.body.weight(.semibold))
+                }
+
+                Text(dossierExportLaeuft ? "Dossier wird erstellt ..." : "PDF-Dossier erstellen")
+                    .font(.body.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(profilAkzentFarbe)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(dossierExportLaeuft)
+    }
+
+    private func dossierExportBereichZeile(_ bereich: DossierExportBereich) -> some View {
+        HStack(alignment: .center, spacing: 8) {
+            Image(systemName: bereich.istGefuellt ? "checkmark.circle.fill" : "circle")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(bereich.istGefuellt ? profilAkzentFarbe : .secondary)
+                .frame(width: 18)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(bereich.titel)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.84)
+
+                Text(bereich.status)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(bereich.istGefuellt ? profilAkzentFarbe : .secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+        .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
+        .background(Color(.systemBackground).opacity(0.86))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func erstelleUndTeileDossier() {
+        guard !dossierExportLaeuft else { return }
+
+        dossierExportFehlermeldung = ""
+        dossierExportLaeuft = true
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            if let url = erstelleDossierPDF(passwoerterMitdrucken: sensibleDatenExportieren) {
+                dossierExportLaeuft = false
+                dossierExportSheetAnzeigen = false
+                dossierPDF = ExportiertesDossier(url: url)
+            } else {
+                dossierExportLaeuft = false
+                dossierExportFehlermeldung = "Das PDF-Dossier konnte nicht erstellt werden. Bitte versuche es erneut."
+            }
+        }
+    }
+
     private func erstelleDossierPDF(passwoerterMitdrucken: Bool) -> URL? {
 
         let pdfMetaData = [
@@ -1208,7 +1505,7 @@ struct ProfilView: View {
 
             kCGPDFContextAuthor: "AfterLife App",
 
-            kCGPDFContextTitle: "Persönliches Dossier"
+            kCGPDFContextTitle: "Persönliches Tschlüssli Dossier"
 
         ]
 
@@ -1224,7 +1521,7 @@ struct ProfilView: View {
 
         let renderer = UIGraphicsPDFRenderer(bounds: pageRect, format: format)
 
-        let fileName = "AfterLife_Dossier_\(Int(Date().timeIntervalSince1970)).pdf"
+        let fileName = "Tschlüssli_Dossier_\(Int(Date().timeIntervalSince1970)).pdf"
 
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
 
@@ -1713,11 +2010,16 @@ struct ProfilView: View {
                         drawSubsectionTitle("Letzte Worte")
                         drawField("Ich möchte noch etwas sagen", wunsch.moechteNochEtwasSagen ? "Ja" : "Nein")
                         drawField("Letzte Botschaft", wunsch.letzteBotschaft)
+                        if wunsch.letzteBotschaftVideoData != nil || !wunsch.letzteBotschaftVideoName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            drawField("Video", "Video kann separat heruntergeladen werden")
+                        }
 
                         drawSubsectionTitle("Nachruf")
                         drawField("Nachruf gewünscht", wunsch.nachrufGewuenscht ? "Ja" : "Nein")
                         drawField("Nachruf Text", wunsch.nachrufText)
-                        drawField("Nachruf Bild", wunsch.nachrufBildDateiName)
+                        if wunsch.nachrufBildData != nil || !wunsch.nachrufBildDateiName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            drawField("Nachruf Bild", "Foto im Anhang")
+                        }
 
                         drawSubsectionTitle("Testament")
                         drawField("Testament vorhanden", wunsch.testamentVorhanden ? "Ja" : "Nein")
@@ -1768,6 +2070,44 @@ struct ProfilView: View {
                         drawField("Art der Erkrankung", wunsch.schwereErkrankungArt)
                         drawField("Mir ist wichtig", wunsch.mirIstWichtig)
                         drawField("Regelmässig beurteilen", wunsch.regelmaessigBeurteilen ? "Ja" : "Nein")
+
+                        yPosition += 8
+                    }
+                }
+
+                func drawGesundheit() {
+                    drawDivider()
+                    drawSectionTitle("Gesundheit")
+
+                    guard !gespeicherteGesundheitsdaten.isEmpty else {
+                        drawEmpty()
+                        return
+                    }
+
+                    for (index, gesundheit) in gespeicherteGesundheitsdaten.enumerated() {
+                        beginNewPageIfNeeded(minimumSpace: 150)
+                        drawSubsectionTitle(gespeicherteGesundheitsdaten.count == 1 ? "Gesundheit" : "Gesundheit \(index + 1)")
+
+                        drawSubsectionTitle("Hausarzt")
+                        drawField("Hausarzt vorhanden", gesundheit.hatHausarzt ? "Ja" : "Nein")
+                        drawFieldIfNotEmpty("Name", gesundheit.hausarztName)
+                        drawFieldIfNotEmpty("Telefon", gesundheit.hausarztTelefon)
+                        drawFieldIfNotEmpty("E-Mail", gesundheit.hausarztEmail)
+
+                        let hausarztAdresse = [gesundheit.hausarztAdresse, gesundheit.hausarztPLZ, gesundheit.hausarztOrt]
+                            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                            .filter { !$0.isEmpty }
+                            .joined(separator: ", ")
+                        drawFieldIfNotEmpty("Adresse", hausarztAdresse)
+
+                        drawSubsectionTitle("Medizinische Informationen")
+                        drawField("Blutgruppe", gesundheit.blutgruppe)
+                        drawField("Organspende", gesundheit.organspende)
+                        drawField("Allergien vorhanden", gesundheit.hatAllergien ? "Ja" : "Nein")
+                        drawFieldIfNotEmpty("Allergien", gesundheit.allergien)
+                        drawField("Medikamente vorhanden", gesundheit.nimmtMedikamente ? "Ja" : "Nein")
+                        drawFieldIfNotEmpty("Medikamente", gesundheit.medikamente)
+                        drawFieldIfNotEmpty("Gesundheitliche Hinweise", gesundheit.gesundheitlicheHinweise)
 
                         yPosition += 8
                     }
@@ -1906,24 +2246,164 @@ struct ProfilView: View {
                     drawDivider()
                     drawSectionTitle("Dokumente")
 
-                    guard !gespeicherteSteuerdokumente.isEmpty else {
+                    if gespeicherteSteuerdokumente.isEmpty && gespeicherteFotos.isEmpty {
                         drawEmpty()
                         return
                     }
 
-                    for (index, dokument) in gespeicherteSteuerdokumente.sorted(by: { $0.hochgeladenAm < $1.hochgeladenAm }).enumerated() {
-                        beginNewPageIfNeeded(minimumSpace: 90)
-                        drawSubsectionTitle(gespeicherteSteuerdokumente.count == 1 ? "Steuerdokument" : "Steuerdokument \(index + 1)")
-                        drawFieldIfNotEmpty("Dateiname", dokument.dateiName)
-                        drawFieldIfNotEmpty("Dokumentpfad", dokument.dokumentPfad)
-                        drawField("Hochgeladen am", dateFormatter.string(from: dokument.hochgeladenAm))
-                        yPosition += 8
+                    if !gespeicherteSteuerdokumente.isEmpty {
+                        for (index, dokument) in gespeicherteSteuerdokumente.sorted(by: { $0.hochgeladenAm < $1.hochgeladenAm }).enumerated() {
+                            beginNewPageIfNeeded(minimumSpace: 90)
+                            drawSubsectionTitle(gespeicherteSteuerdokumente.count == 1 ? "Steuerdokument" : "Steuerdokument \(index + 1)")
+                            drawFieldIfNotEmpty("Dateiname", dokument.dateiName)
+                            drawFieldIfNotEmpty("Dokumentpfad", dokument.dokumentPfad)
+                            drawField("Hochgeladen am", dateFormatter.string(from: dokument.hochgeladenAm))
+                            yPosition += 8
+                        }
+                    }
+
+                    if !gespeicherteFotos.isEmpty {
+                        beginNewPageIfNeeded(minimumSpace: 80)
+                        drawSubsectionTitle("Fotoalbum")
+                        drawField("Fotoalbum", "Foto(s) im Anhang. Kann aber auch separat gespeichert werden")
+                    }
+                }
+
+                func drawAttachmentHeader(_ title: String, fileName: String? = nil, pageInfo: String? = nil) {
+                    let titel = pageInfo == nil ? title : "\(title) - \(pageInfo ?? "")"
+                    drawText(titel, font: .boldSystemFont(ofSize: 22), spacing: 8)
+
+                    if let fileName,
+                       !fileName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        drawText(fileName, font: .systemFont(ofSize: 10), color: .secondaryLabel, spacing: 18)
+                    } else {
+                        yPosition += 10
+                    }
+                }
+
+                func drawImageAttachment(title: String, fileName: String? = nil, image: UIImage) {
+                    beginPDFPage()
+                    drawAttachmentHeader(title, fileName: fileName)
+
+                    let horizontalMargin: CGFloat = 48
+                    let bottomMargin: CGFloat = 48
+                    let maxImageWidth = pageWidth - horizontalMargin * 2
+                    let maxImageHeight = pageHeight - yPosition - bottomMargin
+                    let imageAspect = image.size.width / max(image.size.height, 1)
+                    let availableAspect = maxImageWidth / max(maxImageHeight, 1)
+
+                    let drawSize: CGSize
+                    if imageAspect > availableAspect {
+                        drawSize = CGSize(width: maxImageWidth, height: maxImageWidth / imageAspect)
+                    } else {
+                        drawSize = CGSize(width: maxImageHeight * imageAspect, height: maxImageHeight)
+                    }
+
+                    let imageRect = CGRect(
+                        x: (pageWidth - drawSize.width) / 2,
+                        y: yPosition,
+                        width: drawSize.width,
+                        height: drawSize.height
+                    )
+
+                    context.cgContext.saveGState()
+                    context.cgContext.interpolationQuality = .high
+                    image.draw(in: imageRect)
+                    context.cgContext.restoreGState()
+                }
+
+                func drawPDFPageAttachment(title: String, fileName: String? = nil, pdf: PDFDocument) {
+                    for pageIndex in 0..<pdf.pageCount {
+                        guard let page = pdf.page(at: pageIndex) else { continue }
+
+                        beginPDFPage()
+                        drawAttachmentHeader(
+                            title,
+                            fileName: pageIndex == 0 ? fileName : nil,
+                            pageInfo: pdf.pageCount > 1 ? "Seite \(pageIndex + 1) von \(pdf.pageCount)" : nil
+                        )
+
+                        let bounds = page.bounds(for: .mediaBox)
+                        let horizontalMargin: CGFloat = 48
+                        let bottomMargin: CGFloat = 48
+                        let maxContentWidth = pageWidth - horizontalMargin * 2
+                        let maxContentHeight = pageHeight - yPosition - bottomMargin
+                        let scale = min(maxContentWidth / max(bounds.width, 1), maxContentHeight / max(bounds.height, 1))
+                        let drawSize = CGSize(width: bounds.width * scale, height: bounds.height * scale)
+                        let drawRect = CGRect(
+                            x: (pageWidth - drawSize.width) / 2,
+                            y: yPosition,
+                            width: drawSize.width,
+                            height: drawSize.height
+                        )
+
+                        context.cgContext.saveGState()
+                        context.cgContext.interpolationQuality = .high
+                        context.cgContext.translateBy(x: drawRect.minX, y: drawRect.maxY)
+                        context.cgContext.scaleBy(x: scale, y: -scale)
+                        context.cgContext.translateBy(x: -bounds.minX, y: -bounds.minY)
+                        page.draw(with: .mediaBox, to: context.cgContext)
+                        context.cgContext.restoreGState()
+                    }
+                }
+
+                func drawUnsupportedAttachment(title: String, fileName: String? = nil) {
+                    beginPDFPage()
+                    drawAttachmentHeader(title, fileName: fileName)
+                    drawText("Dieses Dokument ist im Dossier enthalten, kann aber nicht direkt im PDF dargestellt werden.", color: .secondaryLabel, spacing: 12)
+                }
+
+                func drawAttachment(title: String, fileName: String? = nil, data: Data) {
+                    if let image = UIImage(data: data) {
+                        drawImageAttachment(title: title, fileName: fileName, image: image)
+                        return
+                    }
+
+                    if let pdf = PDFDocument(data: data), pdf.pageCount > 0 {
+                        drawPDFPageAttachment(title: title, fileName: fileName, pdf: pdf)
+                        return
+                    }
+
+                    drawUnsupportedAttachment(title: title, fileName: fileName)
+                }
+
+                func drawDokumentAnhaenge() {
+                    guard dokumenteAlsAnhangBeruecksichtigen else { return }
+
+                    if let bildDaten = gespeicherteWuensche.compactMap(\.nachrufBildData).first {
+                        drawAttachment(title: "Foto für Nachlass", fileName: "Nachruf-Foto", data: bildDaten)
+                    }
+
+                    for wunsch in gespeicherteWuensche {
+                        if let data = wunsch.testamentDateiData {
+                            drawAttachment(title: "Testament", fileName: wunsch.testamentDateiName, data: data)
+                        }
+
+                        if let data = wunsch.patientenverfuegungDateiData {
+                            drawAttachment(title: "Patientenverfügung", fileName: wunsch.patientenverfuegungDateiName, data: data)
+                        }
+
+                        if let data = wunsch.vorsorgeauftragDateiData {
+                            drawAttachment(title: "Vorsorgeauftrag", fileName: wunsch.vorsorgeauftragDateiName, data: data)
+                        }
+
+                        if let data = wunsch.sterbebegleitungDateiData {
+                            drawAttachment(title: "Sterbebegleitung", fileName: wunsch.sterbebegleitungDateiName, data: data)
+                        }
+                    }
+
+                    let weitereDokumente = gespeicherteWeitereDokumente
+                        .filter { $0.kategorie == "Weitere Dokumente" }
+                        .sorted { $0.hochgeladenAm < $1.hochgeladenAm }
+
+                    for dokument in weitereDokumente {
+                        drawAttachment(title: "Weitere Dokumente", fileName: dokument.dateiName, data: dokument.dateiDaten)
                     }
                 }
 
                 drawProfileImageIfAvailable()
 
-                drawText("Persönliches AfterLife Dossier", font: .boldSystemFont(ofSize: 24), spacing: 12)
+                drawText("Persönliches Tschlüssli Dossier", font: .boldSystemFont(ofSize: 24), spacing: 12)
 
                 drawText("Erstellt am \(dateFormatter.string(from: Date()))", font: .systemFont(ofSize: 12), color: .secondaryLabel, spacing: 28)
 
@@ -1974,6 +2454,7 @@ struct ProfilView: View {
                 }
 
                 drawWuensche()
+                drawGesundheit()
                 drawFinanzen()
                 drawHinterbliebene()
                 drawDokumente()
@@ -2191,6 +2672,7 @@ struct ProfilView: View {
                     }
                 }
 
+                drawDokumentAnhaenge()
             }
 
             return url
@@ -2457,6 +2939,14 @@ struct ExportiertesDossier: Identifiable {
 
     let url: URL
 
+}
+
+private struct DossierExportBereich: Identifiable {
+    let id = UUID()
+    let titel: String
+    let detail: String
+    let status: String
+    let istGefuellt: Bool
 }
 
 #if canImport(UIKit)

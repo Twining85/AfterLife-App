@@ -49,8 +49,8 @@ struct HinterbliebeneView: View {
                     )
 
                     vertrauenspersonSection(
-                        titel: "Andere",
-                        untertitel: "Weitere wichtige Personen oder Fachkontakte.",
+                        titel: "Andere Kontakte",
+                        untertitel: "Beispielsweise dein Arbeitgeber, Beistand, Anwalt oder weitere Personen.",
                         icon: "person.crop.circle.badge.checkmark",
                         kategorie: .beguenstigte,
                         kontakte: kontakteFuerKategorie(.beguenstigte)

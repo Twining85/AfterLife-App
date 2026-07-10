@@ -183,39 +183,14 @@ struct GesundheitView: View {
                         .buttonStyle(.bordered)
                         .tint(akzentFarbe)
                     } else {
-                        List {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(datensatz?.hausarztName ?? "")
-                                    .font(.headline.weight(.semibold))
-                                    .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
-
-                                HStack(spacing: 6) {
-                                    Image(systemName: "stethoscope")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(akzentFarbe)
-
-                                    Text("Hausarzt")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(akzentFarbe)
-                                }
-                            }
-                            .padding(.vertical, 6)
-                            .listRowInsets(EdgeInsets(top: 8, leading: 14, bottom: 8, trailing: 14))
-                            .listRowBackground(
-                                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                    .fill(akzentFarbe.opacity(0.08))
-                            )
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
-                                    hausarztEntfernen()
-                                } label: {
-                                    Label("Löschen", systemImage: "trash")
-                                }
-                            }
-                        }
-                        .listStyle(.plain)
-                        .scrollDisabled(true)
-                        .frame(height: 72)
+                        hausarztKontaktKarte(
+                            name: datensatz?.hausarztName ?? "",
+                            adresse: datensatz?.hausarztAdresse ?? "",
+                            plz: datensatz?.hausarztPLZ ?? "",
+                            ort: datensatz?.hausarztOrt ?? "",
+                            email: datensatz?.hausarztEmail ?? "",
+                            telefon: datensatz?.hausarztTelefon ?? ""
+                        )
 
                         Button("Hausarzt ändern") {
                             zeigtHausarztKontaktPicker = true
@@ -249,39 +224,14 @@ struct GesundheitView: View {
                         .buttonStyle(.bordered)
                         .tint(akzentFarbe)
                     } else {
-                        List {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(hausarztName)
-                                    .font(.headline.weight(.semibold))
-                                    .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
-
-                                HStack(spacing: 6) {
-                                    Image(systemName: "stethoscope")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(akzentFarbe)
-
-                                    Text("Hausarzt")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(akzentFarbe)
-                                }
-                            }
-                            .padding(.vertical, 6)
-                            .listRowInsets(EdgeInsets(top: 8, leading: 14, bottom: 8, trailing: 14))
-                            .listRowBackground(
-                                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                    .fill(akzentFarbe.opacity(0.08))
-                            )
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
-                                    hausarztEntfernen()
-                                } label: {
-                                    Label("Löschen", systemImage: "trash")
-                                }
-                            }
-                        }
-                        .listStyle(.plain)
-                        .scrollDisabled(true)
-                        .frame(height: 72)
+                        hausarztKontaktKarte(
+                            name: hausarztName,
+                            adresse: hausarztAdresse,
+                            plz: hausarztPLZ,
+                            ort: hausarztOrt,
+                            email: hausarztEmail,
+                            telefon: hausarztTelefon
+                        )
 
                         Button("Hausarzt ändern") {
                             zeigtHausarztKontaktPicker = true
@@ -294,6 +244,99 @@ struct GesundheitView: View {
             }
         }
 #endif
+    }
+
+    private func hausarztKontaktKarte(
+        name: String,
+        adresse: String,
+        plz: String,
+        ort: String,
+        email: String,
+        telefon: String
+    ) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(initialenFuerHausarzt(name))
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(.white)
+                .frame(width: 38, height: 38)
+                .background(Circle().fill(akzentFarbe.opacity(0.88)))
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(name)
+                    .font(.headline)
+                    .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Label("Hausarzt", systemImage: "stethoscope")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(akzentFarbe)
+
+                let adressText = formatierteHausarztAdresse(adresse: adresse, plz: plz, ort: ort)
+                if !adressText.isEmpty {
+                    Text(adressText)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Label(email, systemImage: "envelope")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if !telefon.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Label(telefon, systemImage: "phone")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            Button(role: .destructive) {
+                hausarztEntfernen()
+            } label: {
+                Image(systemName: "trash")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.red.opacity(0.75))
+                    .frame(width: 34, height: 34)
+                    .background(Circle().fill(Color.red.opacity(0.08)))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.58))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(akzentFarbe.opacity(0.08), lineWidth: 1)
+        }
+    }
+
+    private func formatierteHausarztAdresse(adresse: String, plz: String, ort: String) -> String {
+        let plzOrt = [plz, ort]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+
+        return [adresse.trimmingCharacters(in: .whitespacesAndNewlines), plzOrt]
+            .filter { !$0.isEmpty }
+            .joined(separator: ", ")
+    }
+
+    private func initialenFuerHausarzt(_ name: String) -> String {
+        let teile = name
+            .split(separator: " ")
+            .compactMap { $0.first }
+            .prefix(2)
+            .map(String.init)
+            .joined()
+            .uppercased()
+
+        return teile.isEmpty ? "?" : teile
     }
 
     private var medizinischeInformationenBereich: some View {

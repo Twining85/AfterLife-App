@@ -430,21 +430,22 @@ struct Home: View {
                         .opacity(kachelnSindSichtbar ? 1 : 0)
                         .animation(.easeOut(duration: 0.55), value: kachelnSindSichtbar)
                     
-                    if !verknuepfteVorsorgedossiers.isEmpty {
-                        vorsorgedossierWechselAktion
-                            .padding(.horizontal, 24)
-                            .padding(.top, 18)
-                            .padding(.bottom, 28)
-                            .offset(y: kachelnSindSichtbar ? 0 : 20)
-                            .opacity(kachelnSindSichtbar ? (homeBearbeitungsmodus ? 0.38 : 1) : 0)
-                            .allowsHitTesting(!homeBearbeitungsmodus)
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                                    .fill(Color(.systemBackground).opacity(homeBearbeitungsmodus ? 0.24 : 0))
-                                    .allowsHitTesting(false)
-                            }
-                            .animation(.easeInOut(duration: 0.22), value: homeBearbeitungsmodus)
-                    }
+                    // MARK: - nicht in Scope MVP 1
+                    // if !verknuepfteVorsorgedossiers.isEmpty {
+                    //     vorsorgedossierWechselAktion
+                    //         .padding(.horizontal, 24)
+                    //         .padding(.top, 18)
+                    //         .padding(.bottom, 28)
+                    //         .offset(y: kachelnSindSichtbar ? 0 : 20)
+                    //         .opacity(kachelnSindSichtbar ? (homeBearbeitungsmodus ? 0.38 : 1) : 0)
+                    //         .allowsHitTesting(!homeBearbeitungsmodus)
+                    //         .overlay {
+                    //             RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    //                 .fill(Color(.systemBackground).opacity(homeBearbeitungsmodus ? 0.24 : 0))
+                    //                 .allowsHitTesting(false)
+                    //         }
+                    //         .animation(.easeInOut(duration: 0.22), value: homeBearbeitungsmodus)
+                    // }
                     
 #if DEBUG
                     HomeDebugTestPanel()
@@ -462,32 +463,33 @@ struct Home: View {
 #endif
                 }
                 .background(Color(.systemBackground))
-                .navigationDestination(isPresented: $direktesVorsorgedossierOeffnen) {
-                    FreigegebenesDossierDetailView(
-                        dossierKontext: .freigegebenesDossier(
-                            dossierID: UUID(uuidString: "11111111-1111-1111-1111-111111111111") ?? UUID(),
-                            zugriffID: UUID(uuidString: "22222222-2222-2222-2222-222222222222") ?? UUID(),
-                            besitzerName: ausgewaehltesVorsorgedossier.isEmpty ? "Testperson" : ausgewaehltesVorsorgedossier,
-                            besitzerEmail: "testperson@example.com"
-                        )
-                    )
-                }
-                .confirmationDialog(
-                    "Vorsorgedossier auswählen",
-                    isPresented: $vorsorgedossierAuswahlAnzeigen,
-                    titleVisibility: .visible
-                ) {
-                    ForEach(verknuepfteVorsorgedossiers, id: \.self) { name in
-                        Button(name) {
-                            ausgewaehltesVorsorgedossier = name
-                            direktesVorsorgedossierOeffnen = true
-                        }
-                    }
-                    
-                    Button("Abbrechen", role: .cancel) { }
-                } message: {
-                    Text("Wähle aus, welches Vorsorgedossier du öffnen möchtest.")
-                }
+                // MARK: - nicht in Scope MVP 1
+                // .navigationDestination(isPresented: $direktesVorsorgedossierOeffnen) {
+                //     FreigegebenesDossierDetailView(
+                //         dossierKontext: .freigegebenesDossier(
+                //             dossierID: UUID(uuidString: "11111111-1111-1111-1111-111111111111") ?? UUID(),
+                //             zugriffID: UUID(uuidString: "22222222-2222-2222-2222-222222222222") ?? UUID(),
+                //             besitzerName: ausgewaehltesVorsorgedossier.isEmpty ? "Testperson" : ausgewaehltesVorsorgedossier,
+                //             besitzerEmail: "testperson@example.com"
+                //         )
+                //     )
+                // }
+                // .confirmationDialog(
+                //     "Vorsorgedossier auswählen",
+                //     isPresented: $vorsorgedossierAuswahlAnzeigen,
+                //     titleVisibility: .visible
+                // ) {
+                //     ForEach(verknuepfteVorsorgedossiers, id: \.self) { name in
+                //         Button(name) {
+                //             ausgewaehltesVorsorgedossier = name
+                //             direktesVorsorgedossierOeffnen = true
+                //         }
+                //     }
+                //
+                //     Button("Abbrechen", role: .cancel) { }
+                // } message: {
+                //     Text("Wähle aus, welches Vorsorgedossier du öffnen möchtest.")
+                // }
                 .sheet(isPresented: $dossierPruefungSheetAnzeigen) {
                     DossierPruefungSheet(accentColor: schluessliAkzent) {
                         dossierAlsGeprueftMarkieren()
@@ -1497,7 +1499,7 @@ struct Home: View {
         }
         
         var body: some View {
-            GroupBox("🧪 Developer Testcenter") {
+            GroupBox("🧪 Developer Test-Center") {
                 VStack(alignment: .leading, spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Aktiver Benutzer")

@@ -10,13 +10,12 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>afterlife</string>
+			<string>ch.tschluessli.app</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>afterlife</string>
+				<string>tschluessli</string>
 			</array>
 		</dict>
-		<dict/>
 	</array>
 </dict>
 </plist>
