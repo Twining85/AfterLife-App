@@ -30,4 +30,39 @@ struct PDFExportService {
 
         return try dossierService.export(document: document, fileName: fileName)
     }
+
+    func exportVorsorgeDossier(
+        profil: ProfilModell?,
+        wuensche: [WuenscheModell],
+        gesundheitsdaten: [GesundheitModell] = [],
+        bankkonten: [BankkontoModell] = [],
+        schulden: [SchuldenModell] = [],
+        versicherungen: [VersicherungModell] = [],
+        liegenschaften: [LiegenschaftModell] = [],
+        wertsachen: [WertsacheModell] = [],
+        dokumente: [DokumenteModell] = [],
+        fotoalbumBilder: [FotoalbumBildModell] = [],
+        aboModelle: [AboModell] = [],
+        options: DossierPDFExportOptions = .standard,
+        attachments: [DossierPDFAttachment] = [],
+        fileName: String? = nil
+    ) throws -> URL {
+        let document = mapper.makeDossierDocument(
+            profil: profil,
+            wuensche: wuensche,
+            gesundheitsdaten: gesundheitsdaten,
+            bankkonten: bankkonten,
+            schulden: schulden,
+            versicherungen: versicherungen,
+            liegenschaften: liegenschaften,
+            wertsachen: wertsachen,
+            dokumente: dokumente,
+            fotoalbumBilder: fotoalbumBilder,
+            aboModelle: aboModelle,
+            options: options,
+            attachments: attachments
+        )
+
+        return try dossierService.export(document: document, fileName: fileName)
+    }
 }

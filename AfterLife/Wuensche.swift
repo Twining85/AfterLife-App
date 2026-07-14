@@ -343,6 +343,7 @@ struct WuenscheView: View {
                 Text("Möchtest du deinen Wunsch nur ausblenden oder auch alle erfassten Daten dazu löschen?")
             }
         }
+        .dossierFloatingNavigation(.wuensche)
     }
 
     private var wuenscheHeroSection: some View {

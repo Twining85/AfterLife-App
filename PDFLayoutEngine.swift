@@ -46,7 +46,7 @@ final class PDFLayoutEngine {
         let availableWidth = width ?? contentWidth
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: color ?? theme.primaryText
+            .foregroundColor: UIColor.black
         ]
         let attributed = NSAttributedString(string: text, attributes: attributes)
         let measured = attributed.boundingRect(

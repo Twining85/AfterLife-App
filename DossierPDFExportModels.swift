@@ -29,6 +29,7 @@ struct DossierPDFChapter: Identifiable {
     var titel: String
     var beschreibung: String
     var farbe: PDFThemeColor
+    var profilbildDaten: Data?
     var sections: [DossierPDFSection]
 
     init(
@@ -37,6 +38,7 @@ struct DossierPDFChapter: Identifiable {
         titel: String,
         beschreibung: String,
         farbe: PDFThemeColor,
+        profilbildDaten: Data? = nil,
         sections: [DossierPDFSection]
     ) {
         self.id = id
@@ -44,6 +46,7 @@ struct DossierPDFChapter: Identifiable {
         self.titel = titel
         self.beschreibung = beschreibung
         self.farbe = farbe
+        self.profilbildDaten = profilbildDaten
         self.sections = sections
     }
 }

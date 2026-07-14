@@ -297,6 +297,7 @@ struct AbosView: View {
                 }
             }
         }
+        .dossierFloatingNavigation(.abos)
     }
 
     private var abosHero: some View {

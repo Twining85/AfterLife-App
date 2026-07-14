@@ -89,6 +89,7 @@ struct GesundheitView: View {
                 hausarztAusKontaktUebernehmen(kontakt)
             }
         }
+        .dossierFloatingNavigation(.gesundheit)
 
 #else
         ScrollView {
@@ -111,6 +112,7 @@ struct GesundheitView: View {
                 hausarztAusKontaktUebernehmen(kontakt)
             }
         }
+        .dossierFloatingNavigation(.gesundheit)
 #endif
     }
 

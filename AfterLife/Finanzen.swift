@@ -704,6 +704,7 @@ struct FinanzenView: View {
                 }
             }
         }
+        .dossierFloatingNavigation(.finanzen)
     }
     private var bankEntryList: some View {
         ForEach(Array($bankEntries.enumerated()), id: \.element.id) { index, $bankEntry in

@@ -71,6 +71,7 @@ struct HinterbliebeneView: View {
                 }
             }
         }
+        .dossierFloatingNavigation(.hinterbliebene)
     }
 
     private var vertrauensHero: some View {

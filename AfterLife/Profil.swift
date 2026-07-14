@@ -696,6 +696,7 @@ struct ProfilView: View {
                 }
             }
         }
+        .dossierFloatingNavigation(.profil)
     }
 
     @State private var ahvNummer = ""
@@ -1486,17 +1487,144 @@ struct ProfilView: View {
         dossierExportLaeuft = true
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            if let url = erstelleDossierPDF(passwoerterMitdrucken: sensibleDatenExportieren) {
+            do {
+                let url = try erstelleModularesDossierPDF()
                 dossierExportLaeuft = false
                 dossierExportSheetAnzeigen = false
                 dossierPDF = ExportiertesDossier(url: url)
-            } else {
+            } catch {
                 dossierExportLaeuft = false
                 dossierExportFehlermeldung = "Das PDF-Dossier konnte nicht erstellt werden. Bitte versuche es erneut."
             }
         }
     }
 
+    private func erstelleModularesDossierPDF() throws -> URL {
+        let options = DossierPDFExportOptions(
+            sensibleDatenEinschliessen: sensibleDatenExportieren,
+            dokumenteAlsAnhangBeruecksichtigen: dokumenteAlsAnhangBeruecksichtigen,
+            leereFelderAnzeigen: false
+        )
+
+        return try PDFExportService().exportVorsorgeDossier(
+            profil: aktivesProfil,
+            wuensche: gespeicherteWuensche,
+            gesundheitsdaten: gespeicherteGesundheitsdaten,
+            bankkonten: gespeicherteBankkonten,
+            schulden: gespeicherteSchulden,
+            versicherungen: gespeicherteVersicherungen,
+            liegenschaften: gespeicherteLiegenschaften,
+            wertsachen: gespeicherteWertsachen,
+            dokumente: gespeicherteWeitereDokumente,
+            fotoalbumBilder: gespeicherteFotos,
+            aboModelle: gespeicherteAboModelle,
+            options: options,
+            attachments: dossierAnhaenge()
+        )
+    }
+
+    private func dossierAnhaenge() -> [DossierPDFAttachment] {
+        guard dokumenteAlsAnhangBeruecksichtigen else { return [] }
+
+        var anhaenge: [DossierPDFAttachment] = []
+
+        if let nachrufBildDaten = gespeicherteWuensche.compactMap(\.nachrufBildData).first,
+           !nachrufBildDaten.isEmpty {
+            anhaenge.append(
+                DossierPDFAttachment(
+                    titel: "Foto für Nachlass",
+                    kategorie: "Meine Wünsche",
+                    dateiname: "Nachruf-Foto",
+                    daten: nachrufBildDaten
+                )
+            )
+        }
+
+        for wunsch in gespeicherteWuensche {
+            if let data = wunsch.testamentDateiData, !data.isEmpty {
+                anhaenge.append(
+                    DossierPDFAttachment(
+                        titel: "Testament",
+                        kategorie: "Meine Wünsche",
+                        dateiname: fallbackDateiname(wunsch.testamentDateiName, fallback: "Testament"),
+                        erstelltAm: wunsch.testamentHochgeladenAm,
+                        daten: data
+                    )
+                )
+            }
+
+            if let data = wunsch.patientenverfuegungDateiData, !data.isEmpty {
+                anhaenge.append(
+                    DossierPDFAttachment(
+                        titel: "Patientenverfügung",
+                        kategorie: "Meine Wünsche",
+                        dateiname: fallbackDateiname(wunsch.patientenverfuegungDateiName, fallback: "Patientenverfuegung"),
+                        erstelltAm: wunsch.patientenverfuegungHochgeladenAm,
+                        daten: data
+                    )
+                )
+            }
+
+            if let data = wunsch.vorsorgeauftragDateiData, !data.isEmpty {
+                anhaenge.append(
+                    DossierPDFAttachment(
+                        titel: "Vorsorgeauftrag",
+                        kategorie: "Meine Wünsche",
+                        dateiname: fallbackDateiname(wunsch.vorsorgeauftragDateiName, fallback: "Vorsorgeauftrag"),
+                        erstelltAm: wunsch.vorsorgeauftragHochgeladenAm,
+                        daten: data
+                    )
+                )
+            }
+
+            if let data = wunsch.sterbebegleitungDateiData, !data.isEmpty {
+                anhaenge.append(
+                    DossierPDFAttachment(
+                        titel: "Sterbebegleitung",
+                        kategorie: "Meine Wünsche",
+                        dateiname: fallbackDateiname(wunsch.sterbebegleitungDateiName, fallback: "Sterbebegleitung"),
+                        erstelltAm: wunsch.sterbebegleitungHochgeladenAm,
+                        daten: data
+                    )
+                )
+            }
+        }
+
+        for dokument in gespeicherteWeitereDokumente.sorted(by: { $0.hochgeladenAm < $1.hochgeladenAm }) where !dokument.dateiDaten.isEmpty {
+            anhaenge.append(
+                DossierPDFAttachment(
+                    titel: dokument.kategorie.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Weitere Dokumente" : dokument.kategorie,
+                    kategorie: "Weitere Dokumente",
+                    dateiname: fallbackDateiname(dokument.dateiName, fallback: "Dokument"),
+                    erstelltAm: dokument.hochgeladenAm,
+                    daten: dokument.dateiDaten
+                )
+            )
+        }
+
+        for (index, foto) in gespeicherteFotos.sorted(by: { $0.reihenfolge < $1.reihenfolge }).enumerated() where !foto.bildDaten.isEmpty {
+            anhaenge.append(
+                DossierPDFAttachment(
+                    titel: "Fotoalbum",
+                    kategorie: "Fotoalbum",
+                    dateiname: fallbackDateiname(foto.dateiName, fallback: "Foto_\(index + 1)"),
+                    erstelltAm: foto.hinzugefuegtAm,
+                    daten: foto.bildDaten
+                )
+            )
+        }
+
+        return anhaenge
+    }
+
+    private func fallbackDateiname(_ dateiname: String, fallback: String) -> String {
+        let bereinigterDateiname = dateiname.trimmingCharacters(in: .whitespacesAndNewlines)
+        return bereinigterDateiname.isEmpty ? fallback : bereinigterDateiname
+    }
+
+    // MARK: - Fallback alter PDF-Export
+    // Wird aktuell nicht mehr vom CTA verwendet. Bleibt vorerst als Rückfallpfad erhalten,
+    // bis der modulare PDF-Export fachlich und visuell vollständig abgenommen ist.
     private func erstelleDossierPDF(passwoerterMitdrucken: Bool) -> URL? {
 
         let pdfMetaData = [

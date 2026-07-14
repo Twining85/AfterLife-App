@@ -4,15 +4,22 @@ final class DossierPDFRenderer {
     private let theme: PDFTheme
     private let sectionRenderer: PDFSectionRenderer
     private let attachmentRenderer: PDFAttachmentRenderer
+    private let dateFormatter: DateFormatter
 
     init(
         theme: PDFTheme = .tschluessli,
         sectionRenderer: PDFSectionRenderer? = nil,
         attachmentRenderer: PDFAttachmentRenderer? = nil
     ) {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "de_CH")
+        formatter.dateStyle = .long
+        formatter.timeStyle = .none
+
         self.theme = theme
         self.sectionRenderer = sectionRenderer ?? PDFSectionRenderer(theme: theme)
         self.attachmentRenderer = attachmentRenderer ?? PDFAttachmentRenderer(theme: theme)
+        self.dateFormatter = formatter
     }
 
     func render(_ document: DossierPDFDocument, to url: URL) throws {
@@ -46,10 +53,10 @@ final class DossierPDFRenderer {
         layout.drawText("Tschlüssli", font: theme.typography.bodyEmphasis, color: theme.accent, spacing: 26)
         layout.drawText(document.titel, font: theme.typography.title, color: theme.primaryText, spacing: 12)
         layout.drawText(document.untertitel, font: theme.typography.sectionTitle, color: theme.secondaryText, spacing: 36)
-        layout.drawText("Erstellt am \(document.erstelltAm.formatted(date: .long, time: .omitted))", font: theme.typography.body, color: theme.primaryText, spacing: 8)
+        layout.drawText("Erstellt am \(dateFormatter.string(from: document.erstelltAm))", font: theme.typography.body, color: .black, spacing: 8)
 
         if let aktualisiertAm = document.aktualisiertAm {
-            layout.drawText("Zuletzt aktualisiert am \(aktualisiertAm.formatted(date: .long, time: .omitted))", font: theme.typography.body, color: theme.primaryText, spacing: 24)
+            layout.drawText("Zuletzt aktualisiert am \(dateFormatter.string(from: aktualisiertAm))", font: theme.typography.body, color: .black, spacing: 24)
         }
 
         layout.drawText(document.vertraulichkeitshinweis, font: theme.typography.body, color: theme.secondaryText)
@@ -77,8 +84,7 @@ final class DossierPDFRenderer {
             color: theme.secondaryText,
             spacing: 18
         )
-        layout.drawText("Exportdatum: \(Date().formatted(date: .long, time: .shortened))", font: theme.typography.body, color: theme.primaryText, spacing: 8)
-        layout.drawText("Version: MVP 1", font: theme.typography.body, color: theme.primaryText, spacing: 18)
+        layout.drawText("Exportdatum: \(dateFormatter.string(from: Date()))", font: theme.typography.body, color: .black, spacing: 18)
         layout.drawText("Dieses Dokument enthält persönliche und potenziell sensible Daten. Teile es nur mit Personen, denen du vertraust.", font: theme.typography.body, color: theme.secondaryText)
     }
 }

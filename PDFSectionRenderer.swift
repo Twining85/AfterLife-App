@@ -75,11 +75,28 @@ final class PDFSectionRenderer {
     }
 
     private func drawRoundImage(_ image: UIImage, rect: CGRect, in layout: PDFLayoutEngine) {
+        let imageAspect = image.size.width / max(image.size.height, 1)
+        let rectAspect = rect.width / max(rect.height, 1)
+        let drawSize: CGSize
+
+        if imageAspect > rectAspect {
+            drawSize = CGSize(width: rect.height * imageAspect, height: rect.height)
+        } else {
+            drawSize = CGSize(width: rect.width, height: rect.width / imageAspect)
+        }
+
+        let drawRect = CGRect(
+            x: rect.midX - drawSize.width / 2,
+            y: rect.midY - drawSize.height / 2,
+            width: drawSize.width,
+            height: drawSize.height
+        )
+
         let path = UIBezierPath(ovalIn: rect)
         layout.context.cgContext.saveGState()
         path.addClip()
         layout.context.cgContext.interpolationQuality = .high
-        image.draw(in: rect)
+        image.draw(in: drawRect)
         layout.context.cgContext.restoreGState()
     }
 

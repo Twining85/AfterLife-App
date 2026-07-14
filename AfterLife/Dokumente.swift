@@ -356,6 +356,7 @@ struct DokumenteView: View {
                 pruefeDokumentBereichAuswahl()
             }
         }
+        .dossierFloatingNavigation(.dokumente)
     }
 
     private var wuenscheDokumenteSection: some View {

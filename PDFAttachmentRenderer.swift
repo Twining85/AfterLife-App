@@ -13,8 +13,19 @@ final class PDFAttachmentRenderer {
 
         drawRegister(for: attachments, in: layout)
 
+        var fotoalbumTitelGedruckt = false
+
         for attachment in attachments {
-            drawAttachment(attachment, in: layout)
+            if attachment.kategorie == "Fotoalbum" {
+                drawFotoalbumAttachment(
+                    attachment,
+                    in: layout,
+                    titelDrucken: !fotoalbumTitelGedruckt
+                )
+                fotoalbumTitelGedruckt = true
+            } else {
+                drawAttachment(attachment, in: layout)
+            }
         }
     }
 
@@ -65,10 +76,27 @@ final class PDFAttachmentRenderer {
         layout.drawText(attachment.dateiname, font: theme.typography.secondary, color: theme.secondaryText, spacing: 18)
     }
 
+    private func drawFotoalbumAttachment(_ attachment: DossierPDFAttachment, in layout: PDFLayoutEngine, titelDrucken: Bool) {
+        guard let image = UIImage(data: attachment.daten) else {
+            drawAttachment(attachment, in: layout)
+            return
+        }
+
+        layout.beginPage()
+        if titelDrucken {
+            layout.drawText("Fotoalbum", font: theme.typography.chapterTitle, color: .black, spacing: 18)
+        }
+
+        drawImageContent(image, in: layout)
+    }
+
     private func drawImage(_ image: UIImage, attachment: DossierPDFAttachment, in layout: PDFLayoutEngine) {
         layout.beginPage()
         drawAttachmentHeader(attachment, in: layout)
+        drawImageContent(image, in: layout)
+    }
 
+    private func drawImageContent(_ image: UIImage, in layout: PDFLayoutEngine) {
         let maxWidth = layout.contentWidth
         let maxHeight = layout.pageRect.height - layout.yPosition - theme.spacing.pageMargin
         let imageAspect = image.size.width / max(image.size.height, 1)
