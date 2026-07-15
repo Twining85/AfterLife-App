@@ -116,6 +116,7 @@ struct DossierPDFAttachment: Identifiable {
     var kategorie: String
     var dateiname: String
     var erstelltAm: Date?
+    var hinweis: String?
     var daten: Data
 
     init(
@@ -124,6 +125,7 @@ struct DossierPDFAttachment: Identifiable {
         kategorie: String,
         dateiname: String,
         erstelltAm: Date? = nil,
+        hinweis: String? = nil,
         daten: Data
     ) {
         self.id = id
@@ -131,6 +133,7 @@ struct DossierPDFAttachment: Identifiable {
         self.kategorie = kategorie
         self.dateiname = dateiname
         self.erstelltAm = erstelltAm
+        self.hinweis = hinweis
         self.daten = daten
     }
 }

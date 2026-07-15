@@ -626,7 +626,7 @@ private struct DossierFloatingNavigationModifier: ViewModifier {
 
                     guard !navigationInteraktionAktiv else { return }
 
-                    if Date().timeIntervalSince(letzteNavigationsAktivitaet) >= 2 {
+                    if Date().timeIntervalSince(letzteNavigationsAktivitaet) >= 2.75 {
                         klappeNavigationEin()
                     }
                 }

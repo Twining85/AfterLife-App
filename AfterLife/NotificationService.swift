@@ -15,14 +15,20 @@ final class NotificationService {
     
     private let dossierPruefungNotificationID = "jaehrliche-dossier-pruefung"
     
-    func berechtigungAnfragen() {
+    func berechtigungAnfragen(completion: @escaping (Bool) -> Void) {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { erlaubt, fehler in
             if let fehler {
                 print("Fehler bei Benachrichtigungs-Berechtigung: \(fehler.localizedDescription)")
+                DispatchQueue.main.async {
+                    completion(false)
+                }
                 return
             }
             
             print("Benachrichtigungen erlaubt: \(erlaubt)")
+            DispatchQueue.main.async {
+                completion(erlaubt)
+            }
         }
     }
     

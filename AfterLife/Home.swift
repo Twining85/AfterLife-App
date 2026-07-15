@@ -30,6 +30,10 @@ struct Home: View {
     @State private var bearbeiteteHomeBereiche: [HomeBereich] = []
     @State private var dossierPruefungRefreshDatum = Date()
     @State private var dossierPruefungSheetAnzeigen = false
+    @State private var dossierPruefungZuruecksetzenAnzeigen = false
+    @State private var erinnerungsAuswahlAnzeigen = false
+    @State private var mitteilungenEinstellungenAnzeigen = false
+    @State private var ausstehendesPruefDatum: Date?
     private let heroDossierTitelGroesse: CGFloat = 19
     private let heroDossierStatusGroesse: CGFloat = 16
     private let heroDossierBeschreibungGroesse: CGFloat = 14
@@ -107,8 +111,7 @@ struct Home: View {
             return nil
         }
 
-        // TEST: Für den iPhone-Test bewusst auf 1 Minute gesetzt.
-        // Für Produktion wieder auf `.year, value: 1` ändern.
+    
         return Calendar.current.date(byAdding: .minute, value: 1, to: datum)
     }
 
@@ -350,7 +353,9 @@ struct Home: View {
                                 .onTapGesture {
                                     if dossierPruefungIstFaellig {
                                         dossierPruefungSheetAnzeigen = true
-                                    } else if !dossierWurdeGeprueft {
+                                    } else if dossierWurdeGeprueft {
+                                        dossierPruefungZuruecksetzenAnzeigen = true
+                                    } else {
                                         dossierAlsGeprueftMarkieren()
                                     }
                                 }
@@ -500,9 +505,48 @@ struct Home: View {
                 }
                 .navigationBarBackButtonHidden(true)
                 .onAppear {
-                    NotificationService.shared.berechtigungAnfragen()
                     dossierPruefungRefreshDatum = Date()
                     starteHomeEinstiegsanimation()
+                }
+                .confirmationDialog(
+                    "Prüfstatus zurücksetzen?",
+                    isPresented: $dossierPruefungZuruecksetzenAnzeigen,
+                    titleVisibility: .visible
+                ) {
+                    Button("Prüfstatus zurücksetzen", role: .destructive) {
+                        dossierPruefungZuruecksetzen()
+                    }
+                    Button("Abbrechen", role: .cancel) { }
+                } message: {
+                    Text("Das Dossier wird wieder als noch nicht geprüft angezeigt und die geplante Erinnerung wird entfernt.")
+                }
+                .confirmationDialog(
+                    "Jährliche Erinnerung aktivieren?",
+                    isPresented: $erinnerungsAuswahlAnzeigen,
+                    titleVisibility: .visible
+                ) {
+                    Button("Erinnerung aktivieren") {
+                        erinnerungAktivieren()
+                    }
+
+                    Button("Ohne Erinnerung", role: .cancel) {
+                        ausstehendesPruefDatum = nil
+                        NotificationService.shared.jaehrlicheDossierPruefungEntfernen()
+                    }
+                } message: {
+                    Text("Tschlüssli kann dich nächstes Jahr daran erinnern, dein Vorsorge-Dossier erneut zu prüfen.")
+                }
+                .alert(
+                    "Mitteilungen sind deaktiviert",
+                    isPresented: $mitteilungenEinstellungenAnzeigen
+                ) {
+                    Button("Einstellungen öffnen") {
+                        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                        UIApplication.shared.open(url)
+                    }
+                    Button("Abbrechen", role: .cancel) { }
+                } message: {
+                    Text("Aktiviere Mitteilungen in den iOS-Einstellungen, damit Tschlüssli dich an die jährliche Dossier-Prüfung erinnern kann.")
                 }
                 .onChange(of: scenePhase) { _, neuePhase in
                     if neuePhase == .active {
@@ -609,7 +653,29 @@ struct Home: View {
         private func dossierAlsGeprueftMarkieren() {
             let pruefDatum = Date()
             dossierZuletztGeprueftAmISO = ISO8601DateFormatter().string(from: pruefDatum)
-            NotificationService.shared.jaehrlicheDossierPruefungPlanen(ab: pruefDatum)
+            ausstehendesPruefDatum = pruefDatum
+            erinnerungsAuswahlAnzeigen = true
+        }
+
+        private func dossierPruefungZuruecksetzen() {
+            dossierZuletztGeprueftAmISO = ""
+            ausstehendesPruefDatum = nil
+            dossierPruefungRefreshDatum = Date()
+            NotificationService.shared.jaehrlicheDossierPruefungEntfernen()
+        }
+
+        private func erinnerungAktivieren() {
+            guard let pruefDatum = ausstehendesPruefDatum else { return }
+
+            NotificationService.shared.berechtigungAnfragen { erlaubt in
+                if erlaubt {
+                    NotificationService.shared.jaehrlicheDossierPruefungPlanen(ab: pruefDatum)
+                } else {
+                    mitteilungenEinstellungenAnzeigen = true
+                }
+
+                ausstehendesPruefDatum = nil
+            }
         }
 
         private func initialisiereHomeBereicheFallsNoetig() {

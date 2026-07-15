@@ -73,7 +73,16 @@ final class PDFAttachmentRenderer {
         let title = pageInfo == nil ? attachment.titel : "\(attachment.titel) - \(pageInfo ?? "")"
         layout.drawText(title, font: theme.typography.chapterTitle, color: theme.primaryText, spacing: 6)
         layout.drawText(attachment.kategorie, font: theme.typography.bodyEmphasis, color: theme.secondaryText, spacing: 4)
-        layout.drawText(attachment.dateiname, font: theme.typography.secondary, color: theme.secondaryText, spacing: 18)
+        layout.drawText(
+            attachment.dateiname,
+            font: theme.typography.secondary,
+            color: theme.secondaryText,
+            spacing: attachment.hinweis == nil ? 18 : 8
+        )
+
+        if let hinweis = attachment.hinweis, !hinweis.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            layout.drawText(hinweis, font: theme.typography.secondary, color: theme.secondaryText, spacing: 18)
+        }
     }
 
     private func drawFotoalbumAttachment(_ attachment: DossierPDFAttachment, in layout: PDFLayoutEngine, titelDrucken: Bool) {

@@ -1105,68 +1105,11 @@ struct DokumenteView: View {
         let dokumente = alleExportierbarenDokumente
         guard !dokumente.isEmpty else { return nil }
 
-        let exportURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("AfterLife_Dokumente_Export_\(UUID().uuidString).pdf")
-
-        let pageRect = CGRect(x: 0, y: 0, width: 595.2, height: 841.8)
-        let renderer = UIGraphicsPDFRenderer(bounds: pageRect)
+        let document = DocumentBundleExportMapper().makeDocument(from: dokumente)
+        guard !document.attachments.isEmpty else { return nil }
 
         do {
-            try renderer.writePDF(to: exportURL) { context in
-                var yPosition: CGFloat = 48
-                let leftMargin: CGFloat = 44
-                let contentWidth: CGFloat = pageRect.width - 88
-
-                context.beginPage()
-                yPosition = drawPDFText(
-                    "AfterLife Dokumentenexport",
-                    at: CGPoint(x: leftMargin, y: yPosition),
-                    width: contentWidth,
-                    font: .boldSystemFont(ofSize: 22),
-                    color: .label
-                ) + 16
-
-                yPosition = drawPDFText(
-                    "Erstellt am \(Date().formatted(date: .abbreviated, time: .shortened))",
-                    at: CGPoint(x: leftMargin, y: yPosition),
-                    width: contentWidth,
-                    font: .systemFont(ofSize: 11),
-                    color: .secondaryLabel
-                ) + 28
-
-                for dokument in dokumente {
-                    if yPosition > pageRect.height - 150 {
-                        context.beginPage()
-                        yPosition = 48
-                    }
-
-                    yPosition = drawPDFText(
-                        dokument.title,
-                        at: CGPoint(x: leftMargin, y: yPosition),
-                        width: contentWidth,
-                        font: .boldSystemFont(ofSize: 16),
-                        color: .label
-                    ) + 4
-
-                    yPosition = drawPDFText(
-                        dokument.fileName,
-                        at: CGPoint(x: leftMargin, y: yPosition),
-                        width: contentWidth,
-                        font: .systemFont(ofSize: 11),
-                        color: .secondaryLabel
-                    ) + 10
-
-                    yPosition = drawDocumentPreview(
-                        dokument,
-                        pageRect: pageRect,
-                        startY: yPosition,
-                        leftMargin: leftMargin,
-                        contentWidth: contentWidth
-                    ) + 24
-                }
-            }
-
-            return exportURL
+            return try DocumentBundlePDFExportService().export(document: document)
         } catch {
             print("PDF Fehler: \(error.localizedDescription)")
             return nil

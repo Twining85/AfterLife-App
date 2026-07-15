@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9372A4FA300636CE005271AD /* DocumentBundlePDFModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9372A4F9300636CE005271AD /* DocumentBundlePDFModels.swift */; };
+		9372A4FC300636DC005271AD /* DocumentBundleExportMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9372A4FB300636DC005271AD /* DocumentBundleExportMapper.swift */; };
+		9372A4FE300636F3005271AD /* DocumentBundlePDFRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9372A4FD300636F3005271AD /* DocumentBundlePDFRenderer.swift */; };
+		9372A500300636FA005271AD /* DocumentBundlePDFExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9372A4FF300636FA005271AD /* DocumentBundlePDFExportService.swift */; };
 		93DD29D8300105AB00B39FD4 /* DossierPDFExportModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93DD29D7300105AB00B39FD4 /* DossierPDFExportModels.swift */; };
 		93DD29DA300105B800B39FD4 /* PDFTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93DD29D9300105B800B39FD4 /* PDFTheme.swift */; };
 		93DD29DC300105CC00B39FD4 /* PDFLayoutEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93DD29DB300105CC00B39FD4 /* PDFLayoutEngine.swift */; };
@@ -35,6 +39,10 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		9372A4F9300636CE005271AD /* DocumentBundlePDFModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentBundlePDFModels.swift; sourceTree = "<group>"; };
+		9372A4FB300636DC005271AD /* DocumentBundleExportMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentBundleExportMapper.swift; sourceTree = "<group>"; };
+		9372A4FD300636F3005271AD /* DocumentBundlePDFRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentBundlePDFRenderer.swift; sourceTree = "<group>"; };
+		9372A4FF300636FA005271AD /* DocumentBundlePDFExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentBundlePDFExportService.swift; sourceTree = "<group>"; };
 		93DD29D7300105AB00B39FD4 /* DossierPDFExportModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DossierPDFExportModels.swift; sourceTree = "<group>"; };
 		93DD29D9300105B800B39FD4 /* PDFTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFTheme.swift; sourceTree = "<group>"; };
 		93DD29DB300105CC00B39FD4 /* PDFLayoutEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFLayoutEngine.swift; sourceTree = "<group>"; };
@@ -120,6 +128,10 @@
 				93DD29E13001061900B39FD4 /* DossierPDFRenderer.swift */,
 				93DD29E33001062900B39FD4 /* DossierPDFExportService.swift */,
 				93DD29E53001064100B39FD4 /* DossierExportMapper.swift */,
+				9372A4F9300636CE005271AD /* DocumentBundlePDFModels.swift */,
+				9372A4FB300636DC005271AD /* DocumentBundleExportMapper.swift */,
+				9372A4FD300636F3005271AD /* DocumentBundlePDFRenderer.swift */,
+				9372A4FF300636FA005271AD /* DocumentBundlePDFExportService.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -286,6 +298,10 @@
 			files = (
 				93DD29D8300105AB00B39FD4 /* DossierPDFExportModels.swift in Sources */,
 				93DD29E43001062900B39FD4 /* DossierPDFExportService.swift in Sources */,
+				9372A4FE300636F3005271AD /* DocumentBundlePDFRenderer.swift in Sources */,
+				9372A4FC300636DC005271AD /* DocumentBundleExportMapper.swift in Sources */,
+				9372A500300636FA005271AD /* DocumentBundlePDFExportService.swift in Sources */,
+				9372A4FA300636CE005271AD /* DocumentBundlePDFModels.swift in Sources */,
 				93DD29DA300105B800B39FD4 /* PDFTheme.swift in Sources */,
 				93DD29DE300105E400B39FD4 /* PDFSectionRenderer.swift in Sources */,
 				93DD29E0300105FF00B39FD4 /* PDFAttachmentRenderer.swift in Sources */,

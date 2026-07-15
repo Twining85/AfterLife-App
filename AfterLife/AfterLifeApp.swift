@@ -174,9 +174,6 @@ struct AppStartView: View {
             UIApplication.shared
                 .aktiviereTastaturAusblendenBeiTap()
 
-            NotificationService.shared
-                .berechtigungAnfragen()
-
             verarbeiteGespeicherteEinladungsURLFallsNoetig()
         }
         .onOpenURL { url in

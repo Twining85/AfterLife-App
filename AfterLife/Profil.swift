@@ -22,6 +22,10 @@ struct ProfilView: View {
     @Query(sort: \FotoalbumBildModell.reihenfolge) private var gespeicherteFotos: [FotoalbumBildModell]
     @Query(sort: \DokumenteModell.hochgeladenAm) private var gespeicherteWeitereDokumente: [DokumenteModell]
     @Query private var gespeicherteAboModelle: [AboModell]
+    @Query private var gespeicherteAboEintraege: [AboEintrag]
+    @Query private var gespeicherteVertrauenspersonen: [VertrauenspersonModell]
+    @Query private var gespeicherteEinladungsHistorien: [VertrauenspersonEinladungsHistorieModell]
+    @Query private var gespeicherteDossiers: [DossierModell]
     @Query private var gespeicherteDossierZugriffe: [DossierZugriffModell]
 
     private let profilKartenFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
@@ -33,6 +37,12 @@ struct ProfilView: View {
     @AppStorage("registrierungsArt") private var registrierungsArt = "E-Mail"
     @AppStorage("biometrieAktiviert") private var biometrieAktiviert = false
     @AppStorage("biometriePruefungImProfilLaeuft") private var biometriePruefungImProfilLaeuft = false
+    @AppStorage("istEingeloggt") private var istEingeloggt = false
+    @AppStorage("direktNachRegistrierungEingeloggt") private var direktNachRegistrierungEingeloggt = false
+    @AppStorage("aktiveUserID") private var aktiveUserID = ""
+    @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
+    @AppStorage("profilIstVorhanden") private var profilIstVorhanden = false
+    @AppStorage("dossierZuletztGeprueftAmISO") private var dossierZuletztGeprueftAmISO = ""
 
     @State private var vorname = ""
 
@@ -89,10 +99,6 @@ struct ProfilView: View {
     @State private var profilbildAuswahl: PhotosPickerItem?
 
     @AppStorage("profilbildData") private var profilbildData: Data?
-
-    @State private var showLogout = false
-
-    @State private var showDeleted = false
 
     @State private var profilLoeschenBestaetigen = false
 
@@ -506,7 +512,7 @@ struct ProfilView: View {
                 if dossierKontext.kannBearbeiten {
                     Section {
                         Button {
-                            showLogout = true
+                            abmelden()
                         } label: {
                             Label("Logout", systemImage: "rectangle.portrait.and.arrow.right")
                         }
@@ -526,18 +532,6 @@ struct ProfilView: View {
             .tint(profilAkzentFarbe)
             .navigationTitle("Mein Profil")
 
-            .navigationDestination(isPresented: $showLogout) {
-
-                Logout()
-
-            }
-
-            .navigationDestination(isPresented: $showDeleted) {
-
-                Deleted()
-
-            }
-
             .alert("Profil wirklich löschen?", isPresented: $profilLoeschenBestaetigen) {
 
                 Button("Abbrechen", role: .cancel) { }
@@ -545,8 +539,6 @@ struct ProfilView: View {
                 Button("Ja, löschen", role: .destructive) {
 
                     profilLoeschen()
-
-                    showDeleted = true
 
                 }
 
@@ -1194,6 +1186,15 @@ struct ProfilView: View {
     private func profilLoeschen() {
         guard dossierKontext.kannLoeschen else { return }
 
+        let keychainKonten = Set(
+            gespeicherteProfile
+                .map(\.registrierungsEmail)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                + [gespeicherteEmail.trimmingCharacters(in: .whitespacesAndNewlines)]
+                    .filter { !$0.isEmpty }
+        )
+
         vorname = ""
 
         name = ""
@@ -1230,22 +1231,57 @@ struct ProfilView: View {
         geburtsdatum = technischesDefaultGeburtsdatum
         geburtsdatumText = ""
 
-        gespeicherteAboModelle.forEach { aboModell in
-            aboModell.abos
-                .filter { $0.istSystemEintrag && $0.anbieter == "AfterLife" }
-                .forEach { systemEintrag in
-                    if let index = aboModell.abos.firstIndex(where: { $0.id == systemEintrag.id }) {
-                        aboModell.abos.remove(at: index)
-                    }
-                    modelContext.delete(systemEintrag)
-                }
+        gespeicherteDossierZugriffe.forEach { modelContext.delete($0) }
+        gespeicherteEinladungsHistorien.forEach { modelContext.delete($0) }
+        gespeicherteVertrauenspersonen.forEach { modelContext.delete($0) }
+        gespeicherteWeitereDokumente.forEach { modelContext.delete($0) }
+        gespeicherteFotos.forEach { modelContext.delete($0) }
+        gespeicherteAboEintraege.forEach { modelContext.delete($0) }
+        gespeicherteAboModelle.forEach { modelContext.delete($0) }
+        gespeicherteSteuerdokumente.forEach { modelContext.delete($0) }
+        gespeicherteWertsachen.forEach { modelContext.delete($0) }
+        gespeicherteLiegenschaften.forEach { modelContext.delete($0) }
+        gespeicherteVersicherungen.forEach { modelContext.delete($0) }
+        gespeicherteSchulden.forEach { modelContext.delete($0) }
+        gespeicherteBankkonten.forEach { modelContext.delete($0) }
+        gespeicherteHinterbliebene.forEach { modelContext.delete($0) }
+        gespeicherteWuensche.forEach { modelContext.delete($0) }
+        gespeicherteGesundheitsdaten.forEach { modelContext.delete($0) }
+        gespeicherteDossiers.forEach { modelContext.delete($0) }
+        gespeicherteProfile.forEach { modelContext.delete($0) }
+
+        try? modelContext.save()
+
+        keychainKonten.forEach { konto in
+            try? KeychainHelper.shared.delete(
+                service: "AfterLife.Login",
+                account: konto
+            )
         }
 
-        gespeicherteProfile.forEach { profil in
-            modelContext.delete(profil)
-        }
+        NotificationService.shared.jaehrlicheDossierPruefungEntfernen()
+
+        gespeicherteEmail = ""
+        registrierungsArt = "E-Mail"
+        biometrieAktiviert = false
+        biometriePruefungImProfilLaeuft = false
+        aktiveUserID = ""
+        aktivesDossierID = ""
+        profilIstVorhanden = false
+        dossierZuletztGeprueftAmISO = ""
+        UserDefaults.standard.removeObject(forKey: "homeBereicheReihenfolge")
+        UserDefaults.standard.removeObject(forKey: "dossierFloatingNavigationScrollOffset")
+        UserDefaults.standard.removeObject(forKey: "eingehenderEinladungsToken")
+        UserDefaults.standard.removeObject(forKey: "eingehendeEinladungsURL")
 
         profilGeladen = false
+        direktNachRegistrierungEingeloggt = false
+        istEingeloggt = false
+    }
+
+    private func abmelden() {
+        direktNachRegistrierungEingeloggt = false
+        istEingeloggt = false
     }
 
     private var dossierExportKarte: some View {
@@ -1526,6 +1562,7 @@ struct ProfilView: View {
     private func dossierAnhaenge() -> [DossierPDFAttachment] {
         guard dokumenteAlsAnhangBeruecksichtigen else { return [] }
 
+        let kopieHinweis = "Hinweis: Dieses Dokument ist eine Kopie. Das Original sollte jederzeit auffindbar in einem physischen Ordner hinterlegt sein."
         var anhaenge: [DossierPDFAttachment] = []
 
         if let nachrufBildDaten = gespeicherteWuensche.compactMap(\.nachrufBildData).first,
@@ -1548,6 +1585,7 @@ struct ProfilView: View {
                         kategorie: "Meine Wünsche",
                         dateiname: fallbackDateiname(wunsch.testamentDateiName, fallback: "Testament"),
                         erstelltAm: wunsch.testamentHochgeladenAm,
+                        hinweis: kopieHinweis,
                         daten: data
                     )
                 )
@@ -1560,6 +1598,7 @@ struct ProfilView: View {
                         kategorie: "Meine Wünsche",
                         dateiname: fallbackDateiname(wunsch.patientenverfuegungDateiName, fallback: "Patientenverfuegung"),
                         erstelltAm: wunsch.patientenverfuegungHochgeladenAm,
+                        hinweis: kopieHinweis,
                         daten: data
                     )
                 )
@@ -1572,6 +1611,7 @@ struct ProfilView: View {
                         kategorie: "Meine Wünsche",
                         dateiname: fallbackDateiname(wunsch.vorsorgeauftragDateiName, fallback: "Vorsorgeauftrag"),
                         erstelltAm: wunsch.vorsorgeauftragHochgeladenAm,
+                        hinweis: kopieHinweis,
                         daten: data
                     )
                 )
@@ -1584,6 +1624,7 @@ struct ProfilView: View {
                         kategorie: "Meine Wünsche",
                         dateiname: fallbackDateiname(wunsch.sterbebegleitungDateiName, fallback: "Sterbebegleitung"),
                         erstelltAm: wunsch.sterbebegleitungHochgeladenAm,
+                        hinweis: kopieHinweis,
                         daten: data
                     )
                 )
