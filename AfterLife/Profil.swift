@@ -101,6 +101,8 @@ struct ProfilView: View {
     @AppStorage("profilbildData") private var profilbildData: Data?
 
     @State private var profilLoeschenBestaetigen = false
+    @State private var logoutVollbildAnzeigen = false
+    @State private var deletedVollbildAnzeigen = false
 
     @State private var passwortAendernAnzeigen = false
     @State private var registrierungsPasswortAnzeigen = false
@@ -516,11 +518,13 @@ struct ProfilView: View {
                         } label: {
                             Label("Logout", systemImage: "rectangle.portrait.and.arrow.right")
                         }
+                        .buttonStyle(.borderless)
                         Button(role: .destructive) {
                             profilLoeschenBestaetigen = true
                         } label: {
                             Label("Profil löschen", systemImage: "trash.fill")
                         }
+                        .buttonStyle(.borderless)
                     }
                     .listRowBackground(profilKartenFarbe)
                     .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
@@ -603,6 +607,14 @@ struct ProfilView: View {
                     neuesPasswort = ""
                     neuesPasswortWiederholen = ""
                 }
+            }
+            .fullScreenCover(isPresented: $logoutVollbildAnzeigen) {
+                Logout()
+                    .interactiveDismissDisabled()
+            }
+            .fullScreenCover(isPresented: $deletedVollbildAnzeigen) {
+                Deleted()
+                    .interactiveDismissDisabled()
             }
             .onAppear {
                 ladeOderErstelleProfil()
@@ -838,8 +850,6 @@ struct ProfilView: View {
             }
         }
     }
-
-    @AppStorage("aktiveUserID") private var aktiveUserID = ""
 
     private var aktivesProfil: ProfilModell? {
         if !aktiveUserID.isEmpty,
@@ -1277,11 +1287,13 @@ struct ProfilView: View {
         profilGeladen = false
         direktNachRegistrierungEingeloggt = false
         istEingeloggt = false
+        deletedVollbildAnzeigen = true
     }
 
     private func abmelden() {
         direktNachRegistrierungEingeloggt = false
         istEingeloggt = false
+        logoutVollbildAnzeigen = true
     }
 
     private var dossierExportKarte: some View {

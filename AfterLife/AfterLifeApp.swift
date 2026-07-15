@@ -67,6 +67,15 @@ struct AppStartView: View {
     @AppStorage("direktNachRegistrierungEingeloggt")
     private var direktNachRegistrierungEingeloggt = false
 
+    @AppStorage("profilIstVorhanden")
+    private var profilIstVorhanden = false
+
+    @AppStorage("gespeicherteEmail")
+    private var gespeicherteEmail = ""
+
+    @AppStorage("biometriePruefungImProfilLaeuft")
+    private var biometriePruefungImProfilLaeuft = false
+
     @AppStorage("eingehenderEinladungsToken")
     private var eingehenderEinladungsToken = ""
 
@@ -83,6 +92,16 @@ struct AppStartView: View {
     private let einladungsSimulationAktiv = false
 
     private var istBereitsRegistriert: Bool {
+        if profilIstVorhanden {
+            return true
+        }
+
+        if !gespeicherteEmail
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty {
+            return true
+        }
+
         guard let profil = gespeicherteProfile.first else {
             return false
         }
@@ -204,6 +223,10 @@ struct AppStartView: View {
                     .willResignActiveNotification
             )
         ) { _ in
+            guard !biometriePruefungImProfilLaeuft else {
+                return
+            }
+
             guard istBereitsRegistriert else {
                 return
             }

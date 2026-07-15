@@ -21,13 +21,14 @@ struct Registrierung: View {
     @AppStorage("gespeichertesPasswort") private var gespeichertesPasswort = ""
     @AppStorage("registrierungsArt") private var registrierungsArt = "E-Mail"
     @AppStorage("direktNachRegistrierungEingeloggt") private var direktNachRegistrierungEingeloggt = false
+    @AppStorage("istEingeloggt") private var istEingeloggt = false
     @AppStorage("aktiveUserID") private var aktiveUserID = ""
     @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
     @State private var registrierungsformularAnzeigen = false
     @State private var email = ""
     @State private var passwort = ""
     @State private var fehlermeldung = ""
-    @State private var showHome = false
+    @State private var homeVollbildAnzeigen = false
     @State private var akzeptiertDisclaimer = false
     @State private var captchaAntwort = ""
     @State private var captchaZahl1 = Int.random(in: 2...9)
@@ -68,9 +69,6 @@ struct Registrierung: View {
                     .padding(.top, 18)
                     .padding(.bottom, 22)
                 }
-            }
-            .navigationDestination(isPresented: $showHome) {
-                Home()
             }
         }
     }
@@ -327,6 +325,18 @@ struct Registrierung: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+
+            if !fehlermeldung.isEmpty {
+                Text(fehlermeldung)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .fullScreenCover(isPresented: $homeVollbildAnzeigen) {
+            Home()
+                .interactiveDismissDisabled()
         }
         .padding(.top, 2)
     }
@@ -494,14 +504,15 @@ struct Registrierung: View {
             registrierungsArt = "E-Mail"
 
             speichereRegistrierungsdaten(art: "E-Mail", email: bereinigteEmail)
-            showHome = true
+            try modelContext.save()
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                direktNachRegistrierungEingeloggt = true
-                profilIstVorhanden = true
-            }
+            profilIstVorhanden = true
+            direktNachRegistrierungEingeloggt = true
+            istEingeloggt = true
+            homeVollbildAnzeigen = true
         } catch {
-            fehlermeldung = "Das Passwort konnte nicht sicher gespeichert werden. Bitte versuche es erneut."
+            fehlermeldung = "Die Registrierung konnte nicht gespeichert werden: \(error.localizedDescription)"
+            print("Registrierung fehlgeschlagen: \(error)")
         }
     }
 
