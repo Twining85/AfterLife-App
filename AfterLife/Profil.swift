@@ -4,9 +4,22 @@ import PhotosUI
 import UIKit
 import LocalAuthentication
 import PDFKit
+import SafariServices
+
+private struct ProfilSafariView: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        SFSafariViewController(url: url)
+    }
+
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) { }
+}
 
 
 struct ProfilView: View {
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dismiss) private var dismiss
     var dossierKontext: DossierKontext = .eigenesDossier(dossierID: UUID())
     var dossierExportDirektAnzeigen = false
     @Environment(\.modelContext) private var modelContext
@@ -38,6 +51,7 @@ struct ProfilView: View {
     @AppStorage("registrierungsArt") private var registrierungsArt = "E-Mail"
     @AppStorage("biometrieAktiviert") private var biometrieAktiviert = false
     @AppStorage("biometriePruefungImProfilLaeuft") private var biometriePruefungImProfilLaeuft = false
+    @AppStorage("systemdialogImProfilLaeuft") private var systemdialogImProfilLaeuft = false
     @AppStorage("istEingeloggt") private var istEingeloggt = false
     @AppStorage("direktNachRegistrierungEingeloggt") private var direktNachRegistrierungEingeloggt = false
     @AppStorage("aktiveUserID") private var aktiveUserID = ""
@@ -45,8 +59,12 @@ struct ProfilView: View {
     @AppStorage("profilIstVorhanden") private var profilIstVorhanden = false
     @AppStorage("dossierZuletztGeprueftAmISO") private var dossierZuletztGeprueftAmISO = ""
     @AppStorage("dossierLetzterExportAmISO") private var dossierLetzterExportAmISO = ""
+    @AppStorage("profilWurdeGeradeGeloescht") private var profilWurdeGeradeGeloescht = false
+    @AppStorage("wurdeGeradeAusgeloggt") private var wurdeGeradeAusgeloggt = false
 
     @State private var vorname = ""
+
+    @State private var rechtlichesAnzeigen = false
 
     @State private var name = ""
 
@@ -99,12 +117,11 @@ struct ProfilView: View {
     @State private var email = ""
 
     @State private var profilbildAuswahl: PhotosPickerItem?
+    @State private var profilbildMediathekAnzeigen = false
 
     @AppStorage("profilbildData") private var profilbildData: Data?
 
     @State private var profilLoeschenBestaetigen = false
-    @State private var logoutVollbildAnzeigen = false
-    @State private var deletedVollbildAnzeigen = false
 
     @State private var passwortAendernAnzeigen = false
     @State private var registrierungsPasswortAnzeigen = false
@@ -218,35 +235,44 @@ struct ProfilView: View {
     }
 
     var body: some View {
+        Group {
+            if dossierExportDirektAnzeigen {
+                dossierExportSheet
+                    .sheet(item: $dossierPDF, onDismiss: { dismiss() }) { dossier in
+                        ShareSheet(activityItems: [dossier.url])
+                    }
+                    .onAppear {
+                        ladeOderErstelleProfil()
+                        dossierExportFehlermeldung = ""
+                    }
+            } else {
+                profilHauptansicht
+            }
+        }
+    }
+
+    private var profilHauptansicht: some View {
 
         NavigationStack {
             Form {
                 Section {
                     VStack(spacing: 16) {
-                        if let profilbildData,
-                           let uiImage = UIImage(data: profilbildData) {
-                            Image(uiImage: uiImage)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 90, height: 90)
-                                .clipShape(Circle())
-                        } else {
-                            Image(systemName: "person.crop.circle.fill")
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 90, height: 90)
-                                .foregroundStyle(profilAkzentFarbe.opacity(0.65))
-                        }
                         if dossierKontext.kannBearbeiten {
-                            PhotosPicker(
+                            Button {
+                                systemdialogImProfilLaeuft = true
+                                profilbildMediathekAnzeigen = true
+                            } label: {
+                                profilbildAuswahlInhalt
+                            }
+                            .buttonStyle(.plain)
+                            .photosPicker(
+                                isPresented: $profilbildMediathekAnzeigen,
                                 selection: $profilbildAuswahl,
                                 matching: .images,
                                 photoLibrary: .shared()
-                            ) {
-                                Text(profilbildData == nil ? "Profilbild auswählen" : "Profilbild ändern")
-                                    .font(.headline)
-                                    .foregroundStyle(profilAkzentFarbe)
-                            }
+                            )
+                        } else {
+                            profilbildAnsicht
                         }
                     }
                     .frame(maxWidth: .infinity)
@@ -550,6 +576,28 @@ struct ProfilView: View {
                     .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
                 }
 
+                Section("Rechtliches") {
+                    Button {
+                        systemdialogImProfilLaeuft = true
+                        rechtlichesAnzeigen = true
+                    } label: {
+                        Label("Nutzungsbedingungen", systemImage: "doc.text")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        systemdialogImProfilLaeuft = true
+                        rechtlichesAnzeigen = true
+                    } label: {
+                        Label("Haftungshinweise", systemImage: "exclamationmark.shield")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .listRowBackground(profilKartenFarbe)
+                .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
+
             }
             .scrollContentBackground(.hidden)
             .background(profilHintergrundFarbe.ignoresSafeArea())
@@ -583,6 +631,12 @@ struct ProfilView: View {
                 dossierExportSheet
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $rechtlichesAnzeigen, onDismiss: {
+                systemdialogImProfilLaeuft = false
+            }) {
+                ProfilSafariView(url: URL(string: "https://tschluessli.ch")!)
+                    .ignoresSafeArea()
             }
 
             .sheet(isPresented: $passwortAendernAnzeigen) {
@@ -631,20 +685,8 @@ struct ProfilView: View {
                     neuesPasswortWiederholen = ""
                 }
             }
-            .fullScreenCover(isPresented: $logoutVollbildAnzeigen) {
-                Logout()
-                    .interactiveDismissDisabled()
-            }
-            .fullScreenCover(isPresented: $deletedVollbildAnzeigen) {
-                Deleted()
-                    .interactiveDismissDisabled()
-            }
             .onAppear {
                 ladeOderErstelleProfil()
-                if dossierExportDirektAnzeigen {
-                    dossierExportFehlermeldung = ""
-                    dossierExportSheetAnzeigen = true
-                }
             }
             .onChange(of: vorname) { _, _ in speichereProfil() }
             .onChange(of: name) { _, _ in speichereProfil() }
@@ -717,6 +759,8 @@ struct ProfilView: View {
             .onChange(of: profilbildAuswahl) { _, neueAuswahl in
                 guard dossierKontext.kannBearbeiten else { return }
 
+                systemdialogImProfilLaeuft = false
+
                 Task {
                     if let data = try? await neueAuswahl?.loadTransferable(type: Data.self),
                        let image = UIImage(data: data),
@@ -726,8 +770,47 @@ struct ProfilView: View {
                     }
                 }
             }
+            .onChange(of: scenePhase) { _, neuePhase in
+                guard neuePhase == .active else { return }
+                guard systemdialogImProfilLaeuft else { return }
+
+                Task {
+                    try? await Task.sleep(for: .milliseconds(350))
+                    guard !profilbildMediathekAnzeigen else { return }
+                    systemdialogImProfilLaeuft = false
+                }
+            }
         }
         .dossierFloatingNavigation(.profil)
+    }
+
+    private var profilbildAuswahlInhalt: some View {
+        VStack(spacing: 12) {
+            profilbildAnsicht
+
+            Text(profilbildData == nil ? "Profilbild auswählen" : "Profilbild ändern")
+                .font(.headline)
+                .foregroundStyle(profilAkzentFarbe)
+        }
+        .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private var profilbildAnsicht: some View {
+        if let profilbildData,
+           let uiImage = UIImage(data: profilbildData) {
+            Image(uiImage: uiImage)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 90, height: 90)
+                .clipShape(Circle())
+        } else {
+            Image(systemName: "person.crop.circle.fill")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 90, height: 90)
+                .foregroundStyle(profilAkzentFarbe.opacity(0.65))
+        }
     }
 
     @State private var ahvNummer = ""
@@ -965,6 +1048,7 @@ struct ProfilView: View {
         profil.profilbildDaten = profilbildData
         profil.biometrieAktiviert = biometrieAktiviert
         synchronisiereAfterLifeDigitaleIdentitaet()
+        try? modelContext.save()
     }
 
     private func synchronisiereAfterLifeDigitaleIdentitaet(email: String? = nil, passwort: String? = nil) {
@@ -1302,11 +1386,13 @@ struct ProfilView: View {
         registrierungsArt = "E-Mail"
         biometrieAktiviert = false
         biometriePruefungImProfilLaeuft = false
+        systemdialogImProfilLaeuft = false
         aktiveUserID = ""
         aktivesDossierID = ""
         profilIstVorhanden = false
         dossierZuletztGeprueftAmISO = ""
         UserDefaults.standard.removeObject(forKey: "homeBereicheReihenfolge")
+        UserDefaults.standard.removeObject(forKey: "homeAktiveBereiche")
         UserDefaults.standard.removeObject(forKey: "dossierFloatingNavigationScrollOffset")
         UserDefaults.standard.removeObject(forKey: "eingehenderEinladungsToken")
         UserDefaults.standard.removeObject(forKey: "eingehendeEinladungsURL")
@@ -1314,13 +1400,13 @@ struct ProfilView: View {
         profilGeladen = false
         direktNachRegistrierungEingeloggt = false
         istEingeloggt = false
-        deletedVollbildAnzeigen = true
+        profilWurdeGeradeGeloescht = true
     }
 
     private func abmelden() {
+        wurdeGeradeAusgeloggt = true
         direktNachRegistrierungEingeloggt = false
         istEingeloggt = false
-        logoutVollbildAnzeigen = true
     }
 
     private var dossierExportKarte: some View {
@@ -1341,7 +1427,7 @@ struct ProfilView: View {
                         .font(.title3.weight(.bold))
                         .foregroundStyle(.white)
 
-                    Text("Aus deinen erfassten Angaben wird ein vollständiges PDF-Dossier erstellt.")
+                    Text("Aus deinen erfassten Angaben wird ein vollständiges Vorsorge-Dossier als PDF erstellt.")
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.82))
                         .fixedSize(horizontal: false, vertical: true)
@@ -1369,7 +1455,7 @@ struct ProfilView: View {
                     Image(systemName: "square.and.arrow.up.fill")
                         .font(.body.weight(.semibold))
 
-                    Text("Dossier erstellen")
+                    Text("Vorsorge-Dossier erstellen")
                         .font(.body.weight(.semibold))
 
                     Spacer(minLength: 0)
@@ -1406,7 +1492,7 @@ struct ProfilView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     VStack(alignment: .leading, spacing: 5) {
-                        Text("Vollständiges PDF-Dossier")
+                        Text("Vollständiges Vorsorge-Dossier als PDF")
                             .font(.title3.weight(.bold))
 
                         Text("Bereiche prüfen und Exportoptionen wählen.")
@@ -1480,12 +1566,16 @@ struct ProfilView: View {
                     .background(.regularMaterial)
             }
             .background(profilHintergrundFarbe.ignoresSafeArea())
-            .navigationTitle("Dossier erstellen")
+            .navigationTitle("Vorsorge-Dossier erstellen")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Abbrechen") {
-                        dossierExportSheetAnzeigen = false
+                        if dossierExportDirektAnzeigen {
+                            dismiss()
+                        } else {
+                            dossierExportSheetAnzeigen = false
+                        }
                     }
                     .disabled(dossierExportLaeuft)
                 }
@@ -1508,7 +1598,7 @@ struct ProfilView: View {
                         .font(.body.weight(.semibold))
                 }
 
-                Text(dossierExportLaeuft ? "Dossier wird erstellt ..." : "PDF-Dossier erstellen")
+                Text(dossierExportLaeuft ? "Vorsorge-Dossier wird erstellt ..." : "Vorsorge-Dossier als PDF erstellen")
                     .font(.body.weight(.semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
@@ -1570,7 +1660,7 @@ struct ProfilView: View {
                 dossierPDF = ExportiertesDossier(url: url)
             } catch {
                 dossierExportLaeuft = false
-                dossierExportFehlermeldung = "Das PDF-Dossier konnte nicht erstellt werden. Bitte versuche es erneut."
+                dossierExportFehlermeldung = "Das Vorsorge-Dossier konnte nicht als PDF erstellt werden. Bitte versuche es erneut."
             }
         }
     }
@@ -2560,7 +2650,7 @@ struct ProfilView: View {
                 func drawUnsupportedAttachment(title: String, fileName: String? = nil) {
                     beginPDFPage()
                     drawAttachmentHeader(title, fileName: fileName)
-                    drawText("Dieses Dokument ist im Dossier enthalten, kann aber nicht direkt im PDF dargestellt werden.", color: .secondaryLabel, spacing: 12)
+                    drawText("Dieses Dokument ist im Vorsorge-Dossier enthalten, kann aber nicht direkt im PDF dargestellt werden.", color: .secondaryLabel, spacing: 12)
                 }
 
                 func drawAttachment(title: String, fileName: String? = nil, data: Data) {

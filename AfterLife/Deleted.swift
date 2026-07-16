@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct Deleted: View {
+    var neuStarten: (() -> Void)? = nil
     private let hintergrundFarbe = Color(red: 0.985, green: 0.98, blue: 0.965)
     private let kartenFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
     private let akzentFarbe = Color(red: 0.16, green: 0.36, blue: 0.42)
@@ -66,6 +67,20 @@ struct Deleted: View {
                 .padding(.horizontal, 24)
 
                 Spacer()
+
+                if let neuStarten {
+                    Button("Neu registrieren", action: neuStarten)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 13)
+                        .background(
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .fill(akzentFarbe)
+                        )
+                        .buttonStyle(.plain)
+                        .opacity(textSichtbar ? 1 : 0)
+                }
 
                 Image("Icon1_trans")
                     .resizable()

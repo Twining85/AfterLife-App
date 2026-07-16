@@ -1,11 +1,33 @@
 import SwiftUI
 import SwiftData
 import UIKit
+import SafariServices
+
+private struct RegistrierungsSafariView: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        SFSafariViewController(url: url)
+    }
+
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) { }
+}
 
 struct Registrierung: View {
+    private enum VorsorgeEmpfaenger: String, CaseIterable, Identifiable {
+        case familie = "Für meine Familie"
+        case partner = "Für meinen Partner oder meine Partnerin"
+        case eltern = "Für meine Eltern"
+        case anderePerson = "Für eine andere wichtige Person"
+        case ich = "Für mich"
+
+        var id: String { rawValue }
+    }
+
     private enum Eingabefeld {
         case email
         case passwort
+        case passwortWiederholung
         case captcha
     }
 
@@ -14,6 +36,7 @@ struct Registrierung: View {
     private let registrierungAkzent = Color(red: 0.16, green: 0.36, blue: 0.42)
     private let registrierungKarte = Color.white.opacity(0.88)
     private let registrierungTextPrimaer = Color(red: 0.12, green: 0.12, blue: 0.11)
+    private let onboardingBildHoehe: CGFloat = 550
     @Environment(\.modelContext) private var modelContext
     @Query private var gespeicherteProfile: [ProfilModell]
     @AppStorage("profilIstVorhanden") private var profilIstVorhanden = false
@@ -25,11 +48,17 @@ struct Registrierung: View {
     @AppStorage("aktiveUserID") private var aktiveUserID = ""
     @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
     @State private var registrierungsformularAnzeigen = false
+    @State private var onboardingSeite = 0
+    @State private var ausgewaehlterEmpfaenger: VorsorgeEmpfaenger?
     @State private var email = ""
     @State private var passwort = ""
+    @State private var passwortWiederholung = ""
+    @State private var passwortIstSichtbar = false
     @State private var fehlermeldung = ""
     @State private var homeVollbildAnzeigen = false
     @State private var akzeptiertDisclaimer = false
+    @State private var akzeptiertNutzungsbedingungen = false
+    @State private var rechtlichesAnzeigen = false
     @State private var captchaAntwort = ""
     @State private var captchaZahl1 = Int.random(in: 2...9)
     @State private var captchaZahl2 = Int.random(in: 2...9)
@@ -37,138 +66,277 @@ struct Registrierung: View {
     @FocusState private var aktivesEingabefeld: Eingabefeld?
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                registrierungHintergrund
-                    .ignoresSafeArea()
+        ZStack {
+            registrierungHintergrund
+                .ignoresSafeArea()
 
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 18) {
-                        headerBereich
-
-                        if registrierungsformularAnzeigen {
-                            zugangKarte
-                                .transition(.opacity.combined(with: .move(edge: .bottom)))
-
-                            if !fehlermeldung.isEmpty {
-                                fehlermeldungBox
-                            }
-
-
-                            hinweisKarte
-                            captchaKarte
-                            registrierungsButtonBereich
-                            weitereAnmeldungHinweis
-                        } else {
-                            jetztVorsorgenButton
-                        }
-
-                        logoFooter
-                    }
-                    .padding(.horizontal, 22)
-                    .padding(.top, 18)
-                    .padding(.bottom, 22)
-                }
+            if onboardingSeite < 3 {
+                onboardingInhalt
+                    .transition(.opacity)
+            } else {
+                registrierungsInhalt
+                    .transition(.opacity)
             }
         }
+        .animation(.easeInOut(duration: 0.28), value: onboardingSeite)
+        .sheet(isPresented: $rechtlichesAnzeigen) {
+            RegistrierungsSafariView(url: URL(string: "https://tschluessli.ch")!)
+                .ignoresSafeArea()
+        }
+    }
+
+    private var registrierungsInhalt: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 18) {
+                headerBereich
+
+                if registrierungsformularAnzeigen {
+                    zugangKarte
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+
+                    if !fehlermeldung.isEmpty {
+                        fehlermeldungBox
+                    }
+
+                    captchaKarte
+                    hinweisKarte
+                    registrierungsButtonBereich
+                    weitereAnmeldungHinweis
+                } else {
+                    empfaengerAuswahl
+                }
+
+                logoFooter
+            }
+            .padding(.horizontal, 22)
+            .padding(.top, 18)
+            .padding(.bottom, 22)
+        }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 30)
+                .onEnded { value in
+                    let istWischNachRechts = value.translation.width > 80
+                    let istUeberwiegendHorizontal = abs(value.translation.width) > abs(value.translation.height)
+
+                    if istWischNachRechts && istUeberwiegendHorizontal {
+                        onboardingSeite = 2
+                    }
+                }
+        )
+    }
+
+    private var onboardingInhalt: some View {
+        VStack(spacing: 0) {
+            TabView(selection: $onboardingSeite) {
+                onboardingSeiteView(
+                    bild: "erik-mclean-Ei_GhM_7NqI-unsplash",
+                    titel: "Alles Wichtige. An einem sicheren Ort.",
+                    text: "Ob Wünsche, Dokumente, Online-Profile oder andere wichtige Informationen.\nMit Tschlüssli sorgst du dafür, dass Hinterbliebene im entscheidenden Moment wissen, was zu tun ist."
+                )
+                .tag(0)
+
+                onboardingSeiteView(
+                    bild: "kateryna-hliznitsova-RPGKu4MEgec-unsplash",
+                    titel: "Vorsorge ist ein Geschenk für Alle.",
+                    text: "Es geht um mehr als Vermögen. Wenn etwas passiert, müssen deine Angehörigen nicht suchen oder rätseln.\nSie finden genau die Informationen, die du für sie hinterlassen möchtest."
+                )
+                .tag(1)
+
+                auswahlSeite
+                    .tag(2)
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+
+            VStack(spacing: 18) {
+                HStack(spacing: 9) {
+                    ForEach(0..<3, id: \.self) { index in
+                        Circle()
+                            .fill(index == onboardingSeite ? registrierungAkzent : registrierungAkzent.opacity(0.2))
+                            .frame(width: index == onboardingSeite ? 9 : 7, height: index == onboardingSeite ? 9 : 7)
+                    }
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Fortschritt: Schritt \(onboardingSeite + 1) von 3")
+
+                if onboardingSeite < 2 {
+                    onboardingButton(titel: "Weiter") {
+                        onboardingSeite += 1
+                    }
+                } else {
+                    onboardingButton(titel: "Jetzt kostenlos starten") {
+                        onboardingSeite = 3
+                    }
+                }
+            }
+            .padding(.horizontal, 22)
+            .padding(.bottom, 20)
+        }
+    }
+
+    private func onboardingSeiteView(bild: String, titel: String, text: String) -> some View {
+        VStack(spacing: 12) {
+            Image("Icon1_trans")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 150, height: 58)
+                .accessibilityLabel("Tschlüssli")
+
+            onboardingBildMitText(
+                bild: bild,
+                titel: titel,
+                text: text,
+                titelgroesse: 30,
+                hoehe: onboardingBildHoehe
+            )
+        }
+        .padding(.top, 10)
+        .padding(.bottom, 12)
+    }
+
+    private var auswahlSeite: some View {
+        onboardingSeiteView(
+            bild: "marvin-meyer-1d8bqq_Obls-unsplash",
+            titel: "In Ruhe eingerichtet. Jahre lang hilfreich.",
+            text: "Erstelle dein persönliches Vorsorgedossier.\nOder unterstütze deine Eltern dabei.\nHeute vorbereitet. Für morgen."
+        )
+    }
+
+    private func onboardingBildMitText(
+        bild: String,
+        titel: String,
+        text: String,
+        titelgroesse: CGFloat,
+        hoehe: CGFloat
+    ) -> some View {
+        ZStack(alignment: .bottom) {
+            Image(bild)
+                .resizable()
+                .scaledToFill()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
+
+            LinearGradient(
+                colors: [.clear, Color.black.opacity(0.18), Color.black.opacity(0.78)],
+                startPoint: .center,
+                endPoint: .bottom
+            )
+
+            VStack(spacing: 10) {
+                Text(titel)
+                    .font(.system(size: titelgroesse, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+
+                if !text.isEmpty {
+                    Text(text)
+                        .font(.body)
+                        .lineSpacing(3)
+                        .foregroundStyle(.white.opacity(0.94))
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(
+                maxWidth: .infinity,
+                minHeight: text.isEmpty ? nil : 180,
+                maxHeight: text.isEmpty ? nil : 180,
+                alignment: .top
+            )
+            .padding(.horizontal, 22)
+            .padding(.bottom, 24)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: hoehe)
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(Color.white.opacity(0.7), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.08), radius: 16, y: 8)
+        .padding(.horizontal, 18)
+    }
+
+    private func onboardingButton(titel: String, aktion: @escaping () -> Void) -> some View {
+        Button(action: aktion) {
+            HStack(spacing: 9) {
+                Text(titel)
+                    .font(.body.weight(.semibold))
+
+                Image(systemName: "arrow.right")
+                    .font(.body.weight(.semibold))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 15)
+            .foregroundStyle(.white)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(registrierungAkzent)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private var headerBereich: some View {
         VStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .fill(registrierungKarte)
-                    .shadow(color: Color.black.opacity(0.06), radius: 14, x: 0, y: 8)
+            Image("Icon1_trans")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 150, height: 58)
+                .accessibilityLabel("Tschlüssli")
 
-                Image("Home2")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 150)
-                    .clipped()
-                    .overlay(
-                        LinearGradient(
-                            colors: [
-                                registrierungHintergrund.opacity(0.04),
-                                registrierungHintergrund.opacity(0.32),
-                                registrierungHintergrund.opacity(0.88)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 26, style: .continuous)
-                            .stroke(Color.white.opacity(0.58), lineWidth: 1)
-                    )
-
-                Image("Icon1_trans")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 96, height: 96)
-                    .opacity(0.95)
-                    .accessibilityHidden(true)
-            }
-            .frame(height: 150)
-            .padding(.horizontal, 16)
-            .accessibilityHidden(true)
-
-            VStack(spacing: 7) {
-                Text("Für dich. Und für die Menschen, die dir wichtig sind.")
-                    .font(.system(size: 27, weight: .bold, design: .rounded))
-                    .foregroundStyle(registrierungTextPrimaer)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text("Tschlüssli hilft dir, persönliche Informationen, Wünsche und wichtige Dokumente sicher festzuhalten. So gibst du deinen Angehörigen Orientierung und nimmst ihnen in einem schwierigen Moment etwas Last ab.")
-                    .font(.callout)
-                    .lineSpacing(2)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(.horizontal, 4)
+            onboardingBildMitText(
+                bild: "priscilla-du-preez-v_tSfR5M4As-unsplash",
+                titel: "Für dich. Und für die Menschen, die dir wichtig sind.",
+                text: "",
+                titelgroesse: registrierungsformularAnzeigen ? 24 : 30,
+                hoehe: registrierungsformularAnzeigen ? 230 : onboardingBildHoehe
+            )
         }
         .frame(maxWidth: .infinity)
-        .padding(.bottom, 2)
+        .padding(.top, 10)
+        .padding(.horizontal, -22)
+        .animation(.easeInOut(duration: 0.35), value: registrierungsformularAnzeigen)
     }
 
-    private var jetztVorsorgenButton: some View {
-        VStack(spacing: 10) {
-            Button {
-                withAnimation(.spring(response: 0.36, dampingFraction: 0.82)) {
-                    registrierungsformularAnzeigen = true
-                }
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                    aktivesEingabefeld = .email
-                }
-            } label: {
-                HStack(spacing: 10) {
-                    Text("Jetzt vorsorgen")
-                        .font(.body.weight(.semibold))
-                    
-                    Image(systemName: "arrow.right")
-                        .font(.body.weight(.semibold))
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 15)
-                .foregroundStyle(.white)
-                .background(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(registrierungAkzent)
-                )
-            }
-            .buttonStyle(.plain)
-            
-            Text("Dauert nur einen kurzen Moment. Du kannst dein Dossier danach Schritt für Schritt ergänzen.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+    private var empfaengerAuswahl: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Für wen erstellst du in erster Linie dein Vorsorgedossier?")
+                .font(.headline)
+                .foregroundStyle(registrierungTextPrimaer)
                 .fixedSize(horizontal: false, vertical: true)
+
+            ForEach(VorsorgeEmpfaenger.allCases) { empfaenger in
+                Button {
+                    ausgewaehlterEmpfaenger = empfaenger
+
+                    withAnimation(.spring(response: 0.36, dampingFraction: 0.82)) {
+                        registrierungsformularAnzeigen = true
+                    }
+
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        aktivesEingabefeld = .email
+                    }
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: ausgewaehlterEmpfaenger == empfaenger ? "largecircle.fill.circle" : "circle")
+                            .foregroundStyle(registrierungAkzent)
+
+                        Text(empfaenger.rawValue)
+                            .foregroundStyle(registrierungTextPrimaer)
+
+                        Spacer(minLength: 0)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
         }
-        .padding(.top, 2)
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(registrierungKarte)
+        )
         .transition(.opacity.combined(with: .move(edge: .bottom)))
     }
 
@@ -190,37 +358,93 @@ struct Registrierung: View {
                     aktivesEingabefeld = .passwort
                 }
 
-                VStack(alignment: .leading, spacing: 7) {
-                    HStack(spacing: 10) {
-                        Image(systemName: "lock.fill")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(registrierungAkzent)
-                            .frame(width: 22)
+                passwortFeld(
+                    titel: "Passwort",
+                    platzhalter: "Mindestens 8 Zeichen",
+                    text: $passwort,
+                    fokus: .passwort,
+                    naechsterFokus: .passwortWiederholung,
+                    augeAnzeigen: true
+                )
 
-                        SecureField("Mindestens 8 Zeichen", text: $passwort)
-                            .focused($aktivesEingabefeld, equals: .passwort)
-                            .submitLabel(.next)
-                            .onSubmit {
-                                aktivesEingabefeld = .captcha
-                            }
+                passwortFeld(
+                    titel: "Passwort wiederholen",
+                    platzhalter: "Passwort erneut eingeben",
+                    text: $passwortWiederholung,
+                    fokus: .passwortWiederholung,
+                    naechsterFokus: .captcha,
+                    augeAnzeigen: false
+                )
+
+                if passwortWiederholungIstUngueltig {
+                    Text("Die Passwörter stimmen nicht überein.")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+
+                Text("Dein Passwort wird in deinem Profil gespeichert.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func passwortFeld(
+        titel: String,
+        platzhalter: String,
+        text: Binding<String>,
+        fokus: Eingabefeld,
+        naechsterFokus: Eingabefeld,
+        augeAnzeigen: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(titel)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(registrierungTextPrimaer)
+
+            HStack(spacing: 10) {
+                Image(systemName: "lock.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(registrierungAkzent)
+                    .frame(width: 22)
+
+                Group {
+                    if passwortIstSichtbar {
+                        TextField(platzhalter, text: text)
+                    } else {
+                        SecureField(platzhalter, text: text)
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 13)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(Color.white.opacity(0.78))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(registrierungAkzent.opacity(0.12), lineWidth: 1)
-                    )
+                }
+                .focused($aktivesEingabefeld, equals: fokus)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.next)
+                .onSubmit {
+                    aktivesEingabefeld = naechsterFokus
+                }
 
-                    Text("Dein Passwort wird sicher in der Keychain deines Geräts gespeichert.")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                if augeAnzeigen {
+                    Button {
+                        passwortIstSichtbar.toggle()
+                    } label: {
+                        Image(systemName: passwortIstSichtbar ? "eye.slash.fill" : "eye.fill")
+                            .foregroundStyle(registrierungAkzent)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(passwortIstSichtbar ? "Passwort ausblenden" : "Passwort anzeigen")
                 }
             }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 13)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.white.opacity(0.78))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(registrierungAkzent.opacity(0.12), lineWidth: 1)
+            )
         }
     }
 
@@ -256,6 +480,30 @@ struct Registrierung: View {
 
                 Toggle(isOn: $akzeptiertDisclaimer) {
                     Text("Ich habe den Hinweis gelesen und verstanden.")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(registrierungTextPrimaer)
+                }
+                .tint(registrierungAkzent)
+
+                Divider()
+
+                HStack(spacing: 8) {
+                    Button("Nutzungsbedingungen") {
+                        rechtlichesAnzeigen = true
+                    }
+                    .buttonStyle(.plain)
+                    .underline()
+                    Text("und")
+                        .foregroundStyle(.secondary)
+                    Text("Datenschutz")
+                        .underline()
+                }
+                .font(.caption)
+                .foregroundStyle(registrierungAkzent)
+                .accessibilityLabel("Nutzungsbedingungen öffnen und Datenschutz")
+
+                Toggle(isOn: $akzeptiertNutzungsbedingungen) {
+                    Text("Ich akzeptiere die Nutzungsbedingungen.")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(registrierungTextPrimaer)
                 }
@@ -308,7 +556,7 @@ struct Registrierung: View {
             Button {
                 registrierenMitEmail()
             } label: {
-                Text("Persönliches Dossier erstellen")
+                Text("Persönliches Vorsorge-Dossier erstellen")
                     .font(.body.weight(.semibold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 15)
@@ -431,9 +679,11 @@ struct Registrierung: View {
 
     private var registrierungErlaubt: Bool {
         akzeptiertDisclaimer &&
+        akzeptiertNutzungsbedingungen &&
         captchaIstGueltig &&
         registrierungsEmailIstFormalGueltig &&
-        bereinigtesPasswort.count >= 8
+        bereinigtesPasswort.count >= 8 &&
+        passwoerterStimmenUeberein
     }
 
     private var captchaIstGueltig: Bool {
@@ -451,6 +701,19 @@ struct Registrierung: View {
 
     private var bereinigtesPasswort: String {
         passwort.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var bereinigtePasswortWiederholung: String {
+        passwortWiederholung.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var passwoerterStimmenUeberein: Bool {
+        !bereinigtePasswortWiederholung.isEmpty &&
+        bereinigtesPasswort == bereinigtePasswortWiederholung
+    }
+
+    private var passwortWiederholungIstUngueltig: Bool {
+        !passwortWiederholung.isEmpty && !passwoerterStimmenUeberein
     }
 
     private var dossierZugriffService: DossierZugriffService {
@@ -473,6 +736,11 @@ struct Registrierung: View {
             return
         }
 
+        guard akzeptiertNutzungsbedingungen else {
+            fehlermeldung = "Bitte akzeptiere die Nutzungsbedingungen."
+            return
+        }
+
         guard captchaIstGueltig else {
             fehlermeldung = "Bitte löse das Captcha korrekt."
             captchaNeuLaden()
@@ -486,6 +754,11 @@ struct Registrierung: View {
 
         guard bereinigtesPasswort.count >= 8 else {
             fehlermeldung = "Das Passwort muss mindestens 8 Zeichen lang sein."
+            return
+        }
+
+        guard passwoerterStimmenUeberein else {
+            fehlermeldung = "Die Passwörter stimmen nicht überein."
             return
         }
 

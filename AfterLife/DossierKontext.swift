@@ -83,7 +83,7 @@ struct DossierKontext: Hashable, Identifiable {
 
     var lesemodusHinweis: String? {
         guard istReadOnly else { return nil }
-        return "Du kannst dieses Dossier ansehen, aber nicht bearbeiten."
+        return "Du kannst dieses Vorsorge-Dossier ansehen, aber nicht bearbeiten."
     }
 
     static func eigenesDossier(

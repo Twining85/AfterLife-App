@@ -76,11 +76,20 @@ struct AppStartView: View {
     @AppStorage("biometriePruefungImProfilLaeuft")
     private var biometriePruefungImProfilLaeuft = false
 
+    @AppStorage("systemdialogImProfilLaeuft")
+    private var systemdialogImProfilLaeuft = false
+
     @AppStorage("eingehenderEinladungsToken")
     private var eingehenderEinladungsToken = ""
 
     @AppStorage("eingehendeEinladungsURL")
     private var eingehendeEinladungsURL = ""
+
+    @AppStorage("profilWurdeGeradeGeloescht")
+    private var profilWurdeGeradeGeloescht = false
+
+    @AppStorage("wurdeGeradeAusgeloggt")
+    private var wurdeGeradeAusgeloggt = false
 
     @State private var deepLinkFehlermeldung = ""
     @State private var deepLinkFehlerAnzeigen = false
@@ -156,7 +165,15 @@ struct AppStartView: View {
 
     var body: some View {
         Group {
-            if hatOffeneEinladung {
+            if profilWurdeGeradeGeloescht {
+                Deleted {
+                    profilWurdeGeradeGeloescht = false
+                }
+            } else if wurdeGeradeAusgeloggt {
+                Logout {
+                    wurdeGeradeAusgeloggt = false
+                }
+            } else if hatOffeneEinladung {
                 EinladungAngenommen(
                     einladenderName: vorsorgendePersonName,
                     eingeladeneEmail: "",
@@ -223,7 +240,8 @@ struct AppStartView: View {
                     .willResignActiveNotification
             )
         ) { _ in
-            guard !biometriePruefungImProfilLaeuft else {
+            guard !biometriePruefungImProfilLaeuft,
+                  !systemdialogImProfilLaeuft else {
                 return
             }
 

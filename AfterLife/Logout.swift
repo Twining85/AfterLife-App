@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct Logout: View {
+    var erneutAnmelden: (() -> Void)? = nil
     private let hintergrundFarbe = Color(red: 0.985, green: 0.98, blue: 0.965)
     private let kartenFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
     private let akzentFarbe = Color(red: 0.16, green: 0.36, blue: 0.42)
@@ -41,7 +42,7 @@ struct Logout: View {
                             .font(.system(.title2, design: .rounded, weight: .bold))
                             .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
 
-                        Text("Deine Daten bleiben sicher gespeichert. Melde dich erneut an, wenn du dein Dossier wieder öffnen möchtest.")
+                        Text("Deine Daten bleiben sicher gespeichert. Melde dich erneut an, wenn du dein Vorsorge-Dossier wieder öffnen möchtest.")
                             .font(.body)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
@@ -65,6 +66,20 @@ struct Logout: View {
                 .padding(.horizontal, 24)
 
                 Spacer()
+
+                if let erneutAnmelden {
+                    Button("Erneut anmelden", action: erneutAnmelden)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 13)
+                        .background(
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .fill(akzentFarbe)
+                        )
+                        .buttonStyle(.plain)
+                        .opacity(textSichtbar ? 1 : 0)
+                }
 
                 Image("Icon1_trans")
                     .resizable()

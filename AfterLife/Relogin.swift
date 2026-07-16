@@ -22,6 +22,8 @@ struct ReloginView: View {
     @AppStorage("profilIstVorhanden") private var profilIstVorhanden = false
     @AppStorage("gespeicherteEmail") private var appStorageEmail = ""
     @AppStorage("direktNachRegistrierungEingeloggt") private var direktNachRegistrierungEingeloggt = false
+    @AppStorage("biometrieAktiviert") private var biometrieAktiviertGespeichert = false
+    @AppStorage("aktiveUserID") private var aktiveUserID = ""
 
     @State private var email = ""
     @State private var passwort = ""
@@ -34,7 +36,11 @@ struct ReloginView: View {
     private let loginFuerTestsUeberspringen = false
 
     private var profil: ProfilModell? {
-        gespeicherteProfile.first
+        if let userID = UUID(uuidString: aktiveUserID),
+           let aktivesProfil = gespeicherteProfile.first(where: { $0.userID == userID }) {
+            return aktivesProfil
+        }
+        return gespeicherteProfile.first
     }
 
     private var registrierungsEmail: String {
@@ -48,7 +54,7 @@ struct ReloginView: View {
     }
 
     private var biometrieAktiviert: Bool {
-        profil?.biometrieAktiviert ?? false
+        biometrieAktiviertGespeichert || (profil?.biometrieAktiviert ?? false)
     }
 
     private var hatBestehendenLogin: Bool {
@@ -115,7 +121,7 @@ struct ReloginView: View {
                             .foregroundStyle(textFarbe)
                             .multilineTextAlignment(.center)
 
-                        Text("Melde dich an, um sicher auf dein Tschlüssli-Dossier zuzugreifen.")
+                        Text("Melde dich an, um sicher auf dein Tschlüssli Vorsorge-Dossier zuzugreifen.")
                             .font(.body)
                             .foregroundStyle(sekundTextFarbe)
                             .multilineTextAlignment(.center)

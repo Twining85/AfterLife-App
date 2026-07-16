@@ -191,7 +191,7 @@ struct VertrauenspersonRegistrierung: View {
                     .foregroundStyle(textFarbe)
                     .multilineTextAlignment(.center)
 
-                Text("Erstelle dein persönliches Tschlüssli-Profil. Damit erhältst du ein eigenes Dossier und kannst zusätzlich auf das freigegebene Dossier zugreifen.")
+                Text("Erstelle dein persönliches Tschlüssli-Profil. Damit erhältst du ein eigenes Vorsorge-Dossier und kannst zusätzlich auf das freigegebene Vorsorge-Dossier zugreifen.")
                     .font(.subheadline)
                     .foregroundStyle(sekundTextFarbe)
                     .multilineTextAlignment(.center)
@@ -432,7 +432,7 @@ struct VertrauenspersonRegistrierung: View {
 
 
     private var fussHinweis: some View {
-        Text("Du erstellst ein eigenes persönliches Dossier und nimmst zusätzlich die Einladung als Vertrauensperson an.")
+        Text("Du erstellst ein eigenes persönliches Vorsorge-Dossier und nimmst zusätzlich die Einladung als Vertrauensperson an.")
             .font(.caption)
             .foregroundStyle(sekundTextFarbe)
             .multilineTextAlignment(.center)

@@ -511,7 +511,7 @@ struct VertrauenspersonView: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(akzentFarbe)
 
-                Text("Halte fest, wer im Ernstfall deine Vertrauensperson ist. Eine Freigabe des Dossiers oder Einladung ist in dieser Version noch nicht vorgesehen.")
+                Text("Halte fest, wer im Ernstfall deine Vertrauensperson ist. Eine Freigabe des Vorsorge-Dossiers oder Einladung ist in dieser Version noch nicht vorgesehen.")
                     .font(.footnote)
                     .foregroundStyle(sekundaerTextFarbe)
                     .fixedSize(horizontal: false, vertical: true)
@@ -575,7 +575,7 @@ struct VertrauenspersonView: View {
                             .foregroundStyle(textFarbe)
 
                         Text(
-                            "Gemeinsam richtet ihr den persönlichen Zugriff auf dein Dossier ein."
+                            "Gemeinsam richtet ihr den persönlichen Zugriff auf dein Vorsorge-Dossier ein."
                         )
                         .font(.footnote)
                         .foregroundStyle(
@@ -888,11 +888,11 @@ struct VertrauenspersonView: View {
                 Text("Dossierfreigabe")
                     .font(.footnote.weight(.bold))
 
-                Text("Wir arbeiten bereits an einer Funktion, mit der du dein gesamtes Vorsorgedossier sicher mit deiner Vertrauensperson teilen kannst.")
+                Text("Wir arbeiten bereits an einer Funktion, mit der du dein gesamtes Vorsorge-Dossier sicher mit deiner Vertrauensperson teilen kannst.")
 
                 Text("Dabei gilt für uns ein Grundsatz: **Deine Daten gehören dir.** Deshalb entwickeln wir diese Funktion mit besonderem Fokus auf Datenschutz, Sicherheit und Zuverlässigkeit. Lieber nehmen wir uns etwas mehr Zeit, als bei der Sicherheit Kompromisse einzugehen.")
 
-                Text("Bis die Dossierfreigabe verfügbar ist, kannst du dein Vorsorgedossier bereits als PDF exportieren und selbst an deine Vertrauensperson weitergeben.")
+                Text("Bis die Dossierfreigabe verfügbar ist, kannst du dein Vorsorge-Dossier bereits als PDF exportieren und selbst an deine Vertrauensperson weitergeben.")
             }
             .font(.footnote)
             .foregroundStyle(.secondary)
@@ -1005,7 +1005,7 @@ struct VertrauenspersonView: View {
                 qrCodeFuerDossierZugriffGenerieren()
             } label: {
                 Label(
-                    "QR-Code für Dossier-Zugriff generieren",
+                    "QR-Code für Vorsorge-Dossier-Zugriff generieren",
                     systemImage: "qrcode"
                 )
                 .font(.headline)
@@ -1060,7 +1060,7 @@ struct VertrauenspersonView: View {
                         )
 
                         Text(
-                            "Dossier-Zugriff per QR-Code"
+                            "Vorsorge-Dossier-Zugriff per QR-Code"
                         )
                         .font(
                             .headline.weight(
@@ -1725,7 +1725,7 @@ struct VertrauenspersonView: View {
         vorsorgeprozessStatus = .gestartet
 
         einladungsHistorieEintragHinzufuegen(
-            "Zugriff auf das Dossier wurde freigegeben."
+            "Zugriff auf das Vorsorge-Dossier wurde freigegeben."
         )
 
         fehlermeldung = ""
@@ -1883,7 +1883,7 @@ struct VertrauenspersonView: View {
         guard let dossierID =
                 aktivesDossierUUID else {
             fehlermeldung =
-            "Es konnte kein aktives Dossier gefunden werden. Bitte öffne zuerst dein Profil oder erstelle ein Dossier."
+            "Es konnte kein aktives Vorsorge-Dossier gefunden werden. Bitte öffne zuerst dein Profil oder erstelle ein Vorsorge-Dossier."
             return
         }
 
@@ -2124,7 +2124,7 @@ struct VertrauenspersonView: View {
 
         return """
         <p style="margin: 22px 0;">
-            <img src="data:image/jpeg;base64,\(base64Bild)" alt="In vier Schritten zu meinem Dossier" style="width: 100%; max-width: 680px; height: auto; border-radius: 16px; display: block;">
+            <img src="data:image/jpeg;base64,\(base64Bild)" alt="In vier Schritten zu meinem Vorsorge-Dossier" style="width: 100%; max-width: 680px; height: auto; border-radius: 16px; display: block;">
         </p>
         """
     }
@@ -2669,7 +2669,7 @@ private struct VertrauenspersonKontaktPicker:
                             )
 
                             Text(
-                                "Gemeinsam richtet ihr den persönlichen Zugriff auf dein Dossier ein."
+                                "Gemeinsam richtet ihr den persönlichen Zugriff auf dein Vorsorge-Dossier ein."
                             )
                             .font(.footnote)
                             .foregroundStyle(
@@ -2888,7 +2888,7 @@ private struct VertrauenspersonKontaktPicker:
 
             Section("Einladung") {
                 Label(
-                    "QR-Code für Dossier-Zugriff generieren",
+                    "QR-Code für Vorsorge-Dossier-Zugriff generieren",
                     systemImage: "qrcode"
                 )
 
