@@ -964,9 +964,9 @@ struct ProfilView: View {
         }
 
         eintrag.aboTyp = "Software / Apps"
-        eintrag.anbieter = "AfterLife"
+        eintrag.anbieter = "Tschlüssli"
         eintrag.digitaleIdentitaetAnbieter = ""
-        eintrag.bezeichnung = "AfterLife"
+        eintrag.bezeichnung = "Tschlüssli"
         eintrag.benutzername = zielEmail
         eintrag.passwort = zielPasswort
         eintrag.istAktiv = true
@@ -2665,19 +2665,19 @@ struct ProfilView: View {
                     }
 
                     if abo.aboTyp == "Social Media" && !socialMediaPlattform.isEmpty && socialMediaPlattform != "Bitte wählen" {
-                        return socialMediaPlattform
+                        return socialMediaPlattform == "Andere" && !bezeichnung.isEmpty ? bezeichnung : socialMediaPlattform
                     }
 
                     if abo.aboTyp == "Digitale Identitäten" && !digitaleIdentitaetAnbieter.isEmpty && digitaleIdentitaetAnbieter != "Bitte wählen" {
-                        return digitaleIdentitaetAnbieter
+                        return digitaleIdentitaetAnbieter == "Andere" && !bezeichnung.isEmpty ? bezeichnung : digitaleIdentitaetAnbieter
                     }
 
                     if abo.aboTyp == "E-Mail-Konten" && !emailAnbieter.isEmpty && emailAnbieter != "Bitte wählen" {
-                        return emailAnbieter
+                        return emailAnbieter == "Andere" && !bezeichnung.isEmpty ? bezeichnung : emailAnbieter
                     }
 
                     if abo.aboTyp == "Streamingdienst" && !streamingAnbieter.isEmpty && streamingAnbieter != "Bitte wählen" {
-                        return streamingAnbieter
+                        return streamingAnbieter == "Andere" && !bezeichnung.isEmpty ? bezeichnung : streamingAnbieter
                     }
 
                     if !bezeichnung.isEmpty && bezeichnung != "Bitte wählen" {
@@ -2757,19 +2757,21 @@ struct ProfilView: View {
 
                             switch abo.aboTyp {
                             case "Streamingdienst":
-                                drawAboFeld("Anbieter", abo.streamingAnbieter.isEmpty ? abo.anbieter : abo.streamingAnbieter)
-                                drawAboFeld("Bezeichnung", abo.bezeichnung)
+                                let anbieter = abo.streamingAnbieter == "Andere" ? abo.anbieter : (abo.streamingAnbieter.isEmpty ? abo.anbieter : abo.streamingAnbieter)
+                                drawAboFeld("Anbieter", anbieter)
 
                             case "Social Media":
-                                drawAboFeld("Plattform", abo.socialMediaPlattform.isEmpty ? abo.anbieter : abo.socialMediaPlattform)
-                                drawAboFeld("Bezeichnung", abo.bezeichnung)
+                                let plattform = abo.socialMediaPlattform == "Andere" ? abo.anbieter : (abo.socialMediaPlattform.isEmpty ? abo.anbieter : abo.socialMediaPlattform)
+                                drawAboFeld("Plattform", plattform)
 
                             case "Digitale Identitäten":
-                                drawAboFeld("Anbieter", abo.digitaleIdentitaetAnbieter.isEmpty ? abo.anbieter : abo.digitaleIdentitaetAnbieter)
+                                let anbieter = abo.digitaleIdentitaetAnbieter == "Andere" ? abo.anbieter : (abo.digitaleIdentitaetAnbieter.isEmpty ? abo.anbieter : abo.digitaleIdentitaetAnbieter)
+                                drawAboFeld("Anbieter", anbieter)
                                 drawAboFeld("Benutzername / E-Mail", abo.benutzername)
 
                             case "E-Mail-Konten":
-                                drawAboFeld("Anbieter", abo.emailAnbieter.isEmpty ? abo.anbieter : abo.emailAnbieter)
+                                let anbieter = abo.emailAnbieter == "Andere" ? abo.anbieter : (abo.emailAnbieter.isEmpty ? abo.anbieter : abo.emailAnbieter)
+                                drawAboFeld("Anbieter", anbieter)
                                 drawAboFeld("E-Mail-Adresse", abo.benutzername)
 
                             case "Meine Geräte", "Mein Mobile Telefon":
@@ -2782,16 +2784,17 @@ struct ProfilView: View {
                                 }
 
                                 if passwoerterMitdrucken {
-                                    drawAboFeld("PIN / Code", abo.geraetePIN.isEmpty ? abo.passwort : abo.geraetePIN)
+                                    drawAboFeld("PIN / Code / Passwort", abo.geraetePIN.isEmpty ? abo.passwort : abo.geraetePIN)
                                 }
 
                             case "Zeitschriften":
                                 drawAboFeld("Name der Zeitschrift", abo.bezeichnung)
 
                             case "Öffentlicher Verkehr":
-                                drawAboFeld("ÖV-Unternehmen", abo.oevUnternehmen)
-                                drawAboFeld("ÖV-Abo-Typ", abo.oevAboTyp)
-                                drawAboFeld("Andere Bezeichnung", abo.andereBezeichnung)
+                                let unternehmen = abo.oevUnternehmen == "Andere" ? abo.andereBezeichnung : abo.oevUnternehmen
+                                let aboTyp = abo.oevAboTyp == "Andere" ? abo.aboArt : abo.oevAboTyp
+                                drawAboFeld("ÖV-Unternehmen", unternehmen)
+                                drawAboFeld("ÖV-Abo-Typ", aboTyp)
                                 drawAboFeld("Abo-Nr.", abo.aboNummer)
 
                             case "Software / Apps", "Software / App":

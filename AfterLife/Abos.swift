@@ -27,10 +27,12 @@ struct AbosView: View {
     @State private var selectedSocialMediaProvider: SocialMediaProvider = .pleaseSelect
     @State private var selectedDigitalIdentityProvider: DigitalIdentityProvider = .pleaseSelect
     @State private var selectedEmailProvider: EmailProvider = .pleaseSelect
+    @State private var customProviderName = ""
     @State private var username = ""
     @State private var password = ""
     @State private var magazineName = ""
     @State private var publicTransportType: PublicTransportAboType = .pleaseSelect
+    @State private var customPublicTransportType = ""
     @State private var publicTransportCompany: PublicTransportCompany = .pleaseSelect
     @State private var customPublicTransportCompany = ""
     @State private var publicTransportAboNumber = ""
@@ -109,6 +111,10 @@ struct AbosView: View {
                                     }
                                 }
 
+                                if selectedStreamingProvider == .other {
+                                    labelledTextField("Anbietername", text: $customProviderName)
+                                }
+
                                 labelledTextField("Benutzername", text: $username)
 
                                 passwordField(title: "Passwort", text: $password)
@@ -120,6 +126,10 @@ struct AbosView: View {
                                     ForEach(SocialMediaProvider.allCases) { provider in
                                         Text(provider.rawValue).tag(provider)
                                     }
+                                }
+
+                                if selectedSocialMediaProvider == .other {
+                                    labelledTextField("Plattformname", text: $customProviderName)
                                 }
 
                                 labelledTextField("Benutzername", text: $username)
@@ -135,6 +145,10 @@ struct AbosView: View {
                                     }
                                 }
 
+                                if selectedDigitalIdentityProvider == .other {
+                                    labelledTextField("Anbietername", text: $customProviderName)
+                                }
+
                                 labelledTextField("Benutzername / E-Mail", text: $username)
 
                                 passwordField(title: "Passwort", text: $password)
@@ -146,6 +160,10 @@ struct AbosView: View {
                                     ForEach(EmailProvider.allCases) { provider in
                                         Text(provider.rawValue).tag(provider)
                                     }
+                                }
+
+                                if selectedEmailProvider == .other {
+                                    labelledTextField("Anbietername", text: $customProviderName)
                                 }
 
                                 labelledTextField("E-Mail-Adresse", text: $username)
@@ -164,6 +182,10 @@ struct AbosView: View {
                                     ForEach(PublicTransportAboType.allCases) { type in
                                         Text(type.rawValue).tag(type)
                                     }
+                                }
+
+                                if publicTransportType == .other {
+                                    labelledTextField("Bezeichnung der Aboart", text: $customPublicTransportType)
                                 }
 
                                 styledPicker("Unternehmen", selection: $publicTransportCompany) {
@@ -193,7 +215,7 @@ struct AbosView: View {
                                     labelledTextField("Benutzername / Login", text: $username)
                                 }
 
-                                labelledTextField("PIN / Code", text: $devicePIN, keyboardType: .numberPad)
+                                passwordField(title: "PIN / Code / Passwort", text: $devicePIN)
                             }
                             }
                         if sheetKontext.typ == .software {
@@ -702,17 +724,22 @@ struct AbosView: View {
         case .pleaseSelect:
             return false
         case .streaming:
-            return selectedStreamingProvider != .pleaseSelect
+            return selectedStreamingProvider != .pleaseSelect && hasRequiredCustomProvider(selectedStreamingProvider == .other)
         case .socialMedia:
-            return selectedSocialMediaProvider != .pleaseSelect
+            return selectedSocialMediaProvider != .pleaseSelect && hasRequiredCustomProvider(selectedSocialMediaProvider == .other)
         case .digitalIdentity:
-            return selectedDigitalIdentityProvider != .pleaseSelect
+            return selectedDigitalIdentityProvider != .pleaseSelect && hasRequiredCustomProvider(selectedDigitalIdentityProvider == .other)
         case .emailAccount:
-            return selectedEmailProvider != .pleaseSelect
+            return selectedEmailProvider != .pleaseSelect && hasRequiredCustomProvider(selectedEmailProvider == .other)
         case .magazine:
             return !magazineName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .publicTransport:
             if publicTransportType == .pleaseSelect || publicTransportCompany == .pleaseSelect {
+                return false
+            }
+
+            if publicTransportType == .other,
+               customPublicTransportType.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 return false
             }
 
@@ -745,11 +772,16 @@ struct AbosView: View {
         case .devices:
             return selectedDeviceType != .pleaseSelect
                 && !devicePIN.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && (selectedDeviceType != .other || !customAboName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         case .cloudStorage:
             return !customAboName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .other:
             return !customAboName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
+    }
+
+    private func hasRequiredCustomProvider(_ isOther: Bool) -> Bool {
+        !isOther || !customProviderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func saveAbo() {
@@ -873,6 +905,18 @@ struct AbosView: View {
             break
         }
 
+        customProviderName = ""
+        switch aktiverAboType {
+        case .streaming where selectedStreamingProvider == .other,
+             .socialMedia where selectedSocialMediaProvider == .other,
+             .digitalIdentity where selectedDigitalIdentityProvider == .other,
+             .emailAccount where selectedEmailProvider == .other:
+            let gespeicherterName = abo.anbieter.trimmingCharacters(in: .whitespacesAndNewlines)
+            customProviderName = gespeicherterName == "Andere" ? "" : gespeicherterName
+        default:
+            break
+        }
+
         username = abo.benutzername
         password = abo.passwort
 
@@ -882,6 +926,7 @@ struct AbosView: View {
 
         magazineName = selectedAboType == .magazine ? abo.bezeichnung : ""
         publicTransportType = selectedAboType == .publicTransport ? (PublicTransportAboType(rawValue: abo.oevAboTyp.isEmpty ? abo.aboArt : abo.oevAboTyp) ?? .pleaseSelect) : .pleaseSelect
+        customPublicTransportType = selectedAboType == .publicTransport && publicTransportType == .other && abo.aboArt != PublicTransportAboType.other.rawValue ? abo.aboArt : ""
         publicTransportCompany = selectedAboType == .publicTransport ? (PublicTransportCompany(rawValue: abo.oevUnternehmen.isEmpty ? abo.unternehmen : abo.oevUnternehmen) ?? .pleaseSelect) : .pleaseSelect
         customPublicTransportCompany = selectedAboType == .publicTransport ? abo.andereBezeichnung : ""
         publicTransportAboNumber = selectedAboType == .publicTransport ? abo.aboNummer : ""
@@ -932,10 +977,12 @@ struct AbosView: View {
         selectedSocialMediaProvider = .pleaseSelect
         selectedDigitalIdentityProvider = .pleaseSelect
         selectedEmailProvider = .pleaseSelect
+        customProviderName = ""
         username = ""
         password = ""
         magazineName = ""
         publicTransportType = .pleaseSelect
+        customPublicTransportType = ""
         publicTransportCompany = .pleaseSelect
         customPublicTransportCompany = ""
         publicTransportAboNumber = ""
@@ -1045,13 +1092,13 @@ struct AbosView: View {
     private var bezeichnungWert: String {
         switch aktiverAboType {
         case .streaming:
-            return selectedStreamingProvider.rawValue
+            return providerName(selectedStreamingProvider.rawValue, isOther: selectedStreamingProvider == .other)
         case .socialMedia:
-            return selectedSocialMediaProvider.rawValue
+            return providerName(selectedSocialMediaProvider.rawValue, isOther: selectedSocialMediaProvider == .other)
         case .digitalIdentity:
-            return selectedDigitalIdentityProvider.rawValue
+            return providerName(selectedDigitalIdentityProvider.rawValue, isOther: selectedDigitalIdentityProvider == .other)
         case .emailAccount:
-            return selectedEmailProvider.rawValue
+            return providerName(selectedEmailProvider.rawValue, isOther: selectedEmailProvider == .other)
         case .devices:
             return customAboName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? selectedDeviceType.rawValue : customAboName
         case .magazine:
@@ -1072,16 +1119,20 @@ struct AbosView: View {
     private var anbieterWert: String {
         switch aktiverAboType {
         case .streaming:
-            return selectedStreamingProvider.rawValue
+            return providerName(selectedStreamingProvider.rawValue, isOther: selectedStreamingProvider == .other)
         case .socialMedia:
-            return selectedSocialMediaProvider.rawValue
+            return providerName(selectedSocialMediaProvider.rawValue, isOther: selectedSocialMediaProvider == .other)
         case .digitalIdentity:
-            return selectedDigitalIdentityProvider.rawValue
+            return providerName(selectedDigitalIdentityProvider.rawValue, isOther: selectedDigitalIdentityProvider == .other)
         case .emailAccount:
-            return selectedEmailProvider.rawValue
+            return providerName(selectedEmailProvider.rawValue, isOther: selectedEmailProvider == .other)
         default:
             return ""
         }
+    }
+
+    private func providerName(_ selectedName: String, isOther: Bool) -> String {
+        isOther ? customProviderName.trimmingCharacters(in: .whitespacesAndNewlines) : selectedName
     }
 
     private var aboArtWert: String {
@@ -1095,7 +1146,9 @@ struct AbosView: View {
         case .mobileInternet:
             return ""
         case .publicTransport:
-            return publicTransportType.rawValue
+            return publicTransportType == .other
+                ? customPublicTransportType.trimmingCharacters(in: .whitespacesAndNewlines)
+                : publicTransportType.rawValue
         case .devices:
             return selectedDeviceType.rawValue
         default:
@@ -1572,7 +1625,6 @@ enum DeviceType: String, CaseIterable, Identifiable {
 
 enum MobileInternetProvider: String, CaseIterable, Identifiable {
     case pleaseSelect = "Bitte wählen"
-    case other = "Andere"
     case swisscom = "Swisscom"
     case sunrise = "Sunrise"
     case salt = "Salt"
@@ -1591,6 +1643,7 @@ enum MobileInternetProvider: String, CaseIterable, Identifiable {
     case init7 = "Init7"
     case spusu = "spusu"
     case talkTalk = "TalkTalk"
+    case other = "Andere"
 
     var id: String { rawValue }
 }
