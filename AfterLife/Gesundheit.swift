@@ -175,15 +175,7 @@ struct GesundheitView: View {
 
                 if datensatz?.hatHausarzt ?? false {
                     if (datensatz?.hausarztName ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Button {
-                            zeigtHausarztKontaktPicker = true
-                        } label: {
-                            Label("Hausarzt aus Kontakten auswählen", systemImage: "person.crop.circle.badge.plus")
-                                .font(.subheadline.weight(.semibold))
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(akzentFarbe)
+                        hausarztKontaktAuswaehlenButton
                     } else {
                         hausarztKontaktKarte(
                             name: datensatz?.hausarztName ?? "",
@@ -218,13 +210,7 @@ struct GesundheitView: View {
 
                 if hatHausarzt {
                     if hausarztName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Button {
-                            zeigtHausarztKontaktPicker = true
-                        } label: {
-                            Label("Hausarzt aus Kontakten auswählen", systemImage: "person.crop.circle.badge.plus")
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(akzentFarbe)
+                        hausarztKontaktAuswaehlenButton
                     } else {
                         hausarztKontaktKarte(
                             name: hausarztName,
@@ -246,6 +232,26 @@ struct GesundheitView: View {
             }
         }
 #endif
+    }
+
+    private var hausarztKontaktAuswaehlenButton: some View {
+        Button {
+            zeigtHausarztKontaktPicker = true
+        } label: {
+            Label(
+                "Hausarzt aus Kontakten auswählen",
+                systemImage: "person.crop.circle.badge.plus"
+            )
+            .font(.headline.weight(.semibold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
+            .frame(maxWidth: .infinity, minHeight: 24, alignment: .center)
+        }
+        .buttonStyle(.borderedProminent)
+        .buttonBorderShape(.roundedRectangle(radius: 16))
+        .controlSize(.large)
+        .tint(akzentFarbe)
+        .accessibilityHint("Öffnet deine Kontakte zur Auswahl eines Hausarztes")
     }
 
     private func hausarztKontaktKarte(

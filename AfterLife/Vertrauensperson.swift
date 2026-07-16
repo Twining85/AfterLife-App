@@ -423,28 +423,31 @@ struct VertrauenspersonView: View {
 
     var body: some View {
         Form {
-            heroBereich
-
-            aktuelleZugriffeBereich
+            mvpHeroBereich
 
             vertrauenspersonBereich
 
+            // MARK: - Nicht im MVP Scope
+            // Die bestehenden Einladungs-, QR-, Status-, Zugriffs- und Testbereiche
+            // bleiben implementiert und werden in einer späteren Ausbaustufe reaktiviert.
+            /*
+            heroBereich
+            aktuelleZugriffeBereich
             einladungBereich
-
             rueckmeldungBereich
-
             hinweisBereich
-
             protokollBereich
-
             testBereich
+            */
         }
         .scrollContentBackground(.hidden)
         .background(
             hintergrundFarbe.ignoresSafeArea()
         )
-        .navigationTitle("Zugriff im Notfall")
+        .navigationTitle("Vertrauensperson")
         .tint(akzentFarbe)
+        // MARK: - Nicht im MVP Scope: Einladung simulieren
+        /*
         .fullScreenCover(
             isPresented: $einladungsSimulationStarten
         ) {
@@ -473,6 +476,7 @@ struct VertrauenspersonView: View {
                 "Für diesen Test wirst du aus der aktuellen Sitzung ausgeloggt. Danach öffnet sich direkt die simulierte Einladung als Vertrauensperson."
             )
         }
+        */
         .onAppear {
             ladeOderErstelleVertrauensperson()
         }
@@ -483,7 +487,8 @@ struct VertrauenspersonView: View {
                 uebernehmeKontakt(kontakt)
             }
         }
-        .sheet(
+        // MARK: - Nicht im MVP Scope: Einladung per E-Mail
+        /* .sheet(
             isPresented: $mailComposerAnzeigen
         ) {
             MailComposeView(
@@ -493,8 +498,36 @@ struct VertrauenspersonView: View {
             ) { ergebnis in
                 verarbeiteMailErgebnis(ergebnis)
             }
-        }
+        } */
         .formStyle(.grouped)
+    }
+
+    // MARK: - MVP: Vertrauensperson lokal hinterlegen
+
+    private var mvpHeroBereich: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Vertrauensperson hinterlegen", systemImage: "person.crop.circle.badge.checkmark")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(akzentFarbe)
+
+                Text("Halte fest, wer im Ernstfall deine Vertrauensperson ist. Eine Freigabe des Dossiers oder Einladung ist in dieser Version noch nicht vorgesehen.")
+                    .font(.footnote)
+                    .foregroundStyle(sekundaerTextFarbe)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if kontaktIstAusgewaehlt {
+                    Label("Vertrauensperson hinterlegt", systemImage: "checkmark.circle.fill")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.green)
+                }
+            }
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(cardHintergrund)
+        }
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
     }
 
     // MARK: - Hero
@@ -850,6 +883,21 @@ struct VertrauenspersonView: View {
                         "person.crop.circle.badge.plus"
                 )
             }
+        } footer: {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Dossierfreigabe")
+                    .font(.footnote.weight(.bold))
+
+                Text("Wir arbeiten bereits an einer Funktion, mit der du dein gesamtes Vorsorgedossier sicher mit deiner Vertrauensperson teilen kannst.")
+
+                Text("Dabei gilt für uns ein Grundsatz: **Deine Daten gehören dir.** Deshalb entwickeln wir diese Funktion mit besonderem Fokus auf Datenschutz, Sicherheit und Zuverlässigkeit. Lieber nehmen wir uns etwas mehr Zeit, als bei der Sicherheit Kompromisse einzugehen.")
+
+                Text("Bis die Dossierfreigabe verfügbar ist, kannst du dein Vorsorgedossier bereits als PDF exportieren und selbst an deine Vertrauensperson weitergeben.")
+            }
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, 6)
         }
     }
 
@@ -1734,13 +1782,7 @@ struct VertrauenspersonView: View {
 
         fehlermeldung = ""
 
-        if bereinigteEmail.isEmpty {
-            erfolgsmeldung =
-            "Kontakt wurde übernommen. Für die Einladung muss eine E-Mail-Adresse im Kontakt hinterlegt sein."
-        } else {
-            erfolgsmeldung =
-            "Kontakt wurde übernommen."
-        }
+        erfolgsmeldung = "Vertrauensperson wurde hinterlegt."
 
         qrCodeAnzeigen = false
 
@@ -1806,8 +1848,7 @@ struct VertrauenspersonView: View {
         qrCodeAnzeigen = false
 
         fehlermeldung = ""
-        erfolgsmeldung =
-        "Kontakt und zugehöriger Zugriff wurden entfernt."
+        erfolgsmeldung = "Vertrauensperson wurde entfernt."
 
         do {
             try modelContext.save()

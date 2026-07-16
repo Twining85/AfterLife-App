@@ -47,10 +47,11 @@ struct DossierExportMapper {
         dokumente: [DokumenteModell] = [],
         fotoalbumBilder: [FotoalbumBildModell] = [],
         aboModelle: [AboModell] = [],
+        vertrauenspersonen: [VertrauenspersonModell] = [],
         options: DossierPDFExportOptions = .standard,
         attachments: [DossierPDFAttachment] = []
     ) -> DossierPDFDocument {
-        let chapters = [
+        var chapters = [
             makeProfilChapter(profil: profil, options: options),
             makeWuenscheChapter(wuensche: wuensche, options: options),
             makeGesundheitChapter(gesundheitsdaten: gesundheitsdaten, options: options),
@@ -73,13 +74,28 @@ struct DossierExportMapper {
             )
         ]
 
+        let lokalHinterlegteVertrauenspersonen = vertrauenspersonen.filter(\.istLokalHinterlegt)
+        if !lokalHinterlegteVertrauenspersonen.isEmpty {
+            chapters.insert(
+                makeVertrauenspersonChapter(
+                    vertrauenspersonen: lokalHinterlegteVertrauenspersonen,
+                    options: options
+                ),
+                at: 1
+            )
+        }
+
         let finanzDaten = bankkonten.map(\.aktualisiertAm) + schulden.map(\.aktualisiertAm) + versicherungen.map(\.aktualisiertAm) + liegenschaften.map(\.aktualisiertAm) + wertsachen.map(\.aktualisiertAm)
         let dokumentDaten = dokumente.map(\.hochgeladenAm) + fotoalbumBilder.map(\.hinzugefuegtAm)
         let aboDaten = aboModelle.map(\.aktualisiertAm) + aboModelle.flatMap { $0.abos.map(\.aktualisiertAm) }
 
         return makeDocument(
             erstelltAm: Date(),
-            aktualisiertAm: latestDate(profil?.aktualisiertAm, gesundheitsdaten.map(\.geaendertAm) + finanzDaten + dokumentDaten + aboDaten),
+            aktualisiertAm: latestDate(
+                profil?.aktualisiertAm,
+                gesundheitsdaten.map(\.geaendertAm) + finanzDaten + dokumentDaten + aboDaten
+                    + lokalHinterlegteVertrauenspersonen.map(\.geaendertAm)
+            ),
             chapters: chapters,
             attachments: attachments,
             options: options
@@ -164,6 +180,32 @@ struct DossierExportMapper {
             beschreibung: "Abonnemente, Profile, Geräte, Mitgliedschaften und Zugangsinformationen strukturiert für den Ernstfall.",
             farbe: PDFThemeColor(red: 0.42, green: 0.34, blue: 0.27),
             sections: makeAboSections(aboModelle: aboModelle, options: options)
+        )
+    }
+
+    func makeVertrauenspersonChapter(
+        vertrauenspersonen: [VertrauenspersonModell],
+        options: DossierPDFExportOptions
+    ) -> DossierPDFChapter {
+        DossierPDFChapter(
+            typ: .vertrauensperson,
+            titel: "Vertrauensperson",
+            beschreibung: "Die von dir hinterlegte Vertrauensperson und ihre Kontaktdaten.",
+            farbe: PDFThemeColor(red: 0.16, green: 0.36, blue: 0.42),
+            sections: vertrauenspersonen.enumerated().map { index, person in
+                DossierPDFSection(
+                    titel: vertrauenspersonen.count == 1
+                        ? "Vertrauensperson"
+                        : "Vertrauensperson \(index + 1)",
+                    items: [
+                        makeItem(label: "Name", value: person.vollerName, options: options),
+                        makeItem(label: "Beziehung", value: person.beziehung, options: options),
+                        makeItem(label: "E-Mail", value: person.email, options: options),
+                        makeItem(label: "Telefon", value: person.telefon, options: options)
+                    ].compactMap { $0 },
+                    darstellung: .kontaktkarte
+                )
+            }
         )
     }
 

@@ -8,6 +8,7 @@ import PDFKit
 
 struct ProfilView: View {
     var dossierKontext: DossierKontext = .eigenesDossier(dossierID: UUID())
+    var dossierExportDirektAnzeigen = false
     @Environment(\.modelContext) private var modelContext
     @Query private var gespeicherteProfile: [ProfilModell]
     @Query private var gespeicherteGesundheitsdaten: [GesundheitModell]
@@ -43,6 +44,7 @@ struct ProfilView: View {
     @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
     @AppStorage("profilIstVorhanden") private var profilIstVorhanden = false
     @AppStorage("dossierZuletztGeprueftAmISO") private var dossierZuletztGeprueftAmISO = ""
+    @AppStorage("dossierLetzterExportAmISO") private var dossierLetzterExportAmISO = ""
 
     @State private var vorname = ""
 
@@ -123,6 +125,7 @@ struct ProfilView: View {
     @State private var profilGeladen = false
     @State private var biometriePruefungLaeuft = false
     @State private var biometrieFehlermeldung = ""
+    @State private var vertrauenspersonAnzeigen = false
 
 
 
@@ -160,6 +163,13 @@ struct ProfilView: View {
         }
     }
 
+    private var lokalHinterlegteVertrauenspersonen: [VertrauenspersonModell] {
+        guard let userID = aktivesProfil?.userID else { return [] }
+        return gespeicherteVertrauenspersonen.filter {
+            $0.vorsorgendeUserID == userID && $0.istLokalHinterlegt
+        }
+    }
+
     private var dossierExportBereiche: [DossierExportBereich] {
         [
             DossierExportBereich(
@@ -183,8 +193,10 @@ struct ProfilView: View {
             DossierExportBereich(
                 titel: "Menschen meines Vertrauens",
                 detail: "Kontakte, Rollen und Informationshinweise",
-                status: gespeicherteHinterbliebene.isEmpty ? "Noch keine Kontakte" : "\(gespeicherteHinterbliebene.count) Einträge",
-                istGefuellt: !gespeicherteHinterbliebene.isEmpty
+                status: lokalHinterlegteVertrauenspersonen.isEmpty
+                    ? "Noch keine Vertrauensperson"
+                    : "\(lokalHinterlegteVertrauenspersonen.count) hinterlegt",
+                istGefuellt: !lokalHinterlegteVertrauenspersonen.isEmpty
             ),
             DossierExportBereich(
                 titel: "Finanzen & Werte",
@@ -412,28 +424,36 @@ struct ProfilView: View {
                 .listRowBackground(profilKartenFarbe)
                 .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
 
-                // MARK: - nicht im MVP 1
-               /* if dossierKontext.kannBearbeiten {
-                    Section("Zugriff im Notfall") {
-                        NavigationLink {
-                            VertrauenspersonView()
+                if dossierKontext.kannBearbeiten {
+                    Section("Vertrauensperson") {
+                        Button {
+                            vertrauenspersonAnzeigen = true
                         } label: {
-                            Label(
-                                gespeicherteDossierZugriffe.isEmpty
-                                    ? "Vertrauensperson Zugriff geben"
-                                    : "Vertrauenspersonen verwalten",
-                                systemImage: "person.badge.key.fill"
-                            )
+                            HStack(spacing: 12) {
+                                Label(
+                                    gespeicherteVertrauenspersonen.contains(where: \.istLokalHinterlegt)
+                                        ? "Vertrauensperson verwalten"
+                                        : "Vertrauensperson hinterlegen",
+                                    systemImage: "person.crop.circle.badge.checkmark"
+                                )
+
+                                Spacer()
+
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.tertiary)
+                            }
                             .foregroundStyle(profilAkzentFarbe)
+                            .contentShape(Rectangle())
                         }
-                        Text("Hier kannst du Vertrauenspersonen einladen und verwalten, damit deine Daten im Notfall kontrolliert abrufbar sind.")
+                        .buttonStyle(.plain)
+                        Text("Halte fest, wer im Ernstfall deine Vertrauensperson ist.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
                     .listRowBackground(profilKartenFarbe)
                     .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
                 }
-                */
                 Section {
                     dossierExportKarte
                         .listRowInsets(EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10))
@@ -535,6 +555,9 @@ struct ProfilView: View {
             .background(profilHintergrundFarbe.ignoresSafeArea())
             .tint(profilAkzentFarbe)
             .navigationTitle("Mein Profil")
+            .navigationDestination(isPresented: $vertrauenspersonAnzeigen) {
+                VertrauenspersonView()
+            }
 
             .alert("Profil wirklich löschen?", isPresented: $profilLoeschenBestaetigen) {
 
@@ -618,6 +641,10 @@ struct ProfilView: View {
             }
             .onAppear {
                 ladeOderErstelleProfil()
+                if dossierExportDirektAnzeigen {
+                    dossierExportFehlermeldung = ""
+                    dossierExportSheetAnzeigen = true
+                }
             }
             .onChange(of: vorname) { _, _ in speichereProfil() }
             .onChange(of: name) { _, _ in speichereProfil() }
@@ -1537,6 +1564,7 @@ struct ProfilView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             do {
                 let url = try erstelleModularesDossierPDF()
+                dossierLetzterExportAmISO = ISO8601DateFormatter().string(from: Date())
                 dossierExportLaeuft = false
                 dossierExportSheetAnzeigen = false
                 dossierPDF = ExportiertesDossier(url: url)
@@ -1566,6 +1594,7 @@ struct ProfilView: View {
             dokumente: gespeicherteWeitereDokumente,
             fotoalbumBilder: gespeicherteFotos,
             aboModelle: gespeicherteAboModelle,
+            vertrauenspersonen: lokalHinterlegteVertrauenspersonen,
             options: options,
             attachments: dossierAnhaenge()
         )

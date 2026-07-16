@@ -110,6 +110,15 @@ final class VertrauenspersonModell {
         !telefon.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// Im MVP gilt eine Person bereits als hinterlegt, sobald mindestens eine
+    /// lokale Personen- oder Kontaktangabe vorhanden ist. Eine Einladung oder
+    /// ein Dossierzugriff ist dafür ausdrücklich nicht erforderlich.
+    var istLokalHinterlegt: Bool {
+        !vorname.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        hatKontaktangaben
+    }
+
     var normalisierteEmail: String {
         email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }

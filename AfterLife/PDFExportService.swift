@@ -43,6 +43,7 @@ struct PDFExportService {
         dokumente: [DokumenteModell] = [],
         fotoalbumBilder: [FotoalbumBildModell] = [],
         aboModelle: [AboModell] = [],
+        vertrauenspersonen: [VertrauenspersonModell] = [],
         options: DossierPDFExportOptions = .standard,
         attachments: [DossierPDFAttachment] = [],
         fileName: String? = nil
@@ -59,6 +60,7 @@ struct PDFExportService {
             dokumente: dokumente,
             fotoalbumBilder: fotoalbumBilder,
             aboModelle: aboModelle,
+            vertrauenspersonen: vertrauenspersonen,
             options: options,
             attachments: attachments
         )

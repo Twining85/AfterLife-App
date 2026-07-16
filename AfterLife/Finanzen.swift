@@ -117,52 +117,51 @@ struct FinanzenView: View {
     }
 
     private var finanzenBereichChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                ForEach(FinanzenBereich.allCases) { bereich in
-                    Button {
-                        withAnimation(.spring(response: 0.26, dampingFraction: 0.88)) {
-                            finanzenBereichAntippen(bereich)
-                        }
-                    } label: {
-                        HStack(spacing: 7) {
-                            Image(systemName: bereich.systemImage)
-                                .font(.caption.weight(.semibold))
+        FinanzenChipFlowLayout(spacing: 10, rowSpacing: 10) {
+            ForEach(FinanzenBereich.allCases) { bereich in
+                Button {
+                    withAnimation(.spring(response: 0.26, dampingFraction: 0.88)) {
+                        finanzenBereichAntippen(bereich)
+                    }
+                } label: {
+                    HStack(spacing: 7) {
+                        Image(systemName: bereich.systemImage)
+                            .font(.caption.weight(.semibold))
 
-                            Text(bereich.titel)
-                                .font(.subheadline.weight(.semibold))
+                        Text(bereich.titel)
+                            .font(.subheadline.weight(.semibold))
 
-                            let anzahl = anzahlFuerBereich(bereich)
-                            if anzahl > 0 {
-                                Text("\(anzahl)")
-                                    .font(.caption2.weight(.bold))
-                                    .foregroundStyle(istFinanzenBereichAusgewaehlt(bereich) ? finanzenAkzentFarbe : .white)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 3)
-                                    .background(
-                                        istFinanzenBereichAusgewaehlt(bereich) ? Color.white.opacity(0.95) : finanzenAkzentFarbe,
-                                        in: Capsule()
-                                    )
-                            }
-                        }
-                        .padding(.horizontal, 13)
-                        .padding(.vertical, 9)
-                        .foregroundStyle(istFinanzenBereichAusgewaehlt(bereich) ? .white : finanzenAkzentFarbe)
-                        .background(
-                            istFinanzenBereichAusgewaehlt(bereich) ? finanzenAkzentFarbe : finanzenKartenFarbe,
-                            in: Capsule()
-                        )
-                        .overlay {
-                            Capsule()
-                                .stroke(finanzenAkzentFarbe.opacity(istFinanzenBereichAusgewaehlt(bereich) ? 0 : 0.22), lineWidth: 1)
+                        let anzahl = anzahlFuerBereich(bereich)
+                        if anzahl > 0 {
+                            Text("\(anzahl)")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(istFinanzenBereichAusgewaehlt(bereich) ? finanzenAkzentFarbe : .white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(
+                                    istFinanzenBereichAusgewaehlt(bereich) ? Color.white.opacity(0.95) : finanzenAkzentFarbe,
+                                    in: Capsule()
+                                )
                         }
                     }
-                    .buttonStyle(.plain)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .padding(.horizontal, 13)
+                    .padding(.vertical, 9)
+                    .foregroundStyle(istFinanzenBereichAusgewaehlt(bereich) ? .white : finanzenAkzentFarbe)
+                    .background(
+                        istFinanzenBereichAusgewaehlt(bereich) ? finanzenAkzentFarbe : finanzenKartenFarbe,
+                        in: Capsule()
+                    )
+                    .overlay {
+                        Capsule()
+                            .stroke(finanzenAkzentFarbe.opacity(istFinanzenBereichAusgewaehlt(bereich) ? 0 : 0.22), lineWidth: 1)
+                    }
                 }
+                .buttonStyle(.plain)
             }
-            .padding(.horizontal, 1)
-            .padding(.vertical, 2)
         }
+        .padding(.horizontal, 1)
+        .padding(.vertical, 2)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -1987,6 +1986,81 @@ enum InsuranceType: String, CaseIterable, Identifiable {
     case other = "Andere"
 
     var id: String { rawValue }
+}
+
+private struct FinanzenChipFlowLayout: Layout {
+    var spacing: CGFloat = 10
+    var rowSpacing: CGFloat = 10
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGSize {
+        let maxWidth = max(1, proposal.width ?? 320)
+        var currentX: CGFloat = 0
+        var currentY: CGFloat = 0
+        var currentRowHeight: CGFloat = 0
+        var usedWidth: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            let proposedX = currentX == 0 ? size.width : currentX + spacing + size.width
+
+            if currentX > 0 && proposedX > maxWidth {
+                currentY += currentRowHeight + rowSpacing
+                currentX = 0
+                currentRowHeight = 0
+            }
+
+            if currentX > 0 {
+                currentX += spacing
+            }
+
+            currentX += size.width
+            currentRowHeight = max(currentRowHeight, size.height)
+            usedWidth = max(usedWidth, currentX)
+        }
+
+        return CGSize(width: min(usedWidth, maxWidth), height: currentY + currentRowHeight)
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        let maxWidth = max(1, bounds.width)
+        var currentX = bounds.minX
+        var currentY = bounds.minY
+        var currentRowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            let proposedX = currentX == bounds.minX
+                ? size.width
+                : currentX - bounds.minX + spacing + size.width
+
+            if currentX > bounds.minX && proposedX > maxWidth {
+                currentY += currentRowHeight + rowSpacing
+                currentX = bounds.minX
+                currentRowHeight = 0
+            }
+
+            if currentX > bounds.minX {
+                currentX += spacing
+            }
+
+            subview.place(
+                at: CGPoint(x: currentX, y: currentY),
+                proposal: ProposedViewSize(width: size.width, height: size.height)
+            )
+
+            currentX += size.width
+            currentRowHeight = max(currentRowHeight, size.height)
+        }
+    }
 }
 
 

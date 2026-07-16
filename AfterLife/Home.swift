@@ -9,11 +9,15 @@ struct Home: View {
     // TEST: später durch echte Beziehungen aus dem Einladungs-/VertrauenspersonModell ersetzen
     private let verknuepfteVorsorgedossiers = ["René Engeler"]
     @AppStorage("aktiveUserID") private var aktiveUserID = ""
+    @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
     @AppStorage("dossierZuletztGeprueftAmISO") private var dossierZuletztGeprueftAmISO = ""
+    @AppStorage("dossierLetzterExportAmISO") private var dossierLetzterExportAmISO = ""
     @AppStorage("homeBereicheReihenfolge") private var homeBereicheReihenfolge = ""
     @Query private var gespeicherteProfile: [ProfilModell]
     @Query private var gespeicherteGesundheitsdaten: [GesundheitModell]
     @Query private var gespeicherteDossierZugriffe: [DossierZugriffModell]
+    @Query private var gespeicherteVertrauenspersonen: [VertrauenspersonModell]
+    @Query private var gespeicherteDossiers: [DossierModell]
     @Query private var gespeicherteBankkonten: [BankkontoModell]
     @Query private var gespeicherteVersicherungen: [VersicherungModell]
     @Query private var gespeicherteWertsachen: [WertsacheModell]
@@ -34,6 +38,9 @@ struct Home: View {
     @State private var erinnerungsAuswahlAnzeigen = false
     @State private var mitteilungenEinstellungenAnzeigen = false
     @State private var ausstehendesPruefDatum: Date?
+    @State private var dossierExportAnzeigen = false
+    @State private var vertrauenspersonAnzeigen = false
+    @State private var ersterVorsorgeBereichAnzeigen = false
     private let heroDossierTitelGroesse: CGFloat = 19
     private let heroDossierStatusGroesse: CGFloat = 16
     private let heroDossierBeschreibungGroesse: CGFloat = 14
@@ -166,6 +173,46 @@ struct Home: View {
             anzahlAbos: gespeicherteAbos.count
         )
     }
+
+    private var letztePruefungAm: Date? {
+        ISO8601DateFormatter().date(from: dossierZuletztGeprueftAmISO)
+    }
+
+    private var letzterExportAm: Date? {
+        ISO8601DateFormatter().date(from: dossierLetzterExportAmISO)
+    }
+
+    private var aktivesDossier: DossierModell? {
+        if let id = UUID(uuidString: aktivesDossierID),
+           let dossier = gespeicherteDossiers.first(where: { $0.dossierID == id }) {
+            return dossier
+        }
+        return gespeicherteDossiers.first(where: { $0.istHauptdossier }) ?? gespeicherteDossiers.first
+    }
+
+    private var zugriffeFuerAktivesDossier: [DossierZugriffModell] {
+        guard let dossierID = aktivesDossier?.dossierID ?? aktivesProfil?.dossierID else { return [] }
+        return gespeicherteDossierZugriffe.filter { $0.dossierID == dossierID && $0.istAktiv }
+    }
+
+    private var vertrauenspersonenFuerAktivenUser: [VertrauenspersonModell] {
+        guard let userID = aktivesProfil?.userID else { return [] }
+        return gespeicherteVertrauenspersonen.filter {
+            $0.vorsorgendeUserID == userID && $0.istLokalHinterlegt
+        }
+    }
+
+    private var vorsorgeStatus: VorsorgeStatus {
+        VorsorgeStatusService.berechne(
+            vollstaendigkeit: dossierFortschritt.kreisFortschritt,
+            wurdeGeprueft: dossierWurdeGeprueft,
+            letzterExportAm: letzterExportAm,
+            letzteInhaltlicheAenderungAm: aktivesDossier?.aktualisiertAm,
+            // Nicht im MVP Scope: Einladungsstatus und Dossier-Freigabe.
+            hatOffeneEinladung: false,
+            hatAktiveVertrauensperson: !vertrauenspersonenFuerAktivenUser.isEmpty
+        )
+    }
     
     var body: some View {
         NavigationStack {
@@ -284,108 +331,14 @@ struct Home: View {
                                     .buttonStyle(.plain)
                                 }
                                 
-                                HStack(alignment: .top, spacing: 14) {
-                                    ZStack {
-                                        Circle()
-                                            .stroke(schluessliAkzent.opacity(0.13), lineWidth: 7)
-                                            .frame(width: 66, height: 66)
-                                        
-                                        Circle()
-                                            .trim(from: 0, to: dossierFortschritt.kreisFortschritt)
-                                            .stroke(
-                                                dossierFortschritt.farbe,
-                                                style: StrokeStyle(lineWidth: 7, lineCap: .round)
-                                            )
-                                            .frame(width: 66, height: 66)
-                                            .rotationEffect(.degrees(-90))
-                                        
-                                        Text(dossierFortschritt.prozentText)
-                                            .font(.system(size: heroProzentGroesse, weight: .bold, design: .rounded))
-                                            .foregroundStyle(Color(red: 0.08, green: 0.12, blue: 0.18))
-                                    }
-                                    .padding(.top, 2)
-                                    
-                                    VStack(alignment: .leading, spacing: 5) {
-                                        Text("Dein Vorsorge-Dossier")
-                                            .font(.system(size: heroDossierTitelGroesse, weight: .bold, design: .rounded))
-                                            .foregroundStyle(Color(red: 0.08, green: 0.12, blue: 0.18))
-                                            .lineLimit(1)
-                                            .minimumScaleFactor(0.88)
-                                        
-                                        Text(dossierFortschritt.titel)
-                                            .font(.system(size: heroDossierStatusGroesse, weight: .semibold, design: .rounded))
-                                            .foregroundStyle(dossierFortschritt.farbe)
-                                            .lineLimit(2)
-                                            .minimumScaleFactor(0.9)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                        
-                                        Text(dossierFortschritt.beschreibung)
-                                            .font(.system(size: heroDossierBeschreibungGroesse, weight: .regular, design: .rounded))
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(3)
-                                            .minimumScaleFactor(0.86)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                        
-                                        HStack(spacing: 6) {
-                                            Image(systemName: (dossierWurdeGeprueft || dossierPruefungIstFaellig) ? "arrow.clockwise.circle.fill" : dossierFortschritt.aktionsIcon)
-                                                .font(.system(size: heroDossierAktionGroesse, weight: .semibold, design: .rounded))
-                                            
-                                            Text(dossierZuletztGeprueftText)
-                                                .font(.system(size: heroDossierAktionGroesse, weight: .semibold, design: .rounded))
-                                                .lineLimit(1)
-                                                .minimumScaleFactor(0.82)
-                                        }
-                                        .foregroundStyle(schluessliAkzent)
-                                        .padding(.top, 2)
-                                    }
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                                .padding(16)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                                        .fill(Color(.systemBackground).opacity(0.84))
+                                VorsorgeStatusCard(
+                                    status: vorsorgeStatus,
+                                    fortschritt: dossierFortschritt.kreisFortschritt,
+                                    letztePruefung: letztePruefungAm,
+                                    vertrauenspersonen: vertrauenspersonenFuerAktivenUser.count,
+                                    akzentFarbe: schluessliAkzent,
+                                    action: handleVorsorgeCTA
                                 )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                                        .stroke(Color.white.opacity(0.78), lineWidth: 1)
-                                )
-                                .shadow(color: schluessliAkzent.opacity(0.11), radius: 14, x: 0, y: 7)
-                                .onTapGesture {
-                                    if dossierPruefungIstFaellig {
-                                        dossierPruefungSheetAnzeigen = true
-                                    } else if dossierWurdeGeprueft {
-                                        dossierPruefungZuruecksetzenAnzeigen = true
-                                    } else {
-                                        dossierAlsGeprueftMarkieren()
-                                    }
-                                }
-
-                                if dossierPruefungIstFaellig {
-                                    Button {
-                                        dossierPruefungSheetAnzeigen = true
-                                    } label: {
-                                        HStack(spacing: 8) {
-                                            Image(systemName: "arrow.clockwise.circle.fill")
-                                                .font(.body.weight(.semibold))
-
-                                            Text("Jährliche Prüfung starten")
-                                                .font(.body.weight(.semibold))
-
-                                            Spacer(minLength: 0)
-
-                                            Image(systemName: "chevron.right")
-                                                .font(.caption.weight(.bold))
-                                        }
-                                        .foregroundStyle(.white)
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 13)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                                .fill(schluessliAkzent)
-                                        )
-                                    }
-                                    .buttonStyle(.plain)
-                                }
                             }
                             .padding(.horizontal, 24)
                             .padding(.top, 18)
@@ -468,6 +421,15 @@ struct Home: View {
 #endif
                 }
                 .background(Color(.systemBackground))
+                .navigationDestination(isPresented: $dossierExportAnzeigen) {
+                    ProfilView(dossierExportDirektAnzeigen: true)
+                }
+                .navigationDestination(isPresented: $vertrauenspersonAnzeigen) {
+                    VertrauenspersonView()
+                }
+                .navigationDestination(isPresented: $ersterVorsorgeBereichAnzeigen) {
+                    ProfilView()
+                }
                 // MARK: - nicht in Scope MVP 1
                 // .navigationDestination(isPresented: $direktesVorsorgedossierOeffnen) {
                 //     FreigegebenesDossierDetailView(
@@ -588,6 +550,19 @@ struct Home: View {
 
         withAnimation(.easeOut(duration: 0.55).delay(0.28)) {
             kachelnSindSichtbar = true
+        }
+    }
+
+    private func handleVorsorgeCTA() {
+        switch vorsorgeStatus {
+        case .unvollstaendig:
+            ersterVorsorgeBereichAnzeigen = true
+        case .bereitZurPruefung, .aktualisierungNoetig:
+            dossierPruefungSheetAnzeigen = true
+        case .geprueft:
+            dossierExportAnzeigen = true
+        case .dossierErstellt, .einladungOffen, .vertrauenspersonAktiv:
+            vertrauenspersonAnzeigen = true
         }
     }
     

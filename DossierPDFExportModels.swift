@@ -58,6 +58,7 @@ enum DossierPDFChapterType: String {
     case finanzen
     case dokumente
     case abos
+    case vertrauensperson
 }
 
 struct DossierPDFSection: Identifiable {
