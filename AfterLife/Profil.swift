@@ -1049,6 +1049,7 @@ struct ProfilView: View {
         profil.biometrieAktiviert = biometrieAktiviert
         synchronisiereAfterLifeDigitaleIdentitaet()
         try? modelContext.save()
+        VorsorgeBereichStatusStore.markiereBearbeitet(.profil)
     }
 
     private func synchronisiereAfterLifeDigitaleIdentitaet(email: String? = nil, passwort: String? = nil) {
@@ -1067,7 +1068,18 @@ struct ProfilView: View {
             aboModell = neuesModell
         }
 
-        let eintrag = aboModell.abos.first { $0.istSystemEintrag && $0.anbieter == "AfterLife" } ?? AboEintrag()
+        let tschluessliEintraege = aboModell.abos.filter {
+            $0.istSystemEintrag &&
+            ($0.anbieter == "Tschlüssli" ||
+             $0.anbieter == "AfterLife" ||
+             $0.bezeichnung == "Tschlüssli")
+        }
+        let eintrag = tschluessliEintraege.first ?? AboEintrag()
+
+        for duplikat in tschluessliEintraege.dropFirst() {
+            aboModell.abos.removeAll { $0.id == duplikat.id }
+            modelContext.delete(duplikat)
+        }
 
         if !aboModell.abos.contains(where: { $0.id == eintrag.id }) {
             modelContext.insert(eintrag)

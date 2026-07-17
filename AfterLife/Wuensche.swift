@@ -1334,6 +1334,7 @@ struct WuenscheView: View {
         do {
             try modelContext.save()
             letzteGespeicherteWuenscheSignatur = aktuelleSignatur
+            VorsorgeBereichStatusStore.markiereBearbeitet(.wuensche)
         } catch {
             print("Wuensche konnten nicht gespeichert werden: \(error.localizedDescription)")
         }

@@ -1177,12 +1177,15 @@ struct AbosView: View {
 
         let neuesModell = AboModell()
         modelContext.insert(neuesModell)
-        speichereAenderung()
+        speichereAenderung(istBenutzeraktion: false)
     }
 
-    private func speichereAenderung() {
+    private func speichereAenderung(istBenutzeraktion: Bool = true) {
         do {
             try modelContext.save()
+            if istBenutzeraktion {
+                VorsorgeBereichStatusStore.markiereBearbeitet(.abos)
+            }
         } catch {
             print("Abos konnten nicht gespeichert werden: \(error.localizedDescription)")
         }

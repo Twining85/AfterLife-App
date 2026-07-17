@@ -48,6 +48,7 @@ struct Registrierung: View {
     @AppStorage("aktiveUserID") private var aktiveUserID = ""
     @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
     @State private var registrierungsformularAnzeigen = false
+    @State private var registrierungsformularIstSichtbar = false
     @State private var onboardingSeite = 0
     @State private var ausgewaehlterEmpfaenger: VorsorgeEmpfaenger?
     @State private var email = ""
@@ -91,17 +92,9 @@ struct Registrierung: View {
                 headerBereich
 
                 if registrierungsformularAnzeigen {
-                    zugangKarte
-                        .transition(.opacity.combined(with: .move(edge: .bottom)))
-
-                    if !fehlermeldung.isEmpty {
-                        fehlermeldungBox
-                    }
-
-                    captchaKarte
-                    hinweisKarte
-                    registrierungsButtonBereich
-                    weitereAnmeldungHinweis
+                    registrierungsformular
+                        .opacity(registrierungsformularIstSichtbar ? 1 : 0)
+                        .offset(y: registrierungsformularIstSichtbar ? 0 : 14)
                 } else {
                     empfaengerAuswahl
                 }
@@ -124,21 +117,21 @@ struct Registrierung: View {
                 }
         )
     }
-
+//SCREEN 1
     private var onboardingInhalt: some View {
         VStack(spacing: 0) {
             TabView(selection: $onboardingSeite) {
                 onboardingSeiteView(
-                    bild: "erik-mclean-Ei_GhM_7NqI-unsplash",
+                    bild: "daniel-j-schwarz-YtY724tdl7Y-unsplash",
                     titel: "Alles Wichtige. An einem sicheren Ort.",
                     text: "Ob Wünsche, Dokumente, Online-Profile oder andere wichtige Informationen.\nMit Tschlüssli sorgst du dafür, dass Hinterbliebene im entscheidenden Moment wissen, was zu tun ist."
                 )
                 .tag(0)
-
+//SCREEN 2
                 onboardingSeiteView(
-                    bild: "kateryna-hliznitsova-RPGKu4MEgec-unsplash",
+                    bild: "juan-cruz-mountford-AMFWArSckYM-unsplash_neu",
                     titel: "Vorsorge ist ein Geschenk für Alle.",
-                    text: "Es geht um mehr als Vermögen. Wenn etwas passiert, müssen deine Angehörigen nicht suchen oder rätseln.\nSie finden genau die Informationen, die du für sie hinterlassen möchtest."
+                    text: "Es geht um mehr als Geld. Wenn etwas passiert, müssen deine Angehörigen nicht suchen oder rätseln was zu tun ist.\nSie finden genau die Informationen, die du für sie hinterlassen möchtest."
                 )
                 .tag(1)
 
@@ -192,11 +185,12 @@ struct Registrierung: View {
         .padding(.top, 10)
         .padding(.bottom, 12)
     }
-
+//SCREEN 3
     private var auswahlSeite: some View {
         onboardingSeiteView(
-            bild: "marvin-meyer-1d8bqq_Obls-unsplash",
-            titel: "In Ruhe eingerichtet. Jahre lang hilfreich.",
+            bild: "bruno-van-der-kraan-ESvhyYKEafE-unsplash",
+            //bild: "marvin-meyer-1d8bqq_Obls-unsplash",
+            titel: "In Ruhe erstellt. Ein Leben lang wertvoll.",
             text: "Erstelle dein persönliches Vorsorgedossier.\nOder unterstütze deine Eltern dabei.\nHeute vorbereitet. Für morgen."
         )
     }
@@ -209,11 +203,13 @@ struct Registrierung: View {
         hoehe: CGFloat
     ) -> some View {
         ZStack(alignment: .bottom) {
-            Image(bild)
-                .resizable()
-                .scaledToFill()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
+            GeometryReader { geometry in
+                Image(bild)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: geometry.size.width, height: hoehe)
+                    .clipped()
+            }
 
             LinearGradient(
                 colors: [.clear, Color.black.opacity(0.18), Color.black.opacity(0.78)],
@@ -295,7 +291,22 @@ struct Registrierung: View {
         .frame(maxWidth: .infinity)
         .padding(.top, 10)
         .padding(.horizontal, -22)
-        .animation(.easeInOut(duration: 0.35), value: registrierungsformularAnzeigen)
+        .animation(.smooth(duration: 0.52), value: registrierungsformularAnzeigen)
+    }
+
+    private var registrierungsformular: some View {
+        VStack(spacing: 18) {
+            zugangKarte
+
+            if !fehlermeldung.isEmpty {
+                fehlermeldungBox
+            }
+
+            captchaKarte
+            hinweisKarte
+            registrierungsButtonBereich
+            weitereAnmeldungHinweis
+        }
     }
 
     private var empfaengerAuswahl: some View {
@@ -308,13 +319,16 @@ struct Registrierung: View {
             ForEach(VorsorgeEmpfaenger.allCases) { empfaenger in
                 Button {
                     ausgewaehlterEmpfaenger = empfaenger
+                    aktivesEingabefeld = nil
 
-                    withAnimation(.spring(response: 0.36, dampingFraction: 0.82)) {
+                    withAnimation(.smooth(duration: 0.52)) {
                         registrierungsformularAnzeigen = true
                     }
 
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                        aktivesEingabefeld = .email
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+                        withAnimation(.easeOut(duration: 0.30)) {
+                            registrierungsformularIstSichtbar = true
+                        }
                     }
                 } label: {
                     HStack(spacing: 12) {
@@ -337,7 +351,7 @@ struct Registrierung: View {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .fill(registrierungKarte)
         )
-        .transition(.opacity.combined(with: .move(edge: .bottom)))
+        .transition(.opacity)
     }
 
     private var zugangKarte: some View {

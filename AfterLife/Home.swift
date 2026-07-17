@@ -14,6 +14,7 @@ struct Home: View {
     @AppStorage("dossierLetzterExportAmISO") private var dossierLetzterExportAmISO = ""
     @AppStorage("homeBereicheReihenfolge") private var homeBereicheReihenfolge = ""
     @AppStorage("homeAktiveBereiche") private var homeAktiveBereiche = ""
+    @AppStorage(VorsorgeBereichStatusStore.storageKey) private var vorsorgeBereichStatusJSON = ""
     @Query private var gespeicherteProfile: [ProfilModell]
     @Query private var gespeicherteGesundheitsdaten: [GesundheitModell]
     @Query private var gespeicherteDossierZugriffe: [DossierZugriffModell]
@@ -146,7 +147,38 @@ struct Home: View {
     }
 
     private var empfohlenerHomeBereich: HomeBereich? {
-        angezeigteHomeBereiche.first { $0 != .profil }
+        let bereiche = angezeigteHomeBereiche.filter { $0 != .profil }
+
+        if let nichtBegonnen = bereiche.first(where: {
+            !bereichAktivitaet(fuer: $0).wurdeBegonnen
+        }) {
+            return nichtBegonnen
+        }
+
+        if let geaendert = bereiche.first(where: {
+            bereichAktivitaet(fuer: $0).wurdeSeitPruefungGeaendert
+        }) {
+            return geaendert
+        }
+
+        return bereiche.max {
+            (bereichAktivitaet(fuer: $0).zuletztGeaendertAm ?? .distantPast) <
+            (bereichAktivitaet(fuer: $1).zuletztGeaendertAm ?? .distantPast)
+        }
+    }
+
+    private func bereichAktivitaet(fuer bereich: HomeBereich) -> VorsorgeBereichAktivitaet {
+        _ = vorsorgeBereichStatusJSON
+        return VorsorgeBereichStatusStore.status(fuer: bereich.statusID)
+    }
+
+    private func bereichStatusText(fuer bereich: HomeBereich) -> String? {
+        guard bereich != .profil || profilGrundlageErfasst else { return "Nicht begonnen" }
+        let aktivitaet = bereichAktivitaet(fuer: bereich)
+        if aktivitaet.wurdeSeitPruefungGeaendert { return "Geändert" }
+        if aktivitaet.istAktuellGeprueft { return "Aktuell" }
+        if aktivitaet.wurdeBegonnen || bereich == .profil { return "Begonnen" }
+        return "Nicht begonnen"
     }
     
     private var dossierNaechstePruefungAm: Date? {
@@ -241,11 +273,18 @@ struct Home: View {
     }
 
     private var vorsorgeStatus: VorsorgeStatus {
-        VorsorgeStatusService.berechne(
+        let letzteBereichsaenderung = aktiveHomeBereiche
+            .compactMap { bereichAktivitaet(fuer: $0).zuletztGeaendertAm }
+            .max()
+        let letzteInhaltlicheAenderung = [aktivesDossier?.aktualisiertAm, letzteBereichsaenderung]
+            .compactMap { $0 }
+            .max()
+
+        return VorsorgeStatusService.berechne(
             vollstaendigkeit: dossierFortschritt.kreisFortschritt,
             wurdeGeprueft: dossierWurdeGeprueft,
             letzterExportAm: letzterExportAm,
-            letzteInhaltlicheAenderungAm: aktivesDossier?.aktualisiertAm,
+            letzteInhaltlicheAenderungAm: letzteInhaltlicheAenderung,
             // Nicht im MVP Scope: Einladungsstatus und Dossier-Freigabe.
             hatOffeneEinladung: false,
             hatAktiveVertrauensperson: !vertrauenspersonenFuerAktivenUser.isEmpty
@@ -255,6 +294,9 @@ struct Home: View {
     private var heroTitel: String {
         if !profilGrundlageErfasst { return "Deine Vorsorge beginnt hier" }
         if !hatZusaetzlicheHomeBereiche { return "Gestalte deine Vorsorge" }
+        if vorsorgeStatus == .dossierErstellt, !vertrauenspersonenFuerAktivenUser.isEmpty {
+            return "Deine Vorsorge ist aktuell"
+        }
         if vorsorgeStatus == .unvollstaendig { return dossierFortschritt.titel }
         return vorsorgeStatus.titel
     }
@@ -266,6 +308,9 @@ struct Home: View {
         if !hatZusaetzlicheHomeBereiche {
             return "Wähle die Bereiche aus, die für dich wichtig sind. Du kannst deine Auswahl jederzeit ändern."
         }
+        if vorsorgeStatus == .dossierErstellt, !vertrauenspersonenFuerAktivenUser.isEmpty {
+            return "Vorsorge-Dossier aktuell und Vertrauensperson hinterlegt."
+        }
         if vorsorgeStatus == .unvollstaendig { return dossierFortschritt.beschreibung }
         return vorsorgeStatus.beschreibung
     }
@@ -274,8 +319,16 @@ struct Home: View {
         if !profilGrundlageErfasst { return "Profil vervollständigen" }
         if !hatZusaetzlicheHomeBereiche { return "Vorsorge Bereiche zusammenstellen" }
         if dossierPruefungIstFaellig { return "Vorsorge-Dossier prüfen" }
+        if !dossierWurdeGeprueft && vertrauenspersonenFuerAktivenUser.isEmpty {
+            return "Vertrauensperson festlegen"
+        }
+        if !dossierWurdeGeprueft && dossierFortschritt.kreisFortschritt >= 0.7 {
+            return "Vorsorge-Dossier jetzt abschliessen"
+        }
         if vorsorgeStatus == .unvollstaendig, let empfohlenerHomeBereich {
-            return "\(empfohlenerHomeBereich.titel) ergänzen"
+            return bereichAktivitaet(fuer: empfohlenerHomeBereich).wurdeBegonnen
+                ? "\(empfohlenerHomeBereich.titel) weiterführen"
+                : "\(empfohlenerHomeBereich.titel) beginnen"
         }
         return vorsorgeStatus.buttonTitel
     }
@@ -301,7 +354,8 @@ struct Home: View {
                         let titelGroesse = max(34, min(46, breite * 0.105))
                         
                         ZStack(alignment: .topLeading) {
-                            Image("mark-basarab-z8ct_Q3oCqM-unsplash")
+                            Image("etienne-bosiger-OWsdJ-MllYA-unsplash")
+                           // Image("mark-basarab-z8ct_Q3oCqM-unsplash")
                                 .resizable()
                                 .scaledToFill()
                                 .frame(width: breite, height: heroHoehe)
@@ -407,11 +461,14 @@ struct Home: View {
                                     vertrauenspersonen: vertrauenspersonenFuerAktivenUser.count,
                                     akzentFarbe: schluessliAkzent,
                                     fortschrittFarbe: dossierFortschritt.farbe,
-                                    zeigtPrimaereAktion: !profilGrundlageErfasst
-                                        || !hatZusaetzlicheHomeBereiche
-                                        || vorsorgeStatus != .unvollstaendig,
+                                    zeigtPrimaereAktion: !(vorsorgeStatus == .dossierErstellt
+                                        && !vertrauenspersonenFuerAktivenUser.isEmpty),
                                     action: handleVorsorgeCTA,
-                                    zeigtPruefenAktion: hatZusaetzlicheHomeBereiche,
+                                    zeigtPruefenAktion: hatZusaetzlicheHomeBereiche
+                                        && !dossierWurdeGeprueft
+                                        && !dossierPruefungIstFaellig
+                                        && (dossierFortschritt.kreisFortschritt < 0.7
+                                            || vertrauenspersonenFuerAktivenUser.isEmpty),
                                     pruefenButtonTitel: dossierPruefungIstFaellig
                                         ? "Vorsorge-Dossier prüfen"
                                         : "Vorsorge-Dossier jetzt abschliessen",
@@ -557,11 +614,15 @@ struct Home: View {
                 //     Text("Wähle aus, welches Vorsorge-Dossier du öffnen möchtest.")
                 // }
                 .sheet(isPresented: $dossierPruefungSheetAnzeigen) {
-                    DossierPruefungSheet(accentColor: schluessliAkzent) {
+                    DossierPruefungSheet(
+                        accentColor: schluessliAkzent,
+                        bereiche: angezeigteHomeBereiche,
+                        statusText: { bereichStatusText(fuer: $0) ?? "Nicht begonnen" }
+                    ) {
                         dossierAlsGeprueftMarkieren()
                         dossierPruefungSheetAnzeigen = false
                     }
-                    .presentationDetents([.fraction(0.72), .large])
+                    .presentationDetents([.large])
                     .presentationDragIndicator(.visible)
                 }
                 .sheet(isPresented: $bereichsauswahlAnzeigen) {
@@ -681,6 +742,16 @@ struct Home: View {
             return
         }
 
+        if !dossierWurdeGeprueft && vertrauenspersonenFuerAktivenUser.isEmpty {
+            vertrauenspersonAnzeigen = true
+            return
+        }
+
+        if !dossierWurdeGeprueft && dossierFortschritt.kreisFortschritt >= 0.7 {
+            dossierPruefungSheetAnzeigen = true
+            return
+        }
+
         switch vorsorgeStatus {
         case .unvollstaendig:
             empfohlenerBereichAnzeigen = empfohlenerHomeBereich ?? .profil
@@ -771,12 +842,17 @@ struct Home: View {
         private func dossierAlsGeprueftMarkieren() {
             let pruefDatum = Date()
             dossierZuletztGeprueftAmISO = ISO8601DateFormatter().string(from: pruefDatum)
+            VorsorgeBereichStatusStore.markiereGeprueft(
+                aktiveHomeBereiche.map(\.statusID),
+                am: pruefDatum
+            )
             ausstehendesPruefDatum = pruefDatum
             erinnerungsAuswahlAnzeigen = true
         }
 
         private func dossierPruefungZuruecksetzen() {
             dossierZuletztGeprueftAmISO = ""
+            VorsorgeBereichStatusStore.pruefungZuruecksetzen()
             ausstehendesPruefDatum = nil
             dossierPruefungRefreshDatum = Date()
             NotificationService.shared.jaehrlicheDossierPruefungEntfernen()
@@ -951,6 +1027,7 @@ struct Home: View {
                 titel: bereich.titel,
                 untertitel: bereich.untertitel,
                 details: bereich.details,
+                statusText: homeBearbeitungsmodus ? nil : bereichStatusText(fuer: bereich),
                 farbe: kachelFarbe,
                 akzentFarbe: bereich.akzentFarbe
             )
@@ -961,19 +1038,44 @@ struct Home: View {
             let titel: String
             let untertitel: String
             let details: String
+            let statusText: String?
             let farbe: Color
             let akzentFarbe: Color
+
+            private var statusFarbe: Color {
+                switch statusText {
+                case "Aktuell": return .green
+                case "Geändert": return .orange
+                case "Begonnen": return akzentFarbe
+                default: return .secondary
+                }
+            }
             
             var body: some View {
                 VStack(alignment: .leading, spacing: 8) {
-                    ZStack {
-                        Circle()
-                            .fill(akzentFarbe.opacity(0.14))
-                            .frame(width: 48, height: 48)
-                        
-                        Image(systemName: icon)
-                            .font(.system(size: 23, weight: .semibold))
-                            .foregroundStyle(akzentFarbe)
+                    HStack(alignment: .top, spacing: 8) {
+                        ZStack {
+                            Circle()
+                                .fill(akzentFarbe.opacity(0.14))
+                                .frame(width: 48, height: 48)
+
+                            Image(systemName: icon)
+                                .font(.system(size: 23, weight: .semibold))
+                                .foregroundStyle(akzentFarbe)
+                        }
+
+                        Spacer(minLength: 0)
+
+                        if let statusText {
+                            Text(statusText)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(statusFarbe)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.76)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 5)
+                                .background(statusFarbe.opacity(0.11), in: Capsule())
+                        }
                     }
                     
                     VStack(alignment: .leading, spacing: 4) {
@@ -993,6 +1095,7 @@ struct Home: View {
                             .foregroundStyle(.secondary)
                             .lineLimit(nil)
                             .fixedSize(horizontal: false, vertical: true)
+
                     }
                 }
                 .padding(16)
@@ -1013,6 +1116,8 @@ struct Home: View {
     
     struct DossierPruefungSheet: View {
         let accentColor: Color
+        let bereiche: [HomeBereich]
+        let statusText: (HomeBereich) -> String
         let abschliessenAktion: () -> Void
         @State private var istAbgeschlossen = false
         
@@ -1047,14 +1152,9 @@ struct Home: View {
                 
                 if !istAbgeschlossen {
                     VStack(alignment: .leading, spacing: 12) {
-                        pruefpunkt("Persönliche Angaben")
-                        pruefpunkt("Meine Wünsche")
-                        pruefpunkt("Zugriffe auf dein Vorsorge-Dossier")
-                        pruefpunkt("Gesundheit")
-                        pruefpunkt("Finanzen")
-                        pruefpunkt("Dokumente & Fotoalbum")
-                        pruefpunkt("Abos & Profile")
-                        pruefpunkt("Menschen meines Vertrauens")
+                        ForEach(bereiche) { bereich in
+                            pruefpunkt(bereich.titel, status: statusText(bereich))
+                        }
                     }
                     .padding(16)
                     .background(
@@ -1062,6 +1162,11 @@ struct Home: View {
                             .fill(Color(.secondarySystemBackground))
                     )
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
+
+                    Text("Du kannst dein Vorsorge-Dossier mit dem aktuellen Stand abschliessen. Noch nicht begonnene Bereiche bleiben verfügbar und können später ergänzt werden.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 
                 Spacer(minLength: 0)
@@ -1080,7 +1185,7 @@ struct Home: View {
                         }
                     }
                 } label: {
-                    Text(istAbgeschlossen ? "Erledigt" : "Das Vorsorge-Dossier ist geprüft & aktuell")
+                    Text(istAbgeschlossen ? "Erledigt" : "Aktuellen Stand als geprüft bestätigen")
                         .font(.body.weight(.semibold))
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity)
@@ -1099,17 +1204,19 @@ struct Home: View {
             .padding(.bottom, 24)
         }
         
-        private func pruefpunkt(_ titel: String) -> some View {
+        private func pruefpunkt(_ titel: String, status: String) -> some View {
             HStack(spacing: 10) {
-                Image(systemName: "circle")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(accentColor)
-                
+                Image(systemName: status == "Nicht begonnen" ? "circle" : "checkmark.circle.fill")
+                    .foregroundStyle(status == "Nicht begonnen" ? Color.secondary : accentColor)
                 Text(titel)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
-                
-                Spacer(minLength: 0)
+
+                Spacer(minLength: 8)
+
+                Text(status)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -1217,6 +1324,10 @@ struct Home: View {
 
         var id: String { rawValue }
 
+        var statusID: VorsorgeBereichID {
+            VorsorgeBereichID(rawValue: rawValue) ?? .profil
+        }
+
         var icon: String {
             switch self {
             case .profil:
@@ -1281,15 +1392,15 @@ struct Home: View {
             case .gesundheit:
                 return "Hausarzt, Medikamente, Allergien und wichtige medizinische Informationen"
             case .wuensche:
-                return "Testament und persönliche Wünsche festhalten"
+                return "Persönliche Wünsche festhalten, Testament oder Vorsorgeauftrag hinterlegen"
             case .finanzen:
-                return "Konten, Schulden und Wertsachen auflisten"
+                return "Konten, Schulden, Versicherungen und Wertsachen auflisten"
             case .hinterbliebene:
-                return "Familie & Freunde als Kontakte hinterlegen"
+                return "Familie & Freunde, Anwälte als Kontakte hinterlegen"
             case .dokumente:
-                return "Dokumente hochladen und Fotoalbum erstellen"
+                return "Wichtige Dokumente hochladen und Fotoalbum erstellen"
             case .abos:
-                return "Digitale Profile, Zugänge und Abos"
+                return "Digitale Profile & Social Media, Streamingdienste und Zugänge und Abos"
             }
         }
 
@@ -1710,6 +1821,7 @@ struct Home: View {
                                         titel: bereich.titel,
                                         untertitel: bereich.untertitel,
                                         details: bereich.details,
+                                        statusText: nil,
                                         farbe: kachelFarbe,
                                         akzentFarbe: bereich.akzentFarbe
                                     )

@@ -668,6 +668,7 @@ struct GesundheitView: View {
     private func speichern() {
         do {
             try modelContext.save()
+            VorsorgeBereichStatusStore.markiereBearbeitet(.gesundheit)
         } catch {
             // Fehlerbehandlung (z.B. Logging)
         }

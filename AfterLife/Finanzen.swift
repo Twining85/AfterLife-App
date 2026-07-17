@@ -1155,6 +1155,7 @@ struct FinanzenSwipeToDeleteRow<Content: View>: View {
 
         do {
             try modelContext.save()
+            VorsorgeBereichStatusStore.markiereBearbeitet(.finanzen)
         } catch {
             print("Finanzdaten konnten nicht gespeichert werden: \(error.localizedDescription)")
         }

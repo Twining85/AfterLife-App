@@ -241,6 +241,7 @@ struct HinterbliebeneView: View {
             if !istAbgeleiteterHausarztKontakt(kontakt) {
                 Button(role: .destructive) {
                     modelContext.delete(kontakt)
+                    VorsorgeBereichStatusStore.markiereBearbeitet(.hinterbliebene)
                 } label: {
                     Image(systemName: "trash")
                         .font(.footnote.weight(.semibold))
@@ -288,6 +289,7 @@ struct HinterbliebeneView: View {
         )
 
         modelContext.insert(neuerKontakt)
+        VorsorgeBereichStatusStore.markiereBearbeitet(.hinterbliebene)
     }
 
     private func kontakteFuerKategorie(_ kategorie: VertrauenspersonKategorie) -> [HinterbliebeneModell] {

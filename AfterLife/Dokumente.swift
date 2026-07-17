@@ -307,6 +307,7 @@ struct DokumenteView: View {
                         }
                     }
                     try? modelContext.save()
+                    VorsorgeBereichStatusStore.markiereBearbeitet(.dokumente)
                 }
             }
             .sheet(isPresented: $showDocumentScanner) {
@@ -577,6 +578,7 @@ struct DokumenteView: View {
                             Button(role: .destructive) {
                                 modelContext.delete(dokument)
                                 try? modelContext.save()
+                                VorsorgeBereichStatusStore.markiereBearbeitet(.dokumente)
                             } label: {
                                 Label("Löschen", systemImage: "trash")
                             }
@@ -661,6 +663,7 @@ struct DokumenteView: View {
                     }
                     photoBundleURL = nil
                     try? modelContext.save()
+                    VorsorgeBereichStatusStore.markiereBearbeitet(.dokumente)
                 } label: {
                     Label("Fotoalbum leeren", systemImage: "trash")
                         .font(.caption.weight(.semibold))
@@ -963,6 +966,7 @@ struct DokumenteView: View {
 
         modelContext.insert(dokument)
         try? modelContext.save()
+        VorsorgeBereichStatusStore.markiereBearbeitet(.dokumente)
 
         pendingScanData = nil
         pendingScanDateiName = ""
@@ -1047,6 +1051,7 @@ struct DokumenteView: View {
                 modelContext.delete(photo)
                 photoBundleURL = nil
                 try? modelContext.save()
+                VorsorgeBereichStatusStore.markiereBearbeitet(.dokumente)
             } label: {
                 Image(systemName: "xmark.circle.fill")
                     .font(.title2)
@@ -1082,6 +1087,7 @@ struct DokumenteView: View {
             photoBundleURL = nil
             selectedPhotoItems.removeAll()
             try? modelContext.save()
+            VorsorgeBereichStatusStore.markiereBearbeitet(.dokumente)
         }
     }
 
@@ -1472,6 +1478,5 @@ struct DocumentPreview: UIViewControllerRepresentable {
         }
     }
 }
-
 
 

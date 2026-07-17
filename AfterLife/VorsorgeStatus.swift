@@ -61,7 +61,6 @@ struct VorsorgeStatusService {
            letzteInhaltlicheAenderungAm > letzterExportAm {
             return .aktualisierungNoetig
         }
-        if hatAktiveVertrauensperson { return .vertrauenspersonAktiv }
         if hatOffeneEinladung { return .einladungOffen }
         if letzterExportAm != nil { return .dossierErstellt }
         if wurdeGeprueft { return .geprueft }
@@ -142,25 +141,30 @@ struct VorsorgeStatusCard: View {
                 .buttonStyle(.plain)
             }
 
-            if status == .unvollstaendig && zeigtPruefenAktion {
+            if zeigtPruefenAktion {
                 Button(action: pruefenAction) {
-                    HStack {
+                    HStack(spacing: 8) {
                         Text(pruefenButtonTitel)
-                            .font(.body.weight(.semibold))
-                            .multilineTextAlignment(.leading)
+                            .font(.subheadline.weight(.semibold))
+                            .multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
-                            .layoutPriority(1)
-                        Spacer(minLength: 8)
                         Image(systemName: "chevron.right")
                             .font(.caption.weight(.bold))
                     }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 13)
-                    .frame(maxWidth: .infinity)
-                    .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(akzentFarbe))
+                    .foregroundStyle(akzentFarbe)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 15, style: .continuous)
+                            .fill(Color.white)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 15, style: .continuous)
+                            .stroke(akzentFarbe, lineWidth: 1.5)
+                    )
                 }
                 .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .center)
             }
 
             if let pruefungZuruecksetzenAction {
