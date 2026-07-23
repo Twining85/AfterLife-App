@@ -318,7 +318,7 @@ struct Home: View {
     private var heroButtonTitel: String {
         if !profilGrundlageErfasst { return "Profil vervollständigen" }
         if !hatZusaetzlicheHomeBereiche { return "Vorsorge Bereiche zusammenstellen" }
-        if dossierPruefungIstFaellig { return "Vorsorge-Dossier prüfen" }
+        if dossierPruefungIstFaellig { return "Vorsorge-Dossier erneut überprüfen" }
         if !dossierWurdeGeprueft && vertrauenspersonenFuerAktivenUser.isEmpty {
             return "Vertrauensperson festlegen"
         }
@@ -327,24 +327,22 @@ struct Home: View {
         }
         if vorsorgeStatus == .unvollstaendig, let empfohlenerHomeBereich {
             return bereichAktivitaet(fuer: empfohlenerHomeBereich).wurdeBegonnen
-                ? "\(empfohlenerHomeBereich.titel) weiterführen"
-                : "\(empfohlenerHomeBereich.titel) beginnen"
+                ? "Mit \(empfohlenerHomeBereich.titel) weitermachen"
+                : "Mit \(empfohlenerHomeBereich.titel) beginnen"
         }
         return vorsorgeStatus.buttonTitel
+    }
+
+    private var heroButtonHervorhebung: String? {
+        guard vorsorgeStatus == .unvollstaendig, let empfohlenerHomeBereich else { return nil }
+        return empfohlenerHomeBereich.titel
     }
     
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    
-                    //MARK: wird ggf. ganz entfernt oder durch ein Logo ersetzt
-                    //Text("Tschlüssli")
-                    //  .font(.largeTitle)
-                    //  .fontWeight(.bold)
-                    //  .padding(.horizontal, 24)
-                    //   .padding(.top, 24)
-                    //   .padding(.bottom, 8)
+                
                     
                     
                     GeometryReader { geometry in
@@ -456,6 +454,7 @@ struct Home: View {
                                     titel: heroTitel,
                                     beschreibung: heroBeschreibung,
                                     buttonTitel: heroButtonTitel,
+                                    buttonHervorhebung: heroButtonHervorhebung,
                                     fortschritt: dossierFortschritt.kreisFortschritt,
                                     letztePruefung: letztePruefungAm,
                                     vertrauenspersonen: vertrauenspersonenFuerAktivenUser.count,
@@ -532,7 +531,7 @@ struct Home: View {
                         .opacity(kachelnSindSichtbar ? 1 : 0)
                         .animation(.easeOut(duration: 0.55), value: kachelnSindSichtbar)
                     
-                    // MARK: - nicht in Scope MVP 1
+                    // MARK: - nicht in Scope MMP 1
                     // if !verknuepfteVorsorgedossiers.isEmpty {
                     //     vorsorgedossierWechselAktion
                     //         .padding(.horizontal, 24)
@@ -561,7 +560,7 @@ struct Home: View {
                         .animation(.easeInOut(duration: 0.22), value: homeBearbeitungsmodus)
                     
 #if DEBUG
-                    // Nicht MPV Scope
+                    // Nicht MMP Scope
                     // HomeDebugTestPanel()
                     //     .padding(.horizontal, 24)
                     //     .padding(.top, 8)
@@ -586,7 +585,7 @@ struct Home: View {
                 .navigationDestination(item: $empfohlenerBereichAnzeigen) { bereich in
                     zielView(fuer: bereich)
                 }
-                // MARK: - nicht in Scope MVP 1
+                // MARK: - nicht in Scope MMP 1
                 // .navigationDestination(isPresented: $direktesVorsorgedossierOeffnen) {
                 //     FreigegebenesDossierDetailView(
                 //         dossierKontext: .freigegebenesDossier(

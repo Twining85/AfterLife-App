@@ -74,6 +74,7 @@ struct VorsorgeStatusCard: View {
     let titel: String
     let beschreibung: String
     let buttonTitel: String
+    let buttonHervorhebung: String?
     let fortschritt: Double
     let letztePruefung: Date?
     let vertrauenspersonen: Int
@@ -85,6 +86,18 @@ struct VorsorgeStatusCard: View {
     let pruefenButtonTitel: String
     let pruefenAction: () -> Void
     let pruefungZuruecksetzenAction: (() -> Void)?
+
+    private var formatierterButtonTitel: Text {
+        guard let buttonHervorhebung,
+              let bereich = buttonTitel.range(of: buttonHervorhebung) else {
+            return Text(buttonTitel).font(.body.weight(.medium))
+        }
+
+        let anfang = Text(String(buttonTitel[..<bereich.lowerBound])).font(.body.weight(.medium))
+        let hervorhebung = Text(String(buttonTitel[bereich])).font(.body.weight(.semibold))
+        let ende = Text(String(buttonTitel[bereich.upperBound...])).font(.body.weight(.medium))
+        return Text("\(anfang)\(hervorhebung)\(ende)")
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 15) {
@@ -125,8 +138,7 @@ struct VorsorgeStatusCard: View {
             if zeigtPrimaereAktion {
                 Button(action: action) {
                     HStack {
-                        Text(buttonTitel)
-                            .font(.body.weight(.semibold))
+                        formatierterButtonTitel
                             .multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
                             .layoutPriority(1)

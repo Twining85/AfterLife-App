@@ -73,15 +73,10 @@ struct ProfilView: View {
 
     @State private var adresse = ""
     @State private var hausnummer = ""
-    @State private var adressVorschlaege: [PostAdressVorschlag] = []
-    @State private var adressSucheLaeuft = false
-    @State private var adressVorschlagWurdeGewaehlt = false
-    @State private var adresseManuellBearbeitet = false
 
     @State private var plz = ""
 
     @State private var stadt = ""
-    @State private var plzSucheLaeuft = false
 
     @State private var land = "Schweiz"
 
@@ -105,13 +100,6 @@ struct ProfilView: View {
         "Neuseeland",
         "Andere"
     ]
-    // Vercel Proxy für Schweizer Post Adressservices.
-    // Nicht durch direkte Post URLs ersetzen, sonst wären Zugangsdaten in der App erforderlich.
-    private let postAutocompleteURL = "https://afterlife-address-proxy.vercel.app/api/autocomplete"
-
-    private let postBuildingVerificationURL = "https://afterlife-address-proxy.vercel.app/api/building-verification"
-
-
     @State private var telefon = ""
 
     @State private var email = ""
@@ -302,70 +290,6 @@ struct ProfilView: View {
                     TextField("Strasse", text: $adresse)
                         .textContentType(.streetAddressLine1)
                         .disabled(dossierKontext.istReadOnly)
-                        .onChange(of: adresse) { _, _ in
-                            guard profilGeladen else { return }
-                            adresseManuellBearbeitet = true
-                        }
-
-                    if adressSucheLaeuft {
-                        HStack(spacing: 8) {
-                            ProgressView()
-                            Text("Adressvorschläge werden gesucht …")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    if !adressVorschlaege.isEmpty, dossierKontext.kannBearbeiten {
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 0) {
-                                ForEach(adressVorschlaege) { vorschlag in
-                                    Button {
-                                        adressVorschlagWurdeGewaehlt = true
-                                        adresse = vorschlag.streetName
-                                        hausnummer = vorschlag.vollstaendigeHausnummer
-                                        plz = vorschlag.zipCode
-                                        stadt = vorschlag.townName
-                                        adressVorschlaege = []
-
-                                        Task {
-                                            await verifizierePostAdresse(vorschlag)
-                                        }
-                                    } label: {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(vorschlag.anzeigeTitel)
-                                                .foregroundStyle(.primary)
-                                            Text(vorschlag.anzeigeUntertitel)
-                                                .font(.footnote)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                        .padding(.vertical, 8)
-                                        .padding(.horizontal, 10)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                    }
-                                    .buttonStyle(.plain)
-                                    if vorschlag.id != adressVorschlaege.last?.id {
-                                        Divider()
-                                            .padding(.horizontal, 10)
-                                    }
-                                }
-                            }
-                        }
-                        .frame(maxHeight: 260)
-                        .background(Color.white.opacity(0.78))
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(alignment: .leading) {
-                            Rectangle()
-                                .fill(profilAkzentFarbe.opacity(0.14))
-                                .frame(width: 1)
-                        }
-                        .overlay(alignment: .trailing) {
-                            Rectangle()
-                                .fill(profilAkzentFarbe.opacity(0.14))
-                                .frame(width: 1)
-                        }
-                        .padding(.vertical, 4)
-                    }
 
                     TextField("Hausnummer", text: $hausnummer)
                         .textContentType(.streetAddressLine2)
@@ -702,60 +626,6 @@ struct ProfilView: View {
             .onChange(of: telefon) { _, _ in speichereProfil() }
             .onChange(of: ahvNummer) { _, _ in speichereProfil() }
             .onChange(of: email) { _, _ in speichereProfil() }
-            .onChange(of: adresse) { _, neueAdresse in
-                guard dossierKontext.kannBearbeiten else { return }
-                guard land == "Schweiz" else {
-                    adressVorschlaege = []
-                    adresseManuellBearbeitet = false
-                    return
-                }
-
-                if adressVorschlagWurdeGewaehlt {
-                    adressVorschlagWurdeGewaehlt = false
-                    adresseManuellBearbeitet = false
-                    adressVorschlaege = []
-                    return
-                }
-
-                guard adresseManuellBearbeitet else {
-                    adressVorschlaege = []
-                    return
-                }
-
-                let bereinigteAdresse = neueAdresse.trimmingCharacters(in: .whitespacesAndNewlines)
-
-                guard bereinigteAdresse.count >= 3 else {
-                    adressVorschlaege = []
-                    return
-                }
-
-                Task {
-                    try? await Task.sleep(nanoseconds: 350_000_000)
-
-                    guard adresseManuellBearbeitet else { return }
-
-                    guard bereinigteAdresse == adresse.trimmingCharacters(in: .whitespacesAndNewlines) else {
-                        return
-                    }
-
-                    await ladePostAdressVorschlaege(fuer: bereinigteAdresse)
-                }
-            }
-            .onChange(of: plz) { _, neuePLZ in
-                guard dossierKontext.kannBearbeiten else { return }
-                guard land == "Schweiz" else { return }
-
-                let bereinigtePLZ = neuePLZ.trimmingCharacters(in: .whitespacesAndNewlines)
-
-                guard bereinigtePLZ.count == 4 else {
-                    stadt = ""
-                    return
-                }
-
-                Task {
-                    await ladeSchweizerOrtFuerPLZ(bereinigtePLZ)
-                }
-            }
             .onChange(of: profilbildAuswahl) { _, neueAuswahl in
                 guard dossierKontext.kannBearbeiten else { return }
 
@@ -972,7 +842,7 @@ struct ProfilView: View {
 
     private func ladeOderErstelleProfil() {
         guard !profilGeladen else { return }
-        adresseManuellBearbeitet = false
+        entferneVeralteteLoginEintraegeAusAbos()
 
         if let vorhandenesProfil = aktivesProfil {
             vorname = vorhandenesProfil.vorname
@@ -1012,7 +882,33 @@ struct ProfilView: View {
         }
 
         profilGeladen = true
-        adresseManuellBearbeitet = false
+    }
+
+    private func entferneVeralteteLoginEintraegeAusAbos() {
+        guard dossierKontext.kannBearbeiten else { return }
+
+        var hatEintraegeEntfernt = false
+
+        for aboModell in gespeicherteAboModelle {
+            let veralteteEintraege = aboModell.abos.filter {
+                $0.istSystemEintrag &&
+                ($0.anbieter == "Tschlüssli" ||
+                 $0.anbieter == "AfterLife" ||
+                 $0.bezeichnung == "Tschlüssli")
+            }
+
+            guard !veralteteEintraege.isEmpty else { continue }
+
+            let ids = Set(veralteteEintraege.map(\.id))
+            aboModell.abos.removeAll { ids.contains($0.id) }
+            veralteteEintraege.forEach { modelContext.delete($0) }
+            aboModell.aktualisiertAm = Date()
+            hatEintraegeEntfernt = true
+        }
+
+        if hatEintraegeEntfernt {
+            try? modelContext.save()
+        }
     }
 
     private func speichereProfil() {
@@ -1047,61 +943,8 @@ struct ProfilView: View {
         profil.registrierungsPasswort = gespeichertesPasswort
         profil.profilbildDaten = profilbildData
         profil.biometrieAktiviert = biometrieAktiviert
-        synchronisiereAfterLifeDigitaleIdentitaet()
         try? modelContext.save()
         VorsorgeBereichStatusStore.markiereBearbeitet(.profil)
-    }
-
-    private func synchronisiereAfterLifeDigitaleIdentitaet(email: String? = nil, passwort: String? = nil) {
-        guard dossierKontext.kannBearbeiten else { return }
-        let zielEmail = (email ?? gespeicherteEmail).trimmingCharacters(in: .whitespacesAndNewlines)
-        let zielPasswort = passwort ?? gespeichertesPasswort
-
-        guard istEmailRegistrierung, !zielEmail.isEmpty else { return }
-
-        let aboModell: AboModell
-        if let vorhandenesModell = gespeicherteAboModelle.first {
-            aboModell = vorhandenesModell
-        } else {
-            let neuesModell = AboModell()
-            modelContext.insert(neuesModell)
-            aboModell = neuesModell
-        }
-
-        let tschluessliEintraege = aboModell.abos.filter {
-            $0.istSystemEintrag &&
-            ($0.anbieter == "Tschlüssli" ||
-             $0.anbieter == "AfterLife" ||
-             $0.bezeichnung == "Tschlüssli")
-        }
-        let eintrag = tschluessliEintraege.first ?? AboEintrag()
-
-        for duplikat in tschluessliEintraege.dropFirst() {
-            aboModell.abos.removeAll { $0.id == duplikat.id }
-            modelContext.delete(duplikat)
-        }
-
-        if !aboModell.abos.contains(where: { $0.id == eintrag.id }) {
-            modelContext.insert(eintrag)
-            aboModell.abos.append(eintrag)
-        }
-
-        eintrag.aboTyp = "Software / Apps"
-        eintrag.anbieter = "Tschlüssli"
-        eintrag.digitaleIdentitaetAnbieter = ""
-        eintrag.bezeichnung = "Tschlüssli"
-        eintrag.benutzername = zielEmail
-        eintrag.passwort = zielPasswort
-        eintrag.istAktiv = true
-        eintrag.istSystemEintrag = true
-        eintrag.aktualisiertAm = Date()
-        aboModell.aktualisiertAm = Date()
-
-        do {
-            try modelContext.save()
-        } catch {
-            print("AfterLife Login konnte nicht synchronisiert werden: \(error.localizedDescription)")
-        }
     }
 
     private func schliessePasswortAendern() {
@@ -1172,8 +1015,6 @@ struct ProfilView: View {
                 try modelContext.save()
             }
 
-            synchronisiereAfterLifeDigitaleIdentitaet(email: bereinigteEmail, passwort: neuesPasswort)
-
             passwortAendernErfolg = "Passwort wurde geändert."
 
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
@@ -1181,138 +1022,6 @@ struct ProfilView: View {
             }
         } catch {
             passwortAendernFehler = "Passwort konnte nicht geändert werden."
-        }
-    }
-
-    // MARK: - Schweizer Post Adressservice
-    //
-    // Die App spricht niemals direkt mit der Post API.
-    // Stattdessen werden alle Anfragen über den Vercel Proxy geleitet:
-    //
-    // /api/autocomplete
-    // → liefert Strassenvorschläge
-    //
-    // /api/building-verification
-    // → verifiziert Strasse, Hausnummer, PLZ und Ort
-    //
-    // Die Zugangsdaten der Post liegen ausschliesslich als
-    // Vercel Environment Variables:
-    //
-    // POST_API_USERNAME (gem. Geschäfts-Account rxxx.exxx.@
-    // POST_API_PASSWORD
-    //
-    // Falls die Post Zugangsdaten geändert werden müssen,
-    // nur die Vercel Environment Variables anpassen.
-    // In der iOS App sind keine Post Zugangsdaten gespeichert.
-    
-    private func postAPIRequest(url: URL) -> URLRequest {
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        return request
-    }
-
-    @MainActor
-    private func ladePostAdressVorschlaege(fuer suchbegriff: String) async {
-        guard !adressSucheLaeuft else { return }
-
-        adressSucheLaeuft = true
-        defer { adressSucheLaeuft = false }
-
-        var components = URLComponents(string: postAutocompleteURL)
-        components?.queryItems = [
-            URLQueryItem(name: "streetname", value: suchbegriff)
-        ]
-
-        guard let url = components?.url else { return }
-
-        do {
-            let (data, response) = try await URLSession.shared.data(for: postAPIRequest(url: url))
-
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200...299).contains(httpResponse.statusCode) else {
-                adressVorschlaege = []
-                return
-            }
-
-            let antwort = try JSONDecoder().decode(PostAutocompleteAntwort.self, from: data)
-            adressVorschlaege = Array(antwort.vorschlaege.prefix(25))
-        } catch {
-            adressVorschlaege = []
-            print("Post Adressvorschläge konnten nicht geladen werden: \(error.localizedDescription)")
-        }
-    }
-
-    @MainActor
-    private func verifizierePostAdresse(_ vorschlag: PostAdressVorschlag) async {
-        var components = URLComponents(string: postBuildingVerificationURL)
-        components?.queryItems = [
-            URLQueryItem(name: "streetname", value: vorschlag.streetName),
-            URLQueryItem(name: "houseno", value: vorschlag.houseNo),
-            URLQueryItem(name: "housenoaddition", value: vorschlag.houseNoAddition),
-            URLQueryItem(name: "zipcode", value: vorschlag.zipCode),
-            URLQueryItem(name: "townname", value: vorschlag.townName)
-        ]
-
-        guard let url = components?.url else { return }
-
-        do {
-            let (data, response) = try await URLSession.shared.data(for: postAPIRequest(url: url))
-
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200...299).contains(httpResponse.statusCode) else {
-                return
-            }
-
-            let antwort = try JSONDecoder().decode(PostBuildingVerificationAntwort.self, from: data)
-            guard let verifizierteAdresse = antwort.verifizierteAdresse else { return }
-
-            adressVorschlagWurdeGewaehlt = true
-            adresseManuellBearbeitet = false
-            adresse = verifizierteAdresse.streetName
-            hausnummer = verifizierteAdresse.vollstaendigeHausnummer
-            plz = verifizierteAdresse.zipCode
-            stadt = verifizierteAdresse.townName
-            speichereProfil()
-            profilFokus = .hausnummer
-        } catch {
-            print("Post Adresse konnte nicht verifiziert werden: \(error.localizedDescription)")
-        }
-    }
-
-    @MainActor
-    private func ladeSchweizerOrtFuerPLZ(_ postleitzahl: String) async {
-        guard !plzSucheLaeuft else { return }
-
-        plzSucheLaeuft = true
-        defer { plzSucheLaeuft = false }
-
-        var components = URLComponents(string: "https://openplzapi.org/ch/Localities")
-        components?.queryItems = [
-            URLQueryItem(name: "postalCode", value: postleitzahl),
-            URLQueryItem(name: "pageSize", value: "1")
-        ]
-
-        guard let url = components?.url else { return }
-
-        var request = URLRequest(url: url)
-        request.setValue("text/json", forHTTPHeaderField: "accept")
-
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200...299).contains(httpResponse.statusCode) else {
-                return
-            }
-
-            let orte = try JSONDecoder().decode([SchweizerOrt].self, from: data)
-
-            if let ersterOrt = orte.first {
-                stadt = ersterOrt.name
-            }
-        } catch {
-            print("PLZ konnte nicht automatisch gefunden werden: \(error.localizedDescription)")
         }
     }
 
@@ -1334,10 +1043,6 @@ struct ProfilView: View {
 
         adresse = ""
         hausnummer = ""
-        adressVorschlaege = []
-        adressSucheLaeuft = false
-        adressVorschlagWurdeGewaehlt = false
-        adresseManuellBearbeitet = false
         plz = ""
         stadt = ""
 
@@ -3233,16 +2938,6 @@ struct ProfilView: View {
             }
 
             return ""
-        }
-    }
-
-    private struct SchweizerOrt: Decodable {
-        let name: String
-        let postalCode: String
-
-        enum CodingKeys: String, CodingKey {
-            case name
-            case postalCode
         }
     }
 

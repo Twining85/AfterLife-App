@@ -45,8 +45,6 @@ struct FinanzenView: View {
     @State private var pendingSteuerdokumentScanDateiName = ""
     @State private var steuerdokumentExportURL: URL?
     @State private var showSteuerdokumentExportSheet = false
-    @State private var zuletztGepruefteIBANs: [UUID: String] = [:]
-
     private let finanzenHintergrundFarbe = Color(red: 0.985, green: 0.975, blue: 0.955)
     private let finanzenKartenFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
     private let finanzenAkzentFarbe = Color(red: 0.62, green: 0.47, blue: 0.18)
@@ -733,12 +731,6 @@ struct FinanzenView: View {
                         labelledTextField("IBAN / Konto-Nr.", text: $bankEntry.iban)
                             .textInputAutocapitalization(.characters)
                             .autocorrectionDisabled()
-                            .onChange(of: bankEntry.iban) { _, _ in
-                                pruefeIBANUndFuelleBankdatenAutomatisch(fuer: bankEntry.id)
-                            }
-                            .onSubmit {
-                                pruefeIBANUndFuelleBankdatenAutomatisch(fuer: bankEntry.id, erzwingen: true)
-                            }
 
                         labelledTextField("Name der Bank", text: $bankEntry.bankName)
                             .autocorrectionDisabled()
@@ -761,27 +753,6 @@ struct FinanzenView: View {
             .id(bankEntry.id)
         }
     }
-    private func pruefeIBANUndFuelleBankdatenAutomatisch(fuer entryID: UUID, erzwingen: Bool = false) {
-        guard let index = bankEntries.firstIndex(where: { $0.id == entryID }) else { return }
-
-        let iban = bankEntries[index].iban
-            .replacingOccurrences(of: " ", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .uppercased()
-
-        guard iban.count >= 15 else { return }
-
-        if !erzwingen, zuletztGepruefteIBANs[entryID] == iban {
-            return
-        }
-
-        zuletztGepruefteIBANs[entryID] = iban
-
-        Task {
-            await fuelleBankdatenAusIBAN(fuer: entryID)
-        }
-    }
-
     private var debtEntryList: some View {
         ForEach(Array($debts.enumerated()), id: \.element.id) { index, $debt in
             FinanzenSwipeToDeleteRow(
@@ -1480,46 +1451,6 @@ struct FinanzenSwipeToDeleteRow<Content: View>: View {
         "\(value.formatted(.number.precision(.fractionLength(0)))) CHF"
     }
 
-    private func fuelleBankdatenAusIBAN(fuer entryID: UUID) async {
-        guard let index = bankEntries.firstIndex(where: { $0.id == entryID }) else { return }
-
-        let iban = bankEntries[index].iban
-            .replacingOccurrences(of: " ", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .uppercased()
-
-        guard iban.count >= 15 else { return }
-
-        do {
-            let bankdaten = try await OpenIBANService.validateIBAN(iban)
-
-            await MainActor.run {
-                guard let currentIndex = bankEntries.firstIndex(where: { $0.id == entryID }) else { return }
-
-                bankEntries[currentIndex].iban = iban
-                zuletztGepruefteIBANs[entryID] = iban
-
-                if let bankName = bankdaten.bankName, !bankName.isEmpty {
-                    bankEntries[currentIndex].bankName = bankName
-                }
-
-                let addressParts = [bankdaten.zip, bankdaten.city]
-                    .compactMap { value in
-                        let trimmedValue = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                        return trimmedValue.isEmpty ? nil : trimmedValue
-                    }
-
-                if !addressParts.isEmpty {
-                    bankEntries[currentIndex].bankAddress = addressParts.joined(separator: " ")
-                }
-
-                speichereFinanzenInSwiftData()
-            }
-        } catch {
-            print("IBAN konnte nicht geprüft werden: \(error.localizedDescription)")
-        }
-    }
-
     private func loadExchangeRates() async {
         do {
             let response = try await ExchangeRateService.fetchRatesToCHF()
@@ -1879,27 +1810,6 @@ struct BankEntry: Identifiable {
         self.currency = currency
     }
 }
-struct OpenIBANResponse: Decodable {
-    let valid: Bool
-    let iban: String?
-    let bankData: OpenIBANBankData?
-}
-
-struct OpenIBANBankData: Decodable {
-    let bankCode: String?
-    let name: String?
-    let zip: String?
-    let city: String?
-    let bic: String?
-}
-
-struct OpenIBANBankLookupResult {
-    let bankName: String?
-    let zip: String?
-    let city: String?
-    let bic: String?
-}
-
 enum AccountType: String, CaseIterable, Identifiable {
     case pleaseSelect = "Bitte wählen"
     case salaryAccount = "Lohnkonto"
@@ -2078,32 +1988,4 @@ private struct FinanzenChipFlowLayout: Layout {
             ],
             inMemory: true
         )
-}
-
-enum OpenIBANService {
-    static func validateIBAN(_ iban: String) async throws -> OpenIBANBankLookupResult {
-        var components = URLComponents(string: "https://openiban.com/validate/\(iban)")
-        components?.queryItems = [
-            URLQueryItem(name: "getBIC", value: "true"),
-            URLQueryItem(name: "validateBankCode", value: "true")
-        ]
-
-        guard let url = components?.url else {
-            throw URLError(.badURL)
-        }
-
-        let (data, _) = try await URLSession.shared.data(from: url)
-        let response = try JSONDecoder().decode(OpenIBANResponse.self, from: data)
-
-        guard response.valid else {
-            throw URLError(.badServerResponse)
-        }
-
-        return OpenIBANBankLookupResult(
-            bankName: response.bankData?.name,
-            zip: response.bankData?.zip,
-            city: response.bankData?.city,
-            bic: response.bankData?.bic
-        )
-    }
 }
