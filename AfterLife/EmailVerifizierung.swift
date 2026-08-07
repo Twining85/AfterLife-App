@@ -13,7 +13,7 @@ struct EmailVerifizierung: View {
     @State private var wirdGeprueft = false
     @State private var wirdGesendet = false
     @State private var challenge: EmailVerifizierungsChallenge?
-    @State private var verbleibendeSekunden = 60
+    @State private var verbleibendeSekunden = 120
     @State private var countdownID = UUID()
     @FocusState private var codeFeldIstFokussiert: Bool
 

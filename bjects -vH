@@ -1,0 +1,306 @@
+[33mcommit b4fb7e8e9821c92b60add2bb13532c2abbc8089f[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: René Engeler <r_engeler@me.com>
+Date:   Thu Aug 6 13:07:36 2026 +0200
+
+    Stand 6. August, Mittag - Export PDF auch für Herzenstücke umgesetzt
+
+ AfterLife/AfterLifeApp.swift                                                |   4 [32m+[m
+ AfterLife/Dokumente.swift                                                   |  84 [32m++++[m[31m-[m
+ AfterLife/DossierFloatingNavigation.swift                                   |   6 [32m+[m
+ AfterLife/Herzensstuecke.swift                                              | 626 [32m++++++++++++++++++++++++++++++++++++[m
+ AfterLife/HerzensstueckeModell.swift                                        | 152 [32m+++++++++[m
+ AfterLife/Home.swift                                                        |  15 [32m+[m
+ AfterLife/PDFExportService.swift                                            |   2 [32m+[m
+ AfterLife/Profil.swift                                                      |  60 [32m+++[m[31m-[m
+ AfterLife/VorsorgeBereichStatus.swift                                       |   1 [32m+[m
+ AfterLifeTests/AfterLifeTests.swift                                         |  69 [32m++++[m
+ Documentation/Compliance/reChaptcha.png                                     | Bin [31m0[m -> [32m277192[m bytes
+ Documentation/Herzensstuecke-Legacy-Liste.md                                | 154 [32m+++++++++[m
+ Rechnung 7978656.pdf => Documentation/Rechnung 7978656.pdf                  | Bin
+ Documentation/Rechnung 8054042.pdf                                          | Bin [31m0[m -> [32m161543[m bytes
+ Documentation/Tschluessli.pdf                                               | Bin [31m0[m -> [32m2458245[m bytes
+ DossierExportMapper.swift                                                   | 122 [32m++++++[m[31m-[m
+ DossierPDFExportModels.swift                                                |   7 [32m+[m[31m-[m
+ Icons/1024x1014 eckig AppIcon.png                                           | Bin [31m0[m -> [32m564067[m bytes
+ Icons/1024x1014 eckig.png                                                   | Bin [31m0[m -> [32m695154[m bytes
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_AR_blk_102417.eps      | Bin [31m0[m -> [32m4096290[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_AR_RGB_blk_102417.svg  |  34 [32m++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_AR_wht_102417.eps      | Bin [31m0[m -> [32m4087254[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_AR_RGB_wht_102417.svg  |  36 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_AZ_blk_100517.eps      | Bin [31m0[m -> [32m4097230[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_AZ_RGB_blk_100517.svg  |  41 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_AZ_wht_100517.eps      | Bin [31m0[m -> [32m4089126[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_AZ_RGB_wht_100517.svg  |  41 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_BG_blk_100217.eps      | Bin [31m0[m -> [32m4092130[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_BG_RGB_blk_100217.svg  |  40 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_BG_wht_100217.eps      | Bin [31m0[m -> [32m4083122[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_BG_RGB_wht_100217.svg  |  40 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_CAES_blk_082124.eps    | Bin [31m0[m -> [32m3465098[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_CAES_blk_082124.svg    | 134 [32m++++++++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_CAES_wht_082124.eps    | Bin [31m0[m -> [32m3465250[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_CAES_wht_082124.svg    | 130 [32m++++++++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_CNSC_blk_092917.eps    | Bin [31m0[m -> [32m4092382[m bytes
+ .../SVG/Download_on_the_App_Store_Badge_CNSC_RGB_blk_092917.svg             |  29 [32m++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_CNSC_wht_092917.eps    | Bin [31m0[m -> [32m4085206[m bytes
+ .../SVG/Download_on_the_App_Store_Badge_CNSC_RGB_wht_092917.svg             |  29 [32m++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_CZ_blk_092917.eps      | Bin [31m0[m -> [32m4094394[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_CZ_RGB_blk_092917.svg  |  42 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_CZ_wht_092917.eps      | Bin [31m0[m -> [32m4085118[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_CZ_RGB_wht_092917.svg  |  42 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_DE_blk_092917.eps      | Bin [31m0[m -> [32m4092578[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_DE_RGB_blk_092917.svg  |  40 [32m+++[m
+ .../Download-on-the-App-Store/DE/Download_on_App_Store/Download_schwarz.png | Bin [31m0[m -> [32m18878[m bytes
+ Icons/Download-on-the-App-Store/DE/Download_on_App_Store/Download_weiss.png | Bin [31m0[m -> [32m21955[m bytes
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_DE_wht_092917.eps      | Bin [31m0[m -> [32m4083466[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_DE_RGB_wht_092917.svg  |  40 [32m+++[m
+ .../DE/Download_on_the_App_Store_Badge_DE_RGB_wht_092917.svg                |  40 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_DK_blk_100217.eps      | Bin [31m0[m -> [32m4089550[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_DK_RGB_blk_100217.svg  |  38 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_DK_wht_100217.eps      | Bin [31m0[m -> [32m4080822[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_DK_RGB_wht_100217.svg  |  38 [32m+++[m
+ Icons/Download-on-the-App-Store/Download-on-the-App-Store.zip               | Bin [31m0[m -> [32m336264341[m bytes
+ .../Download_on_the_App_Store_Badge_DE_RGB_blk_092917.svg                   |  40 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_EE_blk_100217.eps      | Bin [31m0[m -> [32m4096790[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_EE_RGB_blk_100217.svg  |  46 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_EE_wht_100217.eps      | Bin [31m0[m -> [32m4090710[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_EE_RGB_wht_00217.svg   |  44 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_ES_blk_100217.eps      | Bin [31m0[m -> [32m4098446[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_ES_RGB_blk_100217.svg  |  47 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_ES_wht_100217.eps      | Bin [31m0[m -> [32m4088490[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_ES_RGB_wht_100217.svg  |  47 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_ESMX_blk_100217.eps    | Bin [31m0[m -> [32m4099718[m bytes
+ .../SVG/Download_on_the_App_Store_Badge_ESMX_RGB_blk_100217.svg             |  47 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_ESMX_wht_100217.eps    | Bin [31m0[m -> [32m4088214[m bytes
+ .../SVG/Download_on_the_App_Store_Badge_ESMX_RGB_wht_100217.svg             |  47 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_FI_blk_100217.eps      | Bin [31m0[m -> [32m4094470[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_FI_RGB_blk_100217.svg  |  41 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_FI_wht_100217.eps      | Bin [31m0[m -> [32m4086754[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_FI_RGB_wht_100217.svg  |  41 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_FR_blk_100517.eps      | Bin [31m0[m -> [32m4100718[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_FR_RGB_blk_100517.svg  |  50 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_FR_wht_100217.eps      | Bin [31m0[m -> [32m4092454[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_FR_RGB_wht_100217.svg  |  50 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_FRCA_blk_100517.eps    | Bin [31m0[m -> [32m4100718[m bytes
+ .../SVG/Download_on_the_App_Store_Badge_FRCA_RGB_blk_100517.svg             |  50 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_FRCA_wht_100217.eps    | Bin [31m0[m -> [32m4092454[m bytes
+ .../SVG/Download_on_the_App_Store_Badge_FRCA_RGB_wht_100217.svg             |  50 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_GR_blk_100217.eps      | Bin [31m0[m -> [32m4092078[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_GR_RGB_blk_100217.svg  |  40 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_GR_wht_100217.eps      | Bin [31m0[m -> [32m4082834[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_GR_RGB_wht_100217.svg  |  40 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_Blk_HB_CI_111524.eps   | Bin [31m0[m -> [32m627742[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_Blk_HB_CI_111524.svg   |  50 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_Wht_HB_CI_111524.eps   | Bin [31m0[m -> [32m628210[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_Wht_HB_CI_111524.svg   |  46 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_CNTC_blk_100217.eps    | Bin [31m0[m -> [32m4091774[m bytes
+ .../SVG/Download_on_the_App_Store_Badge_CNTC_RGB_blk_100217.svg             |  29 [32m++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_CNTC_wht_100217.eps    | Bin [31m0[m -> [32m4083882[m bytes
+ .../SVG/Download_on_the_App_Store_Badge_CNTC_RGB_wht_100217.svg             |  29 [32m++[m
+ .../HR/Black_lockup/EPS/Download_on_the_App_Store_Badge_HR_blk_082124.eps   | Bin [31m0[m -> [32m3457990[m bytes
+ .../HR/Black_lockup/SVG/Download_on_the_App_Store_Badge_HR_blk_082124.svg   | 108 [32m+++++++[m
+ .../HR/White_lockup/EPS/Download_on_the_App_Store_Badge_HR_wht_082124.eps   | Bin [31m0[m -> [32m3462554[m bytes
+ .../HR/White_lockup/SVG/Download_on_the_App_Store_Badge_HR_wht_082124.svg   | 104 [32m++++++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_HU_blk_120823.eps      | Bin [31m0[m -> [32m4107826[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_HU_RGB_blk_120823.svg  | 147 [32m+++++++++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_HU_wht_100317.eps      | Bin [31m0[m -> [32m4091022[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_HU_RGB_wht_100317.svg  |  49 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_ID_blk_100317.eps      | Bin [31m0[m -> [32m4094594[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_ID_RGB_blk_100317.svg  |  43 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_ID_wht_100317.eps      | Bin [31m0[m -> [32m4085154[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_ID_RGB_wht_100317.svg  |  43 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_IL_blk_102517.eps      | Bin [31m0[m -> [32m4092170[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_IL_RGB_blk_102517.svg  |  34 [32m++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_IL_wht_102517.eps      | Bin [31m0[m -> [32m4083218[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_IL_RGB_wht_102517.svg  |  36 [32m+++[m
+ .../EPS/Apple_App_Store_Download_on_the_Badge_Wht_IN-BN_CI_022526.eps       | Bin [31m0[m -> [32m3372866[m bytes
+ .../SVG/Apple_App_Store_Download_on_the_Badge_Wht_IN-BN_CI_022526.svg       |  50 [32m+++[m
+ .../EPS/Apple_App_Store_Download_on_the_Badge_Blk_IN-BN_CI_022526.eps       | Bin [31m0[m -> [32m3370266[m bytes
+ .../SVG/Apple_App_Store_Download_on_the_Badge_Blk_IN-BN_CI_022526.svg       |  54 [32m++++[m
+ .../EPS/Apple_App_Store_Download_on_the_Badge_Wht_IN-GU_CI_022526.eps       | Bin [31m0[m -> [32m3342934[m bytes
+ .../SVG/Apple_App_Store_Download_on_the_Badge_Wht_IN-GU_CI_022526.svg       |  49 [32m+++[m
+ .../EPS/Apple_App_Store_Download_on_the_Badge_Blk_IN-GU_CI_022526.eps       | Bin [31m0[m -> [32m3359238[m bytes
+ .../SVG/Apple_App_Store_Download_on_the_Badge_Blk_IN-GU_CI_031226.svg       |  53 [32m+++[m
+ .../EPS/Apple_App_Store_Download_on_the_Badge_Wht_IN-KN_CI_022526.eps       | Bin [31m0[m -> [32m3399810[m bytes
+ .../SVG/Apple_App_Store_Download_on_the_Badge_Wht_IN-KN_CI_022526.svg       |  45 [32m+++[m
+ .../EPS/Apple_App_Store_Download_on_the_Badge_Blk_IN-KN_CI_022526.eps       | Bin [31m0[m -> [32m3393586[m bytes
+ .../SVG/Apple_App_Store_Download_on_the_Badge_Blk_IN-KN_CI_022526.svg       |  49 [32m+++[m
+ .../EPS/Apple_App_Store_Download_on_the_Badge_Wht_IN-ML_CI_022526.eps       | Bin [31m0[m -> [32m3377498[m bytes
+ .../SVG/Apple_App_Store_Download_on_the_Badge_Wht_IN-ML_CI_022526.svg       |  53 [32m+++[m
+ .../EPS/Apple_App_Store_Download_on_the_Badge_Blk_IN-ML_CI_022526.eps       | Bin [31m0[m -> [32m3395070[m bytes
+ .../SVG/Apple_App_Store_Download_on_the_Badge_Blk_IN-ML_CI_022526.svg       |  57 [32m++++[m
+ .../EPS/Apple_App_Store_Download_on_the_Badge_Wht_IN-MR_CI_022526.eps       | Bin [31m0[m -> [32m3352106[m bytes
+ .../SVG/Apple_App_Store_Download_on_the_Badge_Wht_IN-MR_CI_022526.svg       |  48 [32m+++[m
+ .../EPS/Apple_App_Store_Download_on_the_Badge_Blk_IN-MR_CI_022526.eps       | Bin [31m0[m -> [32m3353338[m bytes
+ .../SVG/Apple_App_Store_Download_on_the_Badge_Blk_IN-MR_CI_022526.svg       |  52 [32m+++[m
+ .../EPS/Apple_App_Store_Download_on_the_Badge_Wht_IN-OR_CI_022526.eps       | Bin [31m0[m -> [32m3353910[m bytes
+ .../SVG/Apple_App_Store_Download_on_the_Badge_Wht_IN-OR_CI_022526.svg       |  51 [32m+++[m
+ .../EPS/Apple_App_Store_Download_on_the_Badge_Blk_IN-OR_CI_022526.eps       | Bin [31m0[m -> [32m3372882[m bytes
+ .../SVG/Apple_App_Store_Download_on_the_Badge_Blk_IN-OR_CI_022526.svg       |  55 [32m++++[m
+ .../EPS/Apple_App_Store_Download_on_the_Badge_Wht_IN-PA_CI_022526.eps       | Bin [31m0[m -> [32m3370966[m bytes
+ .../SVG/Apple_App_Store_Download_on_the_Badge_Wht_IN-PA_CI_022526.svg       |  48 [32m+++[m
+ .../EPS/Apple_App_Store_Download_on_the_Badge_Blk_IN-PA_CI_022526.eps       | Bin [31m0[m -> [32m3377350[m bytes
+ .../SVG/Apple_App_Store_Download_on_the_Badge_Blk_IN-PA_CI_022526.svg       |  52 [32m+++[m
+ .../EPS/Apple_App_Store_Download_on_the_Badge_Wht_IN-TA_CI_022526.eps       | Bin [31m0[m -> [32m3385382[m bytes
+ .../SVG/Apple_App_Store_Download_on_the_Badge_Wht_IN-TA_CI_022526.svg       |  51 [32m+++[m
+ .../EPS/Apple_App_Store_Download_on_the_Badge_Blk_IN-TA_CI_022526.eps       | Bin [31m0[m -> [32m3384166[m bytes
+ .../SVG/Apple_App_Store_Download_on_the_Badge_Blk_IN-TA_CI_022526.svg       |  55 [32m++++[m
+ .../EPS/Apple_App_Store_Download_on_the_Badge_Wht_IN-TE_CI_022526.eps       | Bin [31m0[m -> [32m3395810[m bytes
+ .../SVG/Apple_App_Store_Download_on_the_Badge_Wht_IN-TE_CI_022526.svg       |  44 [32m+++[m
+ .../EPS/Apple_App_Store_Download_on_the_Badge_Blk_IN-TE_CI_022526.eps       | Bin [31m0[m -> [32m3379806[m bytes
+ .../SVG/Apple_App_Store_Download_on_the_Badge_Blk_IN-TE_CI_022526.svg       |  48 [32m+++[m
+ .../EPS/Apple_App_Store_Download_on_the_Badge_Wht_IN-UR_CI_022526.eps       | Bin [31m0[m -> [32m3379470[m bytes
+ .../SVG/Apple_App_Store_Download_on_the_Badge_Wht_IN-UR_CI_022526.svg       |  46 [32m+++[m
+ .../EPS/Apple_App_Store_Download_on_the_Badge_Blk_IN-UR_CI_022526.eps       | Bin [31m0[m -> [32m3378926[m bytes
+ .../SVG/Apple_App_Store_Download_on_the_Badge_Blk_IN-UR_CI_022526.svg       |  50 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_Blk_IN_CI_091224.eps   | Bin [31m0[m -> [32m3463162[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_Blk_IN_CI_091224.svg   | 156 [32m+++++++++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_Wht_IN_CI_091224.eps   | Bin [31m0[m -> [32m3488526[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_Wht_IN_CI_091224.svg   | 148 [32m+++++++++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_IT_blk_100317.eps      | Bin [31m0[m -> [32m4094582[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_IT_RGB_blk_100317.svg  |  42 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_IT_wht_100317.eps      | Bin [31m0[m -> [32m4085398[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_IT_RGB_wht_100317.svg  |  42 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_JP_blk_100317.eps      | Bin [31m0[m -> [32m4096426[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_JP_RGB_blk_100317.svg  |  35 [32m++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_JP_wht_100317.eps      | Bin [31m0[m -> [32m4088886[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_JP_RGB_wht_100317.svg  |  35 [32m++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_KR_blk_100317.eps      | Bin [31m0[m -> [32m4094218[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_KR_RGB_blk_100317.svg  |  35 [32m++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_KR_wht_100317.eps      | Bin [31m0[m -> [32m4086986[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_KR_RGB_wht_100317.svg  |  35 [32m++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_LT_blk_100317.eps      | Bin [31m0[m -> [32m4099146[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_LT_RGB_blk_100317.svg  |  47 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_LT_wht_100317.eps      | Bin [31m0[m -> [32m4089470[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_LT_RGB_wht_100317.svg  |  47 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_LV_blk_100317.eps      | Bin [31m0[m -> [32m4098790[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_LV_RGB_blk_100317.svg  |  47 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_LV_wht_100317.eps      | Bin [31m0[m -> [32m4088990[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_LV_RGB_wht_100317.svg  |  47 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_MT_blk_100317.eps      | Bin [31m0[m -> [32m4092718[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_MT_RGB_blk_100317.svg  |  44 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_MT_wht_100317.eps      | Bin [31m0[m -> [32m4083482[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_MT_RGB_wht_100317.svg  |  44 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_MY_blk_100317.eps      | Bin [31m0[m -> [32m4098670[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_MY_RGB_blk_100317.svg  |  46 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_MY_wht_100317.eps      | Bin [31m0[m -> [32m4088862[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_MY_RGB_wht_100317.svg  |  46 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_NL_blk_100317.eps      | Bin [31m0[m -> [32m4096590[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_NL_RGB_blk_100317.svg  |  45 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_NL_wht_100317.eps      | Bin [31m0[m -> [32m4086970[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_NL_RGB_wht_101217.svg  |  45 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_NO_blk_100317.eps      | Bin [31m0[m -> [32m4095758[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_NO_RGB_blk_100317.svg  |  43 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_NO_wht_100317.eps      | Bin [31m0[m -> [32m4086450[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_NO_RGB_wht_100317.svg  |  43 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_PH_blk_100317.eps      | Bin [31m0[m -> [32m4096214[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_PH_RGB_blk_100317.svg  |  45 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_PH_wht_100317.eps      | Bin [31m0[m -> [32m4086742[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_PH_RGB_wht_100317.svg  |  45 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_PL_blk_100317.eps      | Bin [31m0[m -> [32m4092482[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_PL_RGB_blk_100317.svg  |  41 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_PL_wht_100317.eps      | Bin [31m0[m -> [32m4083358[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_PL_RGB_wht_100317.svg  |  41 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_PTBR_blk_100317.eps    | Bin [31m0[m -> [32m4093754[m bytes
+ .../SVG/Download_on_the_App_Store_Badge_PTBR_RGB_blk_092917.svg             |  41 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_PTBR_wht_100317.eps    | Bin [31m0[m -> [32m4084642[m bytes
+ .../SVG/Download_on_the_App_Store_Badge_PTBR_RGB_wht_100317.svg             |  41 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_PTPT_blk_100317.eps    | Bin [31m0[m -> [32m4099434[m bytes
+ .../SVG/Download_on_the_App_Store_Badge_PTPT_RGB_blk_100317.svg             |  46 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_PTPT_wht_100317.eps    | Bin [31m0[m -> [32m4089778[m bytes
+ .../SVG/Download_on_the_App_Store_Badge_PTPT_RGB_wht_100317.svg             |  46 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_RO_blk_100317.eps      | Bin [31m0[m -> [32m4101654[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_RO_RGB_blk_100317.svg  |  47 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_RO_wht_100317.eps      | Bin [31m0[m -> [32m4091710[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_RO_RGB_wht_100317.svg  |  47 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_RU_blk_100317.eps      | Bin [31m0[m -> [32m4095778[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_RU_RGB_blk_100317.svg  |  43 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_RU_wht_100317.eps      | Bin [31m0[m -> [32m4086434[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_RU_RGB_wht_100317.svg  |  43 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_SE_blk_100317.eps      | Bin [31m0[m -> [32m4092474[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_SE_RGB_blk_100317.svg  |  39 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_SE_wht_100317.eps      | Bin [31m0[m -> [32m4083554[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_SE_RGB_wht_100317.svg  |  39 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_SI_blk_100317.eps      | Bin [31m0[m -> [32m4092670[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_SI_RGB_blk_100317.svg  |  41 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_SI_wht_100317.eps      | Bin [31m0[m -> [32m4083586[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_SI_RGB_wht_100317.svg  |  41 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_SK_blk_100317.eps      | Bin [31m0[m -> [32m4095586[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_SK_RGB_blk_100317.svg  |  43 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_SK_wht_100317.eps      | Bin [31m0[m -> [32m4086270[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_SK_RGB_wht_100317.svg  |  43 [32m+++[m
+ .../EPS/Apple_App_Store_Download_on_the_Badge_Wht_SL-SL_CI_022526.eps       | Bin [31m0[m -> [32m3355358[m bytes
+ .../SVG/Apple_App_Store_Download_on_the_Badge_Wht_SL-SL_CI_022526.svg       |  51 [32m+++[m
+ .../EPS/Apple_App_Store_Download_on_the_Badge_Blk_SL-SL_CI_022526.eps       | Bin [31m0[m -> [32m3359974[m bytes
+ .../SVG/Apple_App_Store_Download_on_the_Badge_Blk_SL-SL_CI_022526.svg       |  55 [32m++++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_TH_blk_092917.eps      | Bin [31m0[m -> [32m4103606[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_TH_RGB_blk_092917.svg  |  48 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_TH_wht_092917.eps      | Bin [31m0[m -> [32m4095574[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_TH_RGB_wht_092917.svg  |  48 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_TR_blk_100217.eps      | Bin [31m0[m -> [32m4094262[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_TR_RGB_blk_100217.svg  |  40 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_TR_wht_100217.eps      | Bin [31m0[m -> [32m4087078[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_TR_wht_RGB_100217.svg  |  40 [32m+++[m
+ .../UA/Black_lockup/EPS/Download_on_the_App_Store_Badge_UA_blk_082124.eps   | Bin [31m0[m -> [32m3461426[m bytes
+ .../UA/Black_lockup/SVG/Download_on_the_App_Store_Badge_UA_blk_082124.svg   | 125 [32m+++++++[m
+ .../UA/White_lockup/EPS/Download_on_the_App_Store_Badge_UA_wht_082124.eps   | Bin [31m0[m -> [32m3464826[m bytes
+ .../UA/White_lockup/SVG/Download_on_the_App_Store_Badge_UA_wht_082124.svg   | 117 [32m+++++++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_US-UK_blk_092917.eps   | Bin [31m0[m -> [32m4096826[m bytes
+ .../SVG/Download_on_the_App_Store_Badge_US-UK_RGB_blk_092917.svg            |  46 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_US-UK_wht_092917.eps   | Bin [31m0[m -> [32m4086958[m bytes
+ .../SVG/Download_on_the_App_Store_Badge_US-UK_RGB_wht_092917.svg            |  46 [32m+++[m
+ .../Black_lockup/EPS/Download_on_the_App_Store_Badge_VN_blk_100217.eps      | Bin [31m0[m -> [32m4093594[m bytes
+ .../Black_lockup/SVG/Download_on_the_App_Store_Badge_VN_RGB_blk_100217.svg  |  42 [32m+++[m
+ .../White_lockup/EPS/Download_on_the_App_Store_Badge_VN_wht_100217.eps      | Bin [31m0[m -> [32m4085258[m bytes
+ .../White_lockup/SVG/Download_on_the_App_Store_Badge_VN_RGB_wht_100217.svg  |  42 [32m+++[m
+ Icon1.png => Icons/Icon1.png                                                | Bin
+ Icons/Icon1_trans.png                                                       | Bin [31m0[m -> [32m142632[m bytes
+ Icon2.png => Icons/Icon2.png                                                | Bin
+ Icons/Kreis.png                                                             | Bin [31m0[m -> [32m1173438[m bytes
+ Icons/Logo-Sign-in-with-Apple.dmg                                           | Bin [31m0[m -> [32m195405[m bytes
+ Icons/Original.png                                                          | Bin [31m0[m -> [32m3488763[m bytes
+ Icons/Quadrat_abgerundete ecken.jpeg                                        | Bin [31m0[m -> [32m75242[m bytes
+ Icons/Quadrat_runde ecken.jpeg                                              | Bin [31m0[m -> [32m231376[m bytes
+ Icons/Rechteck_runde ecken.png                                              | Bin [31m0[m -> [32m855548[m bytes
+ Icons/alte/Design ohne Titel (1).png                                        | Bin [31m0[m -> [32m930887[m bytes
+ Icons/alte/Design ohne Titel (10).png                                       | Bin [31m0[m -> [32m845176[m bytes
+ Icons/alte/Design ohne Titel (11).png                                       | Bin [31m0[m -> [32m833247[m bytes
+ Icons/alte/Design ohne Titel (12).png                                       | Bin [31m0[m -> [32m846578[m bytes
+ Icons/alte/Design ohne Titel (13).png                                       | Bin [31m0[m -> [32m808329[m bytes
+ Icons/alte/Design ohne Titel (14).png                                       | Bin [31m0[m -> [32m723354[m bytes
+ Icons/alte/Design ohne Titel (15).png                                       | Bin [31m0[m -> [32m805324[m bytes
+ Icons/alte/Design ohne Titel (16).png                                       | Bin [31m0[m -> [32m944673[m bytes
+ Icons/alte/Design ohne Titel (17).png                                       | Bin [31m0[m -> [32m660974[m bytes
+ Icons/alte/Design ohne Titel (18) App Icon.png                              | Bin [31m0[m -> [32m87553[m bytes
+ Icons/alte/Design ohne Titel (18) tansparent.png                            | Bin [31m0[m -> [32m172460[m bytes
+ Icons/alte/Design ohne Titel (18).png                                       | Bin [31m0[m -> [32m485060[m bytes
+ Icons/alte/Design ohne Titel (19).png                                       | Bin [31m0[m -> [32m716996[m bytes
+ Icons/alte/Design ohne Titel (2).png                                        | Bin [31m0[m -> [32m1041242[m bytes
+ Icons/alte/Design ohne Titel (20).png                                       | Bin [31m0[m -> [32m914326[m bytes
+ Icons/alte/Design ohne Titel (21).png                                       | Bin [31m0[m -> [32m1006190[m bytes
+ Icons/alte/Design ohne Titel (22).png                                       | Bin [31m0[m -> [32m874168[m bytes
+ Icons/alte/Design ohne Titel (23).png                                       | Bin [31m0[m -> [32m971726[m bytes
+ Icons/alte/Design ohne Titel (3).png                                        | Bin [31m0[m -> [32m1214342[m bytes
+ Icons/alte/Design ohne Titel (4).png                                        | Bin [31m0[m -> [32m816669[m bytes
+ Icons/alte/Design ohne Titel (5).png                                        | Bin [31m0[m -> [32m906539[m bytes
+ Icons/alte/Design ohne Titel (6).png                                        | Bin [31m0[m -> [32m931207[m bytes
+ Icons/alte/Design ohne Titel (7).png                                        | Bin [31m0[m -> [32m906238[m bytes
+ Icons/alte/Design ohne Titel (8).png                                        | Bin [31m0[m -> [32m884298[m bytes
+ Icons/alte/Design ohne Titel (9).png                                        | Bin [31m0[m -> [32m834927[m bytes
+ Icons/alte/Design ohne Titel.png                                            | Bin [31m0[m -> [32m936461[m bytes
+ Icon1_trans.png => Icons/alte/Icon1_trans.png                               | Bin
+ PDFSectionRenderer.swift                                                    |  77 [32m++++[m[31m-[m
+ Screenshots/Auswahl Bereiche.png                                            | Bin [31m0[m -> [32m450353[m bytes
+ Screenshots/Dokumente.png                                                   | Bin [31m0[m -> [32m1320621[m bytes
+ Screenshots/Export1.png                                                     | Bin [31m0[m -> [32m703474[m bytes
+ Screenshots/Export2.png                                                     | Bin [31m0[m -> [32m508346[m bytes
+ Screenshots/Finanzen.png                                                    | Bin [31m0[m -> [32m751936[m bytes
+ Screenshots/Home-Start.png                                                  | Bin [31m0[m -> [32m2875573[m bytes
+ "Screenshots/J\303\244hrliche Pr\303\274fung.png"                           | Bin [31m0[m -> [32m638414[m bytes
+ Screenshots/Kontakte.png                                                    | Bin [31m0[m -> [32m834979[m bytes
+ Screenshots/Screen1.png                                                     | Bin [31m0[m -> [32m3114070[m bytes
+ Screenshots/Screen2.png                                                     | Bin [31m0[m -> [32m3254699[m bytes
+ Screenshots/Screen3.png                                                     | Bin [31m0[m -> [32m2977041[m bytes
+ Screenshots/Screen4.png                                                     | Bin [31m0[m -> [32m2271179[m bytes
+ Screenshots/Vertrauensperson.png                                            | Bin [31m0[m -> [32m531504[m bytes
+ "Screenshots/W\303\274nsche.png"                                            | Bin [31m0[m -> [32m804109[m bytes
+ 299 files changed, 7150 insertions(+), 15 deletions(-)

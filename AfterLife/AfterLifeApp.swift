@@ -241,7 +241,7 @@ struct AppStartView: View {
         .onReceive(
             NotificationCenter.default.publisher(
                 for: UIApplication
-                    .willResignActiveNotification
+                    .didEnterBackgroundNotification
             )
         ) { _ in
             guard !biometriePruefungImProfilLaeuft,
