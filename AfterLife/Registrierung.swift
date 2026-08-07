@@ -28,7 +28,6 @@ struct Registrierung: View {
         case email
         case passwort
         case passwortWiederholung
-        case captcha
     }
 
 
@@ -57,12 +56,10 @@ struct Registrierung: View {
     @State private var passwortIstSichtbar = false
     @State private var fehlermeldung = ""
     @State private var homeVollbildAnzeigen = false
+    @State private var emailVerifizierungAnzeigen = false
     @State private var akzeptiertDisclaimer = false
     @State private var akzeptiertNutzungsbedingungen = false
     @State private var rechtlichesAnzeigen = false
-    @State private var captchaAntwort = ""
-    @State private var captchaZahl1 = Int.random(in: 2...9)
-    @State private var captchaZahl2 = Int.random(in: 2...9)
     
     @FocusState private var aktivesEingabefeld: Eingabefeld?
 
@@ -302,7 +299,6 @@ struct Registrierung: View {
                 fehlermeldungBox
             }
 
-            captchaKarte
             hinweisKarte
             registrierungsButtonBereich
             weitereAnmeldungHinweis
@@ -386,7 +382,7 @@ struct Registrierung: View {
                     platzhalter: "Passwort erneut eingeben",
                     text: $passwortWiederholung,
                     fokus: .passwortWiederholung,
-                    naechsterFokus: .captcha,
+                    naechsterFokus: .passwortWiederholung,
                     augeAnzeigen: false
                 )
 
@@ -526,45 +522,6 @@ struct Registrierung: View {
         }
     }
 
-    private var captchaKarte: some View {
-        registrierungKarteView(titel: "Kurze Sicherheitsfrage", systemImage: "person.crop.circle.badge.checkmark") {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Damit stellen wir sicher, dass die Registrierung bewusst erfolgt.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                HStack(spacing: 12) {
-                    Text("Was ist \(captchaZahl1) + \(captchaZahl2)?")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(registrierungTextPrimaer)
-
-                    Spacer(minLength: 0)
-
-                    TextField("Antwort", text: $captchaAntwort)
-                        .keyboardType(.numberPad)
-                        .focused($aktivesEingabefeld, equals: .captcha)
-                        .multilineTextAlignment(.center)
-                        .frame(width: 92)
-                        .padding(.vertical, 11)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(Color.white.opacity(0.82))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(registrierungAkzent.opacity(0.12), lineWidth: 1)
-                        )
-                }
-
-                if !captchaAntwort.isEmpty && !captchaIstGueltig {
-                    Text("Die Antwort ist nicht korrekt.")
-                        .font(.caption2)
-                        .foregroundStyle(.red)
-                }
-            }
-        }
-    }
-
     private var registrierungsButtonBereich: some View {
         VStack(spacing: 8) {
             Button {
@@ -599,6 +556,11 @@ struct Registrierung: View {
         .fullScreenCover(isPresented: $homeVollbildAnzeigen) {
             Home()
                 .interactiveDismissDisabled()
+        }
+        .fullScreenCover(isPresented: $emailVerifizierungAnzeigen) {
+            EmailVerifizierung(email: bereinigteEmailOriginalschreibweise) {
+                registrierungNachVerifizierungAbschliessen()
+            }
         }
         .padding(.top, 2)
     }
@@ -694,16 +656,10 @@ struct Registrierung: View {
     private var registrierungErlaubt: Bool {
         akzeptiertDisclaimer &&
         akzeptiertNutzungsbedingungen &&
-        captchaIstGueltig &&
         registrierungsEmailIstFormalGueltig &&
         bereinigtesPasswort.count >= 8 &&
         passwoerterStimmenUeberein
     }
-
-    private var captchaIstGueltig: Bool {
-        Int(captchaAntwort.trimmingCharacters(in: .whitespacesAndNewlines)) == captchaZahl1 + captchaZahl2
-    }
-
 
     private var bereinigteRegistrierungsEmail: String {
         email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -755,12 +711,6 @@ struct Registrierung: View {
             return
         }
 
-        guard captchaIstGueltig else {
-            fehlermeldung = "Bitte löse das Captcha korrekt."
-            captchaNeuLaden()
-            return
-        }
-
         guard registrierungsEmailIstFormalGueltig else {
             fehlermeldung = "Bitte gib eine gültige E-Mail-Adresse ein."
             return
@@ -777,6 +727,10 @@ struct Registrierung: View {
         }
 
 
+        emailVerifizierungAnzeigen = true
+    }
+
+    private func registrierungNachVerifizierungAbschliessen() {
         let bereinigteEmail = bereinigteEmailOriginalschreibweise
 
         do {
@@ -796,6 +750,7 @@ struct Registrierung: View {
             profilIstVorhanden = true
             direktNachRegistrierungEingeloggt = true
             istEingeloggt = true
+            emailVerifizierungAnzeigen = false
             homeVollbildAnzeigen = true
         } catch {
             fehlermeldung = "Die Registrierung konnte nicht gespeichert werden: \(error.localizedDescription)"
@@ -842,11 +797,6 @@ struct Registrierung: View {
     }
 
 
-    private func captchaNeuLaden() {
-        captchaAntwort = ""
-        captchaZahl1 = Int.random(in: 2...9)
-        captchaZahl2 = Int.random(in: 2...9)
-    }
 }
 
 #Preview {
