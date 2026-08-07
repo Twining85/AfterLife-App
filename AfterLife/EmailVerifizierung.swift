@@ -192,7 +192,7 @@ struct EmailVerifizierung: View {
 
         do {
             challenge = try await EmailVerifizierungsService.shared.codeSenden(an: email)
-            verbleibendeSekunden = 60
+            verbleibendeSekunden = 120
             countdownID = UUID()
             wirdGesendet = false
             codeFeldIstFokussiert = true
