@@ -59,11 +59,33 @@ final class PDFSectionRenderer {
 
         var y = rect.minY + theme.spacing.cardPadding
         let contentRect = rect.insetBy(dx: theme.spacing.cardPadding, dy: 0)
-        drawText(section.titel, in: contentRect, y: &y, font: theme.typography.sectionTitle, color: .black)
+        let zeigtHerzensstueckVorschau = section.darstellung == .herzensstueck
+        let previewSize: CGFloat = 86
+        let headerRect = zeigtHerzensstueckVorschau
+            ? CGRect(
+                x: contentRect.minX,
+                y: contentRect.minY,
+                width: contentRect.width - previewSize - 16,
+                height: contentRect.height
+            )
+            : contentRect
+
+        drawText(section.titel, in: headerRect, y: &y, font: theme.typography.sectionTitle, color: .black)
 
         if let untertitel = section.untertitel,
            !untertitel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            drawText(untertitel, in: contentRect, y: &y, font: theme.typography.secondary, color: .black)
+            drawText(untertitel, in: headerRect, y: &y, font: theme.typography.secondary, color: .black)
+        }
+
+        if zeigtHerzensstueckVorschau {
+            let previewRect = CGRect(
+                x: contentRect.maxX - previewSize,
+                y: rect.minY + theme.spacing.cardPadding,
+                width: previewSize,
+                height: previewSize
+            )
+            drawHerzensstueckPreview(section.vorschaubildDaten, rect: previewRect, in: layout)
+            y = max(y, previewRect.maxY + 8)
         }
 
         y += 6
@@ -97,6 +119,43 @@ final class PDFSectionRenderer {
         path.addClip()
         layout.context.cgContext.interpolationQuality = .high
         image.draw(in: drawRect)
+        layout.context.cgContext.restoreGState()
+    }
+
+    private func drawHerzensstueckPreview(_ data: Data?, rect: CGRect, in layout: PDFLayoutEngine) {
+        let path = UIBezierPath(roundedRect: rect, cornerRadius: 14)
+        layout.context.cgContext.saveGState()
+        UIColor(red: 0.78, green: 0.34, blue: 0.16, alpha: 0.10).setFill()
+        path.fill()
+        path.addClip()
+
+        if let data, let image = UIImage(data: data) {
+            let imageAspect = image.size.width / max(image.size.height, 1)
+            let rectAspect = rect.width / max(rect.height, 1)
+            let drawSize = imageAspect > rectAspect
+                ? CGSize(width: rect.height * imageAspect, height: rect.height)
+                : CGSize(width: rect.width, height: rect.width / max(imageAspect, 0.01))
+            let drawRect = CGRect(
+                x: rect.midX - drawSize.width / 2,
+                y: rect.midY - drawSize.height / 2,
+                width: drawSize.width,
+                height: drawSize.height
+            )
+            layout.context.cgContext.interpolationQuality = .high
+            image.draw(in: drawRect)
+        } else if let symbol = UIImage(systemName: "photo")?.withTintColor(
+            UIColor(red: 0.78, green: 0.34, blue: 0.16, alpha: 0.78),
+            renderingMode: .alwaysOriginal
+        ) {
+            let symbolSize = CGSize(width: 30, height: 25)
+            symbol.draw(in: CGRect(
+                x: rect.midX - symbolSize.width / 2,
+                y: rect.midY - symbolSize.height / 2,
+                width: symbolSize.width,
+                height: symbolSize.height
+            ))
+        }
+
         layout.context.cgContext.restoreGState()
     }
 
@@ -138,13 +197,21 @@ final class PDFSectionRenderer {
     private func estimatedHeight(for section: DossierPDFSection, width: CGFloat) -> CGFloat {
         let contentWidth = width - theme.spacing.cardPadding * 2
         var height = theme.spacing.cardPadding * 2
-        height += measuredTextHeight(section.titel, font: theme.typography.sectionTitle, width: contentWidth)
+        let zeigtHerzensstueckVorschau = section.darstellung == .herzensstueck
+        let headerWidth = zeigtHerzensstueckVorschau ? contentWidth - 102 : contentWidth
+        var headerHeight = measuredTextHeight(section.titel, font: theme.typography.sectionTitle, width: headerWidth)
+        height += headerHeight
         height += theme.spacing.lineSpacing
 
         if let untertitel = section.untertitel,
            !untertitel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            height += measuredTextHeight(untertitel, font: theme.typography.secondary, width: contentWidth)
-            height += theme.spacing.lineSpacing
+            let subtitleHeight = measuredTextHeight(untertitel, font: theme.typography.secondary, width: headerWidth)
+            height += subtitleHeight + theme.spacing.lineSpacing
+            headerHeight += subtitleHeight + theme.spacing.lineSpacing
+        }
+
+        if zeigtHerzensstueckVorschau, headerHeight < 86 {
+            height += 86 - headerHeight
         }
 
         height += 6

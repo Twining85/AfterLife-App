@@ -59,6 +59,7 @@ enum DossierPDFChapterType: String {
     case dokumente
     case abos
     case vertrauensperson
+    case herzensstuecke
 }
 
 struct DossierPDFSection: Identifiable {
@@ -67,19 +68,22 @@ struct DossierPDFSection: Identifiable {
     var untertitel: String?
     var items: [DossierPDFItem]
     var darstellung: DossierPDFSectionStyle
+    var vorschaubildDaten: Data?
 
     init(
         id: UUID = UUID(),
         titel: String,
         untertitel: String? = nil,
         items: [DossierPDFItem],
-        darstellung: DossierPDFSectionStyle = .karte
+        darstellung: DossierPDFSectionStyle = .karte,
+        vorschaubildDaten: Data? = nil
     ) {
         self.id = id
         self.titel = titel
         self.untertitel = untertitel
         self.items = items
         self.darstellung = darstellung
+        self.vorschaubildDaten = vorschaubildDaten
     }
 }
 
@@ -89,6 +93,7 @@ enum DossierPDFSectionStyle {
     case persoenlicherText
     case kontaktkarte
     case statusListe
+    case herzensstueck
 }
 
 struct DossierPDFItem: Identifiable {

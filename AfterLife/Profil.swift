@@ -35,6 +35,7 @@ struct ProfilView: View {
     @Query private var gespeicherteSteuerdokumente: [SteuerdokumentModell]
     @Query(sort: \FotoalbumBildModell.reihenfolge) private var gespeicherteFotos: [FotoalbumBildModell]
     @Query(sort: \DokumenteModell.hochgeladenAm) private var gespeicherteWeitereDokumente: [DokumenteModell]
+    @Query(sort: \HerzensstueckModell.erstelltAm) private var gespeicherteHerzensstuecke: [HerzensstueckModell]
     @Query private var gespeicherteAboModelle: [AboModell]
     @Query private var gespeicherteAboEintraege: [AboEintrag]
     @Query private var gespeicherteVertrauenspersonen: [VertrauenspersonModell]
@@ -214,12 +215,38 @@ struct ProfilView: View {
                 detail: "Verträge, Mitgliedschaften und Logins",
                 status: anzahlAboEintraege == 0 ? "Noch keine Einträge" : "\(anzahlAboEintraege) Einträge",
                 istGefuellt: anzahlAboEintraege > 0
+            ),
+            DossierExportBereich(
+                titel: "Dokumente & Fotoalbum",
+                detail: "Hochgeladene Unterlagen und persönliche Fotos",
+                status: anzahlDokumenteUndFotos == 0
+                    ? "Noch keine Dateien"
+                    : "\(anzahlDokumenteUndFotos) Dateien",
+                istGefuellt: anzahlDokumenteUndFotos > 0
+            ),
+            DossierExportBereich(
+                titel: "Herzensstücke",
+                detail: "Bedeutungsvolle Gegenstände und ihre Geschichten",
+                status: gespeicherteHerzensstuecke.isEmpty
+                    ? "Noch keine Herzensstücke"
+                    : "\(gespeicherteHerzensstuecke.count) hinterlegt",
+                istGefuellt: !gespeicherteHerzensstuecke.isEmpty
             )
         ]
     }
 
+    private var anzahlDokumenteUndFotos: Int {
+        gespeicherteWeitereDokumente.count + gespeicherteFotos.count
+    }
+
+    /// Das Profil ist die Grundlage des Exports. Als Vorsorgebereiche zählen
+    /// die sieben nachfolgenden fachlichen Bereiche.
+    private var anzahlExportBereiche: Int {
+        max(0, dossierExportBereiche.count - 1)
+    }
+
     private var anzahlBereiteExportBereiche: Int {
-        dossierExportBereiche.filter(\.istGefuellt).count
+        dossierExportBereiche.dropFirst().filter(\.istGefuellt).count
     }
 
     var body: some View {
@@ -553,7 +580,7 @@ struct ProfilView: View {
             }
             .sheet(isPresented: $dossierExportSheetAnzeigen) {
                 dossierExportSheet
-                    .presentationDetents([.medium, .large])
+                    .presentationDetents([.large])
                     .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $rechtlichesAnzeigen, onDismiss: {
@@ -1155,7 +1182,7 @@ struct ProfilView: View {
                 Image(systemName: "checkmark.seal.fill")
                     .foregroundStyle(.white)
 
-                Text("\(anzahlBereiteExportBereiche) von \(dossierExportBereiche.count) Bereichen mit Daten bereit")
+                Text("\(anzahlBereiteExportBereiche) von \(anzahlExportBereiche) Bereichen mit Daten bereit")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.white)
             }
@@ -1400,6 +1427,7 @@ struct ProfilView: View {
             wertsachen: gespeicherteWertsachen,
             dokumente: gespeicherteWeitereDokumente,
             fotoalbumBilder: gespeicherteFotos,
+            herzensstuecke: gespeicherteHerzensstuecke,
             aboModelle: gespeicherteAboModelle,
             vertrauenspersonen: lokalHinterlegteVertrauenspersonen,
             options: options,
@@ -1501,6 +1529,32 @@ struct ProfilView: View {
                     daten: foto.bildDaten
                 )
             )
+        }
+
+        for (objektIndex, stueck) in gespeicherteHerzensstuecke
+            .sorted(by: { $0.erstelltAm < $1.erstelltAm })
+            .enumerated() {
+            let objektTitel = stueck.titel.trimmingCharacters(in: .whitespacesAndNewlines)
+            let bezeichnung = objektTitel.isEmpty ? "Herzensstück \(objektIndex + 1)" : objektTitel
+
+            for (dokumentIndex, dokument) in stueck.dokumente
+                .sorted(by: { $0.hinzugefuegtAm < $1.hinzugefuegtAm })
+                .enumerated() where !dokument.dateiDaten.isEmpty {
+                let quittungsname = fallbackDateiname(
+                    dokument.dateiName,
+                    fallback: "Quittung_\(dokumentIndex + 1)"
+                )
+                anhaenge.append(
+                    DossierPDFAttachment(
+                        titel: "\(bezeichnung) - \(quittungsname)",
+                        kategorie: "Herzensstücke - Quittungen",
+                        dateiname: quittungsname,
+                        erstelltAm: dokument.hinzugefuegtAm,
+                        hinweis: "Zum Herzensstück \"\(bezeichnung)\" gespeicherter Beleg.",
+                        daten: dokument.dateiDaten
+                    )
+                )
+            }
         }
 
         return anhaenge

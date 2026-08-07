@@ -8,6 +8,7 @@ enum VorsorgeBereichID: String, CaseIterable, Codable {
     case hinterbliebene
     case dokumente
     case abos
+    case herzensstuecke
 }
 
 struct VorsorgeBereichAktivitaet: Codable, Equatable {

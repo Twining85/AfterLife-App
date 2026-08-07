@@ -1017,6 +1017,8 @@ struct Home: View {
                 DokumenteView()
             case .abos:
                 AbosView()
+            case .herzensstuecke:
+                HerzensstueckeView()
             }
         }
 
@@ -1320,6 +1322,7 @@ struct Home: View {
         case hinterbliebene
         case dokumente
         case abos
+        case herzensstuecke
 
         var id: String { rawValue }
 
@@ -1343,6 +1346,8 @@ struct Home: View {
                 return "folder.fill"
             case .abos:
                 return "rectangle.stack.badge.person.crop.fill"
+            case .herzensstuecke:
+                return "archivebox.fill"
             }
         }
 
@@ -1362,6 +1367,8 @@ struct Home: View {
                 return "Dokumente & Fotoalbum"
             case .abos:
                 return "Abos & Profile"
+            case .herzensstuecke:
+                return "Herzensstücke"
             }
         }
 
@@ -1381,6 +1388,8 @@ struct Home: View {
                 return "Alles sicher abgelegt"
             case .abos:
                 return "Digitales Leben"
+            case .herzensstuecke:
+                return "Dinge mit Bedeutung"
             }
         }
 
@@ -1400,6 +1409,8 @@ struct Home: View {
                 return "Wichtige Dokumente hochladen und Fotoalbum erstellen"
             case .abos:
                 return "Digitale Profile & Social Media, Streamingdienste und Zugänge und Abos"
+            case .herzensstuecke:
+                return "Persönliche Gegenstände, ihre Geschichten und deine Wünsche dazu"
             }
         }
 
@@ -1419,6 +1430,8 @@ struct Home: View {
                 return Color(red: 0.22, green: 0.43, blue: 0.68)
             case .abos:
                 return Color(red: 0.46, green: 0.36, blue: 0.62)
+            case .herzensstuecke:
+                return Color(red: 0.78, green: 0.34, blue: 0.16)
             }
         }
     }
@@ -1860,6 +1873,8 @@ struct Home: View {
                 DokumenteView(dossierKontext: dossierKontext)
             case .abos:
                 AbosView()
+            case .herzensstuecke:
+                HerzensstueckeView()
             }
         }
     }

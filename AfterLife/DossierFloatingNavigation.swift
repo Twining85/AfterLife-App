@@ -9,6 +9,7 @@ enum DossierBereich: String, CaseIterable, Identifiable, Hashable {
     case hinterbliebene
     case dokumente
     case abos
+    case herzensstuecke
 
     var id: String { rawValue }
 
@@ -21,6 +22,7 @@ enum DossierBereich: String, CaseIterable, Identifiable, Hashable {
         case .hinterbliebene: return "Vertrauen"
         case .dokumente: return "Dokumente"
         case .abos: return "Abos"
+        case .herzensstuecke: return "Herzensstücke"
         }
     }
 
@@ -33,6 +35,7 @@ enum DossierBereich: String, CaseIterable, Identifiable, Hashable {
         case .hinterbliebene: return "person.3.fill"
         case .dokumente: return "folder.fill"
         case .abos: return "rectangle.stack.badge.person.crop.fill"
+        case .herzensstuecke: return "archivebox.fill"
         }
     }
 
@@ -45,6 +48,7 @@ enum DossierBereich: String, CaseIterable, Identifiable, Hashable {
         case .hinterbliebene: return Color(red: 0.24, green: 0.50, blue: 0.34)
         case .dokumente: return Color(red: 0.22, green: 0.43, blue: 0.68)
         case .abos: return Color(red: 0.46, green: 0.36, blue: 0.62)
+        case .herzensstuecke: return Color(red: 0.78, green: 0.34, blue: 0.16)
         }
     }
 
@@ -65,6 +69,8 @@ enum DossierBereich: String, CaseIterable, Identifiable, Hashable {
             DokumenteView()
         case .abos:
             AbosView()
+        case .herzensstuecke:
+            HerzensstueckeView()
         }
     }
 }

@@ -46,6 +46,7 @@ struct DossierExportMapper {
         wertsachen: [WertsacheModell] = [],
         dokumente: [DokumenteModell] = [],
         fotoalbumBilder: [FotoalbumBildModell] = [],
+        herzensstuecke: [HerzensstueckModell] = [],
         aboModelle: [AboModell] = [],
         vertrauenspersonen: [VertrauenspersonModell] = [],
         options: DossierPDFExportOptions = .standard,
@@ -68,6 +69,10 @@ struct DossierExportMapper {
                 fotoalbumBilder: fotoalbumBilder,
                 options: options
             ),
+            makeHerzensstueckeChapter(
+                herzensstuecke: herzensstuecke,
+                options: options
+            ),
             makeAbosChapter(
                 aboModelle: aboModelle,
                 options: options
@@ -88,12 +93,13 @@ struct DossierExportMapper {
         let finanzDaten = bankkonten.map(\.aktualisiertAm) + schulden.map(\.aktualisiertAm) + versicherungen.map(\.aktualisiertAm) + liegenschaften.map(\.aktualisiertAm) + wertsachen.map(\.aktualisiertAm)
         let dokumentDaten = dokumente.map(\.hochgeladenAm) + fotoalbumBilder.map(\.hinzugefuegtAm)
         let aboDaten = aboModelle.map(\.aktualisiertAm) + aboModelle.flatMap { $0.abos.map(\.aktualisiertAm) }
+        let herzensstueckeDaten = herzensstuecke.map(\.aktualisiertAm)
 
         return makeDocument(
             erstelltAm: Date(),
             aktualisiertAm: latestDate(
                 profil?.aktualisiertAm,
-                gesundheitsdaten.map(\.geaendertAm) + finanzDaten + dokumentDaten + aboDaten
+                gesundheitsdaten.map(\.geaendertAm) + finanzDaten + dokumentDaten + aboDaten + herzensstueckeDaten
                     + lokalHinterlegteVertrauenspersonen.map(\.geaendertAm)
             ),
             chapters: chapters,
@@ -165,6 +171,22 @@ struct DossierExportMapper {
             sections: makeDokumenteSections(
                 dokumente: dokumente,
                 fotoalbumBilder: fotoalbumBilder,
+                options: options
+            )
+        )
+    }
+
+    func makeHerzensstueckeChapter(
+        herzensstuecke: [HerzensstueckModell],
+        options: DossierPDFExportOptions
+    ) -> DossierPDFChapter {
+        DossierPDFChapter(
+            typ: .herzensstuecke,
+            titel: "Herzensstücke",
+            beschreibung: "Persönliche Gegenstände, ihre Geschichten und die Wünsche für ihre spätere Weitergabe.",
+            farbe: PDFThemeColor(red: 0.78, green: 0.34, blue: 0.16),
+            sections: makeHerzensstueckeSections(
+                herzensstuecke: herzensstuecke,
                 options: options
             )
         )
@@ -952,6 +974,104 @@ private extension DossierExportMapper {
             ],
             darstellung: .statusListe
         )
+    }
+
+    func makeHerzensstueckeSections(
+        herzensstuecke: [HerzensstueckModell],
+        options: DossierPDFExportOptions
+    ) -> [DossierPDFSection] {
+        guard !herzensstuecke.isEmpty else {
+            return [
+                DossierPDFSection(
+                    titel: "Herzensstücke",
+                    untertitel: "Es wurden noch keine Herzensstücke erfasst.",
+                    items: [DossierPDFItem(label: "Status", wert: "Nicht erfasst", status: .nichtErfasst)],
+                    darstellung: .statusListe
+                )
+            ]
+        }
+
+        return herzensstuecke
+            .sorted { $0.erstelltAm < $1.erstelltAm }
+            .enumerated()
+            .map { index, stueck in
+                let titel = stueck.titel.trimmingCharacters(in: .whitespacesAndNewlines)
+                let erstesBild = stueck.bilder
+                    .sorted { $0.reihenfolge < $1.reihenfolge }
+                    .first(where: { !$0.bildDaten.isEmpty })?
+                    .bildDaten
+
+                return DossierPDFSection(
+                    titel: titel.isEmpty ? "Herzensstück \(index + 1)" : titel,
+                    untertitel: stueck.beschreibung.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        ? nil
+                        : stueck.beschreibung,
+                    items: makeHerzensstueckItems(stueck, options: options),
+                    darstellung: .herzensstueck,
+                    vorschaubildDaten: erstesBild
+                )
+            }
+    }
+
+    func makeHerzensstueckItems(
+        _ stueck: HerzensstueckModell,
+        options: DossierPDFExportOptions
+    ) -> [DossierPDFItem] {
+        var items: [DossierPDFItem?] = [
+            makeItem(label: "Geschichte", value: stueck.geschichte, options: options),
+            makeItem(label: "Erinnerung", value: stueck.erinnerung, options: options),
+            makeItem(label: "Bestimmung", value: herzensstueckBestimmungText(stueck), options: options)
+        ]
+
+        if stueck.bestimmung == .verschenken {
+            items.append(makeItem(label: "Empfänger/in", value: stueck.empfaengerName, options: options))
+            items.append(makeItem(label: "E-Mail", value: stueck.empfaengerEmail, options: options))
+            items.append(makeItem(label: "Persönliche Nachricht", value: stueck.persoenlicheNachricht, options: options))
+        }
+
+        if stueck.hatGeschaetztenWert {
+            let wert = stueck.wertUnbekannt
+                ? "Unbekannt"
+                : "CHF \(stueck.geschaetzterWert.formatted(.number.locale(Locale(identifier: "de_CH")).precision(.fractionLength(0...2))))"
+            items.append(DossierPDFItem(label: "Geschätzter Wert", wert: wert))
+        }
+
+        if stueck.bilder.count > 1 {
+            items.append(DossierPDFItem(label: "Weitere Fotos", wert: "\(stueck.bilder.count - 1) zusätzlich in der App gespeichert"))
+        }
+
+        if stueck.audio != nil {
+            items.append(DossierPDFItem(label: "Audio", wert: "Audioaufnahme in der App gespeichert"))
+        }
+
+        let quittungsnamen = stueck.dokumente.enumerated().map { index, dokument in
+            let dateiname = dokument.dateiName.trimmingCharacters(in: .whitespacesAndNewlines)
+            return dateiname.isEmpty ? "Quittung \(index + 1)" : dateiname
+        }
+
+        items.append(
+            DossierPDFItem(
+                label: "Quittung",
+                wert: quittungsnamen.isEmpty ? "Keine Quittung" : quittungsnamen.joined(separator: "\n"),
+                status: quittungsnamen.isEmpty ? .nichtVorhanden : .vorhanden
+            )
+        )
+
+        return items.compactMap { $0 }
+    }
+
+    func herzensstueckBestimmungText(_ stueck: HerzensstueckModell) -> String {
+        if stueck.bestimmung == .andere {
+            let andereBestimmung = stueck.andereBestimmung.trimmingCharacters(in: .whitespacesAndNewlines)
+            return andereBestimmung.isEmpty ? stueck.bestimmung.rawValue : andereBestimmung
+        }
+
+        if stueck.bestimmung == .verschenken {
+            let name = stueck.empfaengerName.trimmingCharacters(in: .whitespacesAndNewlines)
+            return name.isEmpty ? stueck.bestimmung.rawValue : "An \(name) verschenken"
+        }
+
+        return stueck.bestimmung.rawValue
     }
 
     func makeAboSections(
