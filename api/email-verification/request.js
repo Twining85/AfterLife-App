@@ -1,5 +1,6 @@
 import { createChallenge, createCode, expiresAt } from "./_challenge.js";
 import { sendEmail } from "../_email-service.js";
+import { fileURLToPath } from "node:url";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Methode nicht erlaubt" });
@@ -27,7 +28,9 @@ export default async function handler(req, res) {
       attachments: [
         {
           filename: "tschluessli.png",
-          path: new URL("../assets/tschluessli-email-logo.png", import.meta.url),
+          path: fileURLToPath(
+            new URL("../assets/tschluessli-email-logo.png", import.meta.url)
+          ),
           cid: "tschluessli-logo"
         }
       ]
