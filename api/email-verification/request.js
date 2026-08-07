@@ -23,7 +23,14 @@ export default async function handler(req, res) {
       to: email,
       subject: `${code} ist dein Tschlüssli-Bestätigungscode`,
       text: `Dein Tschlüssli-Bestätigungscode lautet:\n\n${code}\n\nDieser Code ist 10 Minuten gültig.`,
-      html: `<p>Dein Tschlüssli-Bestätigungscode lautet:</p><p style="font-size:32px;font-weight:700;letter-spacing:6px">${code}</p><p>Dieser Code ist 10 Minuten gültig.</p>`
+      html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#1f1f1d;text-align:center;line-height:1.5"><p>Dein Tschlüssli-Bestätigungscode lautet:</p><p style="font-size:32px;font-weight:700;letter-spacing:6px;color:#295c6b;margin:20px 0">${code}</p><p>Dieser Code ist 10 Minuten gültig.</p><img src="cid:tschluessli-logo" alt="Tschlüssli" width="160" style="display:block;width:160px;max-width:55%;height:auto;margin:24px auto 0;border:0" /></div>`,
+      attachments: [
+        {
+          filename: "tschluessli.png",
+          path: new URL("../assets/tschluessli-email-logo.png", import.meta.url),
+          cid: "tschluessli-logo"
+        }
+      ]
     });
 
     res.setHeader("Cache-Control", "no-store");

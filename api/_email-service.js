@@ -24,10 +24,18 @@ function mailTransporter() {
   return transporter;
 }
 
-export async function sendEmail({ to, subject, text, html }) {
+export async function sendEmail({ to, subject, text, html, attachments = [] }) {
   const from = process.env.EMAIL_FROM;
   const replyTo = process.env.EMAIL_REPLY_TO;
   if (!from) throw new Error("EMAIL_FROM fehlt");
 
-  return mailTransporter().sendMail({ from, replyTo, to, subject, text, html });
+  return mailTransporter().sendMail({
+    from,
+    replyTo,
+    to,
+    subject,
+    text,
+    html,
+    attachments
+  });
 }

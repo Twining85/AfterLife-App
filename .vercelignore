@@ -1,0 +1,14 @@
+AfterLife/
+AfterLife.xcodeproj/
+AfterLifeTests/
+AfterLifeUITests/
+Bilder/
+.build/
+.git/
+node_modules/
+*.swift
+*.rtf
+*.jpg
+*.jpeg
+*.xcworkspace
+bjects -vH
