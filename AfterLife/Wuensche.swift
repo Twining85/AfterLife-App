@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import ContactsUI
 import PhotosUI
 import Photos
 import UniformTypeIdentifiers
@@ -58,7 +57,7 @@ struct WuenscheView: View {
 
     @State private var kontakte: [BeisetzungsKontakt] = []
     @State private var ausgeklappteKontaktIDs: Set<UUID> = []
-    @State private var kontaktPickerAnzeigen = false
+    @State private var ausgewaehlterHinterbliebenenKontaktID = ""
 
     @State private var hatHaustiere = false
     @State private var haustiere: [WuenschePetEntry] = []
@@ -129,6 +128,7 @@ struct WuenscheView: View {
                 kontakt.telefon,
                 kontakt.email,
                 kontakt.art.rawValue,
+                kontakt.hinterbliebenenKontaktID,
                 String(kontakt.informieren),
                 String(kontakt.einladen)
             ].joined(separator: "|")
@@ -204,13 +204,6 @@ struct WuenscheView: View {
             .background(wuenscheBackgroundColor.ignoresSafeArea())
             .navigationTitle("Meine Wünsche")
             .tint(wuenscheAccentColor)
-            .sheet(isPresented: $kontaktPickerAnzeigen) {
-                KontaktPicker { kontakt in
-                    kontakte.append(kontakt)
-                    kontaktPickerAnzeigen = false
-                    synchronisiereKontakteMitHinterbliebenen()
-                }
-            }
             .sheet(isPresented: $haustierPopupAnzeigen) {
                 HaustierErfassungView { haustier in
                     haustiere.append(haustier)
@@ -607,7 +600,7 @@ struct WuenscheView: View {
     private var haustiereSection: some View {
         styleGuideSection(titel: "Haustiere", systemImage: "pawprint.fill", entfernenAktion: { themaEntfernen(.haustiere) }) {
             if haustiere.isEmpty {
-                leerText("Es ist kein Dokument vorhanden.")
+                leerText("Es ist noch kein Haustier vorhanden.")
             }
 
             ForEach(haustiere) { haustier in
@@ -876,10 +869,10 @@ struct WuenscheView: View {
     private var kontakteSection: some View {
         styleGuideSection(titel: "Personen informieren / einladen", systemImage: "person.2.fill", entfernenAktion: { themaEntfernen(.kontakte) }) {
             if kontakte.isEmpty {
-                leerText("Noch keine Kontakte erfasst.")
+                leerText("Es sind noch keine Personen erfasst, die du informieren oder einladen möchtest")
             }
 // MARK swipe funktio analog Finanzen später anpassen
-            ForEach(kontakte) { kontakt in
+            ForEach(sortierteKontakte) { kontakt in
                 if let kontaktBinding = bindingFuerKontakt(id: kontakt.id) {
                     if dossierKontext.kannLoeschen {
                         SwipeToDeleteRow(
@@ -897,16 +890,50 @@ struct WuenscheView: View {
             }
 
             if dossierKontext.kannBearbeiten {
-                accentButton(title: "Aus Adressbuch hinzufügen", systemImage: "person.crop.circle.badge.plus") {
-                    kontaktPickerAnzeigen = true
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Personenauswahl")
+                        .font(.subheadline.weight(.semibold))
+
+                    Picker("Kontakt auswählen", selection: $ausgewaehlterHinterbliebenenKontaktID) {
+                        Text("Bitte auswählen").tag("")
+                        ForEach(auswaehlbareHinterbliebenenKontakte) { kontakt in
+                            Text("\(anzeigenameFuerHinterbliebenenKontakt(kontakt)) · \(kontaktArtAusBeziehung(kontakt.beziehung).rawValue)")
+                                .tag(auswahlIDFuerHinterbliebenenKontakt(kontakt))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .disabled(auswaehlbareHinterbliebenenKontakte.isEmpty)
+
+                    if auswaehlbareHinterbliebenenKontakte.isEmpty {
+                        Text("Erfasse zuerst eine Person unter «Menschen meines Vertrauens». Bereits gewählte Personen werden hier nicht nochmals angeboten.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    accentButton(title: "Person hinzufügen", systemImage: "person.badge.plus") {
+                        ausgewaehltenHinterbliebenenKontaktHinzufuegen()
+                    }
+                    .disabled(ausgewaehlterHinterbliebenenKontaktID.isEmpty)
                 }
             }
         }
     }
 
+    private var sortierteKontakte: [BeisetzungsKontakt] {
+        kontakte.sorted { linkerKontakt, rechterKontakt in
+            if linkerKontakt.art.sortierreihenfolge != rechterKontakt.art.sortierreihenfolge {
+                return linkerKontakt.art.sortierreihenfolge < rechterKontakt.art.sortierreihenfolge
+            }
+
+            return linkerKontakt.anzeigename.localizedCaseInsensitiveCompare(rechterKontakt.anzeigename) == .orderedAscending
+        }
+    }
+
     @ViewBuilder
     private func kontaktEintragView(kontakt: Binding<BeisetzungsKontakt>) -> some View {
-        if kontakte.count > 3 {
+        if kontakte.count > 1 {
             DisclosureGroup(
                 isExpanded: Binding(
                     get: { ausgeklappteKontaktIDs.contains(kontakt.wrappedValue.id) },
@@ -1395,29 +1422,80 @@ struct WuenscheView: View {
         synchronisiereKontakteMitHinterbliebenen()
     }
 
+    private var auswaehlbareHinterbliebenenKontakte: [HinterbliebeneModell] {
+        gespeicherteHinterbliebeneKontakte
+            .filter { !istWuenscheKontaktKopie($0) }
+            .filter { gespeicherterKontakt in
+                !kontakte.contains { istGleicherKontakt(gespeicherterKontakt, wie: $0) }
+            }
+            .sorted {
+                anzeigenameFuerHinterbliebenenKontakt($0)
+                    .localizedCaseInsensitiveCompare(anzeigenameFuerHinterbliebenenKontakt($1)) == .orderedAscending
+            }
+    }
+
+    private func istWuenscheKontaktKopie(_ kontakt: HinterbliebeneModell) -> Bool {
+        let hatWuenscheMarker = kontakt.quelle == "WuenscheView" || kontakt.bemerkungen == "Quelle: WuenscheView"
+        let rollenID = kontakt.rolle.components(separatedBy: "|").last ?? ""
+        return hatWuenscheMarker && UUID(uuidString: rollenID) != nil
+    }
+
+    private func auswahlIDFuerHinterbliebenenKontakt(_ kontakt: HinterbliebeneModell) -> String {
+        String(describing: kontakt.persistentModelID)
+    }
+
+    private func anzeigenameFuerHinterbliebenenKontakt(_ kontakt: HinterbliebeneModell) -> String {
+        let name = [kontakt.vorname, kontakt.name]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        return name.isEmpty ? "Unbenannter Kontakt" : name
+    }
+
+    private func ausgewaehltenHinterbliebenenKontaktHinzufuegen() {
+        guard let kontakt = auswaehlbareHinterbliebenenKontakte.first(where: {
+            auswahlIDFuerHinterbliebenenKontakt($0) == ausgewaehlterHinterbliebenenKontaktID
+        }) else { return }
+
+        kontakte.append(BeisetzungsKontakt(
+            vorname: kontakt.vorname,
+            name: kontakt.name,
+            strasse: kontakt.adresse,
+            plz: kontakt.plz,
+            ort: kontakt.stadt,
+            telefon: kontakt.telefon,
+            email: kontakt.email,
+            art: kontaktArtAusBeziehung(kontakt.beziehung),
+            hinterbliebenenKontaktID: auswahlIDFuerHinterbliebenenKontakt(kontakt),
+            informieren: true,
+            einladen: true
+        ))
+        ausgewaehlterHinterbliebenenKontaktID = ""
+        synchronisiereKontakteMitHinterbliebenen()
+    }
+
 
 
     private func ladeKontakteAusHinterbliebenen() {
         guard !kontakteGeladen else { return }
 
+        migriereBestehendeWuenscheKontaktKopien()
+
         let gespeicherteWuenscheKontakte = gespeicherteHinterbliebeneKontakte
-            .filter { $0.quelle == "WuenscheView" || $0.bemerkungen == "Quelle: WuenscheView" }
+            .filter { !istWuenscheKontaktKopie($0) && $0.wirdInWuenschenBeruecksichtigt == true }
             .sorted { $0.erstelltAm < $1.erstelltAm }
 
         kontakte = gespeicherteWuenscheKontakte.map { gespeicherterKontakt in
-            let adressTeile = getrennteAdresseAusText(gespeicherterKontakt.adresse)
-
             return BeisetzungsKontakt(
-                id: UUID(uuidString: gespeicherterKontakt.rolle.components(separatedBy: "|").last ?? "") ?? UUID(),
                 vorname: gespeicherterKontakt.vorname,
                 name: gespeicherterKontakt.name,
-                strasse: adressTeile.strasse,
-                hausnummer: adressTeile.hausnummer,
-                plz: adressTeile.plz,
-                ort: adressTeile.ort,
+                strasse: gespeicherterKontakt.adresse,
+                plz: gespeicherterKontakt.plz,
+                ort: gespeicherterKontakt.stadt,
                 telefon: gespeicherterKontakt.telefon,
                 email: gespeicherterKontakt.email,
                 art: kontaktArtAusBeziehung(gespeicherterKontakt.beziehung),
+                hinterbliebenenKontaktID: auswahlIDFuerHinterbliebenenKontakt(gespeicherterKontakt),
                 informieren: gespeicherterKontakt.sollInformiertWerden,
                 einladen: gespeicherterKontakt.darfDokumenteErhalten
             )
@@ -1430,77 +1508,20 @@ struct WuenscheView: View {
         guard dossierKontext.kannBearbeiten else { return }
         guard kontakteGeladen else { return }
 
-        let gueltigeKontakte = kontakte.filter { kontakt in
-            !kontakt.vorname.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-            !kontakt.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-            !kontakt.strasse.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-            !kontakt.hausnummer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-            !kontakt.plz.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-            !kontakt.ort.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-            !kontakt.telefon.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-            !kontakt.email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }
+        let eintraegeNachKontaktID = Dictionary(uniqueKeysWithValues: kontakte.map {
+            ($0.hinterbliebenenKontaktID, $0)
+        })
 
-        let gueltigeIDs = Set(gueltigeKontakte.map { $0.id.uuidString })
+        for gespeicherterKontakt in gespeicherteHinterbliebeneKontakte where !istWuenscheKontaktKopie(gespeicherterKontakt) {
+            let kontaktID = auswahlIDFuerHinterbliebenenKontakt(gespeicherterKontakt)
+            let wuenscheEintrag = eintraegeNachKontaktID[kontaktID]
 
-        var gespeicherteWuenscheKontakte = gespeicherteHinterbliebeneKontakte.filter {
-            $0.quelle == "WuenscheView" || $0.bemerkungen == "Quelle: WuenscheView"
-        }
-
-        for gespeicherterKontakt in gespeicherteWuenscheKontakte {
-            let gespeicherteID = kontaktIDAusRolle(gespeicherterKontakt.rolle)
-
-            if !gueltigeIDs.contains(gespeicherteID) {
-                modelContext.delete(gespeicherterKontakt)
+            gespeicherterKontakt.wirdInWuenschenBeruecksichtigt = wuenscheEintrag != nil
+            if let wuenscheEintrag {
+                gespeicherterKontakt.sollInformiertWerden = wuenscheEintrag.informieren
+                gespeicherterKontakt.darfDokumenteErhalten = wuenscheEintrag.einladen
             }
-        }
-
-        for kontakt in gueltigeKontakte {
-            let kontaktID = kontakt.id.uuidString
-
-            let passendeKontakteNachID = gespeicherteWuenscheKontakte.filter {
-                kontaktIDAusRolle($0.rolle) == kontaktID
-            }
-
-            let passendeKontakteNachInhalt = gespeicherteHinterbliebeneKontakte.filter {
-                istGleicherKontakt($0, wie: kontakt)
-            }
-
-            let passendeKontakte = passendeKontakteNachID + passendeKontakteNachInhalt.filter { inhaltKontakt in
-                !passendeKontakteNachID.contains { idKontakt in
-                    idKontakt === inhaltKontakt
-                }
-            }
-
-            let zielKontakt: HinterbliebeneModell
-
-            if let bestehenderKontakt = passendeKontakte.first {
-                zielKontakt = bestehenderKontakt
-
-                passendeKontakte.dropFirst().forEach { doppelterKontakt in
-                    modelContext.delete(doppelterKontakt)
-                }
-            } else {
-                let neuerKontakt = HinterbliebeneModell(
-                    quelle: "WuenscheView"
-                )
-                modelContext.insert(neuerKontakt)
-                gespeicherteWuenscheKontakte.append(neuerKontakt)
-                zielKontakt = neuerKontakt
-            }
-
-            zielKontakt.vorname = kontakt.vorname
-            zielKontakt.name = kontakt.name
-            zielKontakt.rolle = "\(kontakt.art.rawValue)|\(kontakt.id.uuidString)"
-            zielKontakt.beziehung = beziehungFuerKontaktArt(kontakt.art)
-            zielKontakt.telefon = kontakt.telefon
-            zielKontakt.email = kontakt.email
-            zielKontakt.adresse = kontakt.vollstaendigeAdresse
-            zielKontakt.quelle = zielKontakt.quelle.isEmpty ? "WuenscheView" : zielKontakt.quelle
-            zielKontakt.istVertrauensperson = zielKontakt.istVertrauensperson
-            zielKontakt.sollInformiertWerden = kontakt.informieren
-            zielKontakt.darfDokumenteErhalten = kontakt.einladen
-            zielKontakt.aktualisiertAm = Date()
+            gespeicherterKontakt.aktualisiertAm = Date()
         }
 
         do {
@@ -1510,8 +1531,37 @@ struct WuenscheView: View {
         }
     }
 
-    private func kontaktIDAusRolle(_ rolle: String) -> String {
-        rolle.components(separatedBy: "|").last ?? ""
+    private func migriereBestehendeWuenscheKontaktKopien() {
+        let kopien = gespeicherteHinterbliebeneKontakte.filter(istWuenscheKontaktKopie)
+        var masterKontakte = gespeicherteHinterbliebeneKontakte.filter { !istWuenscheKontaktKopie($0) }
+
+        for kopie in kopien {
+            let kopieAlsEintrag = BeisetzungsKontakt(
+                vorname: kopie.vorname,
+                name: kopie.name,
+                strasse: kopie.adresse,
+                plz: kopie.plz,
+                ort: kopie.stadt,
+                telefon: kopie.telefon,
+                email: kopie.email,
+                art: kontaktArtAusBeziehung(kopie.beziehung)
+            )
+
+            if let master = masterKontakte.first(where: { istGleicherKontakt($0, wie: kopieAlsEintrag) }) {
+                master.wirdInWuenschenBeruecksichtigt = true
+                master.sollInformiertWerden = kopie.sollInformiertWerden
+                master.darfDokumenteErhalten = kopie.darfDokumenteErhalten
+                modelContext.delete(kopie)
+            } else {
+                kopie.rolle = kontaktArtAusBeziehung(kopie.beziehung).rawValue
+                kopie.quelle = ""
+                if kopie.bemerkungen == "Quelle: WuenscheView" { kopie.bemerkungen = "" }
+                kopie.wirdInWuenschenBeruecksichtigt = true
+                masterKontakte.append(kopie)
+            }
+        }
+
+        try? modelContext.save()
     }
 
     private func istGleicherKontakt(_ gespeicherterKontakt: HinterbliebeneModell, wie kontakt: BeisetzungsKontakt) -> Bool {
@@ -1608,12 +1658,9 @@ struct WuenscheView: View {
     @ViewBuilder
     private func kontaktDetailFormular(kontakt: Binding<BeisetzungsKontakt>) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Picker("Art", selection: kontakt.art) {
-                ForEach(KontaktArt.allCases) { art in
-                    Text(art.rawValue).tag(art)
-                }
-            }
-            .disabled(dossierKontext.istReadOnly)
+            Label(kontakt.wrappedValue.art.rawValue, systemImage: kontakt.wrappedValue.art.systembild)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(wuenscheAccentColor)
 
             kontaktAnzeigeZeile(titel: "Vorname", wert: kontakt.wrappedValue.vorname)
             kontaktAnzeigeZeile(titel: "Name", wert: kontakt.wrappedValue.name)
@@ -1624,12 +1671,18 @@ struct WuenscheView: View {
             kontaktAnzeigeZeile(titel: "Telefonnummer", wert: kontakt.wrappedValue.telefon)
             kontaktAnzeigeZeile(titel: "E-Mail", wert: kontakt.wrappedValue.email)
 
-            Toggle("Informieren", isOn: kontakt.informieren)
-                .tint(wuenscheAccentColor)
-                .disabled(dossierKontext.istReadOnly)
-
-            Toggle("Zur Beisetzung einladen", isOn: kontakt.einladen)
-                .tint(wuenscheAccentColor)
+            Picker("Im Todesfall", selection: Binding(
+                get: { kontakt.wrappedValue.einladen ? KontaktBehandlung.informierenUndEinladen : .nurInformieren },
+                set: { neueBehandlung in
+                    kontakt.wrappedValue.informieren = neueBehandlung.sollInformiertWerden
+                    kontakt.wrappedValue.einladen = neueBehandlung.sollEingeladenWerden
+                }
+            )) {
+                ForEach(KontaktBehandlung.allCases) { behandlung in
+                    Text(behandlung.rawValue).tag(behandlung)
+                }
+            }
+            .pickerStyle(.segmented)
                 .disabled(dossierKontext.istReadOnly)
         }
         .padding(12)
@@ -2387,7 +2440,6 @@ struct DokumentUploadBox: View {
         guard let hochgeladenAm else { return "" }
         return hochgeladenAm.formatted(date: .abbreviated, time: .omitted)
     }
-    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let dateiName, !dateiName.isEmpty {
@@ -2575,6 +2627,39 @@ struct DokumentUploadBox: View {
         case anderes = "Andere"
         
         var id: String { rawValue }
+
+        var systembild: String {
+            switch self {
+            case .partner: return "heart.fill"
+            case .familie: return "figure.2.and.child.holdinghands"
+            case .freunde: return "person.2.fill"
+            case .anderes: return "person.crop.circle"
+            }
+        }
+
+        var sortierreihenfolge: Int {
+            switch self {
+            case .partner: return 0
+            case .familie: return 1
+            case .freunde: return 2
+            case .anderes: return 3
+            }
+        }
+    }
+
+    enum KontaktBehandlung: String, CaseIterable, Identifiable {
+        case nurInformieren = "Nur informieren"
+        case informierenUndEinladen = "Informieren & einladen"
+
+        var id: String { rawValue }
+
+        // Diese Werte entsprechen direkt den bestehenden Feldern in
+        // HinterbliebeneModell, die auch der PDF-Export verwendet.
+        var sollInformiertWerden: Bool { true }
+
+        var sollEingeladenWerden: Bool {
+            self == .informierenUndEinladen
+        }
     }
     
     enum DokumentTyp {
@@ -2626,6 +2711,7 @@ struct DokumentUploadBox: View {
         var telefon = ""
         var email = ""
         var art: KontaktArt = .familie
+        var hinterbliebenenKontaktID = ""
         var informieren = true
         var einladen = true
         
@@ -2648,70 +2734,5 @@ struct DokumentUploadBox: View {
             return [strasseUndHausnummer, plzUndOrt]
                 .filter { !$0.isEmpty }
                 .joined(separator: "\n")
-        }
-    }
-    
-    struct KontaktPicker: UIViewControllerRepresentable {
-        let kontaktAusgewaehlt: (BeisetzungsKontakt) -> Void
-        
-        func makeUIViewController(context: Context) -> CNContactPickerViewController {
-            let picker = CNContactPickerViewController()
-            picker.delegate = context.coordinator
-            picker.displayedPropertyKeys = [
-                CNContactGivenNameKey,
-                CNContactFamilyNameKey,
-                CNContactPostalAddressesKey,
-                CNContactEmailAddressesKey,
-                CNContactPhoneNumbersKey
-            ]
-            return picker
-        }
-        
-        func updateUIViewController(_ uiViewController: CNContactPickerViewController, context: Context) { }
-        
-        func makeCoordinator() -> Coordinator {
-            Coordinator(kontaktAusgewaehlt: kontaktAusgewaehlt)
-        }
-        
-        final class Coordinator: NSObject, CNContactPickerDelegate {
-            let kontaktAusgewaehlt: (BeisetzungsKontakt) -> Void
-            
-            init(kontaktAusgewaehlt: @escaping (BeisetzungsKontakt) -> Void) {
-                self.kontaktAusgewaehlt = kontaktAusgewaehlt
-            }
-            
-            func contactPicker(_ picker: CNContactPickerViewController, didSelect contact: CNContact) {
-                let adressTeile = contact.postalAddresses.first.map { adresseAufteilen($0.value) } ?? (strasse: "", hausnummer: "", plz: "", ort: "")
-                let telefon = contact.phoneNumbers.first?.value.stringValue ?? ""
-                let email = contact.emailAddresses.first.map { String($0.value) } ?? ""
-                
-                let beisetzungsKontakt = BeisetzungsKontakt(
-                    vorname: contact.givenName,
-                    name: contact.familyName,
-                    strasse: adressTeile.strasse,
-                    hausnummer: adressTeile.hausnummer,
-                    plz: adressTeile.plz,
-                    ort: adressTeile.ort,
-                    telefon: telefon,
-                    email: email
-                )
-                
-                kontaktAusgewaehlt(beisetzungsKontakt)
-            }
-            
-            private func adresseAufteilen(_ adresse: CNPostalAddress) -> (strasse: String, hausnummer: String, plz: String, ort: String) {
-                let strassenText = adresse.street.trimmingCharacters(in: .whitespacesAndNewlines)
-                let komponenten = strassenText.components(separatedBy: " ").filter { !$0.isEmpty }
-                
-                let hausnummer = komponenten.last?.rangeOfCharacter(from: .decimalDigits) != nil ? komponenten.last ?? "" : ""
-                let strasse = hausnummer.isEmpty ? strassenText : komponenten.dropLast().joined(separator: " ")
-                
-                return (
-                    strasse: strasse,
-                    hausnummer: hausnummer,
-                    plz: adresse.postalCode,
-                    ort: adresse.city
-                )
-            }
         }
     }

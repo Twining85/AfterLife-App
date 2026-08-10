@@ -1,16 +1,16 @@
 import SwiftUI
-import ContactsUI
 #if canImport(SwiftData)
 import SwiftData
 #endif
 
 
 struct GesundheitView: View {
-    @State private var zeigtHausarztKontaktPicker = false
+    @State private var ausgewaehlterHausarztKontaktID = ""
 #if canImport(SwiftData)
     @Environment(\.modelContext) private var modelContext
     @Query private var gesundheitDatensaetze: [GesundheitModell]
     @Query private var wuenscheDatensaetze: [WuenscheModell]
+    @Query private var hinterbliebenenKontakte: [HinterbliebeneModell]
     @State private var datensatz: GesundheitModell?
 #else
     // TODO: Sobald ein GesundheitModell für SwiftData existiert,
@@ -84,11 +84,6 @@ struct GesundheitView: View {
                 }
             }
         }
-        .sheet(isPresented: $zeigtHausarztKontaktPicker) {
-            KontaktPickerView { kontakt in
-                hausarztAusKontaktUebernehmen(kontakt)
-            }
-        }
         .dossierFloatingNavigation(.gesundheit)
 
 #else
@@ -107,11 +102,6 @@ struct GesundheitView: View {
         .background(Color(.systemBackground))
         .navigationTitle("Gesundheit")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $zeigtHausarztKontaktPicker) {
-            KontaktPickerView { kontakt in
-                hausarztAusKontaktUebernehmen(kontakt)
-            }
-        }
         .dossierFloatingNavigation(.gesundheit)
 #endif
     }
@@ -175,7 +165,7 @@ struct GesundheitView: View {
 
                 if datensatz?.hatHausarzt ?? false {
                     if (datensatz?.hausarztName ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        hausarztKontaktAuswaehlenButton
+                        hausarztKontaktAuswahl
                     } else {
                         hausarztKontaktKarte(
                             name: datensatz?.hausarztName ?? "",
@@ -185,12 +175,6 @@ struct GesundheitView: View {
                             email: datensatz?.hausarztEmail ?? "",
                             telefon: datensatz?.hausarztTelefon ?? ""
                         )
-
-                        Button("Hausarzt ändern") {
-                            zeigtHausarztKontaktPicker = true
-                        }
-                        .font(.subheadline.weight(.semibold))
-                        .tint(akzentFarbe)
                     }
 
                 }
@@ -210,7 +194,7 @@ struct GesundheitView: View {
 
                 if hatHausarzt {
                     if hausarztName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        hausarztKontaktAuswaehlenButton
+                        hausarztKontaktAuswahl
                     } else {
                         hausarztKontaktKarte(
                             name: hausarztName,
@@ -220,12 +204,6 @@ struct GesundheitView: View {
                             email: hausarztEmail,
                             telefon: hausarztTelefon
                         )
-
-                        Button("Hausarzt ändern") {
-                            zeigtHausarztKontaktPicker = true
-                        }
-                        .font(.subheadline.weight(.semibold))
-                        .tint(akzentFarbe)
                     }
 
                 }
@@ -234,24 +212,41 @@ struct GesundheitView: View {
 #endif
     }
 
-    private var hausarztKontaktAuswaehlenButton: some View {
-        Button {
-            zeigtHausarztKontaktPicker = true
-        } label: {
-            Label(
-                "Hausarzt aus Kontakten auswählen",
-                systemImage: "person.crop.circle.badge.plus"
-            )
-            .font(.headline.weight(.semibold))
-            .lineLimit(1)
-            .minimumScaleFactor(0.82)
-            .frame(maxWidth: .infinity, minHeight: 24, alignment: .center)
+    @ViewBuilder
+    private var hausarztKontaktAuswahl: some View {
+#if canImport(SwiftData)
+        VStack(alignment: .leading, spacing: 8) {
+            Picker("Hausarzt auswählen", selection: Binding(
+                get: { ausgewaehlterHausarztKontaktID },
+                set: { neueID in
+                    ausgewaehlterHausarztKontaktID = neueID
+                    guard let kontakt = auswaehlbareHausarztKontakte.first(where: {
+                        hausarztKontaktID($0) == neueID
+                    }) else { return }
+                    hausarztAusKontaktUebernehmen(kontakt)
+                }
+            )) {
+                Text("Bitte auswählen").tag("")
+                ForEach(auswaehlbareHausarztKontakte) { kontakt in
+                    Text(anzeigenameFuerKontakt(kontakt))
+                        .tag(hausarztKontaktID(kontakt))
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(akzentFarbe)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .disabled(auswaehlbareHausarztKontakte.isEmpty)
+
+            if auswaehlbareHausarztKontakte.isEmpty {
+                Text("Erfasse zuerst unter «Menschen meines Vertrauens» einen Kontakt der Kategorie «Andere».")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
-        .buttonStyle(.borderedProminent)
-        .buttonBorderShape(.roundedRectangle(radius: 16))
-        .controlSize(.large)
-        .tint(akzentFarbe)
-        .accessibilityHint("Öffnet deine Kontakte zur Auswahl eines Hausarztes")
+#else
+        EmptyView()
+#endif
     }
 
     private func hausarztKontaktKarte(
@@ -614,47 +609,58 @@ struct GesundheitView: View {
         }
     }
 
-    private func hausarztAusKontaktUebernehmen(_ kontakt: CNContact) {
-        let vollerName = CNContactFormatter.string(from: kontakt, style: .fullName) ?? ""
-        let getrimmterName = vollerName.trimmingCharacters(in: .whitespacesAndNewlines)
+    #if canImport(SwiftData)
+    private var auswaehlbareHausarztKontakte: [HinterbliebeneModell] {
+        hinterbliebenenKontakte
+            .filter { $0.beziehung == VertrauenspersonKategorie.beguenstigte.rawValue }
+            .filter { kontakt in
+                let hatWuenscheMarker = kontakt.quelle == "WuenscheView" || kontakt.bemerkungen == "Quelle: WuenscheView"
+                let rollenID = kontakt.rolle.components(separatedBy: "|").last ?? ""
+                return !(hatWuenscheMarker && UUID(uuidString: rollenID) != nil)
+            }
+            .sorted {
+                anzeigenameFuerKontakt($0).localizedCaseInsensitiveCompare(anzeigenameFuerKontakt($1)) == .orderedAscending
+            }
+    }
+
+    private func hausarztKontaktID(_ kontakt: HinterbliebeneModell) -> String {
+        String(describing: kontakt.persistentModelID)
+    }
+
+    private func anzeigenameFuerKontakt(_ kontakt: HinterbliebeneModell) -> String {
+        let name = [kontakt.vorname, kontakt.name]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        return name.isEmpty ? "Unbenannter Kontakt" : name
+    }
+
+    private func hausarztAusKontaktUebernehmen(_ kontakt: HinterbliebeneModell) {
+        let getrimmterName = anzeigenameFuerKontakt(kontakt).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !getrimmterName.isEmpty else { return }
 
-        let telefon = kontakt.phoneNumbers.first?.value.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let email = kontakt.emailAddresses.first.map { String($0.value).trimmingCharacters(in: .whitespacesAndNewlines) } ?? ""
-
-        let postAdresse = kontakt.postalAddresses.first?.value
-        let strasse = postAdresse?.street.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let plz = postAdresse?.postalCode.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let ort = postAdresse?.city.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-
-#if canImport(SwiftData)
         datensatz?.hausarztAktualisieren(
             hatHausarzt: true,
             hausarztName: getrimmterName,
-            hausarztTelefon: telefon,
-            hausarztEmail: email,
-            hausarztAdresse: strasse,
-            hausarztPLZ: plz,
-            hausarztOrt: ort
+            hausarztTelefon: kontakt.telefon.trimmingCharacters(in: .whitespacesAndNewlines),
+            hausarztEmail: kontakt.email.trimmingCharacters(in: .whitespacesAndNewlines),
+            hausarztAdresse: kontakt.adresse.trimmingCharacters(in: .whitespacesAndNewlines),
+            hausarztPLZ: kontakt.plz.trimmingCharacters(in: .whitespacesAndNewlines),
+            hausarztOrt: kontakt.stadt.trimmingCharacters(in: .whitespacesAndNewlines)
         )
+        speichern()
+    }
+    #endif
+
+    private func hausarztEntfernen() {
+        ausgewaehlterHausarztKontaktID = ""
+#if canImport(SwiftData)
+        // Die Angabe «Ich habe einen Hausarzt» bleibt aktiv; nur die Auswahl
+        // wird geleert, damit der Picker unmittelbar wieder erscheint.
+        datensatz?.hausarztAktualisieren(hatHausarzt: true)
         speichern()
 #else
         hatHausarzt = true
-        hausarztName = getrimmterName
-        hausarztTelefon = telefon
-        hausarztEmail = email
-        hausarztAdresse = strasse
-        hausarztPLZ = plz
-        hausarztOrt = ort
-#endif
-    }
-
-    private func hausarztEntfernen() {
-#if canImport(SwiftData)
-        datensatz?.hausarztAktualisieren(hatHausarzt: false)
-        speichern()
-#else
-        hatHausarzt = false
         hausarztName = ""
         hausarztTelefon = ""
         hausarztEmail = ""
@@ -890,34 +896,6 @@ struct BlutgruppenChipAuswahl: View {
         }
         .buttonStyle(.plain)
         .simultaneousGesture(DragGesture(minimumDistance: 8))
-    }
-}
-
-struct KontaktPickerView: UIViewControllerRepresentable {
-    let onKontaktAusgewaehlt: (CNContact) -> Void
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(onKontaktAusgewaehlt: onKontaktAusgewaehlt)
-    }
-
-    func makeUIViewController(context: Context) -> CNContactPickerViewController {
-        let picker = CNContactPickerViewController()
-        picker.delegate = context.coordinator
-        return picker
-    }
-
-    func updateUIViewController(_ uiViewController: CNContactPickerViewController, context: Context) {}
-
-    final class Coordinator: NSObject, CNContactPickerDelegate {
-        let onKontaktAusgewaehlt: (CNContact) -> Void
-
-        init(onKontaktAusgewaehlt: @escaping (CNContact) -> Void) {
-            self.onKontaktAusgewaehlt = onKontaktAusgewaehlt
-        }
-
-        func contactPicker(_ picker: CNContactPickerViewController, didSelect contact: CNContact) {
-            onKontaktAusgewaehlt(contact)
-        }
     }
 }
 

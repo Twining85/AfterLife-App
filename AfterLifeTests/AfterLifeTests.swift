@@ -59,4 +59,21 @@ struct AfterLifeTests {
         }) == true)
     }
 
+    @Test func personenInformierenBietetGenauDieZweiVorgesehenenBehandlungen() {
+        #expect(KontaktBehandlung.allCases == [
+            .nurInformieren,
+            .informierenUndEinladen
+        ])
+        #expect(KontaktBehandlung.nurInformieren.sollInformiertWerden)
+        #expect(!KontaktBehandlung.nurInformieren.sollEingeladenWerden)
+        #expect(KontaktBehandlung.informierenUndEinladen.sollInformiertWerden)
+        #expect(KontaktBehandlung.informierenUndEinladen.sollEingeladenWerden)
+    }
+
+    @Test func kontaktKategorienHabenDieGewuenschteSortierreihenfolge() {
+        #expect(KontaktArt.allCases.sorted(by: {
+            $0.sortierreihenfolge < $1.sortierreihenfolge
+        }) == [.partner, .familie, .freunde, .anderes])
+    }
+
 }

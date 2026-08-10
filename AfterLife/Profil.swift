@@ -2033,7 +2033,7 @@ struct ProfilView: View {
                         drawField("Finanziell abgesichert", wunsch.zeremonieFinanziellAbgesichert ? "Ja" : "Nein")
 
                         let kontakteZuWuenschen = gespeicherteHinterbliebene
-                            .filter { $0.quelle == "WuenscheView" || $0.bemerkungen == "Quelle: WuenscheView" }
+                            .filter { $0.wirdInWuenschenBeruecksichtigt == true }
                             .sorted { $0.erstelltAm < $1.erstelltAm }
 
                         drawSubsectionTitle("Personen informieren / einladen")
@@ -2286,7 +2286,7 @@ struct ProfilView: View {
                             .filter { !$0.isEmpty }
                             .joined(separator: " ")
 
-                        let stammtAusWuenschen = kontakt.quelle == "WuenscheView" || kontakt.bemerkungen == "Quelle: WuenscheView"
+                        let stammtAusWuenschen = kontakt.wirdInWuenschenBeruecksichtigt == true
                         let istRelevantFuerWuensche = stammtAusWuenschen && (kontakt.sollInformiertWerden || kontakt.darfDokumenteErhalten)
 
                         drawSubsectionTitle(

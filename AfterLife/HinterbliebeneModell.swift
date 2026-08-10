@@ -20,6 +20,10 @@ final class HinterbliebeneModell {
     var istVertrauensperson: Bool
     var sollInformiertWerden: Bool
     var darfDokumenteErhalten: Bool
+    /// Gibt an, ob dieser bestehende Kontakt unter «Meine Wünsche» berücksichtigt wird.
+    // Optional für eine leichtgewichtige Migration bestehender SwiftData-Stores.
+    // Ältere Datensätze besitzen dieses Feld noch nicht und werden wie `false` behandelt.
+    var wirdInWuenschenBeruecksichtigt: Bool?
     var erstelltAm: Date
     var aktualisiertAm: Date
 
@@ -40,6 +44,7 @@ final class HinterbliebeneModell {
         istVertrauensperson: Bool = false,
         sollInformiertWerden: Bool = true,
         darfDokumenteErhalten: Bool = false,
+        wirdInWuenschenBeruecksichtigt: Bool = false,
         erstelltAm: Date = Date(),
         aktualisiertAm: Date = Date()
     ) {
@@ -59,6 +64,7 @@ final class HinterbliebeneModell {
         self.istVertrauensperson = istVertrauensperson
         self.sollInformiertWerden = sollInformiertWerden
         self.darfDokumenteErhalten = darfDokumenteErhalten
+        self.wirdInWuenschenBeruecksichtigt = wirdInWuenschenBeruecksichtigt
         self.erstelltAm = erstelltAm
         self.aktualisiertAm = aktualisiertAm
     }
