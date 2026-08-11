@@ -1,6 +1,6 @@
 //
 //  Item.swift
-//  AfterLife
+//  Tschluessli
 //
 //  Created by René Engeler on 17.06.2026.
 //

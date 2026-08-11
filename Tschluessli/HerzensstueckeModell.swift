@@ -1,6 +1,6 @@
 //
 //  HerzensstueckeModell.swift
-//  AfterLife
+//  Tschluessli
 //
 //  Created by René Engeler on 06.08.2026.
 //

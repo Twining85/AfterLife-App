@@ -1534,9 +1534,9 @@ struct ProfilView: View {
 
         let pdfMetaData = [
 
-            kCGPDFContextCreator: "AfterLife",
+            kCGPDFContextCreator: "Tschlüssli",
 
-            kCGPDFContextAuthor: "AfterLife App",
+            kCGPDFContextAuthor: "Tschlüssli App",
 
             kCGPDFContextTitle: "Persönliches Tschlüssli Dossier"
 

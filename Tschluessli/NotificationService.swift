@@ -1,6 +1,6 @@
 //
 //  NotificationService.swift
-//  AfterLife
+//  Tschluessli
 //
 //  Created by René Engeler on 06.07.2026.
 //

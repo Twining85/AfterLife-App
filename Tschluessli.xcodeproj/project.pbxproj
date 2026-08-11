@@ -480,7 +480,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Tschlüssli";
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Die Kamera wird benötigt, um Dokumente zu scannen.";
-				INFOPLIST_KEY_NSFaceIDUsageDescription = "AfterLife verwendet Face ID, um dein Dossier sicher zu schützen.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Tschlüssli verwendet Face ID, um dein Dossier sicher zu schützen.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Die App benötigt Zugriff, um Videos in deiner Foto-Mediathek zu speichern.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Tschlüssli benötigt Zugriff auf deine Foto-Mediathek, um ein eigenes Album für gespeicherte Fotos anzulegen.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -522,7 +522,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Tschlüssli";
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Die Kamera wird benötigt, um Dokumente zu scannen.";
-				INFOPLIST_KEY_NSFaceIDUsageDescription = "AfterLife verwendet Face ID, um dein Dossier sicher zu schützen.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Tschlüssli verwendet Face ID, um dein Dossier sicher zu schützen.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Die App benötigt Zugriff, um Videos in deiner Foto-Mediathek zu speichern.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Tschlüssli benötigt Zugriff auf deine Foto-Mediathek, um ein eigenes Album für gespeicherte Fotos anzulegen.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

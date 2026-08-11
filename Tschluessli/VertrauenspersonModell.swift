@@ -1,6 +1,6 @@
 //
 //  VertrauenspersonModell.swift
-//  AfterLife
+//  Tschluessli
 //
 //  Created by René Engeler on 25.06.2026.
 //

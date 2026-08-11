@@ -1,6 +1,6 @@
 //
 //  DossierKontext.swift
-//  AfterLife
+//  Tschluessli
 //
 //  Created by René Engeler on 09.07.2026.
 //

@@ -1,6 +1,6 @@
 //
 //  GesundheitModell.swift
-//  AfterLife
+//  Tschluessli
 //
 //  Created by René Engeler on 01.07.2026.
 //

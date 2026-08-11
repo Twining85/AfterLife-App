@@ -1,6 +1,6 @@
 //
 //  RegistrierungEinladung.swift
-//  AfterLife
+//  Tschluessli
 //
 //  Created by René Engeler on 26.06.2026.
 //
@@ -8,7 +8,7 @@
 
 //
 //  ReloginEinladung.swift
-//  AfterLife
+//  Tschluessli
 //
 //  Created by René Engeler on 26.06.2026.
 //
