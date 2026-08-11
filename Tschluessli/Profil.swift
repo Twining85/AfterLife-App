@@ -882,7 +882,6 @@ struct ProfilView: View {
             let veralteteEintraege = aboModell.abos.filter {
                 $0.istSystemEintrag &&
                 ($0.anbieter == "Tschlüssli" ||
-                 $0.anbieter == "AfterLife" ||
                  $0.bezeichnung == "Tschlüssli")
             }
 
