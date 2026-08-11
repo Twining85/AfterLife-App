@@ -7,6 +7,7 @@ struct HinterbliebeneView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var gespeicherteKontakte: [HinterbliebeneModell]
     @Query private var gesundheitsDatensaetze: [GesundheitModell]
+    @Query private var gespeicherteVertrauenspersonen: [VertrauenspersonModell]
 
     private let vertrauenHintergrundFarbe = Color(red: 0.985, green: 0.975, blue: 0.955)
     private let vertrauenKartenFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
@@ -23,6 +24,14 @@ struct HinterbliebeneView: View {
                 VStack(spacing: 18) {
                     vertrauensHero
                         .padding(.top, 18)
+
+                    vertrauenspersonKarte
+
+                    Text("Personen")
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(vertrauenTextFarbe)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 6)
 
                     vertrauenspersonSection(
                         titel: "Partner",
@@ -60,7 +69,7 @@ struct HinterbliebeneView: View {
                 .padding(.bottom, 28)
             }
             .background(vertrauenHintergrundFarbe.ignoresSafeArea())
-            .navigationTitle("Menschen meines Vertrauens")
+            .navigationTitle("Menschen des Vertrauens")
             .tint(vertrauenAkzentFarbe)
             .sheet(isPresented: $showKontaktPicker) {
                 HinterbliebeneKontaktPicker { kontakt in
@@ -105,6 +114,70 @@ struct HinterbliebeneView: View {
                 .stroke(vertrauenAkzentFarbe.opacity(0.12), lineWidth: 1)
         }
         .shadow(color: Color.black.opacity(0.04), radius: 10, x: 0, y: 4)
+    }
+
+    private var vertrauenspersonKarte: some View {
+        NavigationLink {
+            VertrauenspersonView()
+        } label: {
+            HStack(spacing: 16) {
+                Image(systemName: "person.crop.circle.badge.checkmark")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 52, height: 52)
+                    .background(Circle().fill(vertrauenAkzentFarbe))
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Vertrauensperson")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(vertrauenTextFarbe)
+
+                    Text(vertrauenspersonStatusText)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(vertrauenAkzentFarbe)
+
+                    Text(vertrauenspersonHinweisText)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 4)
+
+                Image(systemName: "chevron.right")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(vertrauenAkzentFarbe)
+            }
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.white.opacity(0.82))
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(vertrauenAkzentFarbe.opacity(0.35), lineWidth: 2)
+            }
+            .shadow(color: vertrauenAkzentFarbe.opacity(0.14), radius: 12, x: 0, y: 5)
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Öffnet die Erfassung und Verwaltung der Vertrauensperson")
+    }
+
+    private var erfassteVertrauensperson: VertrauenspersonModell? {
+        gespeicherteVertrauenspersonen.first(where: \.istLokalHinterlegt)
+    }
+
+    private var vertrauenspersonStatusText: String {
+        guard let vertrauensperson = erfassteVertrauensperson else {
+            return "Es ist noch keine Vertrauensperson erfasst"
+        }
+
+        return "\(vertrauensperson.vollerName) ist als deine Vertrauensperson erfasst."
+    }
+
+    private var vertrauenspersonHinweisText: String {
+        erfassteVertrauensperson == nil
+            ? "Bestimme, wer im Ernstfall deine wichtigste Vertrauensperson ist."
+            : "Details zur Vertrauensperson ändern"
     }
 
     private func vertrauenspersonSection(

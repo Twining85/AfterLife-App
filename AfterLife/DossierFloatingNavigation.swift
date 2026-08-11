@@ -77,19 +77,42 @@ enum DossierBereich: String, CaseIterable, Identifiable, Hashable {
 
 struct DossierNavigationManager {
     static let homeReihenfolgeKey = "homeBereicheReihenfolge"
+    static let aktiveHomeBereicheKey = "homeAktiveBereiche"
     static let scrollOffsetKey = "dossierFloatingNavigationScrollOffset"
 
-    static func bereiche(homeReihenfolge: String) -> [DossierBereich] {
+    static func bereiche(
+        homeReihenfolge: String,
+        aktiveHomeBereiche: String
+    ) -> [DossierBereich] {
         let gespeicherteBereiche = homeReihenfolge
             .split(separator: ",")
             .compactMap { DossierBereich(rawValue: String($0)) }
-        let fehlendeBereiche = DossierBereich.allCases.filter { !gespeicherteBereiche.contains($0) }
 
-        if gespeicherteBereiche.isEmpty {
-            return DossierBereich.allCases
+        let explizitAktiveBereiche = Set(
+            aktiveHomeBereiche
+                .split(separator: ",")
+                .compactMap { DossierBereich(rawValue: String($0)) }
+        )
+
+        let aktiveBereiche: Set<DossierBereich>
+        if !explizitAktiveBereiche.isEmpty {
+            aktiveBereiche = explizitAktiveBereiche.union([.profil])
+        } else if gespeicherteBereiche.isEmpty {
+            aktiveBereiche = [.profil]
+        } else {
+            // Bestehende Installationen ohne gespeicherte Auswahl behalten
+            // ihre bisher sichtbaren Bereiche.
+            aktiveBereiche = Set(DossierBereich.allCases)
         }
 
-        return gespeicherteBereiche + fehlendeBereiche
+        let sortierteBereiche = gespeicherteBereiche.filter {
+            aktiveBereiche.contains($0)
+        }
+        let fehlendeAktiveBereiche = DossierBereich.allCases.filter {
+            aktiveBereiche.contains($0) && !sortierteBereiche.contains($0)
+        }
+
+        return sortierteBereiche + fehlendeAktiveBereiche
     }
 }
 
@@ -142,6 +165,7 @@ struct DossierFloatingNavigation: View {
     var interaktionGestartet: () -> Void = { }
     var interaktionBeendet: () -> Void = { }
     @AppStorage(DossierNavigationManager.homeReihenfolgeKey) private var homeBereicheReihenfolge = ""
+    @AppStorage(DossierNavigationManager.aktiveHomeBereicheKey) private var aktiveHomeBereiche = ""
     @AppStorage(DossierNavigationManager.scrollOffsetKey) private var gespeicherterScrollOffset = 0.0
     @State private var beruehrterBereich: DossierBereich?
     @State private var interaktionsPosition: CGPoint?
@@ -159,7 +183,10 @@ struct DossierFloatingNavigation: View {
     private let inaktiverChipBreite: CGFloat = 62
 
     private var bereiche: [DossierBereich] {
-        DossierNavigationManager.bereiche(homeReihenfolge: homeBereicheReihenfolge)
+        DossierNavigationManager.bereiche(
+            homeReihenfolge: homeBereicheReihenfolge,
+            aktiveHomeBereiche: aktiveHomeBereiche
+        )
     }
 
     private var scrollOffset: CGFloat {
@@ -232,6 +259,9 @@ struct DossierFloatingNavigation: View {
             aktuellerScrollOffset = begrenzterScrollOffset(CGFloat(gespeicherterScrollOffset))
             selectionFeedback.prepare()
             impactFeedback.prepare()
+        }
+        .onChange(of: bereiche) { _, _ in
+            scrollOffsetBegrenzen()
         }
     }
 

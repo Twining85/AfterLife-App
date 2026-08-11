@@ -131,10 +131,6 @@ struct ProfilView: View {
     @State private var profilGeladen = false
     @State private var biometriePruefungLaeuft = false
     @State private var biometrieFehlermeldung = ""
-    @State private var vertrauenspersonAnzeigen = false
-
-
-
     private var istEmailGueltig: Bool {
 
         if email.isEmpty { return true }
@@ -401,36 +397,6 @@ struct ProfilView: View {
                 .listRowBackground(profilKartenFarbe)
                 .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
 
-                if dossierKontext.kannBearbeiten {
-                    Section("Vertrauensperson") {
-                        Button {
-                            vertrauenspersonAnzeigen = true
-                        } label: {
-                            HStack(spacing: 12) {
-                                Label(
-                                    gespeicherteVertrauenspersonen.contains(where: \.istLokalHinterlegt)
-                                        ? "Vertrauensperson verwalten"
-                                        : "Vertrauensperson hinterlegen",
-                                    systemImage: "person.crop.circle.badge.checkmark"
-                                )
-
-                                Spacer()
-
-                                Image(systemName: "chevron.right")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.tertiary)
-                            }
-                            .foregroundStyle(profilAkzentFarbe)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        Text("Halte fest, wer im Ernstfall deine Vertrauensperson ist.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                    .listRowBackground(profilKartenFarbe)
-                    .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
-                }
                 Section {
                     dossierExportKarte
                         .listRowInsets(EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10))
@@ -554,10 +520,6 @@ struct ProfilView: View {
             .background(profilHintergrundFarbe.ignoresSafeArea())
             .tint(profilAkzentFarbe)
             .navigationTitle("Mein Profil")
-            .navigationDestination(isPresented: $vertrauenspersonAnzeigen) {
-                VertrauenspersonView()
-            }
-
             .alert("Profil wirklich löschen?", isPresented: $profilLoeschenBestaetigen) {
 
                 Button("Abbrechen", role: .cancel) { }

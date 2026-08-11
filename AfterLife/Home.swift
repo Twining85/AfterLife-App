@@ -309,7 +309,7 @@ struct Home: View {
             return "Wähle die Bereiche aus, die für dich wichtig sind. Du kannst deine Auswahl jederzeit ändern."
         }
         if vorsorgeStatus == .dossierErstellt, !vertrauenspersonenFuerAktivenUser.isEmpty {
-            return "Vorsorge-Dossier aktuell und Vertrauensperson hinterlegt."
+            return "Das Vorsorge-Dossier ist aktuell und eine Vertrauensperson hinterlegt. Entscheide selbst ob die Informationen bereits ausreichend sind"
         }
         if vorsorgeStatus == .unvollstaendig { return dossierFortschritt.beschreibung }
         return vorsorgeStatus.beschreibung
@@ -690,12 +690,7 @@ struct Home: View {
                     if homeBearbeitungsmodus {
                         ToolbarItem(placement: .topBarTrailing) {
                             Button("Fertig") {
-                                speichereHomeBereichReihenfolge()
-
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    homeBearbeitungsmodus = false
-                                    kachelWackelPhase = false
-                                }
+                                beendeHomeBearbeitung()
                             }
                             .font(.body.weight(.semibold))
                             .foregroundStyle(schluessliAkzent)
@@ -879,9 +874,31 @@ struct Home: View {
 
         private func speichereHomeBereichReihenfolge() {
             initialisiereHomeBereicheFallsNoetig()
-            homeBereicheReihenfolge = bearbeiteteHomeBereiche
+            let neueReihenfolge = bearbeiteteHomeBereiche
                 .map(\.rawValue)
                 .joined(separator: ",")
+
+            guard homeBereicheReihenfolge != neueReihenfolge else { return }
+
+            var transaktion = Transaction(animation: nil)
+            transaktion.disablesAnimations = true
+            withTransaction(transaktion) {
+                homeBereicheReihenfolge = neueReihenfolge
+            }
+        }
+
+        private func beendeHomeBearbeitung() {
+            var transaktion = Transaction(animation: nil)
+            transaktion.disablesAnimations = true
+            withTransaction(transaktion) {
+                kachelWackelPhase = false
+            }
+
+            withAnimation(.easeInOut(duration: 0.2)) {
+                homeBearbeitungsmodus = false
+            }
+
+            speichereHomeBereichReihenfolge()
         }
 
         private func verschiebeHomeBereich(_ bereich: HomeBereich, richtung: Int) {
@@ -1383,7 +1400,7 @@ struct Home: View {
             case .finanzen:
                 return "Deine finanzielle Übersicht"
             case .hinterbliebene:
-                return "Menschen, die dir wichtig sind"
+                return "Wichtige Menschen im Leben"
             case .dokumente:
                 return "Alles sicher abgelegt"
             case .abos:
@@ -1404,7 +1421,7 @@ struct Home: View {
             case .finanzen:
                 return "Konten, Schulden, Versicherungen und Wertsachen auflisten"
             case .hinterbliebene:
-                return "Familie & Freunde, Anwälte als Kontakte hinterlegen"
+                return "Alle Personen in deinem Leben in einer Liste festhalten"
             case .dokumente:
                 return "Wichtige Dokumente hochladen und Fotoalbum erstellen"
             case .abos:

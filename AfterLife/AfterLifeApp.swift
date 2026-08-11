@@ -211,8 +211,10 @@ struct AppStartView: View {
             }
         }
         .onAppear {
-            UIApplication.shared
-                .aktiviereTastaturAusblendenBeiTap()
+            DispatchQueue.main.async {
+                UIApplication.shared
+                    .aktiviereTastaturAusblendenBeiInteraktion()
+            }
 
             verarbeiteGespeicherteEinladungsURLFallsNoetig()
         }
@@ -263,6 +265,14 @@ struct AppStartView: View {
 
             istEingeloggt = false
             direktNachRegistrierungEingeloggt = false
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: UIApplication.didBecomeActiveNotification
+            )
+        ) { _ in
+            UIApplication.shared
+                .aktiviereTastaturAusblendenBeiInteraktion()
         }
     }
 
@@ -448,10 +458,18 @@ final class TastaturAusblendenGestureDelegate:
 
         return true
     }
+
+    func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWith otherGestureRecognizer:
+            UIGestureRecognizer
+    ) -> Bool {
+        true
+    }
 }
 
 extension UIApplication {
-    func aktiviereTastaturAusblendenBeiTap() {
+    func aktiviereTastaturAusblendenBeiInteraktion() {
         connectedScenes
             .compactMap {
                 $0 as? UIWindowScene
@@ -460,42 +478,68 @@ extension UIApplication {
                 $0.windows
             }
             .forEach { window in
-                let gestureName =
+                let tapGestureName =
                     "GlobaleTastaturAusblendenGesture"
 
-                let gestureExistiertBereits =
+                let tapGestureExistiertBereits =
                     window.gestureRecognizers?
                         .contains {
-                            $0.name == gestureName
+                            $0.name == tapGestureName
                         } ?? false
 
-                guard !gestureExistiertBereits else {
-                    return
+                if !tapGestureExistiertBereits {
+                    let tapGesture =
+                        UITapGestureRecognizer(
+                            target: self,
+                            action:
+                                #selector(
+                                    tastaturAusblenden
+                                )
+                        )
+
+                    tapGesture.name = tapGestureName
+                    tapGesture.cancelsTouchesInView = false
+                    tapGesture.delegate =
+                        TastaturAusblendenGestureDelegate.shared
+                    window.addGestureRecognizer(tapGesture)
                 }
 
-                let tapGesture =
-                    UITapGestureRecognizer(
+                let panGestureName =
+                    "GlobaleTastaturAusblendenBeiScrollGesture"
+                let panGestureExistiertBereits =
+                    window.gestureRecognizers?
+                        .contains {
+                            $0.name == panGestureName
+                        } ?? false
+
+                if !panGestureExistiertBereits {
+                    let panGesture =
+                        UIPanGestureRecognizer(
                         target: self,
                         action:
                             #selector(
-                                tastaturAusblenden
+                                tastaturAusblendenBeiScroll(_:)
                             )
                     )
 
-                tapGesture.name =
-                    gestureName
-
-                tapGesture.cancelsTouchesInView =
-                    false
-
-                tapGesture.delegate =
-                    TastaturAusblendenGestureDelegate
-                        .shared
-
-                window.addGestureRecognizer(
-                    tapGesture
-                )
+                    panGesture.name = panGestureName
+                    panGesture.cancelsTouchesInView = false
+                    panGesture.delegate =
+                        TastaturAusblendenGestureDelegate.shared
+                    window.addGestureRecognizer(panGesture)
+                }
             }
+    }
+
+    @objc
+    private func tastaturAusblendenBeiScroll(
+        _ gestureRecognizer: UIPanGestureRecognizer
+    ) {
+        guard gestureRecognizer.state == .began else {
+            return
+        }
+
+        tastaturAusblenden()
     }
 
     @objc

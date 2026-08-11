@@ -72,7 +72,7 @@ struct GesundheitView: View {
         }
         .background(Color(.systemBackground))
         .navigationTitle("Gesundheit")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(.large)
         .onAppear {
             if datensatz == nil {
                 if let vorhanden = gesundheitDatensaetze.first {
@@ -101,7 +101,7 @@ struct GesundheitView: View {
         }
         .background(Color(.systemBackground))
         .navigationTitle("Gesundheit")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(.large)
         .dossierFloatingNavigation(.gesundheit)
 #endif
     }
