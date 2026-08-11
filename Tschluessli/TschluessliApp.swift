@@ -1,6 +1,6 @@
 //
-//  AfterLifeApp.swift
-//  AfterLife
+//  TschluessliApp.swift
+//  Tschluessli
 //
 //  Created by René Engeler on 17.06.2026.
 //
@@ -10,7 +10,7 @@ import SwiftData
 import UIKit
 
 @main
-struct AfterLifeApp: App {
+struct TschluessliApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             ProfilModell.self,

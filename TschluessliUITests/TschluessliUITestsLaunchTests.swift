@@ -1,13 +1,13 @@
 //
-//  AfterLifeUITestsLaunchTests.swift
-//  AfterLifeUITests
+//  TschluessliUITestsLaunchTests.swift
+//  TschluessliUITests
 //
 //  Created by René Engeler on 17.06.2026.
 //
 
 import XCTest
 
-final class AfterLifeUITestsLaunchTests: XCTestCase {
+final class TschluessliUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true

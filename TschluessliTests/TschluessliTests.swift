@@ -1,15 +1,15 @@
 //
-//  AfterLifeTests.swift
-//  AfterLifeTests
+//  TschluessliTests.swift
+//  TschluessliTests
 //
 //  Created by René Engeler on 17.06.2026.
 //
 
 import Foundation
 import Testing
-@testable import AfterLife
+@testable import Tschluessli
 
-struct AfterLifeTests {
+struct TschluessliTests {
 
     @Test func example() async throws {
         // Write your test here and use APIs like `#expect(...)` to check expected conditions.
