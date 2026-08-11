@@ -29,10 +29,10 @@ struct DossierZugriffService {
     /// Liefert den simulierten Registrierungslink.
     func registrierungsLink(fuer zugriff: DossierZugriffModell) -> String {
         guard let token = zugriff.einladungsToken else {
-            return "afterlife://registrierung?token="
+            return "tschluessli://registrierung?token="
         }
 
-        return "afterlife://registrierung?token=\(token)"
+        return "tschluessli://registrierung?token=\(token)"
     }
 
     /// Prüft, ob eine Einladung aktuell gültig ist.

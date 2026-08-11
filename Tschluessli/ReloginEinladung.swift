@@ -485,7 +485,7 @@ struct ReloginEinladung: View {
 
         do {
             let gespeichertesKeychainPasswort = try KeychainHelper.shared.read(
-                service: "AfterLife.Login",
+                service: "Tschluessli.Login",
                 account: registrierungsEmail
             )
 

@@ -353,21 +353,13 @@ struct AppStartView: View {
             scheme == "tschluessli" &&
             (
                 host == "einladung" ||
-                normalisierterPfad == "einladung"
-            )
-
-        let istAltesAfterLifeScheme =
-            scheme == "afterlife" &&
-            (
-                host == "einladung" ||
                 host == "registrierung" ||
                 normalisierterPfad == "einladung" ||
                 normalisierterPfad == "registrierung"
             )
 
         return istUniversalLink ||
-            istTschluessliScheme ||
-            istAltesAfterLifeScheme
+            istTschluessliScheme
     }
 
     private func einladungsToken(

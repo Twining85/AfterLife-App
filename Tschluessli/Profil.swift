@@ -980,7 +980,7 @@ struct ProfilView: View {
 
         do {
             let gespeichertesKeychainPasswort = try KeychainHelper.shared.read(
-                service: "AfterLife.Login",
+                service: "Tschluessli.Login",
                 account: bereinigteEmail
             )
 
@@ -991,7 +991,7 @@ struct ProfilView: View {
 
             try KeychainHelper.shared.save(
                 neuesPasswort,
-                service: "AfterLife.Login",
+                service: "Tschluessli.Login",
                 account: bereinigteEmail
             )
 
@@ -1081,7 +1081,7 @@ struct ProfilView: View {
 
         keychainKonten.forEach { konto in
             try? KeychainHelper.shared.delete(
-                service: "AfterLife.Login",
+                service: "Tschluessli.Login",
                 account: konto
             )
         }

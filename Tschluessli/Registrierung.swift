@@ -736,7 +736,7 @@ struct Registrierung: View {
         do {
             try KeychainHelper.shared.save(
                 bereinigtesPasswort,
-                service: "AfterLife.Login",
+                service: "Tschluessli.Login",
                 account: bereinigteEmail
             )
 

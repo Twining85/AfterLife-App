@@ -1873,7 +1873,7 @@ struct VertrauenspersonView: View {
 
             if simulierterEinladungsLink.isEmpty {
                 simulierterEinladungsLink =
-                "afterlife://registrierung?token=\(einladungsToken)"
+                "tschluessli://registrierung?token=\(einladungsToken)"
             }
 
             speichereVertrauensperson()
@@ -2200,7 +2200,7 @@ struct VertrauenspersonView: View {
 
         if let einladungsToken {
             simulierterEinladungsLink =
-            "afterlife://registrierung?token=\(einladungsToken)"
+            "tschluessli://registrierung?token=\(einladungsToken)"
 
             korrigiereEinladungsGueltigkeitFallsNoetig()
         }

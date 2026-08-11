@@ -624,7 +624,7 @@ struct VertrauenspersonRegistrierung: View {
             if art == "E-Mail" {
                 try KeychainHelper.shared.save(
                     passwort,
-                    service: "AfterLife.Login",
+                    service: "Tschluessli.Login",
                     account: email
                 )
             }
