@@ -12,6 +12,7 @@ final class WuenscheModell {
     @Attribute(.externalStorage) var ausgewaehlteThemenData: Data? = nil
 
     // Beisetzung
+    var beisetzungsRahmen: String = "im kleinen privaten Kreis"
     var beisetzungsArt: String
     var beisetzungHinweis: String
     var sonstigeBemerkungen: String
@@ -86,6 +87,7 @@ final class WuenscheModell {
         dossierID: UUID? = nil,
         hatWuensche: Bool = true,
         ausgewaehlteThemenData: Data? = nil,
+        beisetzungsRahmen: String = "im kleinen privaten Kreis",
         beisetzungsArt: String = "",
         beisetzungHinweis: String = "",
         sonstigeBemerkungen: String = "",
@@ -139,6 +141,7 @@ final class WuenscheModell {
         self.dossierID = dossierID
         self.hatWuensche = hatWuensche
         self.ausgewaehlteThemenData = ausgewaehlteThemenData
+        self.beisetzungsRahmen = beisetzungsRahmen
         self.beisetzungsArt = beisetzungsArt
         self.beisetzungHinweis = beisetzungHinweis
         self.sonstigeBemerkungen = sonstigeBemerkungen

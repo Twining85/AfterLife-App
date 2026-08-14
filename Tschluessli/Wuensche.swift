@@ -22,6 +22,7 @@ struct WuenscheView: View {
     @State private var themaZumEntfernen: WuenscheThema? = nil
     @State private var themaEntfernenDialogAnzeigen = false
 
+    @State private var bestattungsrahmen: Bestattungsrahmen = .privaterKreis
     @State private var bestattungsart: Bestattungsart = .kremation
     @State private var bestattungswuensche = ""
     @State private var kremationHinweise = ""
@@ -140,6 +141,7 @@ struct WuenscheView: View {
         [
             ausgewaehlteThemen.map(\.rawValue).sorted().joined(separator: ","),
             String(hatBesondereWuensche),
+            bestattungsrahmen.rawValue,
             bestattungsart.rawValue,
             bestattungswuensche,
             kremationHinweise,
@@ -516,6 +518,7 @@ struct WuenscheView: View {
     private func datenFuerThemaZuruecksetzen(_ thema: WuenscheThema) {
         switch thema {
         case .beisetzung:
+            bestattungsrahmen = .privaterKreis
             bestattungsart = .kremation
             bestattungswuensche = ""
             kremationHinweise = ""
@@ -682,6 +685,15 @@ struct WuenscheView: View {
     private var beisetzungSection: some View {
         styleGuideSection(titel: "Meine Beisetzung", systemImage: "leaf.fill", entfernenAktion: { themaEntfernen(.beisetzung) }) {
             styledTextField("Bestattungswünsche", text: $bestattungswuensche, axis: .vertical, lineLimit: 3...8)
+
+            Picker("Teilnahme", selection: $bestattungsrahmen) {
+                ForEach(Bestattungsrahmen.allCases) { rahmen in
+                    Text(rahmen.rawValue).tag(rahmen)
+                }
+            }
+            .pickerStyle(.segmented)
+            .tint(wuenscheAccentColor)
+            .disabled(dossierKontext.istReadOnly)
 
             Picker("Bestattungsart", selection: $bestattungsart) {
                 ForEach(Bestattungsart.allCases) { art in
@@ -1194,6 +1206,7 @@ struct WuenscheView: View {
                 ausgewaehlteThemen = []
             }
 
+            bestattungsrahmen = Bestattungsrahmen(rawValue: vorhandeneWuensche.beisetzungsRahmen) ?? .privaterKreis
             bestattungsart = Bestattungsart(rawValue: vorhandeneWuensche.beisetzungsArt) ?? .kremation
             bestattungswuensche = vorhandeneWuensche.beisetzungHinweis
             sonstigeBemerkungen = vorhandeneWuensche.sonstigeBemerkungen
@@ -1305,6 +1318,7 @@ struct WuenscheView: View {
         wuensche.hatWuensche = true
         let sortierteThemen = ausgewaehlteThemen.map(\.rawValue).sorted()
         wuensche.ausgewaehlteThemenData = try? JSONEncoder().encode(sortierteThemen)
+        wuensche.beisetzungsRahmen = bestattungsrahmen.rawValue
         wuensche.beisetzungsArt = bestattungsart.rawValue
 
         switch bestattungsart {
@@ -2613,6 +2627,13 @@ struct DokumentUploadBox: View {
         }
     }
     
+    enum Bestattungsrahmen: String, CaseIterable, Identifiable {
+        case privaterKreis = "im kleinen privaten Kreis"
+        case oeffentlich = "öffentlich"
+
+        var id: String { rawValue }
+    }
+
     enum Bestattungsart: String, CaseIterable, Identifiable {
         case kremation = "Kremation"
         case erdbestattung = "Erdbestattung"

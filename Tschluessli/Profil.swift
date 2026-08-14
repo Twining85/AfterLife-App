@@ -1979,6 +1979,7 @@ struct ProfilView: View {
                         drawField("Ich habe besondere Wünsche", wunsch.hatWuensche ? "Ja" : "Nein")
 
                         drawSubsectionTitle("Beisetzung")
+                        drawField("Rahmen", wunsch.beisetzungsRahmen)
                         drawField("Beisetzungsart", wunsch.beisetzungsArt)
                         drawField("Hinweis zur Beisetzung", wunsch.beisetzungHinweis)
                         drawField("Sonstige Bemerkungen", wunsch.sonstigeBemerkungen)

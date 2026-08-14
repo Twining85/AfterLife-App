@@ -113,6 +113,17 @@ struct Home: View {
         return homeBereicheReihenfolge.isEmpty ? [.profil] : Set(HomeBereich.allCases)
     }
 
+    private var vorbelegteBereichsauswahl: Set<HomeBereich> {
+        guard homeAktiveBereiche.isEmpty else { return aktiveHomeBereiche }
+
+        return aktiveHomeBereiche.union([
+            .hinterbliebene,
+            .wuensche,
+            .finanzen,
+            .dokumente
+        ])
+    }
+
     private var sortierteHomeBereiche: [HomeBereich] {
         let gespeicherteIDs = homeBereicheReihenfolge
             .split(separator: ",")
@@ -504,7 +515,7 @@ struct Home: View {
                             Spacer()
 
                             Button("Verwalten") {
-                                bereichsauswahl = aktiveHomeBereiche
+                                bereichsauswahl = vorbelegteBereichsauswahl
                                 bereichsauswahlAnzeigen = true
                             }
                             .font(.subheadline.weight(.semibold))
@@ -726,7 +737,7 @@ struct Home: View {
         }
 
         if !hatZusaetzlicheHomeBereiche {
-            bereichsauswahl = aktiveHomeBereiche
+            bereichsauswahl = vorbelegteBereichsauswahl
             bereichsauswahlAnzeigen = true
             return
         }
@@ -1333,13 +1344,13 @@ struct Home: View {
 
     enum HomeBereich: String, CaseIterable, Identifiable {
         case profil
-        case gesundheit
+        case hinterbliebene
         case wuensche
         case finanzen
-        case hinterbliebene
         case dokumente
         case abos
         case herzensstuecke
+        case gesundheit
 
         var id: String { rawValue }
 

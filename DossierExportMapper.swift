@@ -464,6 +464,7 @@ private extension DossierExportMapper {
         DossierPDFSection(
             titel: "Beisetzung",
             items: [
+                makeItem(label: "Rahmen", value: wunsch.beisetzungsRahmen, options: options),
                 makeItem(label: "Art", value: wunsch.beisetzungsArt, options: options),
                 makeItem(label: "Hinweis", value: wunsch.beisetzungHinweis, options: options),
                 makeItem(label: "Sonstige Bemerkungen", value: wunsch.sonstigeBemerkungen, options: options)
@@ -1372,6 +1373,7 @@ private extension DossierExportMapper {
     }
 
     func hasWuenscheDetails(_ wunsch: WuenscheModell) -> Bool {
+        hasContent(wunsch.beisetzungsRahmen) ||
         hasContent(wunsch.beisetzungsArt) ||
         hasContent(wunsch.beisetzungHinweis) ||
         hasContent(wunsch.sonstigeBemerkungen) ||
