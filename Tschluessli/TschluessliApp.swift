@@ -66,6 +66,17 @@ struct AppStartView: View {
     @Query private var gespeicherteProfile: [ProfilModell]
     @Query private var gesundheitsdaten: [GesundheitModell]
     @Query private var wuenscheDaten: [WuenscheModell]
+    @Query private var bankkonten: [BankkontoModell]
+    @Query private var schulden: [SchuldenModell]
+    @Query private var versicherungen: [VersicherungModell]
+    @Query private var liegenschaften: [LiegenschaftModell]
+    @Query private var wertsachen: [WertsacheModell]
+    @Query private var steuerdokumente: [SteuerdokumentModell]
+    @Query private var hinterbliebene: [HinterbliebeneModell]
+    @Query private var vertrauenspersonen: [VertrauenspersonModell]
+    @Query private var aboModelle: [AboModell]
+    @Query private var digitaleKonten: [DigitalekontenModell]
+    @Query private var herzensstuecke: [HerzensstueckModell]
 
     @AppStorage("istEingeloggt")
     private var istEingeloggt = false
@@ -294,6 +305,25 @@ struct AppStartView: View {
         let wuensche = wuenscheDaten
             .filter { $0.dossierID == dossierID }
             .map(CloudWuenscheDaten.init)
+        let finanzen = CloudFinanzenDaten(
+            bankkonten: bankkonten.filter { $0.dossierID == dossierID }.map(CloudFinanzenDaten.Bankkonto.init),
+            schulden: schulden.filter { $0.dossierID == dossierID }.map(CloudFinanzenDaten.Schuld.init),
+            versicherungen: versicherungen.filter { $0.dossierID == dossierID }.map(CloudFinanzenDaten.Versicherung.init),
+            liegenschaften: liegenschaften.filter { $0.dossierID == dossierID }.map(CloudFinanzenDaten.Liegenschaft.init),
+            wertsachen: wertsachen.filter { $0.dossierID == dossierID }.map(CloudFinanzenDaten.Wertsache.init),
+            steuerdokumente: steuerdokumente.filter { $0.dossierID == dossierID }.map(CloudFinanzenDaten.Steuerdokument.init)
+        )
+        let kontakte = CloudKontaktDaten(
+            hinterbliebene: hinterbliebene.filter { $0.dossierID == dossierID }.map(CloudKontaktDaten.Hinterbliebene.init),
+            vertrauenspersonen: vertrauenspersonen.filter { $0.dossierID == dossierID }.map(CloudKontaktDaten.Vertrauensperson.init)
+        )
+        let zugangsdaten = CloudZugangsDaten(
+            abos: aboModelle.filter { $0.dossierID == dossierID }.map(CloudAboDaten.init),
+            digitaleKonten: digitaleKonten.filter { $0.dossierID == dossierID }.map(CloudZugangsDaten.DigitalesKonto.init)
+        )
+        let herzensstueckDaten = herzensstuecke
+            .filter { $0.dossierID == dossierID }
+            .map(CloudHerzensstueckDaten.init)
 
         Task {
             do {
@@ -305,6 +335,19 @@ struct AppStartView: View {
                 )
                 _ = try await CloudDossierSyncService.shared.speichern(
                     wuensche, dossierID: dossierID, bereich: "wuensche", schemaVersion: 1
+                )
+                _ = try await CloudDossierSyncService.shared.speichern(
+                    finanzen, dossierID: dossierID, bereich: "finanzen", schemaVersion: 1
+                )
+                _ = try await CloudDossierSyncService.shared.speichern(
+                    kontakte, dossierID: dossierID, bereich: "kontakte", schemaVersion: 1
+                )
+                _ = try await CloudDossierSyncService.shared.speichern(
+                    herzensstueckDaten, dossierID: dossierID, bereich: "herzensstuecke", schemaVersion: 1
+                )
+                let verschluesselteZugaenge = try await CloudFeldVerschluesselung.shared.verschluesseln(zugangsdaten)
+                _ = try await CloudDossierSyncService.shared.speichern(
+                    verschluesselteZugaenge, dossierID: dossierID, bereich: "zugaenge", schemaVersion: 1
                 )
             } catch {
                 print("Cloud-Synchronisation der Kerndaten fehlgeschlagen: \(error.localizedDescription)")
