@@ -13,6 +13,7 @@ enum EmailVerifizierungsFehler: LocalizedError {
     case ungueltigeAntwort
     case versandFehlgeschlagen
     case codeUngueltig
+    case server(String)
 
     var errorDescription: String? {
         switch self {
@@ -22,6 +23,8 @@ enum EmailVerifizierungsFehler: LocalizedError {
             return "Der Code konnte nicht gesendet werden. Bitte versuche es erneut."
         case .codeUngueltig:
             return "Der Code ist nicht korrekt oder bereits abgelaufen."
+        case .server(let meldung):
+            return meldung
         }
     }
 }
@@ -37,8 +40,11 @@ actor EmailVerifizierungsService {
         request.httpBody = try JSONEncoder().encode(VersandAnfrage(email: email))
 
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+        guard let http = response as? HTTPURLResponse else {
             throw EmailVerifizierungsFehler.versandFehlgeschlagen
+        }
+        guard http.statusCode == 200 else {
+            throw Self.serverFehler(aus: data, fallback: "Der Code konnte nicht gesendet werden. Bitte versuche es erneut.")
         }
         let antwort = try JSONDecoder().decode(VersandAntwort.self, from: data)
         guard let gueltigBis = Self.iso8601Datum(from: antwort.expiresAt) else {
@@ -57,8 +63,14 @@ actor EmailVerifizierungsService {
         )
 
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            throw EmailVerifizierungsFehler.codeUngueltig
+        guard let http = response as? HTTPURLResponse else {
+            throw EmailVerifizierungsFehler.ungueltigeAntwort
+        }
+        guard http.statusCode == 200 else {
+            if http.statusCode == 400 {
+                throw EmailVerifizierungsFehler.codeUngueltig
+            }
+            throw Self.serverFehler(aus: data, fallback: "Der Code konnte nicht geprüft werden. Bitte versuche es später erneut.")
         }
         guard let antwort = try? JSONDecoder().decode(PruefAntwort.self, from: data) else {
             throw EmailVerifizierungsFehler.ungueltigeAntwort
@@ -79,6 +91,11 @@ actor EmailVerifizierungsService {
 
         return ISO8601DateFormatter().date(from: wert)
     }
+
+    private static func serverFehler(aus data: Data, fallback: String) -> EmailVerifizierungsFehler {
+        let meldung = (try? JSONDecoder().decode(EmailVerifizierungsServerFehler.self, from: data))?.error
+        return .server(meldung ?? fallback)
+    }
 }
 
 private nonisolated struct VersandAnfrage: Encodable { let email: String }
@@ -92,4 +109,7 @@ private nonisolated struct PruefAnfrage: Encodable {
 }
 private nonisolated struct PruefAntwort: Decodable {
     let registrationGrant: String
+}
+private nonisolated struct EmailVerifizierungsServerFehler: Decodable {
+    let error: String
 }

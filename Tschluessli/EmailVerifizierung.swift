@@ -13,7 +13,7 @@ struct EmailVerifizierung: View {
     @State private var fehlermeldung = ""
     @State private var wirdGeprueft = false
     @State private var wirdGesendet = false
-    @State private var challenge: EmailVerifizierungsChallenge?
+    @State private var challenges: [EmailVerifizierungsChallenge] = []
     @State private var verbleibendeSekunden = 120
     @State private var countdownID = UUID()
     @FocusState private var codeFeldIstFokussiert: Bool
@@ -180,24 +180,35 @@ struct EmailVerifizierung: View {
     }
 
     private func codePruefen(_ eingegebenerCode: String) {
-        guard !wirdGeprueft, let challenge else { return }
+        let gueltigeChallenges = challenges.filter { $0.gueltigBis > Date() }
+        guard !wirdGeprueft, !gueltigeChallenges.isEmpty else { return }
         wirdGeprueft = true
         codeFeldIstFokussiert = false
 
         Task {
-            do {
-                let ergebnis = try await EmailVerifizierungsService.shared.codePruefen(
-                    eingegebenerCode,
-                    challenge: challenge
-                )
-                wirdGeprueft = false
-                onVerifiziert(ergebnis.registrierungsGrant)
-            } catch {
-                wirdGeprueft = false
-                code = ""
-                fehlermeldung = error.localizedDescription
-                codeFeldIstFokussiert = true
+            for challenge in gueltigeChallenges.reversed() {
+                do {
+                    let ergebnis = try await EmailVerifizierungsService.shared.codePruefen(
+                        eingegebenerCode,
+                        challenge: challenge
+                    )
+                    wirdGeprueft = false
+                    onVerifiziert(ergebnis.registrierungsGrant)
+                    return
+                } catch EmailVerifizierungsFehler.codeUngueltig {
+                    continue
+                } catch {
+                    wirdGeprueft = false
+                    fehlermeldung = error.localizedDescription
+                    codeFeldIstFokussiert = true
+                    return
+                }
             }
+
+            wirdGeprueft = false
+            code = ""
+            fehlermeldung = EmailVerifizierungsFehler.codeUngueltig.localizedDescription
+            codeFeldIstFokussiert = true
         }
     }
 
@@ -208,7 +219,9 @@ struct EmailVerifizierung: View {
         fehlermeldung = ""
 
         do {
-            challenge = try await EmailVerifizierungsService.shared.codeSenden(an: email)
+            let neueChallenge = try await EmailVerifizierungsService.shared.codeSenden(an: email)
+            challenges.removeAll { $0.gueltigBis <= Date() }
+            challenges.append(neueChallenge)
             verbleibendeSekunden = 120
             countdownID = UUID()
             wirdGesendet = false
