@@ -325,7 +325,23 @@ struct AppStartView: View {
             .filter { $0.dossierID == dossierID }
             .map(CloudHerzensstueckDaten.init)
 
+        var hintergrundTask = UIBackgroundTaskIdentifier.invalid
+        hintergrundTask = UIApplication.shared.beginBackgroundTask(
+            withName: "Tschluessli-Dossier-Synchronisation"
+        ) {
+            if hintergrundTask != .invalid {
+                UIApplication.shared.endBackgroundTask(hintergrundTask)
+                hintergrundTask = .invalid
+            }
+        }
+
         Task {
+            defer {
+                if hintergrundTask != .invalid {
+                    UIApplication.shared.endBackgroundTask(hintergrundTask)
+                    hintergrundTask = .invalid
+                }
+            }
             do {
                 _ = try await CloudDossierSyncService.shared.speichern(
                     CloudDatenListe(items: profile), dossierID: dossierID, bereich: "profil", schemaVersion: 1
