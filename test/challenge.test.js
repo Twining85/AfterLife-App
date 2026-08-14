@@ -1,9 +1,28 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createChallenge, createCode, verifyChallenge } from "../api/email-verification/_challenge.js";
+import {
+  createChallenge,
+  createCode,
+  createRegistrationGrant,
+  verifyChallenge,
+  verifyRegistrationGrant
+} from "../api/email-verification/_challenge.js";
 
 test("erstellt sechsstellige Codes", () => {
   assert.match(createCode(), /^\d{6}$/);
+});
+
+test("bindet Registrierungserlaubnis an die bestätigte E-Mail", () => {
+  const previous = process.env.EMAIL_VERIFICATION_SECRET;
+  process.env.EMAIL_VERIFICATION_SECRET = "test-secret-with-sufficient-entropy";
+  try {
+    const grant = createRegistrationGrant("person@example.ch");
+    assert.equal(verifyRegistrationGrant(grant, "person@example.ch"), true);
+    assert.equal(verifyRegistrationGrant(grant, "andere@example.ch"), false);
+  } finally {
+    if (previous === undefined) delete process.env.EMAIL_VERIFICATION_SECRET;
+    else process.env.EMAIL_VERIFICATION_SECRET = previous;
+  }
 });
 
 test("akzeptiert nur korrekt signierten Code", () => {
