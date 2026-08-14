@@ -507,7 +507,7 @@ struct ProfilView: View {
                         systemdialogImProfilLaeuft = true
                         rechtlichesAnzeigen = true
                     } label: {
-                        Label("Haftungshinweise", systemImage: "exclamationmark.shield")
+                        Label("Datenschutzerklärungen", systemImage: "exclamationmark.shield")
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(.plain)
@@ -548,7 +548,7 @@ struct ProfilView: View {
             .sheet(isPresented: $rechtlichesAnzeigen, onDismiss: {
                 systemdialogImProfilLaeuft = false
             }) {
-                ProfilSafariView(url: URL(string: "https://tschluessli.ch")!)
+                ProfilSafariView(url: URL(string: "https://tschluessli.ch/front_page/rechtliches/")!)
                     .ignoresSafeArea()
             }
 

@@ -76,9 +76,8 @@ struct Registrierung: View {
                     .transition(.opacity)
             }
         }
-        .animation(.easeInOut(duration: 0.28), value: onboardingSeite)
         .sheet(isPresented: $rechtlichesAnzeigen) {
-            RegistrierungsSafariView(url: URL(string: "https://tschluessli.ch")!)
+            RegistrierungsSafariView(url: URL(string: "https://tschluessli.ch/front_page/rechtliches/")!)
                 .ignoresSafeArea()
         }
     }
@@ -109,7 +108,9 @@ struct Registrierung: View {
                     let istUeberwiegendHorizontal = abs(value.translation.width) > abs(value.translation.height)
 
                     if istWischNachRechts && istUeberwiegendHorizontal {
-                        onboardingSeite = 2
+                        withAnimation(.easeInOut(duration: 0.42)) {
+                            onboardingSeite = 2
+                        }
                     }
                 }
         )
@@ -142,7 +143,9 @@ struct Registrierung: View {
                     ForEach(0..<3, id: \.self) { index in
                         Circle()
                             .fill(index == onboardingSeite ? registrierungAkzent : registrierungAkzent.opacity(0.2))
-                            .frame(width: index == onboardingSeite ? 9 : 7, height: index == onboardingSeite ? 9 : 7)
+                            .frame(width: 9, height: 9)
+                            .scaleEffect(index == onboardingSeite ? 1 : 7 / 9)
+                            .animation(.easeInOut(duration: 0.22), value: onboardingSeite)
                     }
                 }
                 .accessibilityElement(children: .ignore)
@@ -150,11 +153,15 @@ struct Registrierung: View {
 
                 if onboardingSeite < 2 {
                     onboardingButton(titel: "Weiter") {
-                        onboardingSeite += 1
+                        withAnimation(.easeInOut(duration: 0.42)) {
+                            onboardingSeite += 1
+                        }
                     }
                 } else {
                     onboardingButton(titel: "Jetzt kostenlos starten") {
-                        onboardingSeite = 3
+                        withAnimation(.easeInOut(duration: 0.34)) {
+                            onboardingSeite = 3
+                        }
                     }
                 }
             }
@@ -200,13 +207,12 @@ struct Registrierung: View {
         hoehe: CGFloat
     ) -> some View {
         ZStack(alignment: .bottom) {
-            GeometryReader { geometry in
-                Image(bild)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: geometry.size.width, height: hoehe)
-                    .clipped()
-            }
+            Image(bild)
+                .resizable()
+                .scaledToFill()
+                .frame(maxWidth: .infinity)
+                .frame(height: hoehe)
+                .clipped()
 
             LinearGradient(
                 colors: [.clear, Color.black.opacity(0.18), Color.black.opacity(0.78)],
@@ -505,12 +511,15 @@ struct Registrierung: View {
                     .underline()
                     Text("und")
                         .foregroundStyle(.secondary)
-                    Text("Datenschutz")
+                    Button("Datenschutz") {
+                        rechtlichesAnzeigen = true
+                    }
+                    .buttonStyle(.plain)
                         .underline()
                 }
                 .font(.caption)
                 .foregroundStyle(registrierungAkzent)
-                .accessibilityLabel("Nutzungsbedingungen öffnen und Datenschutz")
+                .accessibilityLabel("Nutzungsbedingungen und Datenschutz öffnen")
 
                 Toggle(isOn: $akzeptiertNutzungsbedingungen) {
                     Text("Ich akzeptiere die Nutzungsbedingungen.")

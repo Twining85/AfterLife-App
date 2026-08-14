@@ -1,12 +1,26 @@
 import { createChallenge, createCode, expiresAt } from "./_challenge.js";
 import { sendEmail } from "../_email-service.js";
 import { fileURLToPath } from "node:url";
+import {
+  normalizeEmail,
+  rateLimit,
+  requireJSON,
+  requireMethod,
+  secureResponse
+} from "../_security.js";
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Methode nicht erlaubt" });
+  secureResponse(res);
+  if (!requireMethod(req, res, "POST")) return;
+  if (!requireJSON(req, res)) return;
+  if (!rateLimit(req, res, {
+    namespace: "email-verification-request",
+    limit: 5,
+    windowMilliseconds: 15 * 60 * 1000
+  })) return;
 
-  const email = String(req.body?.email || "").trim().toLowerCase();
-  if (!/^\S+@\S+\.\S+$/.test(email)) {
+  const email = normalizeEmail(req.body?.email);
+  if (!email) {
     return res.status(400).json({ error: "Ungültige E-Mail-Adresse" });
   }
 
@@ -36,7 +50,6 @@ export default async function handler(req, res) {
       ]
     });
 
-    res.setHeader("Cache-Control", "no-store");
     return res.status(200).json({ challengeToken, expiresAt: expiresAt() });
   } catch (error) {
     console.error("E-Mail-Verifizierung:", error);

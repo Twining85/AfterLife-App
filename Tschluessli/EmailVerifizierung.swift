@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct EmailVerifizierung: View {
     let email: String
@@ -128,10 +129,17 @@ struct EmailVerifizierung: View {
                                 )
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-                }
+                    }
             }
             .contentShape(Rectangle())
             .onTapGesture { codeFeldIstFokussiert = true }
+            .contextMenu {
+                Button {
+                    codeAusZwischenablageEinsetzen()
+                } label: {
+                    Label("Einfügen", systemImage: "doc.on.clipboard")
+                }
+            }
         }
     }
 
@@ -160,6 +168,15 @@ struct EmailVerifizierung: View {
         guard index < code.count else { return "" }
         let codeIndex = code.index(code.startIndex, offsetBy: index)
         return String(code[codeIndex])
+    }
+
+    private func codeAusZwischenablageEinsetzen() {
+        guard let text = UIPasteboard.general.string else { return }
+        let ziffern = String(text.filter(\.isNumber).prefix(6))
+        guard !ziffern.isEmpty else { return }
+
+        code = ziffern
+        codeFeldIstFokussiert = ziffern.count < 6
     }
 
     private func codePruefen(_ eingegebenerCode: String) {

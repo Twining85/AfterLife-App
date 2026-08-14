@@ -23,14 +23,17 @@ export function verifyChallenge(token, code) {
   const secret = process.env.EMAIL_VERIFICATION_SECRET;
   if (!secret || typeof token !== "string") return false;
 
-  const [payload, signature] = token.split(".");
+  const parts = token.split(".");
+  if (parts.length !== 2) return false;
+  const [payload, signature] = parts;
   if (!payload || !signature) return false;
   const expectedSignature = sign(payload, secret);
   if (!safeEqual(signature, expectedSignature)) return false;
 
   try {
     const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
-    if (Date.now() > data.expiresAt) return false;
+    if (typeof data.email !== "string" || typeof data.codeHash !== "string") return false;
+    if (!Number.isFinite(data.expiresAt) || Date.now() > data.expiresAt) return false;
     return safeEqual(data.codeHash, hashCode(data.email, String(code), secret));
   } catch {
     return false;
