@@ -32,6 +32,7 @@ struct ReloginView: View {
     @State private var zeigtEmailLogin = true
     @State private var showPassword = false
     @State private var biometrieLoginLaeuft = false
+    @State private var emailLoginLaeuft = false
 
     private let loginFuerTestsUeberspringen = false
 
@@ -252,6 +253,7 @@ struct ReloginView: View {
                     .fill(akzentFarbe)
             )
             .padding(.top, 4)
+            .disabled(emailLoginLaeuft)
         }
     }
 
@@ -333,33 +335,30 @@ struct ReloginView: View {
 
     private func loginMitEmailUndPasswort() {
         let bereinigteEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let gespeicherteBereinigteEmail = registrierungsEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
         guard !bereinigteEmail.isEmpty, !passwort.isEmpty else {
             fehlermeldung = "Bitte E-Mail und Passwort eingeben."
             return
         }
 
-        guard bereinigteEmail == gespeicherteBereinigteEmail else {
-            fehlermeldung = "E-Mail oder Passwort ist nicht korrekt."
-            return
-        }
+        guard !emailLoginLaeuft else { return }
+        emailLoginLaeuft = true
+        fehlermeldung = ""
 
-        do {
-            let gespeichertesKeychainPasswort = try KeychainHelper.shared.read(
-                service: "Tschluessli.Login",
-                account: registrierungsEmail
-            )
-
-            guard passwort == gespeichertesKeychainPasswort else {
-                fehlermeldung = "E-Mail oder Passwort ist nicht korrekt."
-                return
+        Task {
+            do {
+                let sitzung = try await CloudKontoService.shared.anmelden(
+                    email: bereinigteEmail,
+                    passwort: passwort
+                )
+                aktiveUserID = sitzung.userID.uuidString
+                passwort = ""
+                emailLoginLaeuft = false
+                istEingeloggt = true
+            } catch {
+                emailLoginLaeuft = false
+                fehlermeldung = error.localizedDescription
             }
-
-            fehlermeldung = ""
-            istEingeloggt = true
-        } catch {
-            fehlermeldung = "Login-Daten konnten nicht sicher gelesen werden. Bitte registriere dich erneut."
         }
     }
 }

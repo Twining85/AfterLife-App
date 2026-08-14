@@ -1,4 +1,4 @@
-import { verifyChallenge } from "./_challenge.js";
+import { createRegistrationGrant, readVerifiedChallenge } from "./_challenge.js";
 import { rateLimit, requireJSON, requireMethod, secureResponse } from "../_security.js";
 
 export default async function handler(req, res) {
@@ -13,9 +13,13 @@ export default async function handler(req, res) {
 
   const code = String(req.body?.code || "").trim();
   const challengeToken = req.body?.challengeToken;
-  if (!/^\d{6}$/.test(code) || !verifyChallenge(challengeToken, code)) {
+  const verified = /^\d{6}$/.test(code) ? readVerifiedChallenge(challengeToken, code) : null;
+  if (!verified) {
     return res.status(400).json({ error: "Code ungültig oder abgelaufen" });
   }
 
-  return res.status(200).json({ verified: true });
+  return res.status(200).json({
+    verified: true,
+    registrationGrant: createRegistrationGrant(verified.email)
+  });
 }
