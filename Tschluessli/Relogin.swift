@@ -28,7 +28,7 @@ struct ReloginView: View {
     @State private var email = ""
     @State private var passwort = ""
     @State private var fehlermeldung = ""
-    @State private var istEingeloggt = false
+    @AppStorage("istEingeloggt") private var istEingeloggt = false
     @State private var zeigtEmailLogin = true
     @State private var showPassword = false
     @State private var biometrieLoginLaeuft = false
