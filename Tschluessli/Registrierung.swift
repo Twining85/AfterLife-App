@@ -40,7 +40,6 @@ struct Registrierung: View {
     @Query private var gespeicherteProfile: [ProfilModell]
     @AppStorage("profilIstVorhanden") private var profilIstVorhanden = false
     @AppStorage("gespeicherteEmail") private var gespeicherteEmail = ""
-    @AppStorage("gespeichertesPasswort") private var gespeichertesPasswort = ""
     @AppStorage("registrierungsArt") private var registrierungsArt = "E-Mail"
     @AppStorage("direktNachRegistrierungEingeloggt") private var direktNachRegistrierungEingeloggt = false
     @AppStorage("istEingeloggt") private var istEingeloggt = false
@@ -57,6 +56,7 @@ struct Registrierung: View {
     @State private var fehlermeldung = ""
     @State private var homeVollbildAnzeigen = false
     @State private var emailVerifizierungAnzeigen = false
+    @State private var registrierungLaeuft = false
     @State private var akzeptiertDisclaimer = false
     @State private var akzeptiertNutzungsbedingungen = false
     @State private var rechtlichesAnzeigen = false
@@ -567,8 +567,8 @@ struct Registrierung: View {
                 .interactiveDismissDisabled()
         }
         .fullScreenCover(isPresented: $emailVerifizierungAnzeigen) {
-            EmailVerifizierung(email: bereinigteEmailOriginalschreibweise) {
-                registrierungNachVerifizierungAbschliessen()
+            EmailVerifizierung(email: bereinigteEmailOriginalschreibweise) { registrierungsGrant in
+                registrierungNachVerifizierungAbschliessen(registrierungsGrant: registrierungsGrant)
             }
         }
         .padding(.top, 2)
@@ -739,39 +739,46 @@ struct Registrierung: View {
         emailVerifizierungAnzeigen = true
     }
 
-    private func registrierungNachVerifizierungAbschliessen() {
+    private func registrierungNachVerifizierungAbschliessen(registrierungsGrant: String) {
         let bereinigteEmail = bereinigteEmailOriginalschreibweise
+        guard !registrierungLaeuft else { return }
+        registrierungLaeuft = true
 
-        do {
-            try KeychainHelper.shared.save(
-                bereinigtesPasswort,
-                service: "Tschluessli.Login",
-                account: bereinigteEmail
-            )
-
-            gespeicherteEmail = bereinigteEmail
-            gespeichertesPasswort = bereinigtesPasswort
-            registrierungsArt = "E-Mail"
-
-            speichereRegistrierungsdaten(art: "E-Mail", email: bereinigteEmail)
-            try modelContext.save()
-
-            profilIstVorhanden = true
-            direktNachRegistrierungEingeloggt = true
-            istEingeloggt = true
-            emailVerifizierungAnzeigen = false
-            homeVollbildAnzeigen = true
-        } catch {
-            fehlermeldung = "Die Registrierung konnte nicht gespeichert werden: \(error.localizedDescription)"
-            print("Registrierung fehlgeschlagen: \(error)")
+        Task {
+            do {
+                let sitzung = try await CloudKontoService.shared.registrieren(
+                    email: bereinigteEmail,
+                    passwort: bereinigtesPasswort,
+                    registrierungsGrant: registrierungsGrant
+                )
+                speichereRegistrierungsdaten(
+                    art: "E-Mail",
+                    email: bereinigteEmail,
+                    userID: sitzung.userID,
+                    dossierID: sitzung.dossierID
+                )
+                try modelContext.save()
+                gespeicherteEmail = bereinigteEmail
+                registrierungsArt = "E-Mail"
+                profilIstVorhanden = true
+                direktNachRegistrierungEingeloggt = true
+                istEingeloggt = true
+                emailVerifizierungAnzeigen = false
+                homeVollbildAnzeigen = true
+                registrierungLaeuft = false
+            } catch {
+                registrierungLaeuft = false
+                emailVerifizierungAnzeigen = false
+                fehlermeldung = "Die Registrierung konnte nicht abgeschlossen werden: \(error.localizedDescription)"
+            }
         }
     }
 
 
 
-    private func speichereRegistrierungsdaten(art: String, email: String) {
+    private func speichereRegistrierungsdaten(art: String, email: String, userID: UUID, dossierID: UUID?) {
         let bereinigteEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
-        let profil = ProfilModell()
+        let profil = ProfilModell(userID: userID, dossierID: dossierID)
         modelContext.insert(profil)
 
         profil.registrierungsart = art

@@ -3,7 +3,7 @@ import UIKit
 
 struct EmailVerifizierung: View {
     let email: String
-    let onVerifiziert: () -> Void
+    let onVerifiziert: (String) -> Void
 
     private let akzentFarbe = Color(red: 0.16, green: 0.36, blue: 0.42)
     private let hintergrundFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
@@ -186,12 +186,12 @@ struct EmailVerifizierung: View {
 
         Task {
             do {
-                try await EmailVerifizierungsService.shared.codePruefen(
+                let ergebnis = try await EmailVerifizierungsService.shared.codePruefen(
                     eingegebenerCode,
                     challenge: challenge
                 )
                 wirdGeprueft = false
-                onVerifiziert()
+                onVerifiziert(ergebnis.registrierungsGrant)
             } catch {
                 wirdGeprueft = false
                 code = ""
@@ -232,5 +232,5 @@ struct EmailVerifizierung: View {
 }
 
 #Preview {
-    EmailVerifizierung(email: "rene@example.ch", onVerifiziert: {})
+    EmailVerifizierung(email: "rene@example.ch", onVerifiziert: { _ in })
 }
