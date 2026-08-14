@@ -328,13 +328,13 @@ struct AppStartView: View {
         Task {
             do {
                 _ = try await CloudDossierSyncService.shared.speichern(
-                    profile, dossierID: dossierID, bereich: "profil", schemaVersion: 1
+                    CloudDatenListe(items: profile), dossierID: dossierID, bereich: "profil", schemaVersion: 1
                 )
                 _ = try await CloudDossierSyncService.shared.speichern(
-                    gesundheit, dossierID: dossierID, bereich: "gesundheit", schemaVersion: 1
+                    CloudDatenListe(items: gesundheit), dossierID: dossierID, bereich: "gesundheit", schemaVersion: 1
                 )
                 _ = try await CloudDossierSyncService.shared.speichern(
-                    wuensche, dossierID: dossierID, bereich: "wuensche", schemaVersion: 1
+                    CloudDatenListe(items: wuensche), dossierID: dossierID, bereich: "wuensche", schemaVersion: 1
                 )
                 _ = try await CloudDossierSyncService.shared.speichern(
                     finanzen, dossierID: dossierID, bereich: "finanzen", schemaVersion: 1
@@ -343,7 +343,7 @@ struct AppStartView: View {
                     kontakte, dossierID: dossierID, bereich: "kontakte", schemaVersion: 1
                 )
                 _ = try await CloudDossierSyncService.shared.speichern(
-                    herzensstueckDaten, dossierID: dossierID, bereich: "herzensstuecke", schemaVersion: 1
+                    CloudDatenListe(items: herzensstueckDaten), dossierID: dossierID, bereich: "herzensstuecke", schemaVersion: 1
                 )
                 let verschluesselteZugaenge = try await CloudFeldVerschluesselung.shared.verschluesseln(zugangsdaten)
                 _ = try await CloudDossierSyncService.shared.speichern(

@@ -1,5 +1,9 @@
 import Foundation
 
+nonisolated struct CloudDatenListe<Element: Codable & Sendable>: Codable, Sendable {
+    let items: [Element]
+}
+
 nonisolated struct CloudProfilDaten: Codable, Sendable {
     let userID: UUID
     let dossierID: UUID?
