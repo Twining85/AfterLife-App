@@ -64,6 +64,8 @@ struct TschluessliApp: App {
 
 struct AppStartView: View {
     @Query private var gespeicherteProfile: [ProfilModell]
+    @Query private var gesundheitsdaten: [GesundheitModell]
+    @Query private var wuenscheDaten: [WuenscheModell]
 
     @AppStorage("istEingeloggt")
     private var istEingeloggt = false
@@ -246,6 +248,8 @@ struct AppStartView: View {
                     .didEnterBackgroundNotification
             )
         ) { _ in
+            synchronisiereKernDaten()
+
             guard !biometriePruefungImProfilLaeuft,
                   !systemdialogImProfilLaeuft else {
                 return
@@ -273,6 +277,38 @@ struct AppStartView: View {
         ) { _ in
             UIApplication.shared
                 .aktiviereTastaturAusblendenBeiInteraktion()
+        }
+    }
+
+    private func synchronisiereKernDaten() {
+        guard istEingeloggt,
+              let dossierID = UUID(uuidString: UserDefaults.standard.string(forKey: "aktivesDossierID") ?? "") else {
+            return
+        }
+        let profile = gespeicherteProfile
+            .filter { $0.dossierID == dossierID }
+            .map(CloudProfilDaten.init)
+        let gesundheit = gesundheitsdaten
+            .filter { $0.dossierID == dossierID }
+            .map(CloudGesundheitDaten.init)
+        let wuensche = wuenscheDaten
+            .filter { $0.dossierID == dossierID }
+            .map(CloudWuenscheDaten.init)
+
+        Task {
+            do {
+                _ = try await CloudDossierSyncService.shared.speichern(
+                    profile, dossierID: dossierID, bereich: "profil", schemaVersion: 1
+                )
+                _ = try await CloudDossierSyncService.shared.speichern(
+                    gesundheit, dossierID: dossierID, bereich: "gesundheit", schemaVersion: 1
+                )
+                _ = try await CloudDossierSyncService.shared.speichern(
+                    wuensche, dossierID: dossierID, bereich: "wuensche", schemaVersion: 1
+                )
+            } catch {
+                print("Cloud-Synchronisation der Kerndaten fehlgeschlagen: \(error.localizedDescription)")
+            }
         }
     }
 
