@@ -31,6 +31,15 @@ actor CloudKontoService {
     private let keychainService = "Tschluessli.CloudSession"
     private let keychainAccount = "current"
 
+    func sitzungsToken() async throws -> String {
+        try await MainActor.run {
+            try KeychainHelper.shared.read(
+                service: keychainService,
+                account: keychainAccount
+            )
+        }
+    }
+
     func registrieren(email: String, passwort: String, registrierungsGrant: String) async throws -> CloudKontoSitzung {
         let antwort: KontoAntwort = try await sende(
             pfad: "api/accounts/register",
