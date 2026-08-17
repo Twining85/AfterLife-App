@@ -177,7 +177,7 @@ final class DossierSyncDienst {
     private let outbox: SyncOutbox
     private let coordinator: SyncCoordinator
     private let transport: DossierSyncTransport
-    private var beobachter: NSObjectProtocol?
+    private var beobachter: [NSObjectProtocol] = []
     private var syncTask: Task<Void, Never>?
     private var ignoriertEigeneSpeicherung = false
 
@@ -200,13 +200,13 @@ final class DossierSyncDienst {
     }
 
     deinit {
-        if let beobachter { NotificationCenter.default.removeObserver(beobachter) }
+        beobachter.forEach(NotificationCenter.default.removeObserver)
         syncTask?.cancel()
     }
 
     func starten() {
-        guard beobachter == nil else { return }
-        beobachter = NotificationCenter.default.addObserver(
+        guard beobachter.isEmpty else { return }
+        beobachter.append(NotificationCenter.default.addObserver(
             forName: ModelContext.didSave,
             object: modelContext,
             queue: .main
@@ -214,7 +214,19 @@ final class DossierSyncDienst {
             MainActor.assumeIsolated {
                 self?.lokaleSpeicherungErfolgt(notification)
             }
-        }
+        })
+        beobachter.append(NotificationCenter.default.addObserver(
+            forName: .dossierRecoveryGeaendert,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                _ = _Concurrency.Task<Void, Never> { @MainActor in
+                    await self?.verarbeiteZugangsKonfliktNachRecovery()
+                    self?.planeSynchronisation(bereiche: ["zugaenge"])
+                }
+            }
+        })
         planeSynchronisation(alleBereicheMarkieren: true)
     }
 
@@ -247,7 +259,7 @@ final class DossierSyncDienst {
                 ? Set(registry.bereiche.filter {
                     UserDefaults.standard.object(
                         forKey: Self.revisionKey(dossierID: dossierID, bereich: $0)
-                    ) == nil
+                    ) == nil && !self.hatGespeichertenKonflikt(dossierID: dossierID, bereich: $0)
                 })
                 : bereiche
             if !markierteBereiche.isEmpty {
@@ -372,6 +384,38 @@ final class DossierSyncDienst {
                 empfangenAm: aenderung.changedAt
             ))
         }
+    }
+
+    private func verarbeiteZugangsKonfliktNachRecovery() async {
+        guard let dossierID = Self.aktivesDossierID else { return }
+        let schluessel = SyncAuftrag.schluessel(dossierID: dossierID, bereich: "zugaenge")
+        let descriptor = FetchDescriptor<SyncKonflikt>(predicate: #Predicate { $0.schluessel == schluessel })
+        guard let konflikt = try? modelContext.fetch(descriptor).first,
+              konflikt.vorgangRaw == SyncVorgang.upsert.rawValue,
+              let payload = konflikt.serverPayload,
+              (try? hatOffenenAuftrag(dossierID: dossierID, bereich: "zugaenge")) == false else { return }
+        do {
+            let adapter = try registry.adapter(fuer: "zugaenge")
+            let validiert = try adapter.validiere(payload, schemaVersion: konflikt.schemaVersion)
+            try await DossierBereichImport.importiere(validiert, bereich: "zugaenge", dossierID: dossierID, in: modelContext)
+            UserDefaults.standard.set(konflikt.serverRevision, forKey: Self.revisionKey(dossierID: dossierID, bereich: "zugaenge"))
+            modelContext.delete(konflikt)
+            try modelContext.save()
+        } catch {
+            // Der Konflikt bleibt erhalten und kann nach korrigierter Eingabe erneut verarbeitet werden.
+        }
+    }
+
+    private func hatOffenenAuftrag(dossierID: UUID, bereich: String) throws -> Bool {
+        let schluessel = SyncAuftrag.schluessel(dossierID: dossierID, bereich: bereich)
+        let descriptor = FetchDescriptor<SyncAuftrag>(predicate: #Predicate { $0.schluessel == schluessel })
+        return try modelContext.fetch(descriptor).first != nil
+    }
+
+    private func hatGespeichertenKonflikt(dossierID: UUID, bereich: String) -> Bool {
+        let schluessel = SyncAuftrag.schluessel(dossierID: dossierID, bereich: bereich)
+        let descriptor = FetchDescriptor<SyncKonflikt>(predicate: #Predicate { $0.schluessel == schluessel })
+        return ((try? modelContext.fetchCount(descriptor)) ?? 0) > 0
     }
 
     private func aktualisiereRevision(_ aenderung: SyncDownloadAenderung) throws {

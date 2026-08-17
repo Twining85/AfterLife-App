@@ -128,6 +128,8 @@ Die serverseitige Umsetzung dieses Vertrags ist in
 [`phase-6-sync-api.md`](phase-6-sync-api.md) dokumentiert.
 Die Anbindung der iPhone-App an diesen Vertrag ist in
 [`phase-7-app-sync.md`](phase-7-app-sync.md) dokumentiert.
+Recovery, Konfliktaufloesung und die verbleibende Produktionsabnahme sind in
+[`phase-8-production-readiness.md`](phase-8-production-readiness.md) dokumentiert.
 
 Alle Antworten enthalten eine Request-ID. Veraendernde Anfragen tragen eine
 Idempotency-ID, damit Wiederholungen denselben Effekt haben.

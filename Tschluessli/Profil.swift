@@ -42,6 +42,7 @@ struct ProfilView: View {
     @Query private var gespeicherteEinladungsHistorien: [VertrauenspersonEinladungsHistorieModell]
     @Query private var gespeicherteDossiers: [DossierModell]
     @Query private var gespeicherteDossierZugriffe: [DossierZugriffModell]
+    @Query private var syncKonflikte: [SyncKonflikt]
 
     private let profilKartenFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
     private let profilAkzentFarbe = Color(red: 0.16, green: 0.36, blue: 0.42)
@@ -120,6 +121,8 @@ struct ProfilView: View {
     @State private var profilGeladen = false
     @State private var biometriePruefungLaeuft = false
     @State private var biometrieFehlermeldung = ""
+    @State private var dossierRecoveryAnzeigen = false
+    @State private var syncKonflikteAnzeigen = false
     private var istEmailGueltig: Bool {
 
         if email.isEmpty { return true }
@@ -431,6 +434,19 @@ struct ProfilView: View {
                         Text("Das Kontopasswort wird weder im Profil noch auf dem Gerät gespeichert. Die aktive Cloud-Sitzung wird geschützt im iOS-Schlüsselbund verwaltet.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
+                        Divider()
+                        Button {
+                            dossierRecoveryAnzeigen = true
+                        } label: {
+                            Label("Dossier-Schlüssel sichern oder wiederherstellen", systemImage: "key.horizontal.fill")
+                        }
+                        if !syncKonflikte.isEmpty {
+                            Button {
+                                syncKonflikteAnzeigen = true
+                            } label: {
+                                Label("Synchronisationskonflikte (\(syncKonflikte.count))", systemImage: "exclamationmark.arrow.triangle.2.circlepath")
+                            }
+                        }
                     }
                     .listRowBackground(profilKartenFarbe)
                     .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
@@ -511,6 +527,12 @@ struct ProfilView: View {
             }) {
                 ProfilSafariView(url: URL(string: "https://tschluessli.ch/front_page/rechtliches/")!)
                     .ignoresSafeArea()
+            }
+            .sheet(isPresented: $dossierRecoveryAnzeigen) {
+                DossierRecoveryView()
+            }
+            .sheet(isPresented: $syncKonflikteAnzeigen) {
+                SyncKonfliktView()
             }
 
             .onAppear {

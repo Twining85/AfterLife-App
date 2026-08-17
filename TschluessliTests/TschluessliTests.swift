@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import CryptoKit
 import SwiftData
 import Testing
 @testable import Tschluessli
@@ -191,7 +192,7 @@ struct TschluessliTests {
         await coordinator.synchronisieren()
 
         #expect(try outbox.anzahlOffen() == 0)
-        #expect(await verarbeiter.anzahlVerarbeitungen() == 1)
+        #expect(verarbeiter.anzahlVerarbeitungen() == 1)
         #expect(coordinator.letzterErfolgreicherLauf != nil)
         #expect(coordinator.letzterFehler == nil)
     }
@@ -247,6 +248,24 @@ struct TschluessliTests {
         let geladen = try #require(container.mainContext.fetch(FetchDescriptor<ProfilModell>()).first)
         #expect(geladen.vorname == "Cloud")
         #expect(geladen.name == "Stand")
+    }
+
+    @Test func recoveryCodeBestehtAusZwoelfGueltigenWoertern() throws {
+        let woerter = try DossierRecoveryCode.erstellen()
+        #expect(woerter.count == 12)
+        #expect(woerter.allSatisfy(DossierRecoveryCode.woerter.contains))
+        #expect(try DossierRecoveryCode.normalisieren(woerter.joined(separator: "  ")) == woerter.joined(separator: " "))
+    }
+
+    @Test func recoveryCodeLeitetStabilenUndCodeAbhaengigenSchluesselAb() throws {
+        let erster = Array(DossierRecoveryCode.woerter.prefix(12)).joined(separator: " ")
+        let zweiter = Array(DossierRecoveryCode.woerter.dropFirst().prefix(12)).joined(separator: " ")
+        let ersterHash = try DossierRecoveryCode.schluessel(aus: erster).withUnsafeBytes { Data($0) }
+        let wiederholt = try DossierRecoveryCode.schluessel(aus: erster.uppercased()).withUnsafeBytes { Data($0) }
+        let zweiterHash = try DossierRecoveryCode.schluessel(aus: zweiter).withUnsafeBytes { Data($0) }
+        #expect(ersterHash.count == 32)
+        #expect(ersterHash == wiederholt)
+        #expect(ersterHash != zweiterHash)
     }
 
 }

@@ -95,19 +95,37 @@ nonisolated struct CloudZugangsDaten: Codable, Sendable {
     }
 }
 
-nonisolated struct VerschluesselterCloudBereich: Codable, Sendable { let algorithmus: String; let schluesselVersion: Int; let daten: String }
+nonisolated struct VerschluesselterCloudBereich: Codable, Sendable {
+    let algorithmus: String
+    let schluesselVersion: Int
+    let daten: String
+    let recovery: DossierRecoveryPaket?
+
+    init(algorithmus: String, schluesselVersion: Int, daten: String, recovery: DossierRecoveryPaket? = nil) {
+        self.algorithmus = algorithmus
+        self.schluesselVersion = schluesselVersion
+        self.daten = daten
+        self.recovery = recovery
+    }
+}
 
 actor CloudFeldVerschluesselung {
     static let shared = CloudFeldVerschluesselung()
     private let service = "Tschluessli.CloudEncryption"
     private let account = "dossier-key-v1"
+    private let recoveryAccount = "dossier-recovery-v1"
 
     func verschluesseln<T: Encodable & Sendable>(_ wert: T) async throws -> VerschluesselterCloudBereich {
         let keyData = try await schluesselDaten()
         let data = try JSONEncoder().encode(wert)
         let sealed = try AES.GCM.seal(data, using: SymmetricKey(data: keyData))
         guard let combined = sealed.combined else { throw CloudDossierSyncFehler.ungueltigeDaten }
-        return VerschluesselterCloudBereich(algorithmus: "AES-256-GCM", schluesselVersion: 1, daten: combined.base64EncodedString())
+        return VerschluesselterCloudBereich(
+            algorithmus: "AES-256-GCM",
+            schluesselVersion: 1,
+            daten: combined.base64EncodedString(),
+            recovery: try? await gespeichertesRecoveryPaket()
+        )
     }
 
     func entschluesseln<T: Decodable & Sendable>(
@@ -119,12 +137,55 @@ actor CloudFeldVerschluesselung {
               let kombiniert = Data(base64Encoded: wert.daten) else {
             throw CloudDossierSyncFehler.ungueltigeDaten
         }
+        if let recovery = wert.recovery {
+            try? await speichereRecoveryPaket(recovery)
+        }
         let box = try AES.GCM.SealedBox(combined: kombiniert)
         let klartext = try AES.GCM.open(
             box,
-            using: SymmetricKey(data: try await schluesselDaten())
+            using: SymmetricKey(data: try await vorhandeneSchluesselDaten())
         )
         return try JSONDecoder().decode(T.self, from: klartext)
+    }
+
+    func recoveryEinrichten() async throws -> String {
+        let code = try DossierRecoveryCode.erstellen().joined(separator: " ")
+        let dossierSchluessel = try await schluesselDaten()
+        let recoverySchluessel = try DossierRecoveryCode.schluessel(aus: code)
+        let box = try AES.GCM.seal(dossierSchluessel, using: recoverySchluessel)
+        guard let combined = box.combined else { throw DossierRecoveryFehler.ungueltigesPaket }
+        let paket = DossierRecoveryPaket(
+            version: 1,
+            algorithmus: "AES-256-GCM/SHA-256",
+            verschluesselterSchluessel: combined.base64EncodedString()
+        )
+        try await speichereRecoveryPaket(paket)
+        return code
+    }
+
+    func hatRecoveryPaket() async -> Bool {
+        (try? await gespeichertesRecoveryPaket()) != nil
+    }
+
+    func wiederherstellen(mit code: String) async throws {
+        let paket = try await gespeichertesRecoveryPaket()
+        guard paket.version == 1,
+              paket.algorithmus == "AES-256-GCM/SHA-256",
+              let data = Data(base64Encoded: paket.verschluesselterSchluessel) else {
+            throw DossierRecoveryFehler.ungueltigesPaket
+        }
+        do {
+            let box = try AES.GCM.SealedBox(combined: data)
+            let schluessel = try AES.GCM.open(box, using: DossierRecoveryCode.schluessel(aus: code))
+            guard schluessel.count == 32 else { throw DossierRecoveryFehler.ungueltigesPaket }
+            try await MainActor.run {
+                try KeychainHelper.shared.save(schluessel.base64EncodedString(), service: service, account: account)
+            }
+        } catch let fehler as DossierRecoveryFehler {
+            throw fehler
+        } catch {
+            throw DossierRecoveryFehler.falscherCode
+        }
     }
 
     private func schluesselDaten() async throws -> Data {
@@ -133,6 +194,31 @@ actor CloudFeldVerschluesselung {
             let data = Data(SymmetricKey(size: .bits256).withUnsafeBytes { Array($0) })
             try KeychainHelper.shared.save(data.base64EncodedString(), service: service, account: account)
             return data
+        }
+    }
+
+    private func vorhandeneSchluesselDaten() async throws -> Data {
+        try await MainActor.run {
+            let encoded = try KeychainHelper.shared.read(service: service, account: account)
+            guard let data = Data(base64Encoded: encoded), data.count == 32 else {
+                throw CloudDossierSyncFehler.ungueltigeDaten
+            }
+            return data
+        }
+    }
+
+    private func gespeichertesRecoveryPaket() async throws -> DossierRecoveryPaket {
+        try await MainActor.run {
+            let encoded = try KeychainHelper.shared.read(service: service, account: recoveryAccount)
+            guard let data = Data(base64Encoded: encoded) else { throw DossierRecoveryFehler.keinRecoveryPaket }
+            return try JSONDecoder().decode(DossierRecoveryPaket.self, from: data)
+        }
+    }
+
+    private func speichereRecoveryPaket(_ paket: DossierRecoveryPaket) async throws {
+        let data = try JSONEncoder().encode(paket)
+        try await MainActor.run {
+            try KeychainHelper.shared.save(data.base64EncodedString(), service: service, account: recoveryAccount)
         }
     }
 }
