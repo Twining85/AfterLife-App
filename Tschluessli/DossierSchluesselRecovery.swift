@@ -52,7 +52,11 @@ nonisolated enum DossierRecoveryCode {
 
     static func erstellen() throws -> [String] {
         var bytes = [UInt8](repeating: 0, count: 24)
-        guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else {
+        let status = bytes.withUnsafeMutableBytes { puffer in
+            guard let basisadresse = puffer.baseAddress else { return errSecParam }
+            return SecRandomCopyBytes(kSecRandomDefault, puffer.count, basisadresse)
+        }
+        guard status == errSecSuccess else {
             throw DossierRecoveryFehler.ungueltigerCode
         }
         return stride(from: 0, to: bytes.count, by: 2).map { index in
