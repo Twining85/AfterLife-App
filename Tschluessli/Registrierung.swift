@@ -60,6 +60,7 @@ struct Registrierung: View {
     @State private var akzeptiertDisclaimer = false
     @State private var akzeptiertNutzungsbedingungen = false
     @State private var rechtlichesAnzeigen = false
+    @State private var bestehendesKontoAnmelden = false
     
     @FocusState private var aktivesEingabefeld: Eingabefeld?
 
@@ -79,6 +80,17 @@ struct Registrierung: View {
         .sheet(isPresented: $rechtlichesAnzeigen) {
             RegistrierungsSafariView(url: URL(string: "https://tschluessli.ch/front_page/rechtliches/")!)
                 .ignoresSafeArea()
+        }
+        .fullScreenCover(isPresented: $bestehendesKontoAnmelden) {
+            ReloginView(
+                emailFuerBestehendesKonto: bereinigteEmailOriginalschreibweise,
+                onBestehendesKontoAngemeldet: bestehendesKontoErfolgreichAngemeldet
+            )
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") { bestehendesKontoAnmelden = false }
+                }
+            }
         }
     }
 
@@ -398,7 +410,7 @@ struct Registrierung: View {
                         .foregroundStyle(.red)
                 }
 
-                Text("Dein Passwort wird in deinem Profil gespeichert.")
+                Text("Dein Passwort wird nicht in der App gespeichert. Der Server speichert nur einen nicht lesbaren Hash.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -553,6 +565,17 @@ struct Registrierung: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+
+            Button("Mit bestehendem Konto anmelden") {
+                guard registrierungsEmailIstFormalGueltig else {
+                    fehlermeldung = "Bitte gib zuerst deine E-Mail-Adresse ein."
+                    return
+                }
+                bestehendesKontoAnmelden = true
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(registrierungAkzent)
+            .buttonStyle(.plain)
 
             if !fehlermeldung.isEmpty {
                 Text(fehlermeldung)
@@ -769,8 +792,41 @@ struct Registrierung: View {
             } catch {
                 registrierungLaeuft = false
                 emailVerifizierungAnzeigen = false
-                fehlermeldung = "Die Registrierung konnte nicht abgeschlossen werden: \(error.localizedDescription)"
+                if case CloudKontoFehler.server(let meldung) = error,
+                   meldung.localizedCaseInsensitiveContains("Konto besteht bereits") {
+                    fehlermeldung = "Für diese E-Mail-Adresse besteht bereits ein Konto. Bitte melde dich an."
+                    bestehendesKontoAnmelden = true
+                } else {
+                    fehlermeldung = "Die Registrierung konnte nicht abgeschlossen werden: \(error.localizedDescription)"
+                }
             }
+        }
+    }
+
+    private func bestehendesKontoErfolgreichAngemeldet(_ sitzung: CloudKontoSitzung) {
+        let bereinigteEmail = bereinigteEmailOriginalschreibweise
+        guard sitzung.dossierID != nil else {
+            bestehendesKontoAnmelden = false
+            fehlermeldung = "Für dieses Konto konnte kein aktives Dossier geladen werden."
+            return
+        }
+        speichereRegistrierungsdaten(
+            art: "E-Mail",
+            email: bereinigteEmail,
+            userID: sitzung.userID,
+            dossierID: sitzung.dossierID
+        )
+        do {
+            try modelContext.save()
+            gespeicherteEmail = bereinigteEmail
+            registrierungsArt = "E-Mail"
+            profilIstVorhanden = true
+            direktNachRegistrierungEingeloggt = true
+            istEingeloggt = true
+            bestehendesKontoAnmelden = false
+            homeVollbildAnzeigen = true
+        } catch {
+            fehlermeldung = "Die lokalen Kontodaten konnten nicht gespeichert werden: \(error.localizedDescription)"
         }
     }
 

@@ -11,6 +11,9 @@ import LocalAuthentication
 
 struct ReloginView: View {
 
+    var emailFuerBestehendesKonto: String? = nil
+    var onBestehendesKontoAngemeldet: ((CloudKontoSitzung) -> Void)? = nil
+
     private let hintergrundFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
     private let kartenFarbe = Color.white.opacity(0.86)
     private let akzentFarbe = Color(red: 0.16, green: 0.36, blue: 0.42)
@@ -46,6 +49,10 @@ struct ReloginView: View {
     }
 
     private var registrierungsEmail: String {
+        if let emailFuerBestehendesKonto,
+           !emailFuerBestehendesKonto.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return emailFuerBestehendesKonto.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
         let emailAusProfil = profil?.registrierungsEmail.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let profilEmail = profil?.email.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let appEmail = appStorageEmail.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -60,7 +67,7 @@ struct ReloginView: View {
     }
 
     private var hatBestehendenLogin: Bool {
-        profilIstVorhanden || !registrierungsEmail.isEmpty || profil != nil
+        emailFuerBestehendesKonto != nil || profilIstVorhanden || !registrierungsEmail.isEmpty || profil != nil
     }
 
     var body: some View {
@@ -203,20 +210,31 @@ struct ReloginView: View {
                     .fontWeight(.semibold)
                     .foregroundStyle(textFarbe)
 
-                TextField("deine.email@beispiel.ch", text: $email)
-                    .keyboardType(.emailAddress)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(Color.white.opacity(0.92))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(akzentFarbe.opacity(0.18), lineWidth: 1)
-                    )
+                if emailFuerBestehendesKonto != nil {
+                    Text(email)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(Color.white.opacity(0.72))
+                        )
+                } else {
+                    TextField("deine.email@beispiel.ch", text: $email)
+                        .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(Color.white.opacity(0.92))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(akzentFarbe.opacity(0.18), lineWidth: 1)
+                        )
+                }
             }
 
             VStack(alignment: .leading, spacing: 7) {
@@ -377,7 +395,11 @@ struct ReloginView: View {
                 aktiveUserID = sitzung.userID.uuidString
                 passwort = ""
                 emailLoginLaeuft = false
-                istEingeloggt = true
+                if let onBestehendesKontoAngemeldet {
+                    onBestehendesKontoAngemeldet(sitzung)
+                } else {
+                    istEingeloggt = true
+                }
             } catch {
                 emailLoginLaeuft = false
                 fehlermeldung = error.localizedDescription
