@@ -243,3 +243,6 @@ Die Umsetzung der lokalen Sicherheitsgrundlage ist in
 
 Die persistente Outbox und der zentrale Coordinator sind in
 [`phase-4-sync-outbox.md`](phase-4-sync-outbox.md) dokumentiert.
+
+Die einheitlichen Bereichsadapter und portablen PostgreSQL-Migrationen sind in
+[`phase-5-adapters-migrations.md`](phase-5-adapters-migrations.md) dokumentiert.

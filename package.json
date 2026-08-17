@@ -5,7 +5,9 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "db:migrate": "node database/migrate.js",
+    "db:migrate:baseline": "node database/migrate.js --baseline-existing"
   },
   "keywords": [],
   "author": "",

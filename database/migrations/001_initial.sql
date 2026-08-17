@@ -1,5 +1,3 @@
-BEGIN;
-
 CREATE TABLE app_users (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     email text NOT NULL UNIQUE CHECK (email = lower(email)),
@@ -67,5 +65,3 @@ CREATE POLICY dossiers_owner_policy ON dossiers
 CREATE POLICY dossier_sections_owner_policy ON dossier_sections
     USING (owner_user_id = nullif(current_setting('app.user_id', true), '')::uuid)
     WITH CHECK (owner_user_id = nullif(current_setting('app.user_id', true), '')::uuid);
-
-COMMIT;

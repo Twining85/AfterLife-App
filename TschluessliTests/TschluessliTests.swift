@@ -196,6 +196,32 @@ struct TschluessliTests {
         #expect(coordinator.letzterFehler == nil)
     }
 
+    @Test func standardBereichsadapterSindEindeutigUndVollstaendig() throws {
+        let registry = try DossierBereichAdapterRegistry()
+        #expect(registry.bereiche == [
+            "finanzen", "gesundheit", "herzensstuecke", "kontakte",
+            "profil", "wuensche", "zugaenge"
+        ])
+    }
+
+    @Test func profilAdapterExportiertKeinKontopasswort() async throws {
+        let container = try ModelContainer(
+            for: ProfilModell.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let dossierID = UUID()
+        container.mainContext.insert(ProfilModell(dossierID: dossierID))
+        try container.mainContext.save()
+
+        let payload = try await ProfilBereichAdapter().exportiere(
+            dossierID: dossierID,
+            aus: container.mainContext
+        )
+        let json = try #require(String(data: payload.daten, encoding: .utf8))
+        #expect(!json.lowercased().contains("passwort"))
+        #expect(try ProfilBereichAdapter().validiere(payload.daten, schemaVersion: 1) == payload.daten)
+    }
+
 }
 
 private actor ErfolgreicherSyncVerarbeiter: SyncAuftragVerarbeiter {
