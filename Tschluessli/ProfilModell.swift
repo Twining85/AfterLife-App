@@ -30,7 +30,6 @@ final class ProfilModell {
     // Registrierung / Login
     var registrierungsart: String
     var registrierungsEmail: String
-    var registrierungsPasswort: String
     var biometrieAktiviert: Bool
 
     var profilbildDaten: Data?
@@ -61,7 +60,6 @@ final class ProfilModell {
         notfallHinweis: String = "",
         registrierungsart: String = "E-Mail",
         registrierungsEmail: String = "",
-        registrierungsPasswort: String = "",
         biometrieAktiviert: Bool = false,
         profilbildDaten: Data? = nil,
         erstelltAm: Date = Date(),
@@ -85,7 +83,6 @@ final class ProfilModell {
         self.notfallHinweis = notfallHinweis
         self.registrierungsart = registrierungsart
         self.registrierungsEmail = registrierungsEmail
-        self.registrierungsPasswort = registrierungsPasswort
         self.biometrieAktiviert = biometrieAktiviert
         self.profilbildDaten = profilbildDaten
         self.erstelltAm = erstelltAm

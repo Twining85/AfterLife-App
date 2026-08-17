@@ -15,7 +15,6 @@ struct VertrauenspersonRegistrierung: View {
 
     @AppStorage("profilIstVorhanden") private var profilIstVorhanden = false
     @AppStorage("gespeicherteEmail") private var gespeicherteEmail = ""
-    @AppStorage("gespeichertesPasswort") private var gespeichertesPasswort = ""
     @AppStorage("registrierungsArt") private var registrierungsArt = "E-Mail"
     @AppStorage("direktNachRegistrierungEingeloggt") private var direktNachRegistrierungEingeloggt = false
     @AppStorage("istEingeloggt") private var istEingeloggt = false
@@ -229,9 +228,9 @@ struct VertrauenspersonRegistrierung: View {
 
             HStack(spacing: 10) {
                 if passwortAnzeigen {
-                    TextField("Mindestens 8 Zeichen", text: $passwort)
+                    TextField("Mindestens 12 Zeichen", text: $passwort)
                 } else {
-                    SecureField("Mindestens 8 Zeichen", text: $passwort)
+                    SecureField("Mindestens 12 Zeichen", text: $passwort)
                 }
 
                 Button {
@@ -250,7 +249,7 @@ struct VertrauenspersonRegistrierung: View {
                 emailValidierungWurdeAusgeloest = !neuerWert.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             }
 
-            Text("Mindestens 8 Zeichen.")
+            Text("Mindestens 12 Zeichen.")
                 .font(.caption2)
                 .foregroundStyle(sekundTextFarbe)
         }
@@ -445,7 +444,7 @@ struct VertrauenspersonRegistrierung: View {
 
     private var emailVerifizierungButtonErlaubt: Bool {
         registrierungsEmailIstFormalGueltig &&
-        passwort.trimmingCharacters(in: .whitespacesAndNewlines).count >= 8
+        passwort.trimmingCharacters(in: .whitespacesAndNewlines).count >= 12
     }
 
     private var emailVerifizierungErfuellt: Bool {
@@ -460,7 +459,7 @@ struct VertrauenspersonRegistrierung: View {
         basisRegistrierungErlaubt &&
         emailVerifizierungErfuellt &&
         registrierungsEmailIstFormalGueltig &&
-        passwort.trimmingCharacters(in: .whitespacesAndNewlines).count >= 8
+        passwort.trimmingCharacters(in: .whitespacesAndNewlines).count >= 12
     }
 
     private var captchaIstGueltig: Bool {
@@ -519,8 +518,8 @@ struct VertrauenspersonRegistrierung: View {
             return
         }
 
-        guard passwort.trimmingCharacters(in: .whitespacesAndNewlines).count >= 8 else {
-            fehlermeldung = "Bitte gib zuerst ein Passwort mit mindestens 8 Zeichen ein."
+        guard passwort.trimmingCharacters(in: .whitespacesAndNewlines).count >= 12 else {
+            fehlermeldung = "Bitte gib zuerst ein Passwort mit mindestens 12 Zeichen ein."
             return
         }
 
@@ -578,8 +577,8 @@ struct VertrauenspersonRegistrierung: View {
             return
         }
 
-        guard passwort.trimmingCharacters(in: .whitespacesAndNewlines).count >= 8 else {
-            fehlermeldung = "Das Passwort muss mindestens 8 Zeichen lang sein."
+        guard passwort.trimmingCharacters(in: .whitespacesAndNewlines).count >= 12 else {
+            fehlermeldung = "Das Passwort muss mindestens 12 Zeichen lang sein."
             return
         }
 
@@ -621,16 +620,7 @@ struct VertrauenspersonRegistrierung: View {
 
     private func registrierungAbschliessen(art: String, email: String, passwort: String, benoetigtEinladungsVerifizierung: Bool) {
         do {
-            if art == "E-Mail" {
-                try KeychainHelper.shared.save(
-                    passwort,
-                    service: "Tschluessli.Login",
-                    account: email
-                )
-            }
-
             gespeicherteEmail = email
-            gespeichertesPasswort = art == "E-Mail" ? passwort : ""
             registrierungsArt = art
 
             speichereRegistrierungsdaten(

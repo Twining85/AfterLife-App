@@ -28,9 +28,6 @@ struct VertrauenspersonView: View {
     @AppStorage("gespeicherteEmail")
     private var gespeicherteEmail = ""
 
-    @AppStorage("gespeichertesPasswort")
-    private var gespeichertesPasswort = ""
-
     @AppStorage("registrierungsArt")
     private var registrierungsArt = "E-Mail"
 

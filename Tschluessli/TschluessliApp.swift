@@ -12,6 +12,8 @@ import UIKit
 @main
 struct TschluessliApp: App {
     var sharedModelContainer: ModelContainer = {
+        LokaleSicherheitsMigration.ausfuehren()
+
         let schema = Schema([
             ProfilModell.self,
             GesundheitModell.self,

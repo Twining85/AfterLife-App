@@ -380,18 +380,15 @@ private extension DossierExportMapper {
         profil: ProfilModell,
         options: DossierPDFExportOptions
     ) -> DossierPDFSection {
-        var items: [DossierPDFItem?] = [
+        let items: [DossierPDFItem?] = [
             makeItem(label: "Registrierungsart", value: profil.registrierungsart, options: options),
-            makeItem(label: "Registrierungs-E-Mail", value: profil.registrierungsEmail, options: options)
+            makeItem(label: "Registrierungs-E-Mail", value: profil.registrierungsEmail, options: options),
+            makeItem(label: "Passwort", value: "Wird nicht gespeichert", options: options)
         ]
-
-        if options.sensibleDatenEinschliessen {
-            items.append(makeItem(label: "Passwort", value: profil.registrierungsPasswort, options: options))
-        }
 
         return DossierPDFSection(
             titel: "Registrierung",
-            untertitel: options.sensibleDatenEinschliessen ? "Sensible Zugangsdaten sind enthalten." : "Sensible Zugangsdaten werden in diesem Export nicht mitgedruckt.",
+            untertitel: "Das Kontopasswort wird nicht auf dem Gerät gespeichert.",
             items: items.compactMap { $0 },
             darstellung: .zweispaltigeTabelle
         )

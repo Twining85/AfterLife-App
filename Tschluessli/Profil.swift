@@ -48,7 +48,6 @@ struct ProfilView: View {
     private let profilHintergrundFarbe = Color(red: 0.985, green: 0.98, blue: 0.965)
 
     @AppStorage("gespeicherteEmail") private var gespeicherteEmail = ""
-    @AppStorage("gespeichertesPasswort") private var gespeichertesPasswort = ""
     @AppStorage("registrierungsArt") private var registrierungsArt = "E-Mail"
     @AppStorage("biometrieAktiviert") private var biometrieAktiviert = false
     @AppStorage("biometriePruefungImProfilLaeuft") private var biometriePruefungImProfilLaeuft = false
@@ -112,16 +111,6 @@ struct ProfilView: View {
 
     @State private var profilLoeschenBestaetigen = false
 
-    @State private var passwortAendernAnzeigen = false
-    @State private var registrierungsPasswortAnzeigen = false
-    @State private var aktuellesPasswort = ""
-    @State private var neuesPasswort = ""
-    @State private var neuesPasswortWiederholen = ""
-    @State private var passwortAendernFehler = ""
-    @State private var passwortAendernErfolg = ""
-
-
-
     @State private var dossierPDF: ExportiertesDossier?
     @State private var dossierExportSheetAnzeigen = false
     @State private var sensibleDatenExportieren = false
@@ -139,15 +128,6 @@ struct ProfilView: View {
 
         return email.range(of: emailRegex, options: .regularExpression) != nil
 
-    }
-
-    private var istEmailRegistrierung: Bool {
-        registrierungsArt == "E-Mail" || registrierungsArt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private var angezeigtesRegistrierungsPasswort: String {
-        guard !gespeichertesPasswort.isEmpty else { return "Nicht erfasst" }
-        return registrierungsPasswortAnzeigen ? gespeichertesPasswort : String(repeating: "•", count: max(6, gespeichertesPasswort.count))
     }
 
     private var anzahlFinanzEintraege: Int {
@@ -414,26 +394,7 @@ struct ProfilView: View {
                             LabeledContent("E-Mail-Adresse", value: gespeicherteEmail.isEmpty ? "Nicht erfasst" : gespeicherteEmail)
                         } else {
                             LabeledContent("Benutzername", value: gespeicherteEmail.isEmpty ? "Nicht erfasst" : gespeicherteEmail)
-                            HStack {
-                                Text("Passwort")
-                                Spacer()
-                                Text(angezeigtesRegistrierungsPasswort)
-                                    .foregroundStyle(.secondary)
-                                Button {
-                                    registrierungsPasswortAnzeigen.toggle()
-                                } label: {
-                                    Image(systemName: registrierungsPasswortAnzeigen ? "eye.slash" : "eye")
-                                        .foregroundStyle(profilAkzentFarbe)
-                                }
-                                .buttonStyle(.plain)
-                                .accessibilityLabel(registrierungsPasswortAnzeigen ? "Passwort ausblenden" : "Passwort anzeigen")
-                            }
-                            Button {
-                                passwortAendernAnzeigen = true
-                            } label: {
-                                Label("Passwort ändern", systemImage: "key.fill")
-                                    .foregroundStyle(profilAkzentFarbe)
-                            }
+                            LabeledContent("Passwort", value: "Wird nicht gespeichert")
                         }
                         Divider()
                         Toggle("Biometrische Anmeldung verwenden", isOn: Binding(
@@ -467,7 +428,7 @@ struct ProfilView: View {
                         Text("Wenn aktiviert, kann die App beim Öffnen Face ID oder Touch ID für die Anmeldung verwenden.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
-                        Text("Diese Angaben stammen aus der Registrierung. Für eine produktive App sollten Passwörter nicht im Klartext gespeichert oder angezeigt werden, sondern sicher über die Keychain verwaltet werden.")
+                        Text("Das Kontopasswort wird weder im Profil noch auf dem Gerät gespeichert. Die aktive Cloud-Sitzung wird geschützt im iOS-Schlüsselbund verwaltet.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -552,52 +513,6 @@ struct ProfilView: View {
                     .ignoresSafeArea()
             }
 
-            .sheet(isPresented: $passwortAendernAnzeigen) {
-                NavigationStack {
-                    Form {
-                        Section("Passwort ändern") {
-                            SecureField("Aktuelles Passwort", text: $aktuellesPasswort)
-                            SecureField("Neues Passwort", text: $neuesPasswort)
-                            SecureField("Neues Passwort wiederholen", text: $neuesPasswortWiederholen)
-                        }
-
-                        if !passwortAendernFehler.isEmpty {
-                            Section {
-                                Text(passwortAendernFehler)
-                                    .foregroundStyle(.red)
-                            }
-                        }
-
-                        if !passwortAendernErfolg.isEmpty {
-                            Section {
-                                Text(passwortAendernErfolg)
-                                    .foregroundStyle(.green)
-                            }
-                        }
-                    }
-                    .navigationTitle("Passwort ändern")
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Abbrechen") {
-                                schliessePasswortAendern()
-                            }
-                        }
-
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Speichern") {
-                                passwortAendern()
-                            }
-                        }
-                    }
-                }
-                .onAppear {
-                    passwortAendernFehler = ""
-                    passwortAendernErfolg = ""
-                    aktuellesPasswort = ""
-                    neuesPasswort = ""
-                    neuesPasswortWiederholen = ""
-                }
-            }
             .onAppear {
                 ladeOderErstelleProfil()
             }
@@ -855,14 +770,10 @@ struct ProfilView: View {
             if let gespeichertesProfilbild = vorhandenesProfil.profilbildDaten {
                 profilbildData = gespeichertesProfilbild
             }
-            if !vorhandenesProfil.registrierungsPasswort.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                gespeichertesPasswort = vorhandenesProfil.registrierungsPasswort
-            }
         } else {
             let neuesProfil = ProfilModell(
                 registrierungsart: registrierungsArt,
                 registrierungsEmail: gespeicherteEmail,
-                registrierungsPasswort: gespeichertesPasswort,
                 profilbildDaten: profilbildData
             )
             neuesProfil.biometrieAktiviert = biometrieAktiviert
@@ -928,89 +839,10 @@ struct ProfilView: View {
         profil.email = email
         profil.registrierungsart = registrierungsArt
         profil.registrierungsEmail = gespeicherteEmail
-        profil.registrierungsPasswort = gespeichertesPasswort
         profil.profilbildDaten = profilbildData
         profil.biometrieAktiviert = biometrieAktiviert
         try? modelContext.save()
         VorsorgeBereichStatusStore.markiereBearbeitet(.profil)
-    }
-
-    private func schliessePasswortAendern() {
-        passwortAendernAnzeigen = false
-        aktuellesPasswort = ""
-        neuesPasswort = ""
-        neuesPasswortWiederholen = ""
-        passwortAendernFehler = ""
-        passwortAendernErfolg = ""
-        registrierungsPasswortAnzeigen = false
-    }
-
-    private func passwortAendern() {
-        guard dossierKontext.kannBearbeiten else { return }
-        passwortAendernFehler = ""
-        passwortAendernErfolg = ""
-
-        guard istEmailRegistrierung else {
-            passwortAendernFehler = "Das Passwort kann nur bei einer Registrierung mit E-Mail geändert werden."
-            return
-        }
-
-        let bereinigteEmail = gespeicherteEmail.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard !bereinigteEmail.isEmpty else {
-            passwortAendernFehler = "Es ist keine Registrierungs-E-Mail vorhanden."
-            return
-        }
-
-        guard !aktuellesPasswort.isEmpty, !neuesPasswort.isEmpty, !neuesPasswortWiederholen.isEmpty else {
-            passwortAendernFehler = "Bitte alle Passwortfelder ausfüllen."
-            return
-        }
-
-        guard neuesPasswort == neuesPasswortWiederholen else {
-            passwortAendernFehler = "Das neue Passwort stimmt nicht mit der Wiederholung überein."
-            return
-        }
-
-        guard neuesPasswort.count >= 6 else {
-            passwortAendernFehler = "Das neue Passwort muss mindestens 6 Zeichen lang sein."
-            return
-        }
-
-        do {
-            let gespeichertesKeychainPasswort = try KeychainHelper.shared.read(
-                service: "Tschluessli.Login",
-                account: bereinigteEmail
-            )
-
-            guard aktuellesPasswort == gespeichertesKeychainPasswort || aktuellesPasswort == gespeichertesPasswort else {
-                passwortAendernFehler = "Das aktuelle Passwort ist nicht korrekt."
-                return
-            }
-
-            try KeychainHelper.shared.save(
-                neuesPasswort,
-                service: "Tschluessli.Login",
-                account: bereinigteEmail
-            )
-
-            gespeichertesPasswort = neuesPasswort
-
-            if let profil = aktivesProfil {
-                profil.registrierungsPasswort = neuesPasswort
-                profil.registrierungsEmail = bereinigteEmail
-                profil.registrierungsart = "E-Mail"
-                try modelContext.save()
-            }
-
-            passwortAendernErfolg = "Passwort wurde geändert."
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                schliessePasswortAendern()
-            }
-        } catch {
-            passwortAendernFehler = "Passwort konnte nicht geändert werden."
-        }
     }
 
     private func profilLoeschen() {
@@ -1045,14 +877,6 @@ struct ProfilView: View {
         profilbildData = nil
 
         profilbildAuswahl = nil
-
-        gespeichertesPasswort = ""
-        aktuellesPasswort = ""
-        neuesPasswort = ""
-        neuesPasswortWiederholen = ""
-        passwortAendernFehler = ""
-        passwortAendernErfolg = ""
-        registrierungsPasswortAnzeigen = false
 
         geburtsdatum = technischesDefaultGeburtsdatum
         geburtsdatumText = ""
@@ -2479,11 +2303,7 @@ struct ProfilView: View {
                     drawField("E-Mail-Adresse", gespeicherteEmail)
                 } else {
                     drawField("Benutzername", gespeicherteEmail)
-                    if passwoerterMitdrucken {
-                        drawField("Passwort", gespeichertesPasswort)
-                    } else {
-                        drawField("Passwort", "Nicht mitgedruckt")
-                    }
+                    drawField("Passwort", "Wird nicht gespeichert")
                 }
 
                 drawWuensche()

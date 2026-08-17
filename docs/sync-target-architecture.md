@@ -237,3 +237,6 @@ bis zur kontrollierten Ablösung nachvollziehbar im Git-Verlauf.
 - Neon empfiehlt fuer Migrationen und `pg_dump` eine direkte statt einer gepoolten
   Verbindung:
   <https://neon.com/docs/connect/connection-pooling>
+
+Die Umsetzung der lokalen Sicherheitsgrundlage ist in
+[`phase-3-local-security.md`](phase-3-local-security.md) festgehalten.

@@ -376,7 +376,7 @@ struct Registrierung: View {
 
                 passwortFeld(
                     titel: "Passwort",
-                    platzhalter: "Mindestens 8 Zeichen",
+                    platzhalter: "Mindestens 12 Zeichen",
                     text: $passwort,
                     fokus: .passwort,
                     naechsterFokus: .passwortWiederholung,
@@ -666,7 +666,7 @@ struct Registrierung: View {
         akzeptiertDisclaimer &&
         akzeptiertNutzungsbedingungen &&
         registrierungsEmailIstFormalGueltig &&
-        bereinigtesPasswort.count >= 8 &&
+        bereinigtesPasswort.count >= 12 &&
         passwoerterStimmenUeberein
     }
 
@@ -725,8 +725,8 @@ struct Registrierung: View {
             return
         }
 
-        guard bereinigtesPasswort.count >= 8 else {
-            fehlermeldung = "Das Passwort muss mindestens 8 Zeichen lang sein."
+        guard bereinigtesPasswort.count >= 12 else {
+            fehlermeldung = "Das Passwort muss mindestens 12 Zeichen lang sein."
             return
         }
 

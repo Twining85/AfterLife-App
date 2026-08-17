@@ -76,4 +76,29 @@ struct TschluessliTests {
         }) == [.partner, .familie, .freunde, .anderes])
     }
 
+    @Test func lokaleSicherheitsMigrationEntferntAltesKontopasswortGenauEinmal() throws {
+        let suiteName = "TschluessliTests.Sicherheitsmigration.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set("nicht-speichern", forKey: "gespeichertesPasswort")
+        var keychainBereinigungen = 0
+
+        let ausfuehren = {
+            LokaleSicherheitsMigration.ausfuehren(
+                userDefaults: defaults,
+                legacyLoginLoeschen: { keychainBereinigungen += 1 },
+                dateischutzAnwenden: false
+            )
+        }
+
+        ausfuehren()
+        #expect(defaults.string(forKey: "gespeichertesPasswort") == nil)
+        #expect(keychainBereinigungen == 1)
+
+        defaults.set("darf-nicht-erneut-verarbeitet-werden", forKey: "gespeichertesPasswort")
+        ausfuehren()
+        #expect(keychainBereinigungen == 1)
+    }
+
 }

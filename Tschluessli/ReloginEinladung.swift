@@ -483,20 +483,18 @@ struct ReloginEinladung: View {
             return
         }
 
-        do {
-            let gespeichertesKeychainPasswort = try KeychainHelper.shared.read(
-                service: "Tschluessli.Login",
-                account: registrierungsEmail
-            )
-
-            guard passwort == gespeichertesKeychainPasswort else {
+        Task {
+            do {
+                _ = try await CloudKontoService.shared.anmelden(
+                    email: bereinigteEmail,
+                    passwort: passwort
+                )
+                passwort = ""
+                loginErfolgreichAbschliessen()
+            } catch {
+                passwort = ""
                 fehlermeldung = "E-Mail oder Passwort ist nicht korrekt."
-                return
             }
-
-            loginErfolgreichAbschliessen()
-        } catch {
-            fehlermeldung = "Login-Daten konnten nicht sicher gelesen werden. Bitte registriere dich erneut."
         }
     }
 
