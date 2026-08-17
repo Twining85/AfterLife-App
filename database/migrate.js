@@ -117,8 +117,15 @@ function sslOptions() {
 }
 
 async function main() {
-  const connectionString = process.env.DATABASE_DIRECT_URL;
-  if (!connectionString) throw new Error("DATABASE_DIRECT_URL fehlt");
+  const connectionString = firstPostgresConnectionString(
+    process.env.DATABASE_DIRECT_URL,
+    process.env.DATABASE_URL_UNPOOLED,
+    process.env.POSTGRES_URL_NON_POOLING,
+    process.env.TSCHLUESSLI_DATABASE_URL
+  );
+  if (!connectionString) {
+    throw new Error("DATABASE_DIRECT_URL oder direkte Anbieter-URL fehlt");
+  }
 
   const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
   const migrations = await discoverMigrations(path.join(currentDirectory, "migrations"));
@@ -131,6 +138,24 @@ async function main() {
   } finally {
     await client.end();
   }
+}
+
+export function firstPostgresConnectionString(...candidates) {
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    try {
+      const parsed = new URL(candidate);
+      if (
+        (parsed.protocol === "postgres:" || parsed.protocol === "postgresql:")
+        && parsed.hostname.includes(".")
+      ) {
+        return candidate;
+      }
+    } catch {
+      // Ungueltige Marketplace-Platzhalter werden zugunsten der naechsten URL ignoriert.
+    }
+  }
+  return null;
 }
 
 const isCommandLine = process.argv[1]
