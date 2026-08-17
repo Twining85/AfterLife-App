@@ -5,7 +5,9 @@ struct DossierRecoveryView: View {
     @State private var bestaetigungDrei = ""
     @State private var bestaetigungSieben = ""
     @State private var bestaetigungElf = ""
-    @State private var recoveryEingabe = ""
+    @State private var recoveryWoerter = Array(repeating: "", count: 12)
+    @State private var verteiltRecoveryCode = false
+    @FocusState private var fokussiertesRecoveryWort: Int?
     @State private var shareURL: URL?
     @State private var meldung = ""
     @State private var arbeitet = false
@@ -17,6 +19,11 @@ struct DossierRecoveryView: View {
             && bestaetigungDrei.lowercased() == woerter[2]
             && bestaetigungSieben.lowercased() == woerter[6]
             && bestaetigungElf.lowercased() == woerter[10]
+    }
+    private var recoveryCodeVollstaendig: Bool {
+        recoveryWoerter.count == 12 && recoveryWoerter.allSatisfy {
+            DossierRecoveryCode.woerter.contains($0.lowercased())
+        }
     }
 
     var body: some View {
@@ -61,12 +68,32 @@ struct DossierRecoveryView: View {
                 }
 
                 Section("Auf diesem Gerät wiederherstellen") {
-                    TextField("12 Wörter eingeben", text: $recoveryEingabe, axis: .vertical)
-                        .lineLimit(4...7)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
+                    Text("Gib die Wörter in derselben Reihenfolge wie im PDF ein. Du kannst den gesamten Code auch in das erste Feld einfügen.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    ForEach(0..<12, id: \.self) { index in
+                        HStack(spacing: 12) {
+                            Text("\(index + 1).")
+                                .font(.subheadline.monospacedDigit().weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 28, alignment: .trailing)
+                            TextField("Wort \(index + 1)", text: $recoveryWoerter[index])
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .focused($fokussiertesRecoveryWort, equals: index)
+                                .foregroundStyle(istRecoveryWortUngueltig(index) ? Color.red : Color.primary)
+                                .onChange(of: recoveryWoerter[index]) { _, neuerWert in
+                                    verarbeiteRecoveryEingabe(neuerWert, bei: index)
+                                }
+                            if !recoveryWoerter[index].isEmpty {
+                                Image(systemName: istRecoveryWortUngueltig(index) ? "xmark.circle.fill" : "checkmark.circle.fill")
+                                    .foregroundStyle(istRecoveryWortUngueltig(index) ? Color.red : Color.green)
+                                    .accessibilityHidden(true)
+                            }
+                        }
+                    }
                     Button("Schlüssel wiederherstellen") { stelleWiederHer() }
-                        .disabled(arbeitet || recoveryEingabe.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .disabled(arbeitet || !recoveryCodeVollstaendig)
                 }
 
                 if !meldung.isEmpty {
@@ -112,12 +139,50 @@ struct DossierRecoveryView: View {
         meldung = ""
         Task {
             do {
-                try await CloudFeldVerschluesselung.shared.wiederherstellen(mit: recoveryEingabe)
-                recoveryEingabe = ""
+                try await CloudFeldVerschluesselung.shared.wiederherstellen(
+                    mit: recoveryWoerter.joined(separator: " ")
+                )
+                recoveryWoerter = Array(repeating: "", count: 12)
+                fokussiertesRecoveryWort = nil
                 meldung = "Erfolgreich wiederhergestellt. Die verschlüsselten Daten werden erneut geladen."
                 NotificationCenter.default.post(name: .dossierRecoveryGeaendert, object: nil)
             } catch { meldung = error.localizedDescription }
             arbeitet = false
+        }
+    }
+
+    private func istRecoveryWortUngueltig(_ index: Int) -> Bool {
+        let wort = recoveryWoerter[index].lowercased()
+        return !wort.isEmpty && !DossierRecoveryCode.woerter.contains(wort)
+    }
+
+    private func verarbeiteRecoveryEingabe(_ eingabe: String, bei index: Int) {
+        guard !verteiltRecoveryCode else { return }
+        let teile = eingabe
+            .lowercased()
+            .split(whereSeparator: { $0.isWhitespace || $0 == "," || $0 == ";" })
+            .map(String.init)
+
+        if teile.count > 1 {
+            verteiltRecoveryCode = true
+            for ziel in 0..<12 {
+                recoveryWoerter[ziel] = ziel < teile.count ? teile[ziel] : ""
+            }
+            verteiltRecoveryCode = false
+            fokussiertesRecoveryWort = teile.count >= 12 ? nil : min(teile.count, 11)
+            return
+        }
+
+        let normalisiert = eingabe
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if normalisiert != eingabe {
+            verteiltRecoveryCode = true
+            recoveryWoerter[index] = normalisiert
+            verteiltRecoveryCode = false
+        }
+        if DossierRecoveryCode.woerter.contains(normalisiert), index < 11 {
+            fokussiertesRecoveryWort = index + 1
         }
     }
 }
