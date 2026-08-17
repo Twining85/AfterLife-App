@@ -222,9 +222,37 @@ struct TschluessliTests {
         #expect(try ProfilBereichAdapter().validiere(payload.daten, schemaVersion: 1) == payload.daten)
     }
 
+    @Test func profilDownloadAktualisiertDasVerwendeteSwiftDataModell() async throws {
+        let container = try ModelContainer(
+            for: ProfilModell.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let dossierID = UUID()
+        let profil = ProfilModell(dossierID: dossierID, vorname: "Cloud", name: "Stand")
+        container.mainContext.insert(profil)
+        try container.mainContext.save()
+        let payload = try await ProfilBereichAdapter().exportiere(
+            dossierID: dossierID,
+            aus: container.mainContext
+        )
+
+        profil.vorname = "Lokaler Zwischenstand"
+        try await DossierBereichImport.importiere(
+            payload.daten,
+            bereich: "profil",
+            dossierID: dossierID,
+            in: container.mainContext
+        )
+
+        let geladen = try #require(container.mainContext.fetch(FetchDescriptor<ProfilModell>()).first)
+        #expect(geladen.vorname == "Cloud")
+        #expect(geladen.name == "Stand")
+    }
+
 }
 
-private actor ErfolgreicherSyncVerarbeiter: SyncAuftragVerarbeiter {
+@MainActor
+private final class ErfolgreicherSyncVerarbeiter: SyncAuftragVerarbeiter {
     private let serverRevision: Int64
     private var anzahl = 0
 

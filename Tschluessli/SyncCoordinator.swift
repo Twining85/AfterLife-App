@@ -1,6 +1,7 @@
 import Foundation
 
-nonisolated protocol SyncAuftragVerarbeiter: Sendable {
+@MainActor
+protocol SyncAuftragVerarbeiter: AnyObject {
     func verarbeite(_ auftrag: SyncAuftragSnapshot) async throws -> Int64
 }
 

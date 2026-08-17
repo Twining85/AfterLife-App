@@ -37,7 +37,8 @@ struct TschluessliApp: App {
             VertrauenspersonEinladungsHistorieModell.self,
             DossierModell.self,
             DossierZugriffModell.self,
-            SyncAuftrag.self
+            SyncAuftrag.self,
+            SyncKonflikt.self
         ])
 
         let modelConfiguration = ModelConfiguration(
@@ -66,20 +67,8 @@ struct TschluessliApp: App {
 }
 
 struct AppStartView: View {
+    @Environment(\.modelContext) private var modelContext
     @Query private var gespeicherteProfile: [ProfilModell]
-    @Query private var gesundheitsdaten: [GesundheitModell]
-    @Query private var wuenscheDaten: [WuenscheModell]
-    @Query private var bankkonten: [BankkontoModell]
-    @Query private var schulden: [SchuldenModell]
-    @Query private var versicherungen: [VersicherungModell]
-    @Query private var liegenschaften: [LiegenschaftModell]
-    @Query private var wertsachen: [WertsacheModell]
-    @Query private var steuerdokumente: [SteuerdokumentModell]
-    @Query private var hinterbliebene: [HinterbliebeneModell]
-    @Query private var vertrauenspersonen: [VertrauenspersonModell]
-    @Query private var aboModelle: [AboModell]
-    @Query private var digitaleKonten: [DigitalekontenModell]
-    @Query private var herzensstuecke: [HerzensstueckModell]
 
     @AppStorage("istEingeloggt")
     private var istEingeloggt = false
@@ -113,6 +102,7 @@ struct AppStartView: View {
 
     @State private var deepLinkFehlermeldung = ""
     @State private var deepLinkFehlerAnzeigen = false
+    @State private var dossierSyncDienst: DossierSyncDienst?
 
     // Vor einem Release wieder auf false setzen.
     private let homeDirektStarten = false
@@ -233,6 +223,10 @@ struct AppStartView: View {
             }
 
             verarbeiteGespeicherteEinladungsURLFallsNoetig()
+            if dossierSyncDienst == nil, let dienst = try? DossierSyncDienst(modelContext: modelContext) {
+                dossierSyncDienst = dienst
+                dienst.starten()
+            }
         }
         .onOpenURL { url in
             verarbeiteEinladungsURL(url)
@@ -262,7 +256,7 @@ struct AppStartView: View {
                     .didEnterBackgroundNotification
             )
         ) { _ in
-            synchronisiereKernDaten()
+            dossierSyncDienst?.synchronisieren()
 
             guard !biometriePruefungImProfilLaeuft,
                   !systemdialogImProfilLaeuft else {
@@ -291,86 +285,7 @@ struct AppStartView: View {
         ) { _ in
             UIApplication.shared
                 .aktiviereTastaturAusblendenBeiInteraktion()
-        }
-    }
-
-    private func synchronisiereKernDaten() {
-        guard istEingeloggt,
-              let dossierID = UUID(uuidString: UserDefaults.standard.string(forKey: "aktivesDossierID") ?? "") else {
-            return
-        }
-        let profile = gespeicherteProfile
-            .filter { $0.dossierID == dossierID }
-            .map(CloudProfilDaten.init)
-        let gesundheit = gesundheitsdaten
-            .filter { $0.dossierID == dossierID }
-            .map(CloudGesundheitDaten.init)
-        let wuensche = wuenscheDaten
-            .filter { $0.dossierID == dossierID }
-            .map(CloudWuenscheDaten.init)
-        let finanzen = CloudFinanzenDaten(
-            bankkonten: bankkonten.filter { $0.dossierID == dossierID }.map(CloudFinanzenDaten.Bankkonto.init),
-            schulden: schulden.filter { $0.dossierID == dossierID }.map(CloudFinanzenDaten.Schuld.init),
-            versicherungen: versicherungen.filter { $0.dossierID == dossierID }.map(CloudFinanzenDaten.Versicherung.init),
-            liegenschaften: liegenschaften.filter { $0.dossierID == dossierID }.map(CloudFinanzenDaten.Liegenschaft.init),
-            wertsachen: wertsachen.filter { $0.dossierID == dossierID }.map(CloudFinanzenDaten.Wertsache.init),
-            steuerdokumente: steuerdokumente.filter { $0.dossierID == dossierID }.map(CloudFinanzenDaten.Steuerdokument.init)
-        )
-        let kontakte = CloudKontaktDaten(
-            hinterbliebene: hinterbliebene.filter { $0.dossierID == dossierID }.map(CloudKontaktDaten.Hinterbliebene.init),
-            vertrauenspersonen: vertrauenspersonen.filter { $0.dossierID == dossierID }.map(CloudKontaktDaten.Vertrauensperson.init)
-        )
-        let zugangsdaten = CloudZugangsDaten(
-            abos: aboModelle.filter { $0.dossierID == dossierID }.map(CloudAboDaten.init),
-            digitaleKonten: digitaleKonten.filter { $0.dossierID == dossierID }.map(CloudZugangsDaten.DigitalesKonto.init)
-        )
-        let herzensstueckDaten = herzensstuecke
-            .filter { $0.dossierID == dossierID }
-            .map(CloudHerzensstueckDaten.init)
-
-        var hintergrundTask = UIBackgroundTaskIdentifier.invalid
-        hintergrundTask = UIApplication.shared.beginBackgroundTask(
-            withName: "Tschluessli-Dossier-Synchronisation"
-        ) {
-            if hintergrundTask != .invalid {
-                UIApplication.shared.endBackgroundTask(hintergrundTask)
-                hintergrundTask = .invalid
-            }
-        }
-
-        Task {
-            defer {
-                if hintergrundTask != .invalid {
-                    UIApplication.shared.endBackgroundTask(hintergrundTask)
-                    hintergrundTask = .invalid
-                }
-            }
-            do {
-                _ = try await CloudDossierSyncService.shared.speichern(
-                    CloudDatenListe(items: profile), dossierID: dossierID, bereich: "profil", schemaVersion: 1
-                )
-                _ = try await CloudDossierSyncService.shared.speichern(
-                    CloudDatenListe(items: gesundheit), dossierID: dossierID, bereich: "gesundheit", schemaVersion: 1
-                )
-                _ = try await CloudDossierSyncService.shared.speichern(
-                    CloudDatenListe(items: wuensche), dossierID: dossierID, bereich: "wuensche", schemaVersion: 1
-                )
-                _ = try await CloudDossierSyncService.shared.speichern(
-                    finanzen, dossierID: dossierID, bereich: "finanzen", schemaVersion: 1
-                )
-                _ = try await CloudDossierSyncService.shared.speichern(
-                    kontakte, dossierID: dossierID, bereich: "kontakte", schemaVersion: 1
-                )
-                _ = try await CloudDossierSyncService.shared.speichern(
-                    CloudDatenListe(items: herzensstueckDaten), dossierID: dossierID, bereich: "herzensstuecke", schemaVersion: 1
-                )
-                let verschluesselteZugaenge = try await CloudFeldVerschluesselung.shared.verschluesseln(zugangsdaten)
-                _ = try await CloudDossierSyncService.shared.speichern(
-                    verschluesselteZugaenge, dossierID: dossierID, bereich: "zugaenge", schemaVersion: 1
-                )
-            } catch {
-                print("Cloud-Synchronisation der Kerndaten fehlgeschlagen: \(error.localizedDescription)")
-            }
+            dossierSyncDienst?.synchronisieren()
         }
     }
 

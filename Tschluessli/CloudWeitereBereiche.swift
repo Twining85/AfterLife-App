@@ -110,6 +110,23 @@ actor CloudFeldVerschluesselung {
         return VerschluesselterCloudBereich(algorithmus: "AES-256-GCM", schluesselVersion: 1, daten: combined.base64EncodedString())
     }
 
+    func entschluesseln<T: Decodable & Sendable>(
+        _ wert: VerschluesselterCloudBereich,
+        als typ: T.Type
+    ) async throws -> T {
+        guard wert.algorithmus == "AES-256-GCM",
+              wert.schluesselVersion == 1,
+              let kombiniert = Data(base64Encoded: wert.daten) else {
+            throw CloudDossierSyncFehler.ungueltigeDaten
+        }
+        let box = try AES.GCM.SealedBox(combined: kombiniert)
+        let klartext = try AES.GCM.open(
+            box,
+            using: SymmetricKey(data: try await schluesselDaten())
+        )
+        return try JSONDecoder().decode(T.self, from: klartext)
+    }
+
     private func schluesselDaten() async throws -> Data {
         try await MainActor.run {
             if let encoded = try? KeychainHelper.shared.read(service: service, account: account), let data = Data(base64Encoded: encoded) { return data }
