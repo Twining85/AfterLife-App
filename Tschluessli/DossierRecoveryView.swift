@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct DossierRecoveryView: View {
-    @Environment(\.dismiss) private var dismiss
     @State private var code = ""
     @State private var bestaetigungDrei = ""
     @State private var bestaetigungSieben = ""
@@ -21,8 +20,7 @@ struct DossierRecoveryView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
+        Form {
                 Section("Wiederherstellungscode") {
                     Text("Die 12 Wörter schützen den Schlüssel deiner verschlüsselten Zugangsdaten. Bewahre sie offline auf.")
                         .font(.footnote)
@@ -74,21 +72,20 @@ struct DossierRecoveryView: View {
                 if !meldung.isEmpty {
                     Section { Text(meldung).foregroundStyle(meldung.hasPrefix("Erfolgreich") ? .green : .red) }
                 }
-            }
-            .navigationTitle("Dossier-Schlüssel")
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fertig") { dismiss() } } }
-            .sheet(item: Binding(
-                get: { shareURL.map(RecoveryPDFDatei.init) },
-                set: { if $0 == nil { shareURL = nil } }
-            ), onDismiss: {
-                if let shareURL { try? FileManager.default.removeItem(at: shareURL) }
-                shareURL = nil
-            }) { datei in
-                ShareSheet(activityItems: [datei.url])
-            }
-            .task {
-                recoveryBereitsEingerichtet = await CloudFeldVerschluesselung.shared.hatRecoveryPaket()
-            }
+        }
+        .navigationTitle("Dossier-Schlüssel")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: Binding(
+            get: { shareURL.map(RecoveryPDFDatei.init) },
+            set: { if $0 == nil { shareURL = nil } }
+        ), onDismiss: {
+            if let shareURL { try? FileManager.default.removeItem(at: shareURL) }
+            shareURL = nil
+        }) { datei in
+            ShareSheet(activityItems: [datei.url])
+        }
+        .task {
+            recoveryBereitsEingerichtet = await CloudFeldVerschluesselung.shared.hatRecoveryPaket()
         }
     }
 

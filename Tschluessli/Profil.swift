@@ -121,7 +121,6 @@ struct ProfilView: View {
     @State private var profilGeladen = false
     @State private var biometriePruefungLaeuft = false
     @State private var biometrieFehlermeldung = ""
-    @State private var dossierRecoveryAnzeigen = false
     @State private var syncKonflikteAnzeigen = false
     private var istEmailGueltig: Bool {
 
@@ -435,8 +434,8 @@ struct ProfilView: View {
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                         Divider()
-                        Button {
-                            dossierRecoveryAnzeigen = true
+                        NavigationLink {
+                            DossierRecoveryView()
                         } label: {
                             Label("Dossier-Schlüssel sichern oder wiederherstellen", systemImage: "key.horizontal.fill")
                         }
@@ -527,9 +526,6 @@ struct ProfilView: View {
             }) {
                 ProfilSafariView(url: URL(string: "https://tschluessli.ch/front_page/rechtliches/")!)
                     .ignoresSafeArea()
-            }
-            .sheet(isPresented: $dossierRecoveryAnzeigen) {
-                DossierRecoveryView()
             }
             .sheet(isPresented: $syncKonflikteAnzeigen) {
                 SyncKonfliktView()
