@@ -74,3 +74,6 @@ API-Vertrag und Datenmodell muessen in beiden Umgebungen identisch funktionieren
 Phase 1 veraendert bewusst weder Produktionsdaten noch Vercel-, Neon- oder
 Infomaniak-Konfigurationen. Der naechste Schritt ist die gemeinsame,
 anbieterneutrale Zielarchitektur.
+
+Die verabschiedete Zielarchitektur ist in
+[`sync-target-architecture.md`](sync-target-architecture.md) dokumentiert.
