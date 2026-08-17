@@ -41,9 +41,13 @@ struct DossierRecoveryView: View {
                         Button(recoveryBereitsEingerichtet ? "Neuen 12-Wörter-Code erstellen" : "12 Wörter erstellen") { erstelleCode() }
                             .disabled(arbeitet)
                     } else {
-                        ForEach(Array(woerter.enumerated()), id: \.offset) { index, wort in
-                            LabeledContent("\(index + 1)", value: wort)
-                                .fontDesign(.monospaced)
+                        Grid(horizontalSpacing: 18, verticalSpacing: 10) {
+                            ForEach(0..<6, id: \.self) { zeile in
+                                GridRow {
+                                    codeWortAnzeige(index: zeile)
+                                    codeWortAnzeige(index: zeile + 6)
+                                }
+                            }
                         }
                     }
                 }
@@ -71,24 +75,11 @@ struct DossierRecoveryView: View {
                     Text("Gib die Wörter in derselben Reihenfolge wie im PDF ein. Du kannst den gesamten Code auch in das erste Feld einfügen.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                    ForEach(0..<12, id: \.self) { index in
-                        HStack(spacing: 12) {
-                            Text("\(index + 1).")
-                                .font(.subheadline.monospacedDigit().weight(.semibold))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 28, alignment: .trailing)
-                            TextField("Wort \(index + 1)", text: $recoveryWoerter[index])
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                                .focused($fokussiertesRecoveryWort, equals: index)
-                                .foregroundStyle(istRecoveryWortUngueltig(index) ? Color.red : Color.primary)
-                                .onChange(of: recoveryWoerter[index]) { _, neuerWert in
-                                    verarbeiteRecoveryEingabe(neuerWert, bei: index)
-                                }
-                            if !recoveryWoerter[index].isEmpty {
-                                Image(systemName: istRecoveryWortUngueltig(index) ? "xmark.circle.fill" : "checkmark.circle.fill")
-                                    .foregroundStyle(istRecoveryWortUngueltig(index) ? Color.red : Color.green)
-                                    .accessibilityHidden(true)
+                    Grid(horizontalSpacing: 12, verticalSpacing: 10) {
+                        ForEach(0..<6, id: \.self) { zeile in
+                            GridRow {
+                                recoveryWortEingabe(index: zeile)
+                                recoveryWortEingabe(index: zeile + 6)
                             }
                         }
                     }
@@ -154,6 +145,47 @@ struct DossierRecoveryView: View {
     private func istRecoveryWortUngueltig(_ index: Int) -> Bool {
         let wort = recoveryWoerter[index].lowercased()
         return !wort.isEmpty && !DossierRecoveryCode.woerter.contains(wort)
+    }
+
+    @ViewBuilder
+    private func codeWortAnzeige(index: Int) -> some View {
+        HStack(spacing: 6) {
+            Text("\(index + 1).")
+                .foregroundStyle(.secondary)
+                .frame(width: 24, alignment: .trailing)
+            Text(woerter[index])
+                .fontDesign(.monospaced)
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .font(.subheadline)
+    }
+
+    @ViewBuilder
+    private func recoveryWortEingabe(index: Int) -> some View {
+        HStack(spacing: 5) {
+            Text("\(index + 1).")
+                .font(.caption.monospacedDigit().weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 22, alignment: .trailing)
+            TextField("Wort", text: $recoveryWoerter[index])
+                .font(.caption)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .focused($fokussiertesRecoveryWort, equals: index)
+                .foregroundStyle(istRecoveryWortUngueltig(index) ? Color.red : Color.primary)
+                .onChange(of: recoveryWoerter[index]) { _, neuerWert in
+                    verarbeiteRecoveryEingabe(neuerWert, bei: index)
+                }
+            if !recoveryWoerter[index].isEmpty {
+                Image(systemName: istRecoveryWortUngueltig(index) ? "xmark.circle.fill" : "checkmark.circle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(istRecoveryWortUngueltig(index) ? Color.red : Color.green)
+                    .accessibilityHidden(true)
+            }
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private func verarbeiteRecoveryEingabe(_ eingabe: String, bei index: Int) {
