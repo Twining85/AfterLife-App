@@ -121,6 +121,7 @@ struct ProfilView: View {
     @State private var profilGeladen = false
     @State private var biometriePruefungLaeuft = false
     @State private var biometrieFehlermeldung = ""
+    @State private var dossierRecoveryAnzeigen = false
     @State private var syncKonflikteAnzeigen = false
     private var istEmailGueltig: Bool {
 
@@ -240,6 +241,16 @@ struct ProfilView: View {
                     }
             } else {
                 profilHauptansicht
+            }
+        }
+        .fullScreenCover(isPresented: $dossierRecoveryAnzeigen) {
+            NavigationStack {
+                DossierRecoveryView()
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Fertig") { dossierRecoveryAnzeigen = false }
+                        }
+                    }
             }
         }
     }
@@ -434,11 +445,14 @@ struct ProfilView: View {
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                         Divider()
-                        NavigationLink {
-                            DossierRecoveryView()
+                        Button {
+                            dossierRecoveryAnzeigen = true
                         } label: {
                             Label("Dossier-Schlüssel sichern oder wiederherstellen", systemImage: "key.horizontal.fill")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
                         }
+                        .buttonStyle(.borderless)
                         if !syncKonflikte.isEmpty {
                             Button {
                                 syncKonflikteAnzeigen = true
