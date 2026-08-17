@@ -36,7 +36,8 @@ struct TschluessliApp: App {
             VertrauenspersonModell.self,
             VertrauenspersonEinladungsHistorieModell.self,
             DossierModell.self,
-            DossierZugriffModell.self
+            DossierZugriffModell.self,
+            SyncAuftrag.self
         ])
 
         let modelConfiguration = ModelConfiguration(

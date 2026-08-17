@@ -240,3 +240,6 @@ bis zur kontrollierten Ablösung nachvollziehbar im Git-Verlauf.
 
 Die Umsetzung der lokalen Sicherheitsgrundlage ist in
 [`phase-3-local-security.md`](phase-3-local-security.md) festgehalten.
+
+Die persistente Outbox und der zentrale Coordinator sind in
+[`phase-4-sync-outbox.md`](phase-4-sync-outbox.md) dokumentiert.
