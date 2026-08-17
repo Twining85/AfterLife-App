@@ -33,6 +33,7 @@ struct ReloginView: View {
     @State private var showPassword = false
     @State private var biometrieLoginLaeuft = false
     @State private var emailLoginLaeuft = false
+    @State private var passwortVergessenAnzeigen = false
 
     private let loginFuerTestsUeberspringen = false
 
@@ -84,6 +85,20 @@ struct ReloginView: View {
                     istEingeloggt = true
                 } else {
                     bereiteLoginBeimStartVor()
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $passwortVergessenAnzeigen) {
+            NavigationStack {
+                PasswortVergessenView(initialEmail: email) {
+                    passwort = ""
+                    fehlermeldung = "Das Passwort wurde geändert. Du kannst dich jetzt mit dem neuen Passwort anmelden."
+                    passwortVergessenAnzeigen = false
+                }
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Abbrechen") { passwortVergessenAnzeigen = false }
+                    }
                 }
             }
         }
@@ -237,6 +252,14 @@ struct ReloginView: View {
                         .stroke(akzentFarbe.opacity(0.18), lineWidth: 1)
                 )
             }
+
+            Button("Passwort vergessen?") {
+                passwortVergessenAnzeigen = true
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(akzentFarbe)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .buttonStyle(.plain)
 
             Button {
                 loginMitEmailUndPasswort()

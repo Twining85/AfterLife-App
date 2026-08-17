@@ -6,12 +6,13 @@ export function createCode() {
   return crypto.randomInt(100000, 1000000).toString();
 }
 
-export function createChallenge(email, code) {
+export function createChallenge(email, code, purpose = "account-registration") {
   const secret = process.env.EMAIL_VERIFICATION_SECRET;
   if (!secret) throw new Error("EMAIL_VERIFICATION_SECRET fehlt");
 
   const payload = Buffer.from(JSON.stringify({
     email,
+    purpose,
     codeHash: hashCode(email, code, secret),
     expiresAt: Date.now() + validityMilliseconds
   })).toString("base64url");
@@ -19,11 +20,11 @@ export function createChallenge(email, code) {
   return `${payload}.${signature}`;
 }
 
-export function verifyChallenge(token, code) {
-  return readVerifiedChallenge(token, code) !== null;
+export function verifyChallenge(token, code, purpose = "account-registration") {
+  return readVerifiedChallenge(token, code, purpose) !== null;
 }
 
-export function readVerifiedChallenge(token, code) {
+export function readVerifiedChallenge(token, code, purpose = "account-registration") {
   const secret = process.env.EMAIL_VERIFICATION_SECRET;
   if (!secret || typeof token !== "string") return null;
 
@@ -36,7 +37,7 @@ export function readVerifiedChallenge(token, code) {
 
   try {
     const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
-    if (typeof data.email !== "string" || typeof data.codeHash !== "string") return null;
+    if (typeof data.email !== "string" || typeof data.codeHash !== "string" || data.purpose !== purpose) return null;
     if (!Number.isFinite(data.expiresAt) || Date.now() > data.expiresAt) return null;
     return safeEqual(data.codeHash, hashCode(data.email, String(code), secret)) ? data : null;
   } catch {

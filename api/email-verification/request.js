@@ -33,7 +33,7 @@ export default async function handler(req, res) {
 
   try {
     const code = createCode();
-    const challengeToken = createChallenge(email, code);
+    const challengeToken = createChallenge(email, code, "account-registration");
     await sendEmail({
       to: email,
       subject: `${code} ist dein Tschlüssli-Bestätigungscode`,

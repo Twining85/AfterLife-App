@@ -34,6 +34,9 @@ test("akzeptiert nur korrekt signierten Code", () => {
     assert.equal(verifyChallenge(token, "654321"), false);
     assert.equal(verifyChallenge(`${token}.extra`, "123456"), false);
     assert.equal(verifyChallenge(`${token.slice(0, -1)}x`, "123456"), false);
+    const resetToken = createChallenge("person@example.ch", "123456", "password-reset");
+    assert.equal(verifyChallenge(resetToken, "123456"), false);
+    assert.equal(verifyChallenge(resetToken, "123456", "password-reset"), true);
   } finally {
     if (previous === undefined) delete process.env.EMAIL_VERIFICATION_SECRET;
     else process.env.EMAIL_VERIFICATION_SECRET = previous;

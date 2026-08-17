@@ -13,7 +13,9 @@ export default async function handler(req, res) {
 
   const code = String(req.body?.code || "").trim();
   const challengeToken = req.body?.challengeToken;
-  const verified = /^\d{6}$/.test(code) ? readVerifiedChallenge(challengeToken, code) : null;
+  const verified = /^\d{6}$/.test(code)
+    ? readVerifiedChallenge(challengeToken, code, "account-registration")
+    : null;
   if (!verified) {
     return res.status(400).json({ error: "Code ungültig oder abgelaufen" });
   }

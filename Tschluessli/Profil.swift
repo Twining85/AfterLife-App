@@ -122,6 +122,7 @@ struct ProfilView: View {
     @State private var biometriePruefungLaeuft = false
     @State private var biometrieFehlermeldung = ""
     @State private var dossierRecoveryAnzeigen = false
+    @State private var passwortAendernAnzeigen = false
     @State private var syncKonflikteAnzeigen = false
     private var istEmailGueltig: Bool {
 
@@ -249,6 +250,16 @@ struct ProfilView: View {
                     .toolbar {
                         ToolbarItem(placement: .confirmationAction) {
                             Button("Fertig") { dossierRecoveryAnzeigen = false }
+                        }
+                    }
+            }
+        }
+        .fullScreenCover(isPresented: $passwortAendernAnzeigen) {
+            NavigationStack {
+                PasswortAendernView()
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Fertig") { passwortAendernAnzeigen = false }
                         }
                     }
             }
@@ -407,7 +418,32 @@ struct ProfilView: View {
                             LabeledContent("E-Mail-Adresse", value: gespeicherteEmail.isEmpty ? "Nicht erfasst" : gespeicherteEmail)
                         } else {
                             LabeledContent("Benutzername", value: gespeicherteEmail.isEmpty ? "Nicht erfasst" : gespeicherteEmail)
-                            LabeledContent("Passwort", value: "Wird nicht gespeichert")
+                        }
+                        Divider()
+                        Button {
+                            dossierRecoveryAnzeigen = true
+                        } label: {
+                            Label("Dossier-Schlüssel sichern oder wiederherstellen", systemImage: "key.horizontal.fill")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.borderless)
+                        if registrierungsArt != "Google" && registrierungsArt != "Apple" && registrierungsArt != "Apple ID" {
+                            Button {
+                                passwortAendernAnzeigen = true
+                            } label: {
+                                Label("Passwort ändern", systemImage: "lock.rotation")
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.borderless)
+                        }
+                        if !syncKonflikte.isEmpty {
+                            Button {
+                                syncKonflikteAnzeigen = true
+                            } label: {
+                                Label("Synchronisationskonflikte (\(syncKonflikte.count))", systemImage: "exclamationmark.arrow.triangle.2.circlepath")
+                            }
                         }
                         Divider()
                         Toggle("Biometrische Anmeldung verwenden", isOn: Binding(
@@ -441,25 +477,9 @@ struct ProfilView: View {
                         Text("Wenn aktiviert, kann die App beim Öffnen Face ID oder Touch ID für die Anmeldung verwenden.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
-                        Text("Das Kontopasswort wird weder im Profil noch auf dem Gerät gespeichert. Die aktive Cloud-Sitzung wird geschützt im iOS-Schlüsselbund verwaltet.")
+                        Text("Das Kontopasswort wird nicht auf dem Gerät gespeichert. Die aktive Cloud-Sitzung wird geschützt im iOS-Schlüsselbund verwaltet.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
-                        Divider()
-                        Button {
-                            dossierRecoveryAnzeigen = true
-                        } label: {
-                            Label("Dossier-Schlüssel sichern oder wiederherstellen", systemImage: "key.horizontal.fill")
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.borderless)
-                        if !syncKonflikte.isEmpty {
-                            Button {
-                                syncKonflikteAnzeigen = true
-                            } label: {
-                                Label("Synchronisationskonflikte (\(syncKonflikte.count))", systemImage: "exclamationmark.arrow.triangle.2.circlepath")
-                            }
-                        }
                     }
                     .listRowBackground(profilKartenFarbe)
                     .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
@@ -2335,7 +2355,6 @@ struct ProfilView: View {
                     drawField("E-Mail-Adresse", gespeicherteEmail)
                 } else {
                     drawField("Benutzername", gespeicherteEmail)
-                    drawField("Passwort", "Wird nicht gespeichert")
                 }
 
                 drawWuensche()
