@@ -124,6 +124,9 @@ betroffenen Adapter, nicht den erneuten Bau der gesamten Synchronisation.
 
 ## 7. API-Vertrag v1
 
+Die serverseitige Umsetzung dieses Vertrags ist in
+[`phase-6-sync-api.md`](phase-6-sync-api.md) dokumentiert.
+
 Alle Antworten enthalten eine Request-ID. Veraendernde Anfragen tragen eine
 Idempotency-ID, damit Wiederholungen denselben Effekt haben.
 

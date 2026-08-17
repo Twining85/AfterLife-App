@@ -81,6 +81,17 @@ test("wendet neue Migration und Protokolleintrag in einer Transaktion an", async
   assert.deepEqual(calls[insert].parameters, [2, "sync", migration.checksum]);
 });
 
+test("übernimmt bestehende Bereiche beim Einführen des Sync-Protokolls", async () => {
+  const migration = await fs.readFile(
+    new URL("../database/migrations/002_sync_protocol.sql", import.meta.url),
+    "utf8"
+  );
+  assert.match(migration, /INSERT INTO sync_changes/);
+  assert.match(migration, /FROM dossier_sections/);
+  assert.match(migration, /ADD COLUMN deleted_at/);
+  assert.match(migration, /CREATE TABLE sync_idempotency/);
+});
+
 function fakeClient(responses) {
   return {
     async query() {

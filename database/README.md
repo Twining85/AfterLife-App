@@ -16,6 +16,8 @@ direkt `npm run db:migrate`.
 
 `001_initial.sql` legt Konten, Sitzungen, Dossiers und flexible, versionierte
 Dossierbereiche an. Dokumentinhalte gehören ausdrücklich nicht in diese Tabellen.
+`002_sync_protocol.sql` ergänzt Tombstones, den cursorbasierten Änderungsverlauf
+und idempotente Upload-Antworten für die Sync-API.
 
 Die Row-Level-Security erwartet innerhalb jeder Dossier-Transaktion `app.user_id`. Das Backend
 setzt diesen Wert lokal in der Transaktion; direkte Abfragen ohne Benutzerkontext sehen keine
