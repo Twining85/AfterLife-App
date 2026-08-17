@@ -13,6 +13,7 @@ struct FinanzenView: View {
     @Query private var gespeicherteLiegenschaften: [LiegenschaftModell]
     @Query private var gespeicherteWertsachen: [WertsacheModell]
     @Query private var gespeicherteSteuerdokumente: [SteuerdokumentModell]
+    @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
     @State private var finanzenGeladen = false
     @State private var exchangeRates: [CurrencyType: Double] = [.chf: 1.0]
     @State private var exchangeRateDate = ""
@@ -1145,11 +1146,12 @@ struct FinanzenSwipeToDeleteRow<Content: View>: View {
 
         for entry in gueltigeEintraege {
             let bestehendesModell = gespeicherteBankkonten.first { $0.eintragsID == entry.id.uuidString }
-            let modell = bestehendesModell ?? BankkontoModell(eintragsID: entry.id.uuidString)
+            let modell = bestehendesModell ?? BankkontoModell(eintragsID: entry.id.uuidString, dossierID: zielDossierID)
 
             if bestehendesModell == nil {
                 modelContext.insert(modell)
             }
+            if modell.dossierID == nil { modell.dossierID = zielDossierID }
 
             modell.bankname = entry.bankName
             modell.bankAdresse = entry.bankAddress
@@ -1175,11 +1177,12 @@ struct FinanzenSwipeToDeleteRow<Content: View>: View {
 
         for entry in gueltigeEintraege {
             let bestehendesModell = gespeicherteSchulden.first { $0.eintragsID == entry.id.uuidString }
-            let modell = bestehendesModell ?? SchuldenModell(eintragsID: entry.id.uuidString)
+            let modell = bestehendesModell ?? SchuldenModell(eintragsID: entry.id.uuidString, dossierID: zielDossierID)
 
             if bestehendesModell == nil {
                 modelContext.insert(modell)
             }
+            if modell.dossierID == nil { modell.dossierID = zielDossierID }
 
             modell.art = entry.type.rawValue
             modell.betrag = parsedAmount(entry.amount)
@@ -1202,11 +1205,12 @@ struct FinanzenSwipeToDeleteRow<Content: View>: View {
 
         for entry in gueltigeEintraege {
             let bestehendesModell = gespeicherteVersicherungen.first { $0.eintragsID == entry.id.uuidString }
-            let modell = bestehendesModell ?? VersicherungModell(eintragsID: entry.id.uuidString)
+            let modell = bestehendesModell ?? VersicherungModell(eintragsID: entry.id.uuidString, dossierID: zielDossierID)
 
             if bestehendesModell == nil {
                 modelContext.insert(modell)
             }
+            if modell.dossierID == nil { modell.dossierID = zielDossierID }
 
             modell.art = entry.type.rawValue
             modell.anbieter = entry.provider
@@ -1231,11 +1235,12 @@ struct FinanzenSwipeToDeleteRow<Content: View>: View {
 
         for entry in gueltigeEintraege {
             let bestehendesModell = gespeicherteLiegenschaften.first { $0.eintragsID == entry.id.uuidString }
-            let modell = bestehendesModell ?? LiegenschaftModell(eintragsID: entry.id.uuidString)
+            let modell = bestehendesModell ?? LiegenschaftModell(eintragsID: entry.id.uuidString, dossierID: zielDossierID)
 
             if bestehendesModell == nil {
                 modelContext.insert(modell)
             }
+            if modell.dossierID == nil { modell.dossierID = zielDossierID }
 
             modell.art = entry.type.rawValue
             modell.verkehrswert = parsedAmount(entry.marketValue)
@@ -1258,11 +1263,12 @@ struct FinanzenSwipeToDeleteRow<Content: View>: View {
 
         for entry in gueltigeEintraege {
             let bestehendesModell = gespeicherteWertsachen.first { $0.eintragsID == entry.id.uuidString }
-            let modell = bestehendesModell ?? WertsacheModell(eintragsID: entry.id.uuidString)
+            let modell = bestehendesModell ?? WertsacheModell(eintragsID: entry.id.uuidString, dossierID: zielDossierID)
 
             if bestehendesModell == nil {
                 modelContext.insert(modell)
             }
+            if modell.dossierID == nil { modell.dossierID = zielDossierID }
 
             modell.art = entry.type.rawValue
             modell.beschreibung = entry.typeDescription
@@ -1278,12 +1284,17 @@ struct FinanzenSwipeToDeleteRow<Content: View>: View {
         if hasOldTaxReturn && !oldTaxReturnFileName.isEmpty {
             let modell = SteuerdokumentModell(
                 eintragsID: "alte-steuern",
+                dossierID: zielDossierID,
                 dateiName: oldTaxReturnFileName,
                 dokumentPfad: oldTaxReturnFilePath
             )
             modell.dateiDaten = oldTaxReturnFileData
             modelContext.insert(modell)
         }
+    }
+
+    private var zielDossierID: UUID? {
+        UUID(uuidString: aktivesDossierID)
     }
 
     private func importiereSteuerdokument(_ sourceURL: URL) {

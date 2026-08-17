@@ -100,9 +100,15 @@ struct AppStartView: View {
     @AppStorage("wurdeGeradeAusgeloggt")
     private var wurdeGeradeAusgeloggt = false
 
+    @AppStorage("wiederherstellungNeuesGeraetLaeuft")
+    private var wiederherstellungNeuesGeraetLaeuft = false
+
     @State private var deepLinkFehlermeldung = ""
     @State private var deepLinkFehlerAnzeigen = false
     @State private var dossierSyncDienst: DossierSyncDienst?
+    @State private var cloudDatenVersion = UUID()
+    @State private var syncAnzeigeStatus: SyncAnzeigeStatus?
+    @State private var syncAnzeigeTask: Task<Void, Never>?
 
     // Vor einem Release wieder auf false setzen.
     private let homeDirektStarten = false
@@ -111,6 +117,12 @@ struct AppStartView: View {
     private let einladungsSimulationAktiv = false
 
     private var istBereitsRegistriert: Bool {
+        // Während des Recovery-Downloads wird bereits ein Profil importiert.
+        // Die Startansicht darf deshalb erst nach der vollständigen Animation
+        // auf Login/Home umschalten.
+        if wiederherstellungNeuesGeraetLaeuft {
+            return false
+        }
         if profilIstVorhanden {
             return true
         }
@@ -216,6 +228,15 @@ struct AppStartView: View {
                 Registrierung()
             }
         }
+        .id(cloudDatenVersion)
+        .overlay(alignment: .top) {
+            if let syncAnzeigeStatus {
+                SyncStatusHinweis(status: syncAnzeigeStatus)
+                    .padding(.top, 10)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .allowsHitTesting(false)
+            }
+        }
         .onAppear {
             DispatchQueue.main.async {
                 UIApplication.shared
@@ -223,9 +244,8 @@ struct AppStartView: View {
             }
 
             verarbeiteGespeicherteEinladungsURLFallsNoetig()
-            if dossierSyncDienst == nil, let dienst = try? DossierSyncDienst(modelContext: modelContext) {
-                dossierSyncDienst = dienst
-                dienst.starten()
+            if istEingeloggt || direktNachRegistrierungEingeloggt || homeDirektStarten {
+                starteDossierSyncFallsNoetig()
             }
         }
         .onOpenURL { url in
@@ -256,7 +276,24 @@ struct AppStartView: View {
                     .didEnterBackgroundNotification
             )
         ) { _ in
-            dossierSyncDienst?.synchronisieren()
+            if (istEingeloggt || direktNachRegistrierungEingeloggt || homeDirektStarten),
+               let dossierSyncDienst {
+                var hintergrundTask = UIBackgroundTaskIdentifier.invalid
+                hintergrundTask = UIApplication.shared.beginBackgroundTask(
+                    withName: "Tschluessli.CloudSync"
+                ) {
+                    if hintergrundTask != .invalid {
+                        UIApplication.shared.endBackgroundTask(hintergrundTask)
+                        hintergrundTask = .invalid
+                    }
+                }
+                dossierSyncDienst.synchronisierenImHintergrund {
+                    if hintergrundTask != .invalid {
+                        UIApplication.shared.endBackgroundTask(hintergrundTask)
+                        hintergrundTask = .invalid
+                    }
+                }
+            }
 
             guard !biometriePruefungImProfilLaeuft,
                   !systemdialogImProfilLaeuft else {
@@ -285,7 +322,66 @@ struct AppStartView: View {
         ) { _ in
             UIApplication.shared
                 .aktiviereTastaturAusblendenBeiInteraktion()
+            guard istEingeloggt || direktNachRegistrierungEingeloggt || homeDirektStarten else {
+                return
+            }
+            starteDossierSyncFallsNoetig()
             dossierSyncDienst?.synchronisieren()
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: .dossierCloudDatenAktualisiert
+            )
+        ) { _ in
+            // Ein erzwungener Neuaufbau würde den Fullscreen-Recovery-Ablauf
+            // samt Fortschrittsanimation zerstören. Die importierten Daten
+            // werden dort bereits direkt beobachtet und nach Abschluss mit
+            // dem Wechsel zu Home angezeigt.
+            guard !wiederherstellungNeuesGeraetLaeuft else { return }
+            cloudDatenVersion = UUID()
+            zeigeErfolgreicheCloudAktualisierung()
+        }
+        .onChange(of: istEingeloggt) { _, istJetztEingeloggt in
+            guard istJetztEingeloggt else { return }
+            // `didBecomeActive` kann vor dem abgeschlossenen Face-ID- oder
+            // E-Mail-Login eintreffen. Nach erfolgreicher Anmeldung wird der
+            // Cloud-Abgleich deshalb nochmals garantiert ausgelöst.
+            starteDossierSyncFallsNoetig()
+            dossierSyncDienst?.synchronisieren()
+        }
+        .onChange(of: direktNachRegistrierungEingeloggt) { _, istJetztEingeloggt in
+            guard istJetztEingeloggt else { return }
+            starteDossierSyncFallsNoetig()
+            dossierSyncDienst?.synchronisieren()
+        }
+    }
+
+    private func starteDossierSyncFallsNoetig() {
+        guard dossierSyncDienst == nil,
+              let dienst = try? DossierSyncDienst(modelContext: modelContext) else {
+            return
+        }
+        dossierSyncDienst = dienst
+        dienst.starten()
+    }
+
+    private func zeigeErfolgreicheCloudAktualisierung() {
+        syncAnzeigeTask?.cancel()
+        withAnimation(.easeOut(duration: 0.2)) {
+            syncAnzeigeStatus = .aktualisiert
+        }
+        syncAnzeigeTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(850))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: 0.2)) {
+                syncAnzeigeStatus = .abgeschlossen
+            }
+            try? await Task.sleep(for: .milliseconds(1_250))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeIn(duration: 0.25)) {
+                syncAnzeigeStatus = nil
+            }
+            syncAnzeigeTask = nil
         }
     }
 
@@ -429,6 +525,42 @@ struct AppStartView: View {
         }
 
         verarbeiteEinladungsURL(url)
+    }
+}
+
+private enum SyncAnzeigeStatus {
+    case aktualisiert
+    case abgeschlossen
+}
+
+private struct SyncStatusHinweis: View {
+    let status: SyncAnzeigeStatus
+    @State private var rotation: Double = 0
+
+    var body: some View {
+        HStack(spacing: 9) {
+            Image(systemName: status == .aktualisiert
+                ? "arrow.triangle.2.circlepath"
+                : "checkmark.circle.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(status == .aktualisiert ? Color.accentColor : Color.green)
+                .rotationEffect(.degrees(status == .aktualisiert ? rotation : 0))
+
+            Text(status == .aktualisiert ? "Daten werden aktualisiert …" : "Aktualisiert")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.primary)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(Capsule().stroke(Color.primary.opacity(0.08), lineWidth: 1))
+        .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+        .onAppear {
+            guard status == .aktualisiert else { return }
+            withAnimation(.linear(duration: 0.85).repeatForever(autoreverses: false)) {
+                rotation = 360
+            }
+        }
     }
 }
 

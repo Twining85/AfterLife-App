@@ -172,13 +172,17 @@ final class DossierSyncAuftragVerarbeiter: SyncAuftragVerarbeiter {
 
 @MainActor
 final class DossierSyncDienst {
+    private(set) static weak var shared: DossierSyncDienst?
     private let modelContext: ModelContext
     private let registry: DossierBereichAdapterRegistry
     private let outbox: SyncOutbox
     private let coordinator: SyncCoordinator
     private let transport: DossierSyncTransport
     private var beobachter: [NSObjectProtocol] = []
-    private var syncTask: Task<Void, Never>?
+    private var debounceTask: Task<Void, Never>?
+    private var syncLaufTask: Task<Void, Never>?
+    private var ausstehendeBereiche: Set<String> = []
+    private var initialerAbgleichAusstehend = false
     private var ignoriertEigeneSpeicherung = false
 
     init(modelContext: ModelContext) throws {
@@ -197,109 +201,418 @@ final class DossierSyncDienst {
                 transport: transport
             )
         )
+        Self.shared = self
     }
 
     deinit {
         beobachter.forEach(NotificationCenter.default.removeObserver)
-        syncTask?.cancel()
+        debounceTask?.cancel()
+        syncLaufTask?.cancel()
     }
 
     func starten() {
         guard beobachter.isEmpty else { return }
+        bereinigeAuftraegeDesVeraltetenBreitbandSyncs()
         beobachter.append(NotificationCenter.default.addObserver(
-            forName: ModelContext.didSave,
-            object: modelContext,
+            forName: .dossierRecoveryEingerichtet,
+            object: nil,
             queue: .main
-        ) { [weak self] notification in
+        ) { [weak self] _ in
             MainActor.assumeIsolated {
-                self?.lokaleSpeicherungErfolgt(notification)
+                self?.planeSynchronisation(bereiche: ["zugaenge"])
             }
         })
         beobachter.append(NotificationCenter.default.addObserver(
-            forName: .dossierRecoveryGeaendert,
+            forName: .dossierRecoveryWiederhergestellt,
             object: nil,
             queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
                 _ = _Concurrency.Task<Void, Never> { @MainActor in
-                    await self?.verarbeiteZugangsKonfliktNachRecovery()
-                    self?.planeSynchronisation(bereiche: ["zugaenge"])
+                    guard let dossierID = Self.aktivesDossierID else { return }
+                    _ = await self?.dossierNachRecoveryNeuLaden(dossierID: dossierID)
                 }
+            }
+        })
+        beobachter.append(NotificationCenter.default.addObserver(
+            forName: .dossierSyncAngefordert,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.synchronisieren()
+            }
+        })
+        beobachter.append(NotificationCenter.default.addObserver(
+            forName: .dossierBereichGespeichert,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            MainActor.assumeIsolated {
+                guard let bereich = notification.object as? String else { return }
+                self?.planeSynchronisation(bereiche: [bereich])
             }
         })
         planeSynchronisation(alleBereicheMarkieren: true)
     }
 
     func synchronisieren() {
-        planeSynchronisation(alleBereicheMarkieren: false)
+        synchronisierenSofort()
     }
 
-    private func lokaleSpeicherungErfolgt(_ notification: Notification) {
-        guard !ignoriertEigeneSpeicherung else { return }
-        let bereiche = betroffeneBereiche(notification)
-        guard !bereiche.isEmpty else { return }
-        planeSynchronisation(bereiche: bereiche)
+    func synchronisierenSofort() {
+        if modelContext.hasChanges {
+            try? modelContext.save()
+        }
+        debounceTask?.cancel()
+        debounceTask = nil
+        starteNaechstenSyncLaufFallsNoetig(auchOhneAenderungen: true)
+    }
+
+    func synchronisierenImHintergrund(abgeschlossen: @escaping @MainActor () -> Void) {
+        synchronisierenSofort()
+        Task { @MainActor [weak self] in
+            while let task = self?.syncLaufTask {
+                await task.value
+            }
+            abgeschlossen()
+        }
+    }
+
+    /// Sichert ein neu erstelltes Recovery-Paket, bevor der zugehörige
+    /// 12-Wörter-Code angezeigt oder exportiert werden darf.
+    func recoveryPaketSynchronisieren() async -> Bool {
+        guard let dossierID = Self.aktivesDossierID else { return false }
+        if let syncLaufTask { await syncLaufTask.value }
+        do {
+            // Die aktuelle Revision wird unmittelbar vom Server gelesen. So
+            // kann ein alter, blockierter Auftrag nicht verhindern, dass das
+            // neue Recovery-Paket zum gerade ausgegebenen Code gehört.
+            let cloudBereich = try await CloudDossierSyncService.shared.laden(
+                dossierID: dossierID,
+                bereich: "zugaenge"
+            )
+            let serverRevision = Int64(cloudBereich?.revision ?? 0)
+            let schluessel = SyncAuftrag.schluessel(dossierID: dossierID, bereich: "zugaenge")
+
+            try loescheAuftrag(schluessel: schluessel)
+            let konfliktDescriptor = FetchDescriptor<SyncKonflikt>(
+                predicate: #Predicate { $0.schluessel == schluessel }
+            )
+            try modelContext.fetch(konfliktDescriptor).forEach(modelContext.delete)
+            UserDefaults.standard.set(
+                serverRevision,
+                forKey: Self.revisionKey(dossierID: dossierID, bereich: "zugaenge")
+            )
+
+            let adapter = try registry.adapter(fuer: "zugaenge")
+            _ = try outbox.markiereAenderung(
+                dossierID: dossierID,
+                bereich: "zugaenge",
+                schemaVersion: adapter.schemaVersion,
+                erwarteteRevision: serverRevision
+            )
+            await coordinator.synchronisieren()
+
+            return try !hatOffenenAuftrag(dossierID: dossierID, bereich: "zugaenge")
+                && !hatGespeichertenKonflikt(dossierID: dossierID, bereich: "zugaenge")
+        } catch {
+            return false
+        }
+    }
+
+    /// Pull-to-Refresh lädt bewusst zuerst den Serverstand. Offene lokale
+    /// Änderungen werden dabei als Konflikt festgehalten, statt den Cloud-Stand
+    /// unbemerkt zu überschreiben.
+    func manuellerVollabgleich() async -> Int {
+        if let syncLaufTask { await syncLaufTask.value }
+        if modelContext.hasChanges { try? modelContext.save() }
+
+        // Zuerst den aktuellen Cloud-Stand abholen. Danach werden allfällige
+        // bereits vorgemerkte lokale Bereichsänderungen verarbeitet und der
+        // endgültige Serverstand nochmals geladen.
+        await ladeAenderungenHerunter()
+        synchronisierenSofort()
+        while let syncLaufTask {
+            await syncLaufTask.value
+        }
+        await ladeAenderungenHerunter()
+
+        guard let dossierID = Self.aktivesDossierID else { return 0 }
+        let descriptor = FetchDescriptor<SyncKonflikt>(
+            predicate: #Predicate { $0.dossierID == dossierID }
+        )
+        return (try? modelContext.fetchCount(descriptor)) ?? 0
+    }
+
+    func manuellenKonfliktMitCloudLoesen() async throws {
+        guard let dossierID = Self.aktivesDossierID else { return }
+        let descriptor = FetchDescriptor<SyncKonflikt>(
+            predicate: #Predicate { $0.dossierID == dossierID }
+        )
+        let konflikte = try modelContext.fetch(descriptor)
+        ignoriertEigeneSpeicherung = true
+        defer { ignoriertEigeneSpeicherung = false }
+
+        for konflikt in konflikte {
+            if konflikt.vorgangRaw == SyncVorgang.delete.rawValue {
+                try DossierBereichImport.loesche(
+                    bereich: konflikt.bereich,
+                    dossierID: dossierID,
+                    in: modelContext
+                )
+            } else {
+                guard let payload = konflikt.serverPayload else {
+                    throw DossierBereichAdapterFehler.ungueltigerPayload
+                }
+                let adapter = try registry.adapter(fuer: konflikt.bereich)
+                let validiert = try adapter.validiere(payload, schemaVersion: konflikt.schemaVersion)
+                try await DossierBereichImport.importiere(
+                    validiert,
+                    bereich: konflikt.bereich,
+                    dossierID: dossierID,
+                    in: modelContext
+                )
+            }
+            try loescheAuftrag(schluessel: konflikt.schluessel)
+            UserDefaults.standard.set(
+                konflikt.serverRevision,
+                forKey: Self.revisionKey(dossierID: dossierID, bereich: konflikt.bereich)
+            )
+            modelContext.delete(konflikt)
+        }
+        try modelContext.save()
+        if !konflikte.isEmpty {
+            NotificationCenter.default.post(name: .dossierCloudDatenAktualisiert, object: Set(konflikte.map(\.bereich)))
+        }
+        await ladeAenderungenHerunter()
+    }
+
+    func manuellenKonfliktMitLokalemDossierLoesen() async throws {
+        guard let dossierID = Self.aktivesDossierID else { return }
+        let konfliktDescriptor = FetchDescriptor<SyncKonflikt>(
+            predicate: #Predicate { $0.dossierID == dossierID }
+        )
+        let konflikte = try modelContext.fetch(konfliktDescriptor)
+        let serverRevisionNachBereich = Dictionary(
+            uniqueKeysWithValues: konflikte.map { ($0.bereich, $0.serverRevision) }
+        )
+
+        for konflikt in konflikte {
+            UserDefaults.standard.set(
+                konflikt.serverRevision,
+                forKey: Self.revisionKey(dossierID: dossierID, bereich: konflikt.bereich)
+            )
+            try loescheAuftrag(schluessel: konflikt.schluessel)
+            modelContext.delete(konflikt)
+        }
+        try modelContext.save()
+
+        // Bewusste Benutzerentscheidung: Der komplette lokale Dossierstand wird
+        // als neue Revision für jeden strukturierten Cloud-Bereich hochgeladen.
+        for bereich in registry.bereiche {
+            let adapter = try registry.adapter(fuer: bereich)
+            let revision = serverRevisionNachBereich[bereich]
+                ?? (UserDefaults.standard.object(
+                    forKey: Self.revisionKey(dossierID: dossierID, bereich: bereich)
+                ) as? NSNumber)?.int64Value
+                ?? 0
+            _ = try outbox.markiereAenderung(
+                dossierID: dossierID,
+                bereich: bereich,
+                schemaVersion: adapter.schemaVersion,
+                erwarteteRevision: revision
+            )
+        }
+        await coordinator.synchronisieren()
+        await ladeAenderungenHerunter()
+    }
+
+    private func loescheAuftrag(schluessel: String) throws {
+        let descriptor = FetchDescriptor<SyncAuftrag>(
+            predicate: #Predicate { $0.schluessel == schluessel }
+        )
+        try modelContext.fetch(descriptor).forEach(modelContext.delete)
     }
 
     private func planeSynchronisation(
         alleBereicheMarkieren: Bool = false,
         bereiche: Set<String> = []
     ) {
-        syncTask?.cancel()
-        syncTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(400))
-            guard !Task.isCancelled, let self,
-                  let dossierID = Self.aktivesDossierID else { return }
-            ignoriertEigeneSpeicherung = true
-            defer { ignoriertEigeneSpeicherung = false }
-            if alleBereicheMarkieren {
-                await ladeAenderungenHerunter()
-            }
-            let markierteBereiche = alleBereicheMarkieren
-                ? Set(registry.bereiche.filter {
-                    UserDefaults.standard.object(
-                        forKey: Self.revisionKey(dossierID: dossierID, bereich: $0)
-                    ) == nil && !self.hatGespeichertenKonflikt(dossierID: dossierID, bereich: $0)
-                })
-                : bereiche
-            if !markierteBereiche.isEmpty {
-                for bereich in markierteBereiche {
-                    guard let adapter = try? registry.adapter(fuer: bereich) else { continue }
-                    let revision = (UserDefaults.standard.object(
-                        forKey: Self.revisionKey(dossierID: dossierID, bereich: bereich)
-                    ) as? NSNumber)?.int64Value ?? 0
-                    _ = try? outbox.markiereAenderung(
-                        dossierID: dossierID,
-                        bereich: bereich,
-                        schemaVersion: adapter.schemaVersion,
-                        erwarteteRevision: revision
-                    )
-                }
-            }
-            await coordinator.synchronisieren()
-            await ladeAenderungenHerunter()
+        ausstehendeBereiche.formUnion(bereiche)
+        initialerAbgleichAusstehend = initialerAbgleichAusstehend || alleBereicheMarkieren
+        debounceTask?.cancel()
+        debounceTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(750))
+            guard !Task.isCancelled, let self else { return }
+            debounceTask = nil
+            starteNaechstenSyncLaufFallsNoetig()
         }
     }
 
-    private func ladeAenderungenHerunter() async {
-        var cursor = UserDefaults.standard.string(forKey: Self.cursorKey) ?? "0"
+    private func starteNaechstenSyncLaufFallsNoetig(auchOhneAenderungen: Bool = false) {
+        guard syncLaufTask == nil else { return }
+        guard auchOhneAenderungen || initialerAbgleichAusstehend || !ausstehendeBereiche.isEmpty else { return }
+
+        let bereiche = ausstehendeBereiche
+        let initialerAbgleich = initialerAbgleichAusstehend
+        ausstehendeBereiche.removeAll()
+        initialerAbgleichAusstehend = false
+
+        syncLaufTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await fuehreSynchronisationAus(
+                initialerAbgleich: initialerAbgleich,
+                bereiche: bereiche
+            )
+            syncLaufTask = nil
+            if initialerAbgleichAusstehend || !ausstehendeBereiche.isEmpty {
+                starteNaechstenSyncLaufFallsNoetig()
+            }
+        }
+    }
+
+    private func fuehreSynchronisationAus(
+        initialerAbgleich: Bool,
+        bereiche: Set<String>
+    ) async {
+        guard let dossierID = Self.aktivesDossierID else { return }
+        ignoriertEigeneSpeicherung = true
+        defer { ignoriertEigeneSpeicherung = false }
+
+        do {
+            try ordneVerwaisteDatensaetzeZu(dossierID: dossierID)
+        } catch {
+            // Ohne eindeutige Dossier-Zuordnung darf kein unvollständiger Upload entstehen.
+            return
+        }
+
+        if initialerAbgleich {
+            await ladeAenderungenHerunter()
+        }
+        let markierteBereiche = initialerAbgleich
+            ? Set(registry.bereiche.filter {
+                UserDefaults.standard.object(
+                    forKey: Self.revisionKey(dossierID: dossierID, bereich: $0)
+                ) == nil && !self.hatGespeichertenKonflikt(dossierID: dossierID, bereich: $0)
+            }).union(bereiche)
+            : bereiche
+
+        for bereich in markierteBereiche {
+            guard let adapter = try? registry.adapter(fuer: bereich) else { continue }
+            let revision = (UserDefaults.standard.object(
+                forKey: Self.revisionKey(dossierID: dossierID, bereich: bereich)
+            ) as? NSNumber)?.int64Value ?? 0
+            _ = try? outbox.markiereAenderung(
+                dossierID: dossierID,
+                bereich: bereich,
+                schemaVersion: adapter.schemaVersion,
+                erwarteteRevision: revision
+            )
+        }
+        await coordinator.synchronisieren()
+        await ladeAenderungenHerunter()
+    }
+
+    /// Migriert lokale Bestandsdaten, die vor der dossierbasierten Speicherung
+    /// angelegt wurden. Neue Datensätze sollen ihre Dossier-ID bereits beim
+    /// Erstellen erhalten; diese Absicherung gilt zentral für alle Bereiche.
+    private func ordneVerwaisteDatensaetzeZu(dossierID: UUID) throws {
+        try ordneVerwaiste(ProfilModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(GesundheitModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(WuenscheModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+
+        try ordneVerwaiste(BankkontoModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(SchuldenModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(VersicherungModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(LiegenschaftModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(WertsacheModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(SteuerdokumentModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+
+        try ordneVerwaiste(HinterbliebeneModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(VertrauenspersonModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(HerzensstueckModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+
+        try ordneVerwaiste(AboModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(AboEintrag.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(DigitalekontenModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+
+        // Vorbereitung für den späteren geschützten Dokument-Upload.
+        try ordneVerwaiste(DokumenteModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(FotoalbumBildModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+
+        if modelContext.hasChanges {
+            try modelContext.save()
+        }
+    }
+
+    private func ordneVerwaiste<T: PersistentModel>(
+        _ typ: T.Type,
+        dossierID: UUID,
+        lese: (T) -> UUID?,
+        setze: (T, UUID) -> Void
+    ) throws {
+        for datensatz in try modelContext.fetch(FetchDescriptor<T>()) where lese(datensatz) == nil {
+            setze(datensatz, dossierID)
+        }
+    }
+
+    @discardableResult
+    private func ladeAenderungenHerunter(dossierID expliziteDossierID: UUID? = nil) async -> Bool {
+        guard let dossierID = expliziteDossierID ?? Self.aktivesDossierID else { return false }
+        let cursorKey = Self.cursorKey(dossierID: dossierID)
+        var cursor = UserDefaults.standard.string(forKey: cursorKey) ?? "0"
         do {
             while true {
                 let antwort = try await transport.herunterladen(cursor: cursor)
                 try await importiere(antwort.changes)
                 cursor = antwort.nextCursor
-                UserDefaults.standard.set(cursor, forKey: Self.cursorKey)
+                UserDefaults.standard.set(cursor, forKey: cursorKey)
                 if !antwort.hasMore { break }
             }
+            return true
         } catch {
             // Downloadfehler lassen den Cursor unverändert und werden beim nächsten Auslöser erneut versucht.
+            return false
         }
+    }
+
+    func dossierNachRecoveryNeuLaden(dossierID: UUID) async -> Bool {
+        do {
+            try bereiteVollstaendigeCloudWiederherstellungVor(dossierID: dossierID)
+            return await ladeAenderungenHerunter(dossierID: dossierID)
+        } catch {
+            return false
+        }
+    }
+
+    private func bereiteVollstaendigeCloudWiederherstellungVor(dossierID: UUID) throws {
+        debounceTask?.cancel()
+
+        let auftraege = FetchDescriptor<SyncAuftrag>(
+            predicate: #Predicate { $0.dossierID == dossierID }
+        )
+        try modelContext.fetch(auftraege).forEach(modelContext.delete)
+
+        let konflikte = FetchDescriptor<SyncKonflikt>(
+            predicate: #Predicate { $0.dossierID == dossierID }
+        )
+        try modelContext.fetch(konflikte).forEach(modelContext.delete)
+
+        for bereich in registry.bereiche {
+            UserDefaults.standard.removeObject(
+                forKey: Self.revisionKey(dossierID: dossierID, bereich: bereich)
+            )
+        }
+        UserDefaults.standard.removeObject(forKey: Self.cursorKey(dossierID: dossierID))
+        try modelContext.save()
     }
 
     private func importiere(_ aenderungen: [SyncDownloadAenderung]) async throws {
         guard !aenderungen.isEmpty else { return }
         ignoriertEigeneSpeicherung = true
         defer { ignoriertEigeneSpeicherung = false }
+        var importierteBereiche: Set<String> = []
         for aenderung in aenderungen {
             let bekannteRevision = UserDefaults.standard.object(
                 forKey: Self.revisionKey(
@@ -347,8 +660,15 @@ final class DossierSyncDienst {
                     bereich: aenderung.sectionType
                 )
             )
+            importierteBereiche.insert(aenderung.sectionType)
         }
         try modelContext.save()
+        if !importierteBereiche.isEmpty {
+            NotificationCenter.default.post(
+                name: .dossierCloudDatenAktualisiert,
+                object: importierteBereiche
+            )
+        }
     }
 
     private func hatOffenenAuftrag(fuer aenderung: SyncDownloadAenderung) throws -> Bool {
@@ -418,6 +738,23 @@ final class DossierSyncDienst {
         return ((try? modelContext.fetchCount(descriptor)) ?? 0) > 0
     }
 
+    /// Eine frühere Testversion hat bei jeder lokalen Speicherung alle Bereiche
+    /// in die Outbox gelegt. Diese Aufträge können mit veralteten Revisionen
+    /// dauerhaft blockieren. Sie werden einmalig entfernt; anschließend erzeugen
+    /// nur noch die expliziten Bereichs-Speicherungen neue Aufträge.
+    private func bereinigeAuftraegeDesVeraltetenBreitbandSyncs() {
+        let key = "Tschluessli.SyncMigration.ExakterBereich.v1"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        do {
+            try modelContext.fetch(FetchDescriptor<SyncAuftrag>()).forEach(modelContext.delete)
+            try modelContext.fetch(FetchDescriptor<SyncKonflikt>()).forEach(modelContext.delete)
+            try modelContext.save()
+            UserDefaults.standard.set(true, forKey: key)
+        } catch {
+            // Ohne erfolgreiche Bereinigung wird sie beim nächsten Start wiederholt.
+        }
+    }
+
     private func aktualisiereRevision(_ aenderung: SyncDownloadAenderung) throws {
         let schluessel = SyncAuftrag.schluessel(
             dossierID: aenderung.dossierID,
@@ -434,59 +771,21 @@ final class DossierSyncDienst {
         )
     }
 
-    private func betroffeneBereiche(_ notification: Notification) -> Set<String> {
-        let keys: [ModelContext.NotificationKey] = [.insertedIdentifiers, .updatedIdentifiers, .deletedIdentifiers]
-        var bereiche: Set<String> = []
-        var hatUnaufloesbareLoeschung = false
-        for key in keys {
-            let identifiers = notification.userInfo?[key.rawValue] as? Set<PersistentIdentifier> ?? []
-            for identifier in identifiers {
-                if let bereich = bereich(fuer: identifier) {
-                    if bereich != Self.internerSyncBereich { bereiche.insert(bereich) }
-                } else {
-                    hatUnaufloesbareLoeschung = true
-                }
-            }
-        }
-        if hatUnaufloesbareLoeschung { return Set(registry.bereiche) }
-        return bereiche
-    }
-
-    private func bereich(fuer id: PersistentIdentifier) -> String? {
-        if let _: SyncAuftrag = modelContext.registeredModel(for: id) { return Self.internerSyncBereich }
-        if let _: SyncKonflikt = modelContext.registeredModel(for: id) { return Self.internerSyncBereich }
-        if let _: ProfilModell = modelContext.registeredModel(for: id) { return "profil" }
-        if let _: GesundheitModell = modelContext.registeredModel(for: id) { return "gesundheit" }
-        if let _: WuenscheModell = modelContext.registeredModel(for: id) { return "wuensche" }
-        if let _: BankkontoModell = modelContext.registeredModel(for: id) { return "finanzen" }
-        if let _: SchuldenModell = modelContext.registeredModel(for: id) { return "finanzen" }
-        if let _: VersicherungModell = modelContext.registeredModel(for: id) { return "finanzen" }
-        if let _: LiegenschaftModell = modelContext.registeredModel(for: id) { return "finanzen" }
-        if let _: WertsacheModell = modelContext.registeredModel(for: id) { return "finanzen" }
-        if let _: SteuerdokumentModell = modelContext.registeredModel(for: id) { return "finanzen" }
-        if let _: HinterbliebeneModell = modelContext.registeredModel(for: id) { return "kontakte" }
-        if let _: VertrauenspersonModell = modelContext.registeredModel(for: id) { return "kontakte" }
-        if let _: VertrauenspersonEinladungsHistorieModell = modelContext.registeredModel(for: id) { return "kontakte" }
-        if let _: HerzensstueckModell = modelContext.registeredModel(for: id) { return "herzensstuecke" }
-        if let _: HerzensstueckBildModell = modelContext.registeredModel(for: id) { return "herzensstuecke" }
-        if let _: HerzensstueckDokumentModell = modelContext.registeredModel(for: id) { return "herzensstuecke" }
-        if let _: HerzensstueckAudioModell = modelContext.registeredModel(for: id) { return "herzensstuecke" }
-        if let _: AboModell = modelContext.registeredModel(for: id) { return "zugaenge" }
-        if let _: AboEintrag = modelContext.registeredModel(for: id) { return "zugaenge" }
-        if let _: DigitalekontenModell = modelContext.registeredModel(for: id) { return "zugaenge" }
-        return nil
-    }
-
     private static var aktivesDossierID: UUID? {
         UUID(uuidString: UserDefaults.standard.string(forKey: "aktivesDossierID") ?? "")
     }
 
-    private static let cursorKey = "Tschluessli.SyncCursor.v1"
-    private static let internerSyncBereich = "__sync__"
-
+    private static func cursorKey(dossierID: UUID) -> String {
+        "Tschluessli.SyncCursor.v2.\(dossierID.uuidString.lowercased())"
+    }
     static func revisionKey(dossierID: UUID, bereich: String) -> String {
         "Tschluessli.SyncRevision.\(SyncAuftrag.schluessel(dossierID: dossierID, bereich: bereich))"
     }
+}
+
+extension Notification.Name {
+    static let dossierBereichGespeichert = Notification.Name("Tschluessli.DossierBereichGespeichert")
+    static let dossierCloudDatenAktualisiert = Notification.Name("Tschluessli.DossierCloudDatenAktualisiert")
 }
 
 private nonisolated struct SyncUploadAntwort: Decodable, Sendable {

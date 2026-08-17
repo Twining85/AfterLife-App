@@ -123,7 +123,15 @@ struct ProfilBereichAdapter: CodableDossierBereichAdapter {
 
     func erzeugePayload(dossierID: UUID, aus modelContext: ModelContext) throws -> CloudDatenListe<CloudProfilDaten> {
         let modelle = try modelContext.fetch(FetchDescriptor<ProfilModell>())
-        return CloudDatenListe(items: modelle.filter { $0.dossierID == dossierID }.map(CloudProfilDaten.init))
+        let reihenfolge = UserDefaults.standard.string(forKey: "homeBereicheReihenfolge") ?? ""
+        let aktiveBereiche = UserDefaults.standard.string(forKey: "homeAktiveBereiche") ?? ""
+        return CloudDatenListe(items: modelle.filter { $0.dossierID == dossierID }.map {
+            CloudProfilDaten(
+                $0,
+                homeBereicheReihenfolge: reihenfolge,
+                homeAktiveBereiche: aktiveBereiche
+            )
+        })
     }
 }
 

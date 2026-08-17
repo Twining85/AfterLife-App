@@ -69,7 +69,7 @@ struct SyncKonfliktView: View {
                 )
                 modelContext.delete(konflikt)
                 try modelContext.save()
-                NotificationCenter.default.post(name: .dossierRecoveryGeaendert, object: nil)
+                NotificationCenter.default.post(name: .dossierSyncAngefordert, object: nil)
             } catch { fehlermeldung = error.localizedDescription }
         }
     }
@@ -101,7 +101,7 @@ struct SyncKonfliktView: View {
             auftrag.naechsterVersuchAm = Date()
             modelContext.delete(konflikt)
             try modelContext.save()
-            NotificationCenter.default.post(name: .dossierRecoveryGeaendert, object: nil)
+            NotificationCenter.default.post(name: .dossierSyncAngefordert, object: nil)
         } catch { fehlermeldung = error.localizedDescription }
     }
 

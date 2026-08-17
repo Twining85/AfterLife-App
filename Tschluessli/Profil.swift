@@ -419,12 +419,12 @@ struct ProfilView: View {
                         } else {
                             LabeledContent("Benutzername", value: gespeicherteEmail.isEmpty ? "Nicht erfasst" : gespeicherteEmail)
                         }
-                        Divider()
                         Button {
                             dossierRecoveryAnzeigen = true
                         } label: {
                             Label("Dossier-Schlüssel sichern oder wiederherstellen", systemImage: "key.horizontal.fill")
                                 .frame(maxWidth: .infinity, alignment: .leading)
+                                .multilineTextAlignment(.leading)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.borderless)
@@ -590,7 +590,7 @@ struct ProfilView: View {
                 Task {
                     if let data = try? await neueAuswahl?.loadTransferable(type: Data.self),
                        let image = UIImage(data: data),
-                       let jpegData = image.jpegData(compressionQuality: 0.85) {
+                       let jpegData = cloudTauglichesProfilbild(aus: image) {
                         profilbildData = jpegData
                         speichereProfil()
                     }
@@ -801,6 +801,10 @@ struct ProfilView: View {
         entferneVeralteteLoginEintraegeAusAbos()
 
         if let vorhandenesProfil = aktivesProfil {
+            if vorhandenesProfil.dossierID == nil {
+                vorhandenesProfil.dossierID = UUID(uuidString: aktivesDossierID) ?? dossierKontext.dossierID
+                try? modelContext.save()
+            }
             vorname = vorhandenesProfil.vorname
             name = vorhandenesProfil.name
             geburtsdatum = vorhandenesProfil.geburtsdatum
@@ -820,10 +824,23 @@ struct ProfilView: View {
                 print("Aktives Profil ist Vertrauensperson:", vorhandenesProfil.userID.uuidString)
             }
             if let gespeichertesProfilbild = vorhandenesProfil.profilbildDaten {
-                profilbildData = gespeichertesProfilbild
+                let optimiertesProfilbild = UIImage(data: gespeichertesProfilbild)
+                    .flatMap { cloudTauglichesProfilbild(aus: $0) }
+                    ?? gespeichertesProfilbild
+                profilbildData = optimiertesProfilbild
+
+                // Bereits vorhandene, zu grosse Bilder einmalig verkleinern,
+                // damit auch ältere Profile innerhalb des Sync-Limits liegen.
+                if optimiertesProfilbild != gespeichertesProfilbild {
+                    vorhandenesProfil.profilbildDaten = optimiertesProfilbild
+                    vorhandenesProfil.aktualisiertAm = Date()
+                    try? modelContext.save()
+                    VorsorgeBereichStatusStore.markiereBearbeitet(.profil)
+                }
             }
         } else {
             let neuesProfil = ProfilModell(
+                dossierID: UUID(uuidString: aktivesDossierID) ?? dossierKontext.dossierID,
                 registrierungsart: registrierungsArt,
                 registrierungsEmail: gespeicherteEmail,
                 profilbildDaten: profilbildData
@@ -834,6 +851,39 @@ struct ProfilView: View {
         }
 
         profilGeladen = true
+    }
+
+    /// Profilbilder werden als Base64 im Profil-Payload übertragen. Rund
+    /// 140 KB Bilddaten lassen ausreichend Reserve unter dem 256-KB-Limit
+    /// des Sync-Endpunkts.
+    private func cloudTauglichesProfilbild(aus bild: UIImage) -> Data? {
+        let maximaleBytes = 140_000
+        let laengsteSeite = max(bild.size.width, bild.size.height)
+
+        for maximaleKantenlaenge in [640.0, 560.0, 480.0, 400.0, 320.0] {
+            let faktor = min(1, maximaleKantenlaenge / max(laengsteSeite, 1))
+            let zielgroesse = CGSize(
+                width: max(1, (bild.size.width * faktor).rounded()),
+                height: max(1, (bild.size.height * faktor).rounded())
+            )
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1
+            format.opaque = true
+            let verkleinert = UIGraphicsImageRenderer(size: zielgroesse, format: format).image { _ in
+                UIColor.white.setFill()
+                UIRectFill(CGRect(origin: .zero, size: zielgroesse))
+                bild.draw(in: CGRect(origin: .zero, size: zielgroesse))
+            }
+
+            for qualitaet in [0.78, 0.66, 0.54, 0.42, 0.32] {
+                if let daten = verkleinert.jpegData(compressionQuality: qualitaet),
+                   daten.count <= maximaleBytes {
+                    return daten
+                }
+            }
+        }
+
+        return nil
     }
 
     private func entferneVeralteteLoginEintraegeAusAbos() {
@@ -871,9 +921,15 @@ struct ProfilView: View {
         if let vorhandenesProfil = aktivesProfil {
             profil = vorhandenesProfil
         } else {
-            let neuesProfil = ProfilModell()
+            let neuesProfil = ProfilModell(
+                dossierID: UUID(uuidString: aktivesDossierID) ?? dossierKontext.dossierID
+            )
             modelContext.insert(neuesProfil)
             profil = neuesProfil
+        }
+
+        if profil.dossierID == nil {
+            profil.dossierID = UUID(uuidString: aktivesDossierID) ?? dossierKontext.dossierID
         }
 
         profil.vorname = vorname
@@ -2850,9 +2906,14 @@ private struct DossierExportBereich: Identifiable {
 struct ShareSheet: UIViewControllerRepresentable {
 
     let activityItems: [Any]
+    var onComplete: (() -> Void)? = nil
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+        let controller = UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+        controller.completionWithItemsHandler = { _, _, _, _ in
+            onComplete?()
+        }
+        return controller
     }
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) { }

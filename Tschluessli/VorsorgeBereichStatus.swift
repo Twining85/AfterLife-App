@@ -67,6 +67,13 @@ enum VorsorgeBereichStatusStore {
         dossier[bereich.rawValue] = aktivitaet
         alle[id] = dossier
         speichere(alle)
+
+        if let cloudBereich = bereich.cloudBereich {
+            NotificationCenter.default.post(
+                name: .dossierBereichGespeichert,
+                object: cloudBereich
+            )
+        }
     }
 
     static func markiereGeprueft(
@@ -129,5 +136,22 @@ enum VorsorgeBereichStatusStore {
             let json = String(data: data, encoding: .utf8)
         else { return }
         UserDefaults.standard.set(json, forKey: storageKey)
+    }
+}
+
+private extension VorsorgeBereichID {
+    var cloudBereich: String? {
+        switch self {
+        case .profil: "profil"
+        case .gesundheit: "gesundheit"
+        case .wuensche: "wuensche"
+        case .finanzen: "finanzen"
+        case .hinterbliebene: "kontakte"
+        case .abos: "zugaenge"
+        case .herzensstuecke: "herzensstuecke"
+        case .dokumente:
+            // Dokumentdateien erhalten ihren geschützten Cloud-Speicher separat.
+            nil
+        }
     }
 }

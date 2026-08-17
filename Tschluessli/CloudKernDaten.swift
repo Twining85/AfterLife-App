@@ -23,11 +23,14 @@ nonisolated struct CloudProfilDaten: Codable, Sendable {
     let registrierungsart: String
     let registrierungsEmail: String
     let biometrieAktiviert: Bool
+    let profilbild: String?
     let erstelltAm: Date
     let aktualisiertAm: Date
     let istAktiv: Bool
+    let homeBereicheReihenfolge: String?
+    let homeAktiveBereiche: String?
 
-    init(_ modell: ProfilModell) {
+    init(_ modell: ProfilModell, homeBereicheReihenfolge: String, homeAktiveBereiche: String) {
         userID = modell.userID
         dossierID = modell.dossierID
         istVertrauensperson = modell.istVertrauensperson
@@ -46,9 +49,12 @@ nonisolated struct CloudProfilDaten: Codable, Sendable {
         registrierungsart = modell.registrierungsart
         registrierungsEmail = modell.registrierungsEmail
         biometrieAktiviert = modell.biometrieAktiviert
+        profilbild = modell.profilbildDaten?.base64EncodedString()
         erstelltAm = modell.erstelltAm
         aktualisiertAm = modell.aktualisiertAm
         istAktiv = modell.istAktiv
+        self.homeBereicheReihenfolge = homeBereicheReihenfolge
+        self.homeAktiveBereiche = homeAktiveBereiche
     }
 }
 
@@ -105,6 +111,9 @@ nonisolated struct CloudWuenscheDaten: Codable, Sendable {
     let beisetzungsRahmen: String
     let beisetzungsArt: String
     let beisetzungHinweis: String
+    let bestattungswuensche: String?
+    let kremationHinweise: String?
+    let erdbestattungHinweise: String?
     let sonstigeBemerkungen: String
     let keineBlumengeschenkeBitte: Bool
     let besondereMusik: Bool
@@ -112,6 +121,7 @@ nonisolated struct CloudWuenscheDaten: Codable, Sendable {
     let zeremonieGewuenscht: Bool
     let zeremonieDetails: String
     let zeremonieOrganisiert: Bool
+    let zeremonieOrganisiertDetails: String?
     let zeremonieFinanziellAbgesichert: Bool
     let moechteNochEtwasSagen: Bool
     let letzteBotschaft: String
@@ -154,6 +164,9 @@ nonisolated struct CloudWuenscheDaten: Codable, Sendable {
         beisetzungsRahmen = modell.beisetzungsRahmen
         beisetzungsArt = modell.beisetzungsArt
         beisetzungHinweis = modell.beisetzungHinweis
+        bestattungswuensche = modell.bestattungswuensche
+        kremationHinweise = modell.kremationHinweise
+        erdbestattungHinweise = modell.erdbestattungHinweise
         sonstigeBemerkungen = modell.sonstigeBemerkungen
         keineBlumengeschenkeBitte = modell.keineBlumengeschenkeBitte
         besondereMusik = modell.besondereMusik
@@ -161,6 +174,7 @@ nonisolated struct CloudWuenscheDaten: Codable, Sendable {
         zeremonieGewuenscht = modell.zeremonieGewuenscht
         zeremonieDetails = modell.zeremonieDetails
         zeremonieOrganisiert = modell.zeremonieOrganisiert
+        zeremonieOrganisiertDetails = modell.zeremonieOrganisiertDetails
         zeremonieFinanziellAbgesichert = modell.zeremonieFinanziellAbgesichert
         moechteNochEtwasSagen = modell.moechteNochEtwasSagen
         letzteBotschaft = modell.letzteBotschaft

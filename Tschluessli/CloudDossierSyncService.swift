@@ -138,6 +138,53 @@ private nonisolated struct BereichAntwort: Decodable, Sendable {
     let payload: JSONWert
     let updatedAt: Date
 
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion
+        case schemaVersionSQL = "schema_version"
+        case revision
+        case payload
+        case updatedAt
+        case updatedAtSQL = "updated_at"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        schemaVersion = try Self.ganzeZahl(
+            aus: container,
+            primaer: .schemaVersion,
+            alternativ: .schemaVersionSQL
+        )
+        revision = try Self.ganzeZahl(aus: container, primaer: .revision)
+        payload = try container.decode(JSONWert.self, forKey: .payload)
+
+        if let datum = try container.decodeIfPresent(Date.self, forKey: .updatedAt) {
+            updatedAt = datum
+        } else {
+            updatedAt = try container.decode(Date.self, forKey: .updatedAtSQL)
+        }
+    }
+
+    private static func ganzeZahl(
+        aus container: KeyedDecodingContainer<CodingKeys>,
+        primaer: CodingKeys,
+        alternativ: CodingKeys? = nil
+    ) throws -> Int {
+        let schluessel = container.contains(primaer) ? primaer : (alternativ ?? primaer)
+        if let zahl = try? container.decode(Int.self, forKey: schluessel) {
+            return zahl
+        }
+        let text = try container.decode(String.self, forKey: schluessel)
+        guard let zahl = Int(text) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: schluessel,
+                in: container,
+                debugDescription: "Erwartete eine Ganzzahl."
+            )
+        }
+        return zahl
+    }
+
     func alsBereich() throws -> CloudDossierBereich {
         CloudDossierBereich(
             schemaVersion: schemaVersion,

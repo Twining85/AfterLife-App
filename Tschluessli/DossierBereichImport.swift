@@ -73,8 +73,16 @@ enum DossierBereichImport {
             modell.stadt = wert.stadt; modell.land = wert.land; modell.telefon = wert.telefon
             modell.ahvNummer = wert.ahvNummer; modell.email = wert.email; modell.notfallHinweis = wert.notfallHinweis
             modell.registrierungsart = wert.registrierungsart; modell.registrierungsEmail = wert.registrierungsEmail
-            modell.biometrieAktiviert = wert.biometrieAktiviert; modell.erstelltAm = wert.erstelltAm
+            modell.biometrieAktiviert = wert.biometrieAktiviert
+            modell.profilbildDaten = wert.profilbild.flatMap { Data(base64Encoded: $0) }
+            modell.erstelltAm = wert.erstelltAm
             modell.aktualisiertAm = wert.aktualisiertAm; modell.istAktiv = wert.istAktiv
+            if let reihenfolge = wert.homeBereicheReihenfolge {
+                UserDefaults.standard.set(reihenfolge, forKey: "homeBereicheReihenfolge")
+            }
+            if let aktiveBereiche = wert.homeAktiveBereiche {
+                UserDefaults.standard.set(aktiveBereiche, forKey: "homeAktiveBereiche")
+            }
         }
     }
 
@@ -113,10 +121,15 @@ enum DossierBereichImport {
         m.dossierID = dossierID; m.hatWuensche = w.hatWuensche
         m.ausgewaehlteThemenData = w.ausgewaehlteThemen.flatMap { Data(base64Encoded: $0) }
         m.beisetzungsRahmen = w.beisetzungsRahmen; m.beisetzungsArt = w.beisetzungsArt
-        m.beisetzungHinweis = w.beisetzungHinweis; m.sonstigeBemerkungen = w.sonstigeBemerkungen
+        m.beisetzungHinweis = w.beisetzungHinweis
+        m.bestattungswuensche = w.bestattungswuensche
+        m.kremationHinweise = w.kremationHinweise
+        m.erdbestattungHinweise = w.erdbestattungHinweise
+        m.sonstigeBemerkungen = w.sonstigeBemerkungen
         m.keineBlumengeschenkeBitte = w.keineBlumengeschenkeBitte; m.besondereMusik = w.besondereMusik
         m.musikWunsch = w.musikWunsch; m.zeremonieGewuenscht = w.zeremonieGewuenscht
         m.zeremonieDetails = w.zeremonieDetails; m.zeremonieOrganisiert = w.zeremonieOrganisiert
+        m.zeremonieOrganisiertDetails = w.zeremonieOrganisiertDetails
         m.zeremonieFinanziellAbgesichert = w.zeremonieFinanziellAbgesichert
         m.moechteNochEtwasSagen = w.moechteNochEtwasSagen; m.letzteBotschaft = w.letzteBotschaft
         m.letzteBotschaftVideoName = w.letzteBotschaftVideoName; m.nachrufGewuenscht = w.nachrufGewuenscht

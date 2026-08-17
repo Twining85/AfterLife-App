@@ -6,6 +6,7 @@ import SwiftData
 
 struct GesundheitView: View {
     @State private var ausgewaehlterHausarztKontaktID = ""
+    @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
 #if canImport(SwiftData)
     @Environment(\.modelContext) private var modelContext
     @Query private var gesundheitDatensaetze: [GesundheitModell]
@@ -76,10 +77,15 @@ struct GesundheitView: View {
         .onAppear {
             if datensatz == nil {
                 if let vorhanden = gesundheitDatensaetze.first {
+                    if vorhanden.dossierID == nil {
+                        vorhanden.dossierID = UUID(uuidString: aktivesDossierID)
+                        try? modelContext.save()
+                    }
                     datensatz = vorhanden
                 } else {
-                    let neu = GesundheitModell()
+                    let neu = GesundheitModell(dossierID: UUID(uuidString: aktivesDossierID))
                     modelContext.insert(neu)
+                    try? modelContext.save()
                     datensatz = neu
                 }
             }

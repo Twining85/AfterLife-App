@@ -4,6 +4,7 @@ import SwiftData
 struct AbosView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var gespeicherteAboModelle: [AboModell]
+    @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
 
     private let abosHintergrundFarbe = Color(red: 0.985, green: 0.975, blue: 0.955)
     private let abosKartenFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
@@ -796,7 +797,7 @@ struct AbosView: View {
 
         let abo = selectedAboID.flatMap { id in
             alleAbos.first(where: { $0.id == id })
-        } ?? selectedAbo ?? AboEintrag()
+        } ?? selectedAbo ?? AboEintrag(dossierID: zielDossierID)
 
         if istNeuerEintrag {
             modelContext.insert(abo)
@@ -812,6 +813,7 @@ struct AbosView: View {
         }
 
         abo.aboTyp = selectedAboType.rawValue
+        abo.dossierID = zielDossierID
         abo.anbieter = anbieterWert
         abo.unternehmen = unternehmenWert
         abo.bezeichnung = bezeichnungWert
@@ -1063,7 +1065,12 @@ struct AbosView: View {
     }
 
     private var aktuellesAboModell: AboModell? {
-        gespeicherteAboModelle.first
+        gespeicherteAboModelle.first(where: { $0.dossierID == zielDossierID })
+            ?? gespeicherteAboModelle.first(where: { $0.dossierID == nil })
+    }
+
+    private var zielDossierID: UUID? {
+        UUID(uuidString: aktivesDossierID)
     }
 
     private var mobileInternetProviderWert: String {
@@ -1173,9 +1180,16 @@ struct AbosView: View {
         guard !wurdeInitialisiert else { return }
         wurdeInitialisiert = true
 
-        guard gespeicherteAboModelle.isEmpty else { return }
+        if let vorhandenesModell = aktuellesAboModell {
+            if vorhandenesModell.dossierID == nil {
+                vorhandenesModell.dossierID = zielDossierID
+                vorhandenesModell.abos.forEach { $0.dossierID = zielDossierID }
+                speichereAenderung(istBenutzeraktion: false)
+            }
+            return
+        }
 
-        let neuesModell = AboModell()
+        let neuesModell = AboModell(dossierID: zielDossierID)
         modelContext.insert(neuesModell)
         speichereAenderung(istBenutzeraktion: false)
     }

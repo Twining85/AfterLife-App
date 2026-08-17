@@ -403,6 +403,7 @@ struct DossierFloatingNavigation: View {
 
     private func navigiereZuBereich(_ bereich: DossierBereich) {
         guard bereich != aktiverBereich else { return }
+        NotificationCenter.default.post(name: .dossierSyncAngefordert, object: nil)
         speichereScrollOffset()
         DossierNavigationRuntimeState.sollNachBereichswechselAusklappen = true
         impactFeedback.impactOccurred()
@@ -548,6 +549,7 @@ private struct DossierFloatingNavigationModifier: ViewModifier {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
+                        NotificationCenter.default.post(name: .dossierSyncAngefordert, object: nil)
                         DossierNavigationRouter.navigateHome()
                     } label: {
                         Label("Home", systemImage: "chevron.left")

@@ -50,8 +50,12 @@ final class SyncCoordinator {
                 } catch let fehler as SyncVerarbeitungsFehler {
                     try outbox.vermerkeFehler(auftrag, fehler: fehler.fehlerklasse, jetzt: jetzt())
                     letzterFehler = fehler.fehlerklasse.meldung
-                    if case .temporaer = fehler { continue }
-                    break
+                    switch fehler {
+                    case .authentifizierung:
+                        return
+                    case .temporaer, .konflikt, .permanent:
+                        continue
+                    }
                 } catch {
                     let meldung = "Die Synchronisation ist vorübergehend fehlgeschlagen."
                     try outbox.vermerkeFehler(

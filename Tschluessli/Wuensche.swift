@@ -10,6 +10,7 @@ import AVKit
 struct WuenscheView: View {
     var dossierKontext: DossierKontext = .eigenesDossier(dossierID: UUID())
     @Environment(\.modelContext) private var modelContext
+    @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
     @Query private var gespeicherteWuensche: [WuenscheModell]
     @Query private var gespeicherteHinterbliebeneKontakte: [HinterbliebeneModell]
     @State private var wuenscheGeladen = false
@@ -1196,7 +1197,13 @@ struct WuenscheView: View {
     private func ladeOderErstelleWuensche() {
         guard !wuenscheGeladen else { return }
 
-        if let vorhandeneWuensche = gespeicherteWuensche.first {
+        let dossierID = zielDossierID
+        if let vorhandeneWuensche = gespeicherteWuensche.first(where: { $0.dossierID == dossierID })
+            ?? gespeicherteWuensche.first(where: { $0.dossierID == nil }) {
+            if vorhandeneWuensche.dossierID == nil {
+                vorhandeneWuensche.dossierID = dossierID
+                try? modelContext.save()
+            }
             hatBesondereWuensche = true
 
             if let themenData = vorhandeneWuensche.ausgewaehlteThemenData,
@@ -1208,14 +1215,14 @@ struct WuenscheView: View {
 
             bestattungsrahmen = Bestattungsrahmen(rawValue: vorhandeneWuensche.beisetzungsRahmen) ?? .privaterKreis
             bestattungsart = Bestattungsart(rawValue: vorhandeneWuensche.beisetzungsArt) ?? .kremation
-            bestattungswuensche = vorhandeneWuensche.beisetzungHinweis
+            bestattungswuensche = vorhandeneWuensche.bestattungswuensche
+                ?? vorhandeneWuensche.beisetzungHinweis
             sonstigeBemerkungen = vorhandeneWuensche.sonstigeBemerkungen
 
-            if bestattungsart == .kremation {
-                kremationHinweise = vorhandeneWuensche.beisetzungHinweis
-            } else {
-                erdbestattungHinweise = vorhandeneWuensche.beisetzungHinweis
-            }
+            kremationHinweise = vorhandeneWuensche.kremationHinweise
+                ?? (bestattungsart == .kremation ? vorhandeneWuensche.beisetzungHinweis : "")
+            erdbestattungHinweise = vorhandeneWuensche.erdbestattungHinweise
+                ?? (bestattungsart == .erdbestattung ? vorhandeneWuensche.beisetzungHinweis : "")
 
             keineBlumengeschenkeBitte = vorhandeneWuensche.keineBlumengeschenkeBitte
             besondereMusik = vorhandeneWuensche.besondereMusik
@@ -1224,6 +1231,7 @@ struct WuenscheView: View {
             zeremonie = vorhandeneWuensche.zeremonieGewuenscht
             zeremonieText = vorhandeneWuensche.zeremonieDetails
             zeremonieBereitsOrganisiert = vorhandeneWuensche.zeremonieOrganisiert
+            zeremonieOrganisiertDetails = vorhandeneWuensche.zeremonieOrganisiertDetails ?? ""
             zeremonieFinanziellAbgesichert = vorhandeneWuensche.zeremonieFinanziellAbgesichert
 
             moechteNochWasSagen = vorhandeneWuensche.moechteNochEtwasSagen
@@ -1274,7 +1282,7 @@ struct WuenscheView: View {
                 haustiere = (try? JSONDecoder().decode([WuenschePetEntry].self, from: data)) ?? []
             }
         } else {
-            let neueWuensche = WuenscheModell()
+            let neueWuensche = WuenscheModell(dossierID: dossierID)
             modelContext.insert(neueWuensche)
         }
 
@@ -1307,10 +1315,13 @@ struct WuenscheView: View {
         let aktuelleSignatur = wuenscheSpeicherSignatur
         let wuensche: WuenscheModell
 
-        if let vorhandeneWuensche = gespeicherteWuensche.first {
+        let dossierID = zielDossierID
+        if let vorhandeneWuensche = gespeicherteWuensche.first(where: { $0.dossierID == dossierID })
+            ?? gespeicherteWuensche.first(where: { $0.dossierID == nil }) {
             wuensche = vorhandeneWuensche
+            wuensche.dossierID = dossierID
         } else {
-            let neueWuensche = WuenscheModell()
+            let neueWuensche = WuenscheModell(dossierID: dossierID)
             modelContext.insert(neueWuensche)
             wuensche = neueWuensche
         }
@@ -1321,12 +1332,14 @@ struct WuenscheView: View {
         wuensche.beisetzungsRahmen = bestattungsrahmen.rawValue
         wuensche.beisetzungsArt = bestattungsart.rawValue
 
-        switch bestattungsart {
-        case .kremation:
-            wuensche.beisetzungHinweis = kremationHinweise.isEmpty ? bestattungswuensche : kremationHinweise
-        case .erdbestattung:
-            wuensche.beisetzungHinweis = erdbestattungHinweise.isEmpty ? bestattungswuensche : erdbestattungHinweise
-        }
+        wuensche.bestattungswuensche = bestattungswuensche
+        wuensche.kremationHinweise = kremationHinweise
+        wuensche.erdbestattungHinweise = erdbestattungHinweise
+        // Legacy-Feld für ältere App-Versionen; leere Eingaben werden bewusst
+        // als leer gespeichert und nicht mehr durch einen alten Text ersetzt.
+        wuensche.beisetzungHinweis = bestattungsart == .kremation
+            ? kremationHinweise
+            : erdbestattungHinweise
 
         wuensche.sonstigeBemerkungen = sonstigeBemerkungen
         wuensche.keineBlumengeschenkeBitte = keineBlumengeschenkeBitte
@@ -1335,6 +1348,7 @@ struct WuenscheView: View {
         wuensche.zeremonieGewuenscht = ausgewaehlteThemen.contains(.zeremonie)
         wuensche.zeremonieDetails = zeremonieText
         wuensche.zeremonieOrganisiert = zeremonieBereitsOrganisiert
+        wuensche.zeremonieOrganisiertDetails = zeremonieOrganisiertDetails
         wuensche.zeremonieFinanziellAbgesichert = zeremonieFinanziellAbgesichert
         wuensche.moechteNochEtwasSagen = ausgewaehlteThemen.contains(.letzteWorte)
         wuensche.letzteBotschaft = letzteWorteText
@@ -1379,6 +1393,10 @@ struct WuenscheView: View {
         } catch {
             print("Wuensche konnten nicht gespeichert werden: \(error.localizedDescription)")
         }
+    }
+
+    private var zielDossierID: UUID {
+        UUID(uuidString: aktivesDossierID) ?? dossierKontext.dossierID
     }
 
     private func bindingFuerHaustier(id: UUID) -> Binding<WuenschePetEntry>? {
@@ -1540,6 +1558,7 @@ struct WuenscheView: View {
 
         do {
             try modelContext.save()
+            VorsorgeBereichStatusStore.markiereBearbeitet(.hinterbliebene)
         } catch {
             print("Kontakte konnten nicht mit Hinterbliebenen synchronisiert werden: \(error.localizedDescription)")
         }

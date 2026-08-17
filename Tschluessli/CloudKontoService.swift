@@ -45,6 +45,15 @@ actor CloudKontoService {
         }
     }
 
+    func lokaleSitzungLoeschen() async {
+        await MainActor.run {
+            try? KeychainHelper.shared.delete(
+                service: keychainService,
+                account: keychainAccount
+            )
+        }
+    }
+
     func registrieren(email: String, passwort: String, registrierungsGrant: String) async throws -> CloudKontoSitzung {
         let antwort: KontoAntwort = try await sende(
             pfad: "api/accounts/register",

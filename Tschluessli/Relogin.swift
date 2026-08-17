@@ -12,7 +12,7 @@ import LocalAuthentication
 struct ReloginView: View {
 
     var emailFuerBestehendesKonto: String? = nil
-    var onBestehendesKontoAngemeldet: ((CloudKontoSitzung) -> Void)? = nil
+    var onBestehendesKontoAngemeldet: ((CloudKontoSitzung, String) -> Void)? = nil
 
     private let hintergrundFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
     private let kartenFarbe = Color.white.opacity(0.86)
@@ -27,6 +27,7 @@ struct ReloginView: View {
     @AppStorage("direktNachRegistrierungEingeloggt") private var direktNachRegistrierungEingeloggt = false
     @AppStorage("biometrieAktiviert") private var biometrieAktiviertGespeichert = false
     @AppStorage("aktiveUserID") private var aktiveUserID = ""
+    @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
 
     @State private var email = ""
     @State private var passwort = ""
@@ -116,86 +117,95 @@ struct ReloginView: View {
             hintergrundFarbe
                 .ignoresSafeArea()
 
-            VStack(spacing: 12) {
-                Spacer(minLength: 0)
+            GeometryReader { geometry in
+                ScrollView {
+                    VStack(spacing: 12) {
+                        Spacer(minLength: 20)
 
-                Image("Icon1_trans")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 118, height: 118)
-                    .accessibilityHidden(true)
-                    .padding(.top, -52)
+                        Image("Icon1_trans")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 108, height: 88)
+                            .accessibilityHidden(true)
 
-                VStack(spacing: 18) {
-                    ZStack {
-                        Circle()
-                            .fill(akzentFarbe.opacity(0.12))
-                            .frame(width: 86, height: 86)
+                        VStack(spacing: 18) {
+                            ZStack {
+                                Circle()
+                                    .fill(akzentFarbe.opacity(0.12))
+                                    .frame(width: 86, height: 86)
 
-                        Image(systemName: "lock.shield.fill")
-                            .font(.system(size: 38, weight: .semibold))
-                            .foregroundStyle(akzentFarbe)
-                    }
+                                Image(systemName: "lock.shield.fill")
+                                    .font(.system(size: 38, weight: .semibold))
+                                    .foregroundStyle(akzentFarbe)
+                            }
 
-                    VStack(spacing: 8) {
-                        Text("Willkommen zurück")
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
-                            .foregroundStyle(textFarbe)
-                            .multilineTextAlignment(.center)
+                            VStack(spacing: 8) {
+                                Text("Willkommen zurück")
+                                    .font(.largeTitle)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(textFarbe)
+                                    .multilineTextAlignment(.center)
+                                    .fixedSize(horizontal: false, vertical: true)
 
-                        Text("Melde dich an, um sicher auf dein Tschlüssli Vorsorge-Dossier zuzugreifen.")
-                            .font(.body)
+                                Text("Melde dich an, um sicher auf dein Tschlüssli Vorsorge-Dossier zuzugreifen.")
+                                    .font(.body)
+                                    .foregroundStyle(sekundTextFarbe)
+                                    .multilineTextAlignment(.center)
+                                    .lineSpacing(3)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            if biometrieAktiviert {
+                                Button {
+                                    loginMitFaceID()
+                                } label: {
+                                    Label("Mit Face ID anmelden", systemImage: "faceid")
+                                        .font(.headline)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 6)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(akzentFarbe)
+                            }
+
+                            if zeigtEmailLogin {
+                                emailLoginBereich
+                            }
+
+                            if !fehlermeldung.isEmpty {
+                                Text(fehlermeldung)
+                                    .font(.footnote)
+                                    .foregroundStyle(.red)
+                                    .multilineTextAlignment(.center)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .padding(.top, 2)
+                            }
+                        }
+                        .padding(24)
+                        .background(
+                            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                                .fill(kartenFarbe)
+                                .shadow(color: .black.opacity(0.07), radius: 18, x: 0, y: 10)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                                .stroke(Color.white.opacity(0.75), lineWidth: 1)
+                        )
+                        .padding(.horizontal, 22)
+
+                        Text("Deine Angaben bleiben geschützt und sind nur nach erfolgreicher Anmeldung sichtbar.")
+                            .font(.footnote)
                             .foregroundStyle(sekundTextFarbe)
                             .multilineTextAlignment(.center)
-                            .lineSpacing(3)
-                    }
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 32)
+                            .padding(.top, 4)
 
-                    if biometrieAktiviert {
-                        Button {
-                            loginMitFaceID()
-                        } label: {
-                            Label("Mit Face ID anmelden", systemImage: "faceid")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 6)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(akzentFarbe)
+                        Spacer(minLength: 24)
                     }
-
-                    if zeigtEmailLogin {
-                        emailLoginBereich
-                    }
-
-                    if !fehlermeldung.isEmpty {
-                        Text(fehlermeldung)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
-                            .multilineTextAlignment(.center)
-                            .padding(.top, 2)
-                    }
+                    .frame(minHeight: geometry.size.height, alignment: .center)
                 }
-                .padding(24)
-                .background(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .fill(kartenFarbe)
-                        .shadow(color: .black.opacity(0.07), radius: 18, x: 0, y: 10)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(Color.white.opacity(0.75), lineWidth: 1)
-                )
-                .padding(.horizontal, 22)
-                .padding(.top, -8)
-
-                Text("Deine Angaben bleiben geschützt und sind nur nach erfolgreicher Anmeldung sichtbar.")
-                    .font(.footnote)
-                    .foregroundStyle(sekundTextFarbe)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
-
-                Spacer(minLength: 72)
+                .scrollDismissesKeyboard(.interactively)
             }
         }
         .navigationTitle("Login")
@@ -210,9 +220,12 @@ struct ReloginView: View {
                     .fontWeight(.semibold)
                     .foregroundStyle(textFarbe)
 
-                if emailFuerBestehendesKonto != nil {
+                if emailFuerBestehendesKonto?
+                    .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
                     Text(email)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 12)
                         .background(
@@ -392,12 +405,15 @@ struct ReloginView: View {
                     email: bereinigteEmail,
                     passwort: passwort
                 )
-                aktiveUserID = sitzung.userID.uuidString
                 passwort = ""
                 emailLoginLaeuft = false
                 if let onBestehendesKontoAngemeldet {
-                    onBestehendesKontoAngemeldet(sitzung)
+                    onBestehendesKontoAngemeldet(sitzung, bereinigteEmail)
                 } else {
+                    aktiveUserID = sitzung.userID.uuidString
+                    if let dossierID = sitzung.dossierID {
+                        aktivesDossierID = dossierID.uuidString
+                    }
                     istEingeloggt = true
                 }
             } catch {

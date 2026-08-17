@@ -14,6 +14,8 @@ enum DossierRecoveryFehler: LocalizedError {
     case keinRecoveryPaket
     case falscherCode
     case ungueltigesPaket
+    case recoveryNichtSynchronisiert
+    case cloudWiederherstellungFehlgeschlagen
 
     var errorDescription: String? {
         switch self {
@@ -25,6 +27,10 @@ enum DossierRecoveryFehler: LocalizedError {
             "Der Wiederherstellungscode ist nicht korrekt."
         case .ungueltigesPaket:
             "Das Wiederherstellungspaket konnte nicht verarbeitet werden."
+        case .recoveryNichtSynchronisiert:
+            "Der Wiederherstellungscode konnte noch nicht sicher in der Cloud gespeichert werden. Bitte versuche es erneut."
+        case .cloudWiederherstellungFehlgeschlagen:
+            "Der Schlüssel wurde bestätigt, aber das Dossier konnte noch nicht vollständig aus der Cloud geladen werden. Bitte versuche es erneut."
         }
     }
 }
@@ -103,15 +109,15 @@ enum DossierRecoveryPDF {
                 .font: UIFont.boldSystemFont(ofSize: 25),
                 .foregroundColor: UIColor(red: 0.16, green: 0.36, blue: 0.42, alpha: 1)
             ])
-            let hinweis = "Mit diesen 12 Wörtern können die verschlüsselten Zugangsdaten wiederhergestellt werden. Wer diese Wörter kennt, kann auf diese Daten zugreifen. Bewahre das Dokument offline und sicher auf. Teile es niemals per ungeschützter E-Mail oder Chat."
+            let hinweis = "Neues Gerät? Mit diesen 12 Wörtern können die verschlüsselten Zugangsdaten wiederhergestellt werden. Wer diese Wörter kennt, kann auf diese Daten zugreifen. Bewahre das Dokument offline und sicher auf. Teile es niemals per ungeschützter E-Mail oder Chat."
             hinweis.draw(in: CGRect(x: 48, y: 108, width: 499, height: 100), withAttributes: [
                 .font: UIFont.systemFont(ofSize: 14),
                 .foregroundColor: UIColor.darkGray
             ])
             let woerter = code.split(separator: " ").map(String.init)
             for (index, wort) in woerter.enumerated() {
-                let spalte = index % 2
-                let zeile = index / 2
+                let spalte = index / 6
+                let zeile = index % 6
                 let text = "\(index + 1).  \(wort)"
                 text.draw(at: CGPoint(x: 66 + CGFloat(spalte) * 250, y: 230 + CGFloat(zeile) * 58), withAttributes: [
                     .font: UIFont.monospacedSystemFont(ofSize: 17, weight: .semibold),

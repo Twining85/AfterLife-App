@@ -61,6 +61,7 @@ struct Registrierung: View {
     @State private var akzeptiertNutzungsbedingungen = false
     @State private var rechtlichesAnzeigen = false
     @State private var bestehendesKontoAnmelden = false
+    @AppStorage("wiederherstellungNeuesGeraetLaeuft") private var wiederherstellungNeuesGeraetLaeuft = false
     
     @FocusState private var aktivesEingabefeld: Eingabefeld?
 
@@ -82,15 +83,13 @@ struct Registrierung: View {
                 .ignoresSafeArea()
         }
         .fullScreenCover(isPresented: $bestehendesKontoAnmelden) {
-            ReloginView(
-                emailFuerBestehendesKonto: bereinigteEmailOriginalschreibweise,
-                onBestehendesKontoAngemeldet: bestehendesKontoErfolgreichAngemeldet
+            ReloginNeuesGeraet(
+                onAbbrechen: {
+                    wiederherstellungNeuesGeraetLaeuft = false
+                    bestehendesKontoAnmelden = false
+                },
+                onWiederhergestellt: bestehendesKontoNachRecoveryAbschliessen
             )
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Abbrechen") { bestehendesKontoAnmelden = false }
-                }
-            }
         }
     }
 
@@ -567,10 +566,8 @@ struct Registrierung: View {
                 .multilineTextAlignment(.center)
 
             Button("Mit bestehendem Konto anmelden") {
-                guard registrierungsEmailIstFormalGueltig else {
-                    fehlermeldung = "Bitte gib zuerst deine E-Mail-Adresse ein."
-                    return
-                }
+                fehlermeldung = ""
+                wiederherstellungNeuesGeraetLaeuft = true
                 bestehendesKontoAnmelden = true
             }
             .font(.subheadline.weight(.semibold))
@@ -795,6 +792,7 @@ struct Registrierung: View {
                 if case CloudKontoFehler.server(let meldung) = error,
                    meldung.localizedCaseInsensitiveContains("Konto besteht bereits") {
                     fehlermeldung = "Für diese E-Mail-Adresse besteht bereits ein Konto. Bitte melde dich an."
+                    wiederherstellungNeuesGeraetLaeuft = true
                     bestehendesKontoAnmelden = true
                 } else {
                     fehlermeldung = "Die Registrierung konnte nicht abgeschlossen werden: \(error.localizedDescription)"
@@ -803,8 +801,8 @@ struct Registrierung: View {
         }
     }
 
-    private func bestehendesKontoErfolgreichAngemeldet(_ sitzung: CloudKontoSitzung) {
-        let bereinigteEmail = bereinigteEmailOriginalschreibweise
+    private func bestehendesKontoNachRecoveryAbschliessen(_ sitzung: CloudKontoSitzung, email: String) {
+        let bereinigteEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard sitzung.dossierID != nil else {
             bestehendesKontoAnmelden = false
             fehlermeldung = "Für dieses Konto konnte kein aktives Dossier geladen werden."
@@ -823,14 +821,13 @@ struct Registrierung: View {
             profilIstVorhanden = true
             direktNachRegistrierungEingeloggt = true
             istEingeloggt = true
+            wiederherstellungNeuesGeraetLaeuft = false
             bestehendesKontoAnmelden = false
             homeVollbildAnzeigen = true
         } catch {
             fehlermeldung = "Die lokalen Kontodaten konnten nicht gespeichert werden: \(error.localizedDescription)"
         }
     }
-
-
 
     private func speichereRegistrierungsdaten(art: String, email: String, userID: UUID, dossierID: UUID?) {
         let bereinigteEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)

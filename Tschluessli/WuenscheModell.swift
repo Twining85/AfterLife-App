@@ -15,6 +15,11 @@ final class WuenscheModell {
     var beisetzungsRahmen: String = "im kleinen privaten Kreis"
     var beisetzungsArt: String
     var beisetzungHinweis: String
+    /// Getrennte Werte der drei Eingabefelder. Optional, damit bestehende
+    /// SwiftData-Stores ohne Datenverlust migriert werden können.
+    var bestattungswuensche: String?
+    var kremationHinweise: String?
+    var erdbestattungHinweise: String?
     var sonstigeBemerkungen: String
     var keineBlumengeschenkeBitte: Bool
 
@@ -26,6 +31,7 @@ final class WuenscheModell {
     var zeremonieGewuenscht: Bool
     var zeremonieDetails: String
     var zeremonieOrganisiert: Bool
+    var zeremonieOrganisiertDetails: String?
     var zeremonieFinanziellAbgesichert: Bool
 
     // Letzte Worte
@@ -90,6 +96,9 @@ final class WuenscheModell {
         beisetzungsRahmen: String = "im kleinen privaten Kreis",
         beisetzungsArt: String = "",
         beisetzungHinweis: String = "",
+        bestattungswuensche: String? = nil,
+        kremationHinweise: String? = nil,
+        erdbestattungHinweise: String? = nil,
         sonstigeBemerkungen: String = "",
         keineBlumengeschenkeBitte: Bool = false,
         besondereMusik: Bool = false,
@@ -97,6 +106,7 @@ final class WuenscheModell {
         zeremonieGewuenscht: Bool = false,
         zeremonieDetails: String = "",
         zeremonieOrganisiert: Bool = false,
+        zeremonieOrganisiertDetails: String? = nil,
         zeremonieFinanziellAbgesichert: Bool = false,
         moechteNochEtwasSagen: Bool = false,
         letzteBotschaft: String = "",
@@ -144,6 +154,9 @@ final class WuenscheModell {
         self.beisetzungsRahmen = beisetzungsRahmen
         self.beisetzungsArt = beisetzungsArt
         self.beisetzungHinweis = beisetzungHinweis
+        self.bestattungswuensche = bestattungswuensche
+        self.kremationHinweise = kremationHinweise
+        self.erdbestattungHinweise = erdbestattungHinweise
         self.sonstigeBemerkungen = sonstigeBemerkungen
         self.keineBlumengeschenkeBitte = keineBlumengeschenkeBitte
         self.besondereMusik = besondereMusik
@@ -151,6 +164,7 @@ final class WuenscheModell {
         self.zeremonieGewuenscht = zeremonieGewuenscht
         self.zeremonieDetails = zeremonieDetails
         self.zeremonieOrganisiert = zeremonieOrganisiert
+        self.zeremonieOrganisiertDetails = zeremonieOrganisiertDetails
         self.zeremonieFinanziellAbgesichert = zeremonieFinanziellAbgesichert
         self.moechteNochEtwasSagen = moechteNochEtwasSagen
         self.letzteBotschaft = letzteBotschaft

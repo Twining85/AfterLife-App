@@ -46,6 +46,8 @@ struct Home: View {
     @State private var vertrauenspersonAnzeigen = false
     @State private var ersterVorsorgeBereichAnzeigen = false
     @State private var empfohlenerBereichAnzeigen: HomeBereich?
+    @State private var syncKonfliktAuswahlAnzeigen = false
+    @State private var manuellerSyncFehler = ""
     private let heroDossierTitelGroesse: CGFloat = 19
     private let heroDossierStatusGroesse: CGFloat = 16
     private let heroDossierBeschreibungGroesse: CGFloat = 14
@@ -653,6 +655,41 @@ struct Home: View {
                     starteHomeEinstiegsanimation()
                 }
                 .confirmationDialog(
+                    "Synchronisationskonflikt",
+                    isPresented: $syncKonfliktAuswahlAnzeigen,
+                    titleVisibility: .visible
+                ) {
+                    Button("Cloud-Version übernehmen") {
+                        Task { @MainActor in
+                            do {
+                                try await DossierSyncDienst.shared?.manuellenKonfliktMitCloudLoesen()
+                            } catch {
+                                manuellerSyncFehler = error.localizedDescription
+                            }
+                        }
+                    }
+                    Button("Daten dieses Geräts übernehmen", role: .destructive) {
+                        Task { @MainActor in
+                            do {
+                                try await DossierSyncDienst.shared?.manuellenKonfliktMitLokalemDossierLoesen()
+                            } catch {
+                                manuellerSyncFehler = error.localizedDescription
+                            }
+                        }
+                    }
+                    Button("Abbrechen", role: .cancel) { }
+                } message: {
+                    Text("Die Cloud und dieses Gerät enthalten unterschiedliche Änderungen. Wenn du dieses Gerät wählst, wird das vollständige lokale Dossier als neuer Cloud-Stand gespeichert.")
+                }
+                .alert("Synchronisation fehlgeschlagen", isPresented: Binding(
+                    get: { !manuellerSyncFehler.isEmpty },
+                    set: { if !$0 { manuellerSyncFehler = "" } }
+                )) {
+                    Button("OK", role: .cancel) { manuellerSyncFehler = "" }
+                } message: {
+                    Text(manuellerSyncFehler)
+                }
+                .confirmationDialog(
                     "Prüfstatus zurücksetzen?",
                     isPresented: $dossierPruefungZuruecksetzenAnzeigen,
                     titleVisibility: .visible
@@ -707,6 +744,12 @@ struct Home: View {
                             .foregroundStyle(schluessliAkzent)
                         }
                     }
+                }
+            }
+            .refreshable {
+                let anzahlKonflikte = await DossierSyncDienst.shared?.manuellerVollabgleich() ?? 0
+                if anzahlKonflikte > 0 {
+                    syncKonfliktAuswahlAnzeigen = true
                 }
             }
         }
@@ -782,6 +825,7 @@ struct Home: View {
         bearbeiteteHomeBereiche = neueReihenfolge
         homeAktiveBereiche = neueReihenfolge.map(\.rawValue).joined(separator: ",")
         homeBereicheReihenfolge = neueReihenfolge.map(\.rawValue).joined(separator: ",")
+        NotificationCenter.default.post(name: .dossierBereichGespeichert, object: "profil")
         bereichsauswahlAnzeigen = false
     }
     
@@ -896,6 +940,7 @@ struct Home: View {
             withTransaction(transaktion) {
                 homeBereicheReihenfolge = neueReihenfolge
             }
+            NotificationCenter.default.post(name: .dossierBereichGespeichert, object: "profil")
         }
 
         private func beendeHomeBearbeitung() {

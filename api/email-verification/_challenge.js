@@ -72,6 +72,31 @@ export function verifyRegistrationGrant(token, email) {
   }
 }
 
+export function createActionGrant(email, purpose) {
+  const secret = process.env.EMAIL_VERIFICATION_SECRET;
+  if (!secret) throw new Error("EMAIL_VERIFICATION_SECRET fehlt");
+  const payload = Buffer.from(JSON.stringify({
+    purpose,
+    email,
+    expiresAt: Date.now() + 15 * 60 * 1000
+  })).toString("base64url");
+  return `${payload}.${sign(payload, secret)}`;
+}
+
+export function verifyActionGrant(token, email, purpose) {
+  const secret = process.env.EMAIL_VERIFICATION_SECRET;
+  if (!secret || typeof token !== "string") return false;
+  const parts = token.split(".");
+  if (parts.length !== 2 || !safeEqual(parts[1], sign(parts[0], secret))) return false;
+  try {
+    const data = JSON.parse(Buffer.from(parts[0], "base64url").toString("utf8"));
+    return data.purpose === purpose && data.email === email
+      && Number.isFinite(data.expiresAt) && Date.now() <= data.expiresAt;
+  } catch {
+    return false;
+  }
+}
+
 export function expiresAt() {
   return new Date(Date.now() + validityMilliseconds).toISOString();
 }

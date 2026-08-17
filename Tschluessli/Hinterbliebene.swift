@@ -8,6 +8,7 @@ struct HinterbliebeneView: View {
     @Query private var gespeicherteKontakte: [HinterbliebeneModell]
     @Query private var gesundheitsDatensaetze: [GesundheitModell]
     @Query private var gespeicherteVertrauenspersonen: [VertrauenspersonModell]
+    @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
 
     private let vertrauenHintergrundFarbe = Color(red: 0.985, green: 0.975, blue: 0.955)
     private let vertrauenKartenFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
@@ -314,6 +315,7 @@ struct HinterbliebeneView: View {
             if !istAbgeleiteterHausarztKontakt(kontakt) {
                 Button(role: .destructive) {
                     modelContext.delete(kontakt)
+                    try? modelContext.save()
                     VorsorgeBereichStatusStore.markiereBearbeitet(.hinterbliebene)
                 } label: {
                     Image(systemName: "trash")
@@ -348,6 +350,7 @@ struct HinterbliebeneView: View {
 
     private func kontaktHinzufuegen(_ kontakt: HinterbliebeneKontakt, zu kategorie: VertrauenspersonKategorie) {
         let neuerKontakt = HinterbliebeneModell(
+            dossierID: UUID(uuidString: aktivesDossierID),
             vorname: kontakt.vorname,
             name: kontakt.name,
             rolle: kategorie.anzeigetitel,
@@ -362,6 +365,7 @@ struct HinterbliebeneView: View {
         )
 
         modelContext.insert(neuerKontakt)
+        try? modelContext.save()
         VorsorgeBereichStatusStore.markiereBearbeitet(.hinterbliebene)
     }
 

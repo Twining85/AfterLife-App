@@ -167,6 +167,26 @@ actor CloudFeldVerschluesselung {
         (try? await gespeichertesRecoveryPaket()) != nil
     }
 
+    func neuesDossierVorbereiten() async {
+        await MainActor.run {
+            try? KeychainHelper.shared.delete(service: service, account: account)
+            try? KeychainHelper.shared.delete(service: service, account: recoveryAccount)
+        }
+    }
+
+    /// Richtet eine neue App-Installation für die Wiederherstellung ein. Ein
+    /// möglicherweise nach der Deinstallation verbliebener Keychain-Schlüssel
+    /// darf dabei nicht als Gerätefreigabe weiterverwendet werden.
+    func neueInstallationVorbereiten(mit wert: VerschluesselterCloudBereich) async throws {
+        guard let recovery = wert.recovery else {
+            throw DossierRecoveryFehler.keinRecoveryPaket
+        }
+        try await speichereRecoveryPaket(recovery)
+        await MainActor.run {
+            try? KeychainHelper.shared.delete(service: service, account: account)
+        }
+    }
+
     func wiederherstellen(mit code: String) async throws {
         let paket = try await gespeichertesRecoveryPaket()
         guard paket.version == 1,
