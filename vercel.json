@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/accounts/delete",
+      "destination": "/api/accounts/login"
+    }
+  ]
+}
