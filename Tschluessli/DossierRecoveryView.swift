@@ -52,12 +52,12 @@ struct DossierRecoveryView: View {
         Form {
                 if !nurWiederherstellen {
                     Section("Wiederherstellungscode") {
-                    Text("Die 12 Wörter schützen den Schlüssel deiner verschlüsselten Zugangsdaten. Bewahre sie offline auf.")
+                    Text("Die 12 Wörter schützen den Schlüssel deiner verschlüsselten Zugangsdaten. Bewahre sie offline und an einem sicheren Ort auf auf.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     if code.isEmpty {
                         if recoveryBereitsEingerichtet {
-                            Text("Ein Wiederherstellungscode wurde bereits eingerichtet. Ein neuer Code macht das bisherige PDF ungültig.")
+                            Text("Ein Wiederherstellungscode wurde bereits eingerichtet. Ein neuer Code macht den bisherigen Schlüssel und PDF ungültig.")
                                 .font(.footnote)
                                 .foregroundStyle(.orange)
                         }
@@ -102,7 +102,7 @@ struct DossierRecoveryView: View {
                 }
 
                 if !nurErstellen {
-                Section("Auf diesem Gerät wiederherstellen") {
+                Section("Dein Dossier auf diesem Gerät wiederherstellen") {
                     Text("Gib die zwölf Wörter einzeln und in derselben Reihenfolge wie im PDF ein.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -114,7 +114,7 @@ struct DossierRecoveryView: View {
                             }
                         }
                     }
-                    Button("Schlüssel wiederherstellen") { stelleWiederHer() }
+                    Button("Dossier wiederherstellen") { stelleWiederHer() }
                         .disabled(arbeitet || !recoveryCodeVollstaendig)
                     if nurWiederherstellen, onDossierZurueckgesetzt != nil {
                         Button("Wiederherstellungscode nicht mehr vorhanden?") {
@@ -130,7 +130,7 @@ struct DossierRecoveryView: View {
                     Section { Text(meldung).foregroundStyle(meldung.hasPrefix("Erfolgreich") ? .green : .red) }
                 }
         }
-        .navigationTitle("Dossier-Schlüssel")
+        .navigationTitle("Dossierwiederherstellungs-Schlüssel")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $shareDatei, onDismiss: {
             shareDatei = nil
