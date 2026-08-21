@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { deleteAccountForUser } from "../api/accounts/delete.js";
+import { deleteAccountForUser } from "../api/accounts/login.js";
 
 test("löscht zuerst alle eigenen Dossiers und danach den Benutzer", async () => {
   const queries = [];

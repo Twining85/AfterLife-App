@@ -7,6 +7,7 @@ import { normalizeEmail, rateLimit, requireJSON, requireMethod, secureResponse }
 
 export default async function handler(req, res) {
   secureResponse(res);
+  if (req.method === "DELETE") return handleAccountDelete(req, res);
   if (!requireMethod(req, res, "POST") || !requireJSON(req, res)) return;
   if (String(req.body?.action || "").startsWith("dossier-reset-")) {
     return handleDossierReset(req, res);
@@ -48,6 +49,43 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error("Anmeldung:", error);
     return res.status(500).json({ error: "Interner Fehler" });
+  }
+}
+
+export async function deleteAccountForUser({ userID, pool = databasePool() }) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT set_config('app.user_id', $1, true)", [userID]);
+    await client.query("DELETE FROM dossiers WHERE owner_user_id = $1", [userID]);
+    const result = await client.query(
+      "DELETE FROM app_users WHERE id = $1 RETURNING id",
+      [userID]
+    );
+    if (result.rowCount !== 1) throw new Error("Konto nicht gefunden");
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function handleAccountDelete(req, res) {
+  if (!rateLimit(req, res, {
+    namespace: "account-delete",
+    limit: 3,
+    windowMilliseconds: 60 * 60 * 1000
+  })) return;
+  const user = await authenticatedUser(req);
+  if (!user) return res.status(401).json({ error: "Anmeldung erforderlich" });
+  try {
+    await deleteAccountForUser({ userID: user.id });
+    return res.status(204).end();
+  } catch (error) {
+    console.error("Kontolöschung:", error);
+    return res.status(500).json({ error: "Das Konto konnte nicht vollständig gelöscht werden" });
   }
 }
 
