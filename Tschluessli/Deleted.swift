@@ -43,7 +43,7 @@ struct Deleted: View {
                             .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
                             .multilineTextAlignment(.center)
 
-                        Text("Dein Profil und alle damit verbundenen Daten wurden dauerhaft von diesem Gerät entfernt.")
+                        Text("Tschüss! Dein Profil und alle damit verbundenen Daten wurden dauerhaft aus der Cloud und von diesem Gerät entfernt.")
                             .font(.body)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)

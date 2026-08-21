@@ -126,6 +126,9 @@ struct ProfilView: View {
     @State private var dossierRecoveryAnzeigen = false
     @State private var passwortAendernAnzeigen = false
     @State private var syncKonflikteAnzeigen = false
+    @State private var vertrauenspersonHinterlegenAnzeigen = false
+    @State private var einladungQRCodeAnnehmenAnzeigen = false
+    @State private var vertrauenspersonEntscheidungsFehler = ""
     private var istEmailGueltig: Bool {
 
         if email.isEmpty { return true }
@@ -411,6 +414,47 @@ struct ProfilView: View {
                 }
 
                 if dossierKontext.kannBearbeiten {
+                    Section("Vertrauensperson") {
+                        Button {
+                            vertrauenspersonHinterlegenAnzeigen = true
+                        } label: {
+                            Label("Vertrauensperson hinterlegen", systemImage: "person.badge.plus")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            einladungQRCodeAnnehmenAnzeigen = true
+                        } label: {
+                            Label("Ich wurde als Vertrauensperson festgelegt", systemImage: "qrcode.viewfinder")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+
+                        ForEach(ausstehendeVertrauenspersonAnfragen) { zugriff in
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Die Vertrauensperson möchte die Einladung annehmen")
+                                    .font(.headline)
+                                Text(zugriff.registrierungsEmail ?? zugriff.eingeladeneEmail)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                HStack {
+                                    Button("Bestätigen") { bestaetigeVertrauensperson(zugriff) }
+                                        .buttonStyle(.borderedProminent)
+                                    Button("Ablehnen", role: .destructive) { lehneVertrauenspersonAb(zugriff) }
+                                        .buttonStyle(.bordered)
+                                }
+                            }
+                            .padding(.vertical, 6)
+                        }
+                    }
+                    .listRowBackground(profilKartenFarbe)
+                    .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
+                }
+
+                if dossierKontext.kannBearbeiten {
                     Section("Zugangsdaten") {
                         if registrierungsArt == "Google" {
                             LabeledContent("Registrierungsart", value: "Mit Google registriert")
@@ -532,6 +576,12 @@ struct ProfilView: View {
             .background(profilHintergrundFarbe.ignoresSafeArea())
             .tint(profilAkzentFarbe)
             .navigationTitle("Mein Profil")
+            .navigationDestination(isPresented: $vertrauenspersonHinterlegenAnzeigen) {
+                VertrauenspersonView()
+            }
+            .navigationDestination(isPresented: $einladungQRCodeAnnehmenAnzeigen) {
+                EinladungQRCodeAnnehmenView()
+            }
             .alert("Profil wirklich löschen?", isPresented: $profilLoeschenBestaetigen) {
 
                 Button("Abbrechen", role: .cancel) { }
@@ -556,6 +606,17 @@ struct ProfilView: View {
             } message: {
                 Text(profilLoeschenFehlermeldung)
             }
+            .alert(
+                "Anfrage konnte nicht verarbeitet werden",
+                isPresented: Binding(
+                    get: { !vertrauenspersonEntscheidungsFehler.isEmpty },
+                    set: { if !$0 { vertrauenspersonEntscheidungsFehler = "" } }
+                )
+            ) {
+                Button("OK", role: .cancel) { vertrauenspersonEntscheidungsFehler = "" }
+            } message: {
+                Text(vertrauenspersonEntscheidungsFehler)
+            }
             .sheet(item: $dossierPDF) { dossier in
 
                 ShareSheet(activityItems: [dossier.url])
@@ -578,6 +639,10 @@ struct ProfilView: View {
 
             .onAppear {
                 ladeOderErstelleProfil()
+                verarbeiteGespeichertenVertrauenspersonPush()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .vertrauenspersonPushEmpfangen)) { notification in
+                verarbeiteVertrauenspersonPush(notification.userInfo as? [String: String] ?? [:])
             }
             .onChange(of: vorname) { _, _ in speichereProfil() }
             .onChange(of: name) { _, _ in speichereProfil() }
@@ -619,6 +684,64 @@ struct ProfilView: View {
             }
         }
         .dossierFloatingNavigation(.profil)
+    }
+
+    private var ausstehendeVertrauenspersonAnfragen: [DossierZugriffModell] {
+        guard let userID = UUID(uuidString: aktiveUserID) else { return [] }
+        return gespeicherteDossierZugriffe.filter {
+            $0.vorsorgendeUserID == userID &&
+            $0.status == DossierZugriffStatus.bestaetigungAusstehend &&
+            $0.istAktiv
+        }
+    }
+
+    private func bestaetigeVertrauensperson(_ zugriff: DossierZugriffModell) {
+        guard let vertrauenspersonUserID = zugriff.vertrauenspersonUserID,
+              let token = zugriff.einladungsToken else { return }
+        Task {
+            do {
+                try await PushEinladungsService.shared.entscheiden(token: token, angenommen: true)
+                zugriff.einladungAnnehmen(
+                    vertrauenspersonUserID: vertrauenspersonUserID,
+                    registrierungsEmail: zugriff.registrierungsEmail
+                )
+                try modelContext.save()
+            } catch {
+                vertrauenspersonEntscheidungsFehler = error.localizedDescription
+            }
+        }
+    }
+
+    private func lehneVertrauenspersonAb(_ zugriff: DossierZugriffModell) {
+        guard let token = zugriff.einladungsToken else { return }
+        Task {
+            do {
+                try await PushEinladungsService.shared.entscheiden(token: token, angenommen: false)
+                zugriff.einladungAblehnen(registrierungsEmail: zugriff.registrierungsEmail)
+                try modelContext.save()
+            } catch {
+                vertrauenspersonEntscheidungsFehler = error.localizedDescription
+            }
+        }
+    }
+
+    private func verarbeiteGespeichertenVertrauenspersonPush() {
+        guard let info = UserDefaults.standard.dictionary(forKey: "letzterVertrauenspersonPush") as? [String: String] else { return }
+        verarbeiteVertrauenspersonPush(info)
+    }
+
+    private func verarbeiteVertrauenspersonPush(_ info: [String: String]) {
+        guard info["type"] == "trust_invitation_request",
+              let token = info["token"],
+              let zugriff = gespeicherteDossierZugriffe.first(where: { $0.einladungsToken == token }),
+              zugriff.vorsorgendeUserID == UUID(uuidString: aktiveUserID),
+              let requesterUserID = info["requesterUserID"].flatMap(UUID.init(uuidString:)) else { return }
+        zugriff.bestaetigungAnfragen(
+            vertrauenspersonUserID: requesterUserID,
+            registrierungsEmail: info["requesterEmail"] ?? zugriff.eingeladeneEmail
+        )
+        try? modelContext.save()
+        UserDefaults.standard.removeObject(forKey: "letzterVertrauenspersonPush")
     }
 
     private var profilbildAuswahlInhalt: some View {

@@ -6,8 +6,6 @@ struct Home: View {
     @Environment(\.scenePhase) private var scenePhase
     private let kachelFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
     private let schluessliAkzent = Color(red: 0.16, green: 0.36, blue: 0.42)
-    // TEST: später durch echte Beziehungen aus dem Einladungs-/VertrauenspersonModell ersetzen
-    private let verknuepfteVorsorgedossiers = ["René Engeler"]
     @AppStorage("aktiveUserID") private var aktiveUserID = ""
     @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
     @AppStorage("dossierZuletztGeprueftAmISO") private var dossierZuletztGeprueftAmISO = ""
@@ -278,6 +276,50 @@ struct Home: View {
         return gespeicherteDossierZugriffe.filter { $0.dossierID == dossierID && $0.istAktiv }
     }
 
+    private var eigeneVertrauenspersonZugriffe: [DossierZugriffModell] {
+        guard let userID = UUID(uuidString: aktiveUserID) else { return [] }
+        return gespeicherteDossierZugriffe.filter {
+            $0.vertrauenspersonUserID == userID
+        }
+    }
+
+    private var bestaetigteVorsorgedossiers: [DossierZugriffModell] {
+        eigeneVertrauenspersonZugriffe.filter {
+            $0.istAktiv &&
+            ($0.status == DossierZugriffStatus.angenommen ||
+             $0.status == DossierZugriffStatus.freigegeben)
+        }
+    }
+
+    private var verknuepfteVorsorgedossiers: [String] {
+        bestaetigteVorsorgedossiers.map { besitzerName(fuer: $0) }
+    }
+
+    private var ausstehendeVorsorgedossierAnfragen: [DossierZugriffModell] {
+        eigeneVertrauenspersonZugriffe.filter {
+            $0.istAktiv && $0.status == DossierZugriffStatus.bestaetigungAusstehend
+        }
+    }
+
+    private var abgelehnteVorsorgedossierAnfragen: [DossierZugriffModell] {
+        eigeneVertrauenspersonZugriffe.filter {
+            $0.status == DossierZugriffStatus.abgelehnt
+        }
+    }
+
+    private func besitzerProfil(fuer zugriff: DossierZugriffModell) -> ProfilModell? {
+        gespeicherteProfile.first { $0.userID == zugriff.vorsorgendeUserID }
+    }
+
+    private func besitzerName(fuer zugriff: DossierZugriffModell) -> String {
+        let profil = besitzerProfil(fuer: zugriff)
+        let name = [profil?.vorname, profil?.name]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        return name.isEmpty ? "Vorsorgende Person" : name
+    }
+
     private var vertrauenspersonenFuerAktivenUser: [VertrauenspersonModell] {
         guard let userID = aktivesProfil?.userID else { return [] }
         return gespeicherteVertrauenspersonen.filter {
@@ -543,6 +585,10 @@ struct Home: View {
                         .offset(y: kachelnSindSichtbar ? 0 : 18)
                         .opacity(kachelnSindSichtbar ? 1 : 0)
                         .animation(.easeOut(duration: 0.55), value: kachelnSindSichtbar)
+
+                    vertrauenspersonDossiersBereich
+                        .padding(.horizontal, 24)
+                        .padding(.top, 18)
                     
                     // MARK: - nicht in Scope MMP 1
                     // if !verknuepfteVorsorgedossiers.isEmpty {
@@ -653,6 +699,11 @@ struct Home: View {
                 .onAppear {
                     dossierPruefungRefreshDatum = Date()
                     starteHomeEinstiegsanimation()
+                    Task { try? await PushEinladungsService.shared.registriereGespeichertesGeraet() }
+                    verarbeiteGespeichertenEntscheidungsPush()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .vertrauenspersonPushEmpfangen)) { _ in
+                    verarbeiteGespeichertenEntscheidungsPush()
                 }
                 .confirmationDialog(
                     "Synchronisationskonflikt",
@@ -754,6 +805,80 @@ struct Home: View {
             }
         }
     }
+
+    @ViewBuilder
+    private var vertrauenspersonDossiersBereich: some View {
+            if !bestaetigteVorsorgedossiers.isEmpty ||
+                !ausstehendeVorsorgedossierAnfragen.isEmpty ||
+                !abgelehnteVorsorgedossierAnfragen.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Vorsorge-Dossiers für dich")
+                        .font(.title3.bold())
+
+                    ForEach(ausstehendeVorsorgedossierAnfragen) { zugriff in
+                        HStack(spacing: 12) {
+                            Image(systemName: "clock.badge.checkmark")
+                                .font(.title2)
+                                .foregroundStyle(.orange)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Bestätigung ausstehend")
+                                    .font(.headline)
+                                Text("\(besitzerName(fuer: zugriff)) muss deine Anfrage noch bestätigen.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(15)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 18))
+                    }
+
+                    ForEach(bestaetigteVorsorgedossiers) { zugriff in
+                        NavigationLink {
+                            FreigegebenesDossierDetailView(
+                                dossierKontext: .freigegebenesDossier(
+                                    dossierID: zugriff.dossierID,
+                                    zugriffID: zugriff.zugriffID,
+                                    besitzerName: besitzerName(fuer: zugriff),
+                                    besitzerEmail: besitzerProfil(fuer: zugriff)?.email
+                                )
+                            )
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "folder.fill.badge.person.crop")
+                                    .font(.title2)
+                                    .foregroundStyle(schluessliAkzent)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(gespeicherteDossiers.first(where: { $0.dossierID == zugriff.dossierID })?.titel ?? "Vorsorge-Dossier von \(besitzerName(fuer: zugriff))")
+                                        .font(.headline)
+                                    Text("Bestätigt · Im Lesemodus öffnen")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(15)
+                            .background(kachelFarbe, in: RoundedRectangle(cornerRadius: 18))
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    ForEach(abgelehnteVorsorgedossierAnfragen) { zugriff in
+                        Label(
+                            "Die Anfrage an \(besitzerName(fuer: zugriff)) wurde abgelehnt.",
+                            systemImage: "xmark.circle.fill"
+                        )
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
+                    }
+                }
+            }
+        }
     
     private func starteHomeEinstiegsanimation() {
         heroIstSichtbar = false
@@ -771,6 +896,20 @@ struct Home: View {
         withAnimation(.easeOut(duration: 0.55).delay(0.28)) {
             kachelnSindSichtbar = true
         }
+    }
+
+    private func verarbeiteGespeichertenEntscheidungsPush() {
+        guard let info = UserDefaults.standard.dictionary(forKey: "letzterVertrauenspersonPush") as? [String: String],
+              info["type"] == "trust_invitation_decision",
+              let token = info["token"],
+              let zugriff = gespeicherteDossierZugriffe.first(where: { $0.einladungsToken == token }),
+              zugriff.vertrauenspersonUserID == UUID(uuidString: aktiveUserID) else { return }
+        if info["decision"] == "accepted", let userID = zugriff.vertrauenspersonUserID {
+            zugriff.einladungAnnehmen(vertrauenspersonUserID: userID, registrierungsEmail: zugriff.registrierungsEmail)
+        } else if info["decision"] == "declined" {
+            zugriff.einladungAblehnen(registrierungsEmail: zugriff.registrierungsEmail)
+        }
+        UserDefaults.standard.removeObject(forKey: "letzterVertrauenspersonPush")
     }
 
     private func handleVorsorgeCTA() {

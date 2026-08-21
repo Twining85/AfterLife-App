@@ -11,6 +11,94 @@ import ContactsUI
 import UIKit
 import MessageUI
 import CoreImage.CIFilterBuiltins
+import CryptoKit
+
+/// Erzeugt und liest den vertraulichen Zusatz des Einladungslinks.
+/// Der zufaellige Einladungstoken dient als Schluesselmaterial. AES-GCM stellt
+/// zugleich sicher, dass die E-Mail im QR-Code nicht unbemerkt veraendert wird.
+enum EinladungsQRPayload {
+    private static let parameterName = "invite"
+    private static let version = "v1"
+
+    static func link(token: String, email: String) -> String? {
+        let token = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        let email = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !token.isEmpty, !email.isEmpty else { return nil }
+
+        do {
+            let versiegelt = try AES.GCM.seal(
+                Data(email.utf8),
+                using: schluessel(fuer: token),
+                authenticating: Data(version.utf8)
+            )
+            guard let kombiniert = versiegelt.combined else { return nil }
+
+            var komponenten = URLComponents()
+            komponenten.scheme = "https"
+            komponenten.host = "tschluessli.ch"
+            komponenten.path = "/einladung"
+            komponenten.queryItems = [
+                URLQueryItem(name: "token", value: token),
+                URLQueryItem(name: parameterName, value: base64URL(kombiniert))
+            ]
+            return komponenten.url?.absoluteString
+        } catch {
+            return nil
+        }
+    }
+
+    static func email(aus url: URL, token: String) throws -> String? {
+        guard let komponenten = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let payload = komponenten.queryItems?.first(where: {
+                  $0.name.lowercased() == parameterName
+              })?.value else {
+            return nil // Alte, bereits versendete Links bleiben gueltig.
+        }
+        guard let daten = datenAusBase64URL(payload) else {
+            throw PayloadFehler.ungueltig
+        }
+
+        do {
+            let box = try AES.GCM.SealedBox(combined: daten)
+            let klartext = try AES.GCM.open(
+                box,
+                using: schluessel(fuer: token),
+                authenticating: Data(version.utf8)
+            )
+            guard let email = String(data: klartext, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased(),
+                  !email.isEmpty else {
+                throw PayloadFehler.ungueltig
+            }
+            return email
+        } catch {
+            throw PayloadFehler.ungueltig
+        }
+    }
+
+    enum PayloadFehler: Error { case ungueltig }
+
+    private static func schluessel(fuer token: String) -> SymmetricKey {
+        let material = SHA256.hash(data: Data("tschluessli-qr-\(version):\(token)".utf8))
+        return SymmetricKey(data: Data(material))
+    }
+
+    private static func base64URL(_ daten: Data) -> String {
+        daten.base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+
+    private static func datenAusBase64URL(_ wert: String) -> Data? {
+        var base64 = wert
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        base64 += String(repeating: "=", count: (4 - base64.count % 4) % 4)
+        return Data(base64Encoded: base64)
+    }
+}
 
 struct VertrauenspersonView: View {
     @Environment(\.modelContext) private var modelContext
@@ -156,11 +244,13 @@ struct VertrauenspersonView: View {
             return ""
         }
 
-        let kodierterToken = bereinigterToken.addingPercentEncoding(
-            withAllowedCharacters: .urlQueryAllowed
-        ) ?? bereinigterToken
+        let zielEmail = (einladungsEmail ?? bereinigteEmail)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        return "https://tschluessli.ch/einladung?token=\(kodierterToken)"
+        return EinladungsQRPayload.link(
+            token: bereinigterToken,
+            email: zielEmail
+        ) ?? ""
     }
 
     private var dossierZugriffService: DossierZugriffService {
@@ -423,6 +513,20 @@ struct VertrauenspersonView: View {
             mvpHeroBereich
 
             vertrauenspersonBereich
+
+            Section("QR-Code-Einladung") {
+                qrCodeBereich
+
+                if !kontaktIstAusgewaehlt {
+                    Text("Wähle zuerst eine Vertrauensperson aus den Kontakten aus.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else if bereinigteEmail.isEmpty {
+                    Text("Für den QR-Code benötigt die Vertrauensperson eine hinterlegte E-Mail-Adresse.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             // MARK: - Nicht im MVP Scope
             // Die bestehenden Einladungs-, QR-, Status-, Zugriffs- und Testbereiche
@@ -1030,13 +1134,14 @@ struct VertrauenspersonView: View {
             )
 
             Text(
-                "Am einfachsten ist es, wenn deine Vertrauensperson gerade bei dir ist und den QR-Code direkt mit der iPhone-Kamera scannt."
+                "Deine Vertrauensperson muss die Tschlüssli App auf ihrem iPhone ebenfalls istalliert haben. Wichtig dabei ist, dass sie die gleiche E-Mailadresse benutzt wie du sie unter Vertrauensperson hinterlegt hast."
             )
             .font(.footnote)
             .foregroundStyle(.secondary)
 
             if qrCodeAnzeigen,
                !sichererEinladungsLink.isEmpty {
+
                 VStack(
                     alignment: .center,
                     spacing: 14
@@ -1615,14 +1720,29 @@ struct VertrauenspersonView: View {
             return
         }
 
-        qrCodeAnzeigen = true
+        guard let token = einladungsToken,
+              let dossierID = aktivesDossierUUID else { return }
 
+        qrCodeAnzeigen = true
         einladungsHistorieEintragHinzufuegen(
             "QR-Code für \(kontaktAnzeigename) wurde erstellt."
         )
-
         erfolgsmeldung =
-        "QR-Code wurde erstellt. Deine Vertrauensperson kann ihn mit der iPhone-Kamera scannen."
+            "QR-Code wurde erstellt. Die sichere Push-Einladung wird registriert."
+
+        Task {
+            do {
+                try await PushEinladungsService.shared.einladungRegistrieren(
+                    token: token,
+                    dossierID: dossierID,
+                    email: empfaengerEmail
+                )
+                erfolgsmeldung =
+                    "QR-Code wurde erstellt. Deine Vertrauensperson kann ihn mit der iPhone-Kamera scannen."
+            } catch {
+                fehlermeldung = "Der QR-Code wurde erstellt, aber die Push-Einladung konnte noch nicht registriert werden: \(error.localizedDescription). Bitte versuche es erneut."
+            }
+        }
     }
 
     private func qrCodeBild(
@@ -1863,7 +1983,7 @@ struct VertrauenspersonView: View {
     ) {
         if let einladungsToken {
             einladungsEmail =
-            einladungsEmail ?? empfaengerEmail
+            empfaengerEmail
 
             einladungsLinkErstelltAm =
             einladungsLinkErstelltAm ?? Date()

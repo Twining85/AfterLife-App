@@ -11,6 +11,7 @@ import UIKit
 
 @main
 struct TschluessliApp: App {
+    @UIApplicationDelegateAdaptor(PushAppDelegate.self) private var pushAppDelegate
     var sharedModelContainer: ModelContainer = {
         LokaleSicherheitsMigration.ausfuehren()
 
@@ -94,6 +95,9 @@ struct AppStartView: View {
     @AppStorage("eingehendeEinladungsURL")
     private var eingehendeEinladungsURL = ""
 
+    @AppStorage("eingehendeEinladungsEmail")
+    private var eingehendeEinladungsEmail = ""
+
     @AppStorage("profilWurdeGeradeGeloescht")
     private var profilWurdeGeradeGeloescht = false
 
@@ -109,6 +113,7 @@ struct AppStartView: View {
     @State private var cloudDatenVersion = UUID()
     @State private var syncAnzeigeStatus: SyncAnzeigeStatus?
     @State private var syncAnzeigeTask: Task<Void, Never>?
+    @State private var neuregistrierungErzwungen = false
 
     // Vor einem Release wieder auf false setzen.
     private let homeDirektStarten = false
@@ -189,6 +194,16 @@ struct AppStartView: View {
         Group {
             if profilWurdeGeradeGeloescht {
                 Deleted {
+                    // Die SwiftData-@Query kann direkt nach der Löschung noch
+                    // einen alten Snapshot liefern. Deshalb den gewünschten
+                    // Ziel-Flow explizit festhalten, statt die Navigation erneut
+                    // aus dem möglicherweise veralteten Profilbestand abzuleiten.
+                    neuregistrierungErzwungen = true
+                    wurdeGeradeAusgeloggt = false
+                    istEingeloggt = false
+                    direktNachRegistrierungEingeloggt = false
+                    profilIstVorhanden = false
+                    gespeicherteEmail = ""
                     profilWurdeGeradeGeloescht = false
                 }
             } else if wurdeGeradeAusgeloggt {
@@ -198,7 +213,7 @@ struct AppStartView: View {
             } else if hatOffeneEinladung {
                 EinladungAngenommen(
                     einladenderName: vorsorgendePersonName,
-                    eingeladeneEmail: "",
+                    eingeladeneEmail: eingehendeEinladungsEmail,
                     einladungsToken:
                         eingehenderEinladungsToken
                 )
@@ -215,6 +230,9 @@ struct AppStartView: View {
                     einladungsToken:
                         "test-token-123"
                 )
+
+            } else if neuregistrierungErzwungen {
+                Registrierung()
 
             } else if istBereitsRegistriert {
                 if istEingeloggt ||
@@ -343,6 +361,7 @@ struct AppStartView: View {
         }
         .onChange(of: istEingeloggt) { _, istJetztEingeloggt in
             guard istJetztEingeloggt else { return }
+            neuregistrierungErzwungen = false
             // `didBecomeActive` kann vor dem abgeschlossenen Face-ID- oder
             // E-Mail-Login eintreffen. Nach erfolgreicher Anmeldung wird der
             // Cloud-Abgleich deshalb nochmals garantiert ausgelöst.
@@ -351,6 +370,7 @@ struct AppStartView: View {
         }
         .onChange(of: direktNachRegistrierungEingeloggt) { _, istJetztEingeloggt in
             guard istJetztEingeloggt else { return }
+            neuregistrierungErzwungen = false
             starteDossierSyncFallsNoetig()
             dossierSyncDienst?.synchronisieren()
         }
@@ -412,6 +432,18 @@ struct AppStartView: View {
             deepLinkFehlermeldung =
                 "Der Einladungslink enthält keinen gültigen Einladungscode."
 
+            deepLinkFehlerAnzeigen = true
+            return
+        }
+
+        do {
+            eingehendeEinladungsEmail = try EinladungsQRPayload.email(
+                aus: url,
+                token: token
+            ) ?? ""
+        } catch {
+            deepLinkFehlermeldung =
+                "Die verschlüsselte Identitätsinformation des QR-Codes ist ungültig oder wurde verändert."
             deepLinkFehlerAnzeigen = true
             return
         }

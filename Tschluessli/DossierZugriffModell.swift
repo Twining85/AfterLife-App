@@ -10,6 +10,7 @@ import SwiftData
 
 enum DossierZugriffStatus {
     static let erstellt = "erstellt"
+    static let bestaetigungAusstehend = "bestaetigung_ausstehend"
     static let angenommen = "angenommen"
     static let abgelehnt = "abgelehnt"
     static let freigegeben = "freigegeben"
@@ -153,11 +154,17 @@ final class DossierZugriffModell {
         einladungAlsVerwendetMarkieren()
     }
 
+    func bestaetigungAnfragen(vertrauenspersonUserID: UUID, registrierungsEmail: String) {
+        self.vertrauenspersonUserID = vertrauenspersonUserID
+        self.registrierungsEmail = registrierungsEmail
+        status = DossierZugriffStatus.bestaetigungAusstehend
+        aktualisiertAm = Date()
+    }
+
     func einladungAblehnen(registrierungsEmail: String? = nil) {
         status = DossierZugriffStatus.abgelehnt
         abgelehntAm = Date()
         angenommenAm = nil
-        vertrauenspersonUserID = nil
         self.registrierungsEmail = registrierungsEmail
         istAktiv = false
         aktualisiertAm = Date()
@@ -273,6 +280,8 @@ final class DossierZugriffModell {
         switch status {
         case DossierZugriffStatus.erstellt:
             return "Eingeladen"
+        case DossierZugriffStatus.bestaetigungAusstehend:
+            return "Bestätigung ausstehend"
         case DossierZugriffStatus.angenommen:
             return "Angenommen"
         case DossierZugriffStatus.abgelehnt:

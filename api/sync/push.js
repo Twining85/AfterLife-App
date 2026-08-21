@@ -3,6 +3,7 @@ import { withUserTransaction } from "../_database.js";
 import { requireJSON, requireMethod, secureResponse } from "../_security.js";
 import { parseMutation } from "../_sync-contract.js";
 import { applySectionMutation } from "../_sync-repository.js";
+import { handleInvitationOperation } from "../_invitation-handler.js";
 
 export default async function handler(req, res) {
   secureResponse(res);
@@ -10,6 +11,9 @@ export default async function handler(req, res) {
 
   const user = await authenticatedUser(req);
   if (!user) return res.status(401).json({ error: "Anmeldung erforderlich" });
+
+  const operation = String(req.query?.operation || "");
+  if (operation) return handleInvitationOperation(operation, req, res, user);
 
   try {
     const mutation = parseMutation(req.body, req.headers?.["idempotency-key"]);
