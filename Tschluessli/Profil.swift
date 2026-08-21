@@ -111,6 +111,8 @@ struct ProfilView: View {
     @AppStorage("profilbildData") private var profilbildData: Data?
 
     @State private var profilLoeschenBestaetigen = false
+    @State private var profilLoeschungLaeuft = false
+    @State private var profilLoeschenFehlermeldung = ""
 
     @State private var dossierPDF: ExportiertesDossier?
     @State private var dossierExportSheetAnzeigen = false
@@ -535,15 +537,24 @@ struct ProfilView: View {
                 Button("Abbrechen", role: .cancel) { }
 
                 Button("Ja, löschen", role: .destructive) {
-
-                    profilLoeschen()
-
+                    Task { await profilLoeschen() }
                 }
 
             } message: {
 
                 Text("Alle Daten werden unwiderruflich gelöscht.")
 
+            }
+            .alert(
+                "Profil konnte nicht gelöscht werden",
+                isPresented: Binding(
+                    get: { !profilLoeschenFehlermeldung.isEmpty },
+                    set: { if !$0 { profilLoeschenFehlermeldung = "" } }
+                )
+            ) {
+                Button("OK", role: .cancel) { profilLoeschenFehlermeldung = "" }
+            } message: {
+                Text(profilLoeschenFehlermeldung)
             }
             .sheet(item: $dossierPDF) { dossier in
 
@@ -953,8 +964,21 @@ struct ProfilView: View {
         VorsorgeBereichStatusStore.markiereBearbeitet(.profil)
     }
 
-    private func profilLoeschen() {
+    @MainActor
+    private func profilLoeschen() async {
         guard dossierKontext.kannLoeschen else { return }
+        guard !profilLoeschungLaeuft else { return }
+        profilLoeschungLaeuft = true
+        defer { profilLoeschungLaeuft = false }
+
+        do {
+            // Erst nach bestätigter Cloud-Löschung lokal aufräumen. Andernfalls
+            // wäre das Konto für den Benutzer nur scheinbar gelöscht.
+            try await CloudKontoService.shared.kontoUnwiderruflichLoeschen()
+        } catch {
+            profilLoeschenFehlermeldung = error.localizedDescription
+            return
+        }
 
         let keychainKonten = Set(
             gespeicherteProfile
@@ -1011,11 +1035,9 @@ struct ProfilView: View {
         try? modelContext.save()
 
         keychainKonten.forEach { konto in
-            try? KeychainHelper.shared.delete(
-                service: "Tschluessli.Login",
-                account: konto
-            )
+            try? KeychainHelper.shared.delete(service: "Tschluessli.Login", account: konto)
         }
+        await CloudKontoService.shared.alleLokalenKontoschluesselLoeschen()
 
         NotificationService.shared.jaehrlicheDossierPruefungEntfernen()
 

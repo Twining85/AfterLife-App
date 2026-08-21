@@ -54,6 +54,41 @@ actor CloudKontoService {
         }
     }
 
+    func kontoUnwiderruflichLoeschen() async throws {
+        let token = try await sitzungsToken()
+        var request = URLRequest(
+            url: CloudAPIKonfiguration.basisURL.appending(path: "api/accounts/delete")
+        )
+        request.httpMethod = "DELETE"
+        request.timeoutInterval = 20
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (daten, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw CloudKontoFehler.ungueltigeAntwort
+        }
+        guard http.statusCode == 204 else {
+            let serverFehler = try? JSONDecoder().decode(ServerFehler.self, from: daten)
+            throw CloudKontoFehler.server(
+                serverFehler?.error ?? "Das Cloud-Konto konnte nicht gelöscht werden."
+            )
+        }
+    }
+
+    /// Bereinigt alle kontoübergreifenden Alt-Einträge. Die aktuelle Sitzung
+    /// bleibt erhalten, damit dieser Aufruf direkt nach der Registrierung sicher ist.
+    func lokaleAltlastenFuerNeuregistrierungLoeschen() async {
+        await CloudFeldVerschluesselung.shared.lokaleSchluesselVollstaendigLoeschen()
+        await MainActor.run {
+            try? KeychainHelper.shared.deleteAll(service: "Tschluessli.Login")
+        }
+    }
+
+    func alleLokalenKontoschluesselLoeschen() async {
+        await lokaleAltlastenFuerNeuregistrierungLoeschen()
+        await lokaleSitzungLoeschen()
+    }
+
     func registrieren(email: String, passwort: String, registrierungsGrant: String) async throws -> CloudKontoSitzung {
         let antwort: KontoAntwort = try await sende(
             pfad: "api/accounts/register",

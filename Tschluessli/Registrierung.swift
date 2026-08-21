@@ -771,6 +771,10 @@ struct Registrierung: View {
                     passwort: bereinigtesPasswort,
                     registrierungsGrant: registrierungsGrant
                 )
+                // Eine App-Deinstallation entfernt Keychain-Einträge nicht zuverlässig.
+                // Vor dem ersten Sync des neuen Kontos dürfen deshalb weder ein alter
+                // Dossier-Schlüssel noch ein altes Recovery-Paket vorhanden sein.
+                await CloudKontoService.shared.lokaleAltlastenFuerNeuregistrierungLoeschen()
                 speichereRegistrierungsdaten(
                     art: "E-Mail",
                     email: bereinigteEmail,

@@ -169,9 +169,15 @@ actor CloudFeldVerschluesselung {
 
     func neuesDossierVorbereiten() async {
         await MainActor.run {
-            try? KeychainHelper.shared.delete(service: service, account: account)
-            try? KeychainHelper.shared.delete(service: service, account: recoveryAccount)
+            try? KeychainHelper.shared.deleteAll(service: service)
         }
+    }
+
+    /// Entfernt sämtliche lokal verbliebenen Dossier- und Recovery-Schlüssel.
+    /// Die Einträge sind aus Kompatibilitätsgründen noch nicht an eine User-ID
+    /// gebunden und können eine App-Deinstallation überleben.
+    func lokaleSchluesselVollstaendigLoeschen() async {
+        await neuesDossierVorbereiten()
     }
 
     /// Richtet eine neue App-Installation für die Wiederherstellung ein. Ein
