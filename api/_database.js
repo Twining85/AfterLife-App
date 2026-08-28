@@ -40,3 +40,8 @@ export async function withUserTransaction(userID, operation) {
 export function resetDatabasePoolForTests() {
   pool = undefined;
 }
+
+export function setDatabasePoolForTests(testPool) {
+  if (process.env.NODE_ENV !== "test") throw new Error("Test-Datenbank darf nur in Tests gesetzt werden");
+  pool = testPool;
+}

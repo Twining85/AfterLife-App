@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createSessionToken, hashPassword, hashSessionToken, verifyPassword } from "../api/_auth.js";
+import {
+  createRefreshToken,
+  createSessionToken,
+  hashPassword,
+  hashSessionToken,
+  refreshSession,
+  verifyPassword
+} from "../api/_auth.js";
 import { changePasswordForUser } from "../api/accounts/change-password.js";
 import { resetPassword } from "../api/accounts/password-reset/confirm.js";
 import { createChallenge } from "../api/email-verification/_challenge.js";
@@ -18,6 +25,53 @@ test("erzeugt und hasht zufällige Session-Tokens", () => {
   assert.match(first, /^[A-Za-z0-9_-]{43}$/);
   assert.notEqual(first, second);
   assert.match(hashSessionToken(first), /^[0-9a-f]{64}$/);
+});
+
+test("erneuert eine Sitzung mit einem einmaligen rotierenden Refresh-Token", async () => {
+  const refreshToken = createRefreshToken();
+  const queries = [];
+  const client = {
+    async query(sql, params = []) {
+      queries.push({ sql, params });
+      if (sql.includes("FROM user_sessions")) {
+        return { rows: [{ id: "session-id", user_id: "user-id" }] };
+      }
+      return { rows: [] };
+    },
+    release() {}
+  };
+
+  const renewed = await refreshSession(refreshToken, {
+    async connect() { return client; }
+  });
+
+  assert.equal(renewed.userID, "user-id");
+  assert.match(renewed.token, /^[A-Za-z0-9_-]{43}$/);
+  assert.match(renewed.refreshToken, /^[A-Za-z0-9_-]{86}$/);
+  assert.notEqual(renewed.refreshToken, refreshToken);
+  const update = queries.find(({ sql }) => sql.includes("UPDATE user_sessions"));
+  assert.ok(update);
+  assert.equal(update.params[2], hashSessionToken(renewed.refreshToken));
+  assert.equal(queries.at(-1).sql, "COMMIT");
+});
+
+test("lehnt einen unbekannten Refresh-Token ab", async () => {
+  const queries = [];
+  const client = {
+    async query(sql) {
+      queries.push(sql);
+      if (sql.includes("FROM user_sessions")) return { rows: [] };
+      return { rows: [] };
+    },
+    release() {}
+  };
+
+  const renewed = await refreshSession(createRefreshToken(), {
+    async connect() { return client; }
+  });
+
+  assert.equal(renewed, null);
+  assert.equal(queries.at(-1), "ROLLBACK");
 });
 
 test("lehnt zu kurze Passwörter ab", async () => {

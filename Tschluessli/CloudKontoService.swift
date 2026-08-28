@@ -18,12 +18,15 @@ struct PasswortResetChallenge: Sendable {
 
 enum CloudKontoFehler: LocalizedError {
     case ungueltigeAntwort
+    case erneuteAnmeldungErforderlich
     case server(String)
 
     var errorDescription: String? {
         switch self {
         case .ungueltigeAntwort:
             return "Der Server hat unerwartet geantwortet."
+        case .erneuteAnmeldungErforderlich:
+            return "Bitte melde dich einmalig mit E-Mail und Passwort an. Danach kann Face ID deine Sitzung sicher erneuern."
         case .server(let meldung):
             return meldung
         }
@@ -35,6 +38,7 @@ actor CloudKontoService {
 
     private let keychainService = "Tschluessli.CloudSession"
     private let keychainAccount = "current"
+    private let refreshKeychainAccount = "refresh"
 
     func sitzungsToken() async throws -> String {
         try await MainActor.run {
@@ -51,7 +55,55 @@ actor CloudKontoService {
                 service: keychainService,
                 account: keychainAccount
             )
+            try? KeychainHelper.shared.delete(
+                service: keychainService,
+                account: refreshKeychainAccount
+            )
         }
+    }
+
+    func sitzungErneuern() async throws {
+        let refreshToken: String
+        do {
+            refreshToken = try await MainActor.run {
+                try KeychainHelper.shared.read(
+                    service: keychainService,
+                    account: refreshKeychainAccount
+                )
+            }
+        } catch {
+            throw CloudKontoFehler.erneuteAnmeldungErforderlich
+        }
+
+        var request = URLRequest(
+            url: CloudAPIKonfiguration.basisURL.appending(path: "api/accounts/login")
+        )
+        request.httpMethod = "POST"
+        request.timeoutInterval = 20
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(RefreshAnfrage(
+            action: "refresh-session",
+            refreshToken: refreshToken
+        ))
+
+        let (daten, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw CloudKontoFehler.ungueltigeAntwort
+        }
+        if http.statusCode == 401 {
+            throw CloudKontoFehler.erneuteAnmeldungErforderlich
+        }
+        guard (200..<300).contains(http.statusCode),
+              let antwort = try? JSONDecoder().decode(RefreshAntwort.self, from: daten) else {
+            let serverFehler = try? JSONDecoder().decode(ServerFehler.self, from: daten)
+            throw CloudKontoFehler.server(
+                serverFehler?.error ?? "Die Sitzung konnte nicht erneuert werden."
+            )
+        }
+        try await speichereToken(
+            sitzungsToken: antwort.sessionToken,
+            refreshToken: antwort.refreshToken
+        )
     }
 
     func kontoUnwiderruflichLoeschen() async throws {
@@ -195,19 +247,31 @@ actor CloudKontoService {
               let gueltigBis = Self.iso8601Datum(antwort.expiresAt) else {
             throw CloudKontoFehler.ungueltigeAntwort
         }
-        try await MainActor.run {
-            try KeychainHelper.shared.save(
-                antwort.sessionToken,
-                service: keychainService,
-                account: keychainAccount
-            )
-        }
+        try await speichereToken(
+            sitzungsToken: antwort.sessionToken,
+            refreshToken: antwort.refreshToken
+        )
         return CloudKontoSitzung(
             userID: userID,
             dossierID: antwort.dossierID.flatMap(UUID.init(uuidString:)),
             token: antwort.sessionToken,
             gueltigBis: gueltigBis
         )
+    }
+
+    private func speichereToken(sitzungsToken: String, refreshToken: String) async throws {
+        try await MainActor.run {
+            try KeychainHelper.shared.save(
+                refreshToken,
+                service: keychainService,
+                account: refreshKeychainAccount
+            )
+            try KeychainHelper.shared.save(
+                sitzungsToken,
+                service: keychainService,
+                account: keychainAccount
+            )
+        }
     }
 
     private static func iso8601Datum(_ wert: String) -> Date? {
@@ -226,6 +290,17 @@ private nonisolated struct RegistrierungsAnfrage: Encodable {
 private nonisolated struct LoginAnfrage: Encodable {
     let email: String
     let password: String
+}
+
+private nonisolated struct RefreshAnfrage: Encodable {
+    let action: String
+    let refreshToken: String
+}
+private nonisolated struct RefreshAntwort: Decodable {
+    let sessionToken: String
+    let expiresAt: String
+    let refreshToken: String
+    let refreshExpiresAt: String
 }
 
 private nonisolated struct PasswortAendernAnfrage: Encodable {
@@ -249,6 +324,8 @@ private nonisolated struct KontoAntwort: Decodable {
     let dossierID: String?
     let sessionToken: String
     let expiresAt: String
+    let refreshToken: String
+    let refreshExpiresAt: String
 }
 
 private nonisolated struct ServerFehler: Decodable {

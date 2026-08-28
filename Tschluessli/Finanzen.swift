@@ -6,6 +6,7 @@ import Foundation
 import QuickLook
 
 struct FinanzenView: View {
+    var dossierKontext: DossierKontext = .eigenesDossier(dossierID: UUID())
     @Environment(\.modelContext) private var modelContext
     @Query private var gespeicherteBankkonten: [BankkontoModell]
     @Query private var gespeicherteSchulden: [SchuldenModell]
@@ -215,25 +216,29 @@ struct FinanzenView: View {
                         VStack(spacing: 12) {
                             content()
                         }
+                        .disabled(dossierKontext.istReadOnly)
                         .padding(.top, 10)
                     }
                 } else {
                     VStack(spacing: 12) {
                         content()
                     }
+                    .disabled(dossierKontext.istReadOnly)
                 }
 
-                Button(action: addAction) {
-                    Image(systemName: "plus")
-                        .font(.title2.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 42, height: 42)
-                        .background(Circle().fill(finanzenAkzentFarbe))
-                        .shadow(color: finanzenAkzentFarbe.opacity(0.22), radius: 6, x: 0, y: 3)
+                if dossierKontext.kannBearbeiten {
+                    Button(action: addAction) {
+                        Image(systemName: "plus")
+                            .font(.title2.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 42, height: 42)
+                            .background(Circle().fill(finanzenAkzentFarbe))
+                            .shadow(color: finanzenAkzentFarbe.opacity(0.22), radius: 6, x: 0, y: 3)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Neuen Eintrag hinzufügen")
                 }
-                .frame(maxWidth: .infinity)
-                .buttonStyle(.plain)
-                .accessibilityLabel("Neuen Eintrag hinzufügen")
 
                 if let totalTitle, let totalValue, totalValue > 0 {
                     Divider()
@@ -282,7 +287,8 @@ struct FinanzenView: View {
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                HStack(spacing: 10) {
+                if dossierKontext.kannDokumenteHochladen {
+                    HStack(spacing: 10) {
                     Button {
                         hasOldTaxReturn = true
                         showOldTaxReturnImporter = true
@@ -324,6 +330,7 @@ struct FinanzenView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Steuerdokument scannen")
+                    }
                 }
 
                 if oldTaxReturnFileName.isEmpty {
@@ -356,14 +363,16 @@ struct FinanzenView: View {
                             .foregroundStyle(finanzenAkzentFarbe)
                             .accessibilityLabel("Steuerdokument ansehen")
 
-                            Button(role: .destructive) {
-                                loescheSteuerdokument()
-                            } label: {
-                                Label("Entfernen", systemImage: "trash")
-                                    .font(.caption.weight(.semibold))
+                            if dossierKontext.kannLoeschen {
+                                Button(role: .destructive) {
+                                    loescheSteuerdokument()
+                                } label: {
+                                    Label("Entfernen", systemImage: "trash")
+                                        .font(.caption.weight(.semibold))
+                                }
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel("Steuerdokument entfernen")
                             }
-                            .buttonStyle(.borderless)
-                            .accessibilityLabel("Steuerdokument entfernen")
                         }
                     }
                     .padding(12)
@@ -458,6 +467,7 @@ struct FinanzenView: View {
                     finanzenHero
 
                     finanzenBereichChips
+                        .disabled(dossierKontext.istReadOnly)
 
                     if zeigtBereich(.konten) {
                         finanzSection(
@@ -702,7 +712,7 @@ struct FinanzenView: View {
                 }
             }
         }
-        .dossierFloatingNavigation(.finanzen)
+        .dossierFloatingNavigation(.finanzen, dossierKontext: dossierKontext)
     }
     private var bankEntryList: some View {
         ForEach(Array($bankEntries.enumerated()), id: \.element.id) { index, $bankEntry in
@@ -1040,6 +1050,7 @@ struct FinanzenSwipeToDeleteRow<Content: View>: View {
         guard !finanzenGeladen else { return }
 
         bankEntries = gespeicherteBankkonten
+            .filter { $0.dossierID == zielDossierID || (dossierKontext.istEigenesDossier && $0.dossierID == nil) }
             .sorted { $0.erstelltAm < $1.erstelltAm }
             .map { konto in
                 BankEntry(
@@ -1055,6 +1066,7 @@ struct FinanzenSwipeToDeleteRow<Content: View>: View {
             }
 
         debts = gespeicherteSchulden
+            .filter { $0.dossierID == zielDossierID || (dossierKontext.istEigenesDossier && $0.dossierID == nil) }
             .sorted { $0.erstelltAm < $1.erstelltAm }
             .map { schuld in
                 DebtEntry(
@@ -1067,6 +1079,7 @@ struct FinanzenSwipeToDeleteRow<Content: View>: View {
             }
 
         insuranceEntries = gespeicherteVersicherungen
+            .filter { $0.dossierID == zielDossierID || (dossierKontext.istEigenesDossier && $0.dossierID == nil) }
             .sorted { $0.erstelltAm < $1.erstelltAm }
             .map { versicherung in
                 InsuranceEntry(
@@ -1081,6 +1094,7 @@ struct FinanzenSwipeToDeleteRow<Content: View>: View {
             }
 
         propertyEntries = gespeicherteLiegenschaften
+            .filter { $0.dossierID == zielDossierID || (dossierKontext.istEigenesDossier && $0.dossierID == nil) }
             .sorted { $0.erstelltAm < $1.erstelltAm }
             .map { liegenschaft in
                 PropertyEntry(
@@ -1094,6 +1108,7 @@ struct FinanzenSwipeToDeleteRow<Content: View>: View {
             }
 
         valuableEntries = gespeicherteWertsachen
+            .filter { $0.dossierID == zielDossierID || (dossierKontext.istEigenesDossier && $0.dossierID == nil) }
             .sorted { $0.erstelltAm < $1.erstelltAm }
             .map { wertsache in
                 ValuableEntry(
@@ -1105,7 +1120,9 @@ struct FinanzenSwipeToDeleteRow<Content: View>: View {
                 )
             }
 
-        if let steuerdokument = gespeicherteSteuerdokumente.sorted(by: { $0.hochgeladenAm < $1.hochgeladenAm }).last {
+        if let steuerdokument = (gespeicherteSteuerdokumente
+            .filter { $0.dossierID == zielDossierID || (dossierKontext.istEigenesDossier && $0.dossierID == nil) }
+            .sorted(by: { $0.hochgeladenAm < $1.hochgeladenAm })).last {
             hasOldTaxReturn = !steuerdokument.dateiName.isEmpty
             oldTaxReturnFileName = steuerdokument.dateiName
             oldTaxReturnFilePath = steuerdokument.dokumentPfad
@@ -1116,6 +1133,7 @@ struct FinanzenSwipeToDeleteRow<Content: View>: View {
     }
 
     private func speichereFinanzenInSwiftData() {
+        guard dossierKontext.kannBearbeiten else { return }
         guard finanzenGeladen else { return }
 
         speichereBankkonten()
@@ -1294,7 +1312,8 @@ struct FinanzenSwipeToDeleteRow<Content: View>: View {
     }
 
     private var zielDossierID: UUID? {
-        UUID(uuidString: aktivesDossierID)
+        if dossierKontext.istFreigegebenesDossier { return dossierKontext.dossierID }
+        return UUID(uuidString: aktivesDossierID) ?? dossierKontext.dossierID
     }
 
     private func importiereSteuerdokument(_ sourceURL: URL) {

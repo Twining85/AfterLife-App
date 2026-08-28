@@ -5,6 +5,7 @@ import SwiftData
 
 
 struct GesundheitView: View {
+    var dossierKontext: DossierKontext = .eigenesDossier(dossierID: UUID())
     @State private var ausgewaehlterHausarztKontaktID = ""
     @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
 #if canImport(SwiftData)
@@ -61,8 +62,8 @@ struct GesundheitView: View {
             VStack(alignment: .leading, spacing: 22) {
                 heroBereich
                 if let _ = datensatz {
-                    hausarztBereich
-                    medizinischeInformationenBereich
+                    hausarztBereich.disabled(dossierKontext.istReadOnly)
+                    medizinischeInformationenBereich.disabled(dossierKontext.istReadOnly)
                     vorsorgedokumenteBereich
                 }
                 hinweisBereich
@@ -76,21 +77,24 @@ struct GesundheitView: View {
         .navigationBarTitleDisplayMode(.large)
         .onAppear {
             if datensatz == nil {
-                if let vorhanden = gesundheitDatensaetze.first {
-                    if vorhanden.dossierID == nil {
-                        vorhanden.dossierID = UUID(uuidString: aktivesDossierID)
+                if let vorhanden = gesundheitDatensaetze.first(where: { $0.dossierID == zielDossierID })
+                    ?? (dossierKontext.istEigenesDossier
+                        ? gesundheitDatensaetze.first(where: { $0.dossierID == nil })
+                        : nil) {
+                    if vorhanden.dossierID == nil && dossierKontext.istEigenesDossier {
+                        vorhanden.dossierID = zielDossierID
                         try? modelContext.save()
                     }
                     datensatz = vorhanden
-                } else {
-                    let neu = GesundheitModell(dossierID: UUID(uuidString: aktivesDossierID))
+                } else if dossierKontext.istEigenesDossier {
+                    let neu = GesundheitModell(dossierID: zielDossierID)
                     modelContext.insert(neu)
                     try? modelContext.save()
                     datensatz = neu
                 }
             }
         }
-        .dossierFloatingNavigation(.gesundheit)
+        .dossierFloatingNavigation(.gesundheit, dossierKontext: dossierKontext)
 
 #else
         ScrollView {
@@ -108,8 +112,13 @@ struct GesundheitView: View {
         .background(Color(.systemBackground))
         .navigationTitle("Gesundheit")
         .navigationBarTitleDisplayMode(.large)
-        .dossierFloatingNavigation(.gesundheit)
+        .dossierFloatingNavigation(.gesundheit, dossierKontext: dossierKontext)
 #endif
+    }
+
+    private var zielDossierID: UUID {
+        if dossierKontext.istFreigegebenesDossier { return dossierKontext.dossierID }
+        return UUID(uuidString: aktivesDossierID) ?? dossierKontext.dossierID
     }
 
     private var heroBereich: some View {
@@ -551,9 +560,9 @@ struct GesundheitView: View {
                     }
 
                     NavigationLink {
-                        WuenscheView()
+                        WuenscheView(dossierKontext: dossierKontext)
                     } label: {
-                        Text("In «Meine Wünsche» bearbeiten")
+                        Text(dossierKontext.istReadOnly ? "In «Meine Wünsche» anzeigen" : "In «Meine Wünsche» bearbeiten")
                             .font(.headline.weight(.semibold))
                             .frame(maxWidth: .infinity)
                     }
@@ -582,9 +591,9 @@ struct GesundheitView: View {
                     }
 
                     NavigationLink {
-                        WuenscheView()
+                        WuenscheView(dossierKontext: dossierKontext)
                     } label: {
-                        Text("In «Meine Wünsche» bearbeiten")
+                        Text(dossierKontext.istReadOnly ? "In «Meine Wünsche» anzeigen" : "In «Meine Wünsche» bearbeiten")
                             .font(.headline.weight(.semibold))
                             .frame(maxWidth: .infinity)
                     }

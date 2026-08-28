@@ -78,7 +78,7 @@ actor DossierSyncTransport {
             throw SyncVerarbeitungsFehler.temporaer("Der Sync-Server ist nicht erreichbar.")
         }
         if http.statusCode == 401 {
-            throw SyncVerarbeitungsFehler.authentifizierung("Die Cloud-Anmeldung ist abgelaufen.")
+            throw SyncVerarbeitungsFehler.authentifizierung("Deine Tschlüssli-Anmeldung ist abgelaufen.")
         }
         if http.statusCode == 409 {
             throw SyncVerarbeitungsFehler.konflikt("Dieser Bereich wurde auf einem anderen Gerät geändert.")
@@ -113,7 +113,7 @@ actor DossierSyncTransport {
             throw SyncVerarbeitungsFehler.temporaer("Der Sync-Server ist nicht erreichbar.")
         }
         if http.statusCode == 401 {
-            throw SyncVerarbeitungsFehler.authentifizierung("Die Cloud-Anmeldung ist abgelaufen.")
+            throw SyncVerarbeitungsFehler.authentifizierung("Deine Tschlüssli-Anmeldung ist abgelaufen.")
         }
         guard (200..<300).contains(http.statusCode) else {
             throw SyncVerarbeitungsFehler.temporaer(Self.serverMeldung(aus: daten))

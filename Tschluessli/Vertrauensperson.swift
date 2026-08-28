@@ -113,6 +113,9 @@ struct VertrauenspersonView: View {
     @AppStorage("direktNachRegistrierungEingeloggt")
     private var direktNachRegistrierungEingeloggt = false
 
+    @AppStorage("istEingeloggt")
+    private var istEingeloggt = false
+
     @AppStorage("gespeicherteEmail")
     private var gespeicherteEmail = ""
 
@@ -167,7 +170,9 @@ struct VertrauenspersonView: View {
 
     @State private var fehlermeldung = ""
     @State private var erfolgsmeldung = ""
+    @State private var cloudAnmeldungErforderlich = false
     @State private var datenGeladen = false
+    @State private var kontaktLoeschungLaeuft = false
 
     @State private var einladungsToken: String?
     @State private var einladungsEmail: String?
@@ -547,6 +552,14 @@ struct VertrauenspersonView: View {
         )
         .navigationTitle("Vertrauensperson")
         .tint(akzentFarbe)
+        .alert("Tschlüssli-Anmeldung abgelaufen", isPresented: $cloudAnmeldungErforderlich) {
+            Button("Erneut anmelden") {
+                direktNachRegistrierungEingeloggt = false
+                istEingeloggt = false
+            }
+        } message: {
+            Text("Bitte melde dich erneut bei Tschlüssli an und erzeuge danach einen neuen QR-Code.")
+        }
         // MARK: - Nicht im MVP Scope: Einladung simulieren
         /*
         .fullScreenCover(
@@ -960,11 +973,13 @@ struct VertrauenspersonView: View {
                 ) {
                     kontaktLoeschen()
                 } label: {
-                    Label(
-                        "Kontakt entfernen",
-                        systemImage: "trash"
-                    )
+                    if kontaktLoeschungLaeuft {
+                        ProgressView("Zugriff wird entfernt …")
+                    } else {
+                        Label("Kontakt entfernen", systemImage: "trash")
+                    }
                 }
+                .disabled(kontaktLoeschungLaeuft)
             } else {
                 Text(
                     "Es ist noch keine Vertrauensperson ausgewählt."
@@ -985,6 +1000,7 @@ struct VertrauenspersonView: View {
                 )
             }
         } footer: {
+            /*
             VStack(alignment: .leading, spacing: 10) {
                 Text("Dossierfreigabe")
                     .font(.footnote.weight(.bold))
@@ -999,6 +1015,7 @@ struct VertrauenspersonView: View {
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.top, 6)
+            */
         }
     }
 
@@ -1691,6 +1708,7 @@ struct VertrauenspersonView: View {
     private func qrCodeFuerDossierZugriffGenerieren() {
         fehlermeldung = ""
         erfolgsmeldung = ""
+        qrCodeAnzeigen = false
 
         guard kontaktIstAusgewaehlt else {
             fehlermeldung =
@@ -1706,6 +1724,7 @@ struct VertrauenspersonView: View {
             return
         }
 
+        erneuereEinladungsTokenFallsNoetig()
         stelleEinladungsTokenSicher(
             fuer: empfaengerEmail
         )
@@ -1723,26 +1742,49 @@ struct VertrauenspersonView: View {
         guard let token = einladungsToken,
               let dossierID = aktivesDossierUUID else { return }
 
-        qrCodeAnzeigen = true
-        einladungsHistorieEintragHinzufuegen(
-            "QR-Code für \(kontaktAnzeigename) wurde erstellt."
-        )
         erfolgsmeldung =
-            "QR-Code wurde erstellt. Die sichere Push-Einladung wird registriert."
+            "Sicherer QR-Code wird vorbereitet …"
 
         Task {
             do {
                 try await PushEinladungsService.shared.einladungRegistrieren(
                     token: token,
                     dossierID: dossierID,
-                    email: empfaengerEmail
+                    email: empfaengerEmail,
+                    ownerName: vorsorgendePersonName
+                )
+                qrCodeAnzeigen = true
+                einladungsHistorieEintragHinzufuegen(
+                    "QR-Code für \(kontaktAnzeigename) wurde erstellt."
                 )
                 erfolgsmeldung =
                     "QR-Code wurde erstellt. Deine Vertrauensperson kann ihn mit der iPhone-Kamera scannen."
             } catch {
-                fehlermeldung = "Der QR-Code wurde erstellt, aber die Push-Einladung konnte noch nicht registriert werden: \(error.localizedDescription). Bitte versuche es erneut."
+                erfolgsmeldung = ""
+                if let pushFehler = error as? PushFehler,
+                   case .authentifizierung = pushFehler {
+                    fehlermeldung = "Deine Tschlüssli-Anmeldung ist abgelaufen. Bitte melde dich erneut an."
+                    cloudAnmeldungErforderlich = true
+                } else {
+                    fehlermeldung = "Der QR-Code konnte nicht sicher registriert werden: \(error.localizedDescription). Bitte versuche es erneut."
+                }
             }
         }
+    }
+
+    private func erneuereEinladungsTokenFallsNoetig() {
+        guard einladungsToken != nil else { return }
+        if let zugriff = aktuellerDossierZugriff,
+           zugriff.status != DossierZugriffStatus.angenommen,
+           zugriff.status != DossierZugriffStatus.freigegeben {
+            zugriff.zugriffWiderrufen(
+                notizText: "Durch einen neu erzeugten QR-Code ersetzt."
+            )
+        }
+        einladungsToken = nil
+        einladungsEmail = nil
+        einladungsLinkErstelltAm = nil
+        simulierterEinladungsLink = ""
     }
 
     private func qrCodeBild(
@@ -1907,35 +1949,44 @@ struct VertrauenspersonView: View {
     }
 
     private func kontaktLoeschen() {
-        if let einladungsToken {
-            let bereinigterToken =
-                einladungsToken
-                .trimmingCharacters(
-                    in:
-                        .whitespacesAndNewlines
+        guard !kontaktLoeschungLaeuft else { return }
+        let mussCloudZugriffWiderrufen = einladungsToken != nil || aktuellerDossierZugriff != nil
+        guard mussCloudZugriffWiderrufen,
+              let dossierID = aktivesDossierUUID,
+              !bereinigteEmail.isEmpty else {
+            kontaktLokalLoeschen()
+            return
+        }
+
+        kontaktLoeschungLaeuft = true
+        fehlermeldung = ""
+        Task {
+            do {
+                try await PushEinladungsService.shared.einladungWiderrufen(
+                    dossierID: dossierID,
+                    email: bereinigteEmail
                 )
-
-            let zuLoeschendeZugriffe =
-                gespeicherteDossierZugriffe
-                .filter { zugriff in
-                    let zugriffsToken =
-                        (
-                            zugriff
-                                .einladungsToken ??
-                            ""
-                        )
-                        .trimmingCharacters(
-                            in:
-                                .whitespacesAndNewlines
-                        )
-
-                    return zugriffsToken ==
-                    bereinigterToken
-                }
-
-            for zugriff in zuLoeschendeZugriffe {
-                modelContext.delete(zugriff)
+                kontaktLoeschungLaeuft = false
+                kontaktLokalLoeschen()
+            } catch {
+                kontaktLoeschungLaeuft = false
+                fehlermeldung = "Die Vertrauensperson konnte nicht entfernt werden: \(error.localizedDescription)"
+                erfolgsmeldung = ""
             }
+        }
+    }
+
+    private func kontaktLokalLoeschen() {
+        let zuLoeschendeZugriffe = gespeicherteDossierZugriffe.filter { zugriff in
+            let gleicherToken = einladungsToken.map { zugriff.einladungsToken == $0 } ?? false
+            let gleichesDossier = zugriff.dossierID == aktivesDossierUUID
+            let gleicherEigentuemer = zugriff.vorsorgendeUserID == aktiveUserUUID
+            let gleicheEmail = zugriff.normalisierteEingeladeneEmail == bereinigteEmail
+            return gleicherToken || (gleichesDossier && gleicherEigentuemer && gleicheEmail)
+        }
+
+        for zugriff in zuLoeschendeZugriffe {
+            modelContext.delete(zugriff)
         }
 
         if let vertrauensperson =

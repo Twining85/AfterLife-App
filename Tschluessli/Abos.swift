@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 
 struct AbosView: View {
+    var dossierKontext: DossierKontext = .eigenesDossier(dossierID: UUID())
     @Environment(\.modelContext) private var modelContext
     @Query private var gespeicherteAboModelle: [AboModell]
     @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
@@ -62,6 +63,7 @@ struct AbosView: View {
                             .padding(.top, 20)
 
                         abosTypChips
+                            .disabled(dossierKontext.istReadOnly)
                             .padding(.horizontal, 16)
 
                         if (aktuellesAboModell?.abos.isEmpty ?? true) && ausgewaehlteAboTypen.isEmpty {
@@ -278,13 +280,14 @@ struct AbosView: View {
                             }
                         }
                     }
+                    .disabled(dossierKontext.istReadOnly)
                     .scrollContentBackground(.hidden)
                     .background(abosHintergrundFarbe)
                     .tint(abosAkzentFarbe)
                     .navigationTitle(erfassungsTitel(fuer: sheetKontext.typ))
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
-                            Button("Abbrechen") {
+                            Button(dossierKontext.istReadOnly ? "Fertig" : "Abbrechen") {
                                 showAddAboSheet = false
                                 selectedAbo = nil
                                 selectedAboID = nil
@@ -294,17 +297,19 @@ struct AbosView: View {
                             }
                         }
 
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Speichern") {
-                                saveAbo()
-                                showAddAboSheet = false
-                                selectedAbo = nil
-                                selectedAboID = nil
-                                aboTypDurchSectionVorgegeben = false
-                                sectionAboType = nil
-                                aktiverAboSheetKontext = nil
+                        if dossierKontext.kannBearbeiten {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Speichern") {
+                                    saveAbo()
+                                    showAddAboSheet = false
+                                    selectedAbo = nil
+                                    selectedAboID = nil
+                                    aboTypDurchSectionVorgegeben = false
+                                    sectionAboType = nil
+                                    aktiverAboSheetKontext = nil
+                                }
+                                .disabled(!canSaveAbo)
                             }
-                            .disabled(!canSaveAbo)
                         }
                     }
                 }
@@ -320,7 +325,7 @@ struct AbosView: View {
                 }
             }
         }
-        .dossierFloatingNavigation(.abos)
+        .dossierFloatingNavigation(.abos, dossierKontext: dossierKontext)
     }
 
     private var abosHero: some View {
@@ -557,14 +562,19 @@ struct AbosView: View {
                 )) {
                     VStack(spacing: 12) {
                         ForEach(gruppe.abos) { abo in
-                            AboSwipeToDeleteRow(
-                                deleteAction: {
-                                    loescheAbo(abo)
+                            if dossierKontext.kannLoeschen {
+                                AboSwipeToDeleteRow(
+                                    deleteAction: {
+                                        loescheAbo(abo)
+                                    }
+                                ) {
+                                    aboKarte(abo)
                                 }
-                            ) {
+                                .id(abo.id)
+                            } else {
                                 aboKarte(abo)
+                                    .id(abo.id)
                             }
-                            .id(abo.id)
                         }
                     }
                     .padding(.top, 10)
@@ -573,35 +583,42 @@ struct AbosView: View {
             } else {
                 VStack(spacing: 12) {
                     ForEach(gruppe.abos) { abo in
-                        AboSwipeToDeleteRow(
-                            deleteAction: {
-                                loescheAbo(abo)
+                        if dossierKontext.kannLoeschen {
+                            AboSwipeToDeleteRow(
+                                deleteAction: {
+                                    loescheAbo(abo)
+                                }
+                            ) {
+                                aboKarte(abo)
                             }
-                        ) {
+                            .id(abo.id)
+                        } else {
                             aboKarte(abo)
+                                .id(abo.id)
                         }
-                        .id(abo.id)
                     }
                 }
             }
 
-            HStack {
-                Spacer()
+            if dossierKontext.kannBearbeiten {
+                HStack {
+                    Spacer()
 
-                Button {
-                    starteAboErfassung(fuer: gruppe.typ)
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.title2.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 42, height: 42)
-                        .background(Circle().fill(abosAkzentFarbe))
-                        .shadow(color: abosAkzentFarbe.opacity(0.22), radius: 6, x: 0, y: 3)
+                    Button {
+                        starteAboErfassung(fuer: gruppe.typ)
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.title2.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 42, height: 42)
+                            .background(Circle().fill(abosAkzentFarbe))
+                            .shadow(color: abosAkzentFarbe.opacity(0.22), radius: 6, x: 0, y: 3)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Eintrag hinzufügen")
+
+                    Spacer()
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Eintrag hinzufügen")
-
-                Spacer()
             }
         }
         .padding(16)
@@ -695,7 +712,7 @@ struct AbosView: View {
     private func ladeSelectedAboDetailsFallsVorhanden() {
         guard let selectedAboID else { return }
 
-        let alleAbos = gespeicherteAboModelle.flatMap { $0.abos }
+        let alleAbos = aktuellesAboModell?.abos ?? []
         guard let aktuellesAbo = alleAbos.first(where: { $0.id == selectedAboID }) ?? selectedAbo else { return }
 
         selectedAbo = aktuellesAbo
@@ -786,9 +803,10 @@ struct AbosView: View {
     }
 
     private func saveAbo() {
+        guard dossierKontext.kannBearbeiten else { return }
         guard let aboModell = aktuellesAboModell else { return }
 
-        let alleAbos = gespeicherteAboModelle.flatMap { $0.abos }
+        let alleAbos = aktuellesAboModell?.abos ?? []
         let istNeuerEintrag = selectedAboID == nil && selectedAbo == nil
 
         if let sectionAboType {
@@ -1061,16 +1079,19 @@ struct AbosView: View {
     }
 
     private var alleAboEintraege: [AboEintrag] {
-        gespeicherteAboModelle.flatMap { $0.abos }
+        aktuellesAboModell?.abos ?? []
     }
 
     private var aktuellesAboModell: AboModell? {
         gespeicherteAboModelle.first(where: { $0.dossierID == zielDossierID })
-            ?? gespeicherteAboModelle.first(where: { $0.dossierID == nil })
+            ?? (dossierKontext.istEigenesDossier
+                ? gespeicherteAboModelle.first(where: { $0.dossierID == nil })
+                : nil)
     }
 
     private var zielDossierID: UUID? {
-        UUID(uuidString: aktivesDossierID)
+        if dossierKontext.istFreigegebenesDossier { return dossierKontext.dossierID }
+        return UUID(uuidString: aktivesDossierID) ?? dossierKontext.dossierID
     }
 
     private var mobileInternetProviderWert: String {
@@ -1181,7 +1202,7 @@ struct AbosView: View {
         wurdeInitialisiert = true
 
         if let vorhandenesModell = aktuellesAboModell {
-            if vorhandenesModell.dossierID == nil {
+            if vorhandenesModell.dossierID == nil && dossierKontext.istEigenesDossier {
                 vorhandenesModell.dossierID = zielDossierID
                 vorhandenesModell.abos.forEach { $0.dossierID = zielDossierID }
                 speichereAenderung(istBenutzeraktion: false)
@@ -1189,12 +1210,14 @@ struct AbosView: View {
             return
         }
 
+        guard dossierKontext.istEigenesDossier else { return }
         let neuesModell = AboModell(dossierID: zielDossierID)
         modelContext.insert(neuesModell)
         speichereAenderung(istBenutzeraktion: false)
     }
 
     private func speichereAenderung(istBenutzeraktion: Bool = true) {
+        guard dossierKontext.kannBearbeiten else { return }
         do {
             try modelContext.save()
             if istBenutzeraktion {
@@ -1206,6 +1229,7 @@ struct AbosView: View {
     }
 
     private func loescheAbo(_ abo: AboEintrag) {
+        guard dossierKontext.kannLoeschen else { return }
         guard let aboModell = aktuellesAboModell else { return }
 
         if let index = aboModell.abos.firstIndex(where: { $0.id == abo.id }) {

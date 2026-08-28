@@ -436,12 +436,12 @@ struct ReloginEinladung: View {
             localizedReason: "Melde dich sicher mit Face ID bei Tschlüssli an."
         ) { success, authenticationError in
             DispatchQueue.main.async {
-                biometrieLoginLaeuft = false
-
                 if success {
-                    loginErfolgreichAbschliessen()
+                    anmeldungNachFaceIDAbschliessen()
                     return
                 }
+
+                biometrieLoginLaeuft = false
 
                 zeigtEmailLogin = true
 
@@ -465,6 +465,25 @@ struct ReloginEinladung: View {
                 } else {
                     fehlermeldung = "Face ID konnte nicht bestätigt werden. Bitte melde dich mit E-Mail und Passwort an."
                 }
+            }
+        }
+    }
+
+    private func anmeldungNachFaceIDAbschliessen() {
+        Task {
+            do {
+                try await CloudKontoService.shared.sitzungErneuern()
+                biometrieLoginLaeuft = false
+                loginErfolgreichAbschliessen()
+            } catch CloudKontoFehler.erneuteAnmeldungErforderlich {
+                biometrieLoginLaeuft = false
+                zeigtEmailLogin = true
+                fehlermeldung = CloudKontoFehler.erneuteAnmeldungErforderlich.localizedDescription
+            } catch {
+                // Die Einladung bleibt offline lokal erreichbar; Cloud-Aktionen melden
+                // weiterhin transparent, wenn keine Verbindung besteht.
+                biometrieLoginLaeuft = false
+                loginErfolgreichAbschliessen()
             }
         }
     }

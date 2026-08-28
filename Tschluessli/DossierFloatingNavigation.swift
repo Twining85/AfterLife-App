@@ -53,24 +53,29 @@ enum DossierBereich: String, CaseIterable, Identifiable, Hashable {
     }
 
     @ViewBuilder
-    var zielView: some View {
-        switch self {
-        case .profil:
-            ProfilView()
-        case .gesundheit:
-            GesundheitView()
-        case .wuensche:
-            WuenscheView()
-        case .finanzen:
-            FinanzenView()
-        case .hinterbliebene:
-            HinterbliebeneView()
-        case .dokumente:
-            DokumenteView()
-        case .abos:
-            AbosView()
-        case .herzensstuecke:
-            HerzensstueckeView()
+    func zielView(dossierKontext: DossierKontext?) -> some View {
+        if let dossierKontext {
+            switch self {
+            case .profil: ProfilView(dossierKontext: dossierKontext)
+            case .gesundheit: GesundheitView(dossierKontext: dossierKontext)
+            case .wuensche: WuenscheView(dossierKontext: dossierKontext)
+            case .finanzen: FinanzenView(dossierKontext: dossierKontext)
+            case .hinterbliebene: HinterbliebeneView(dossierKontext: dossierKontext)
+            case .dokumente: DokumenteView(dossierKontext: dossierKontext)
+            case .abos: AbosView(dossierKontext: dossierKontext)
+            case .herzensstuecke: HerzensstueckeView(dossierKontext: dossierKontext)
+            }
+        } else {
+            switch self {
+            case .profil: ProfilView()
+            case .gesundheit: GesundheitView()
+            case .wuensche: WuenscheView()
+            case .finanzen: FinanzenView()
+            case .hinterbliebene: HinterbliebeneView()
+            case .dokumente: DokumenteView()
+            case .abos: AbosView()
+            case .herzensstuecke: HerzensstueckeView()
+            }
         }
     }
 }
@@ -162,6 +167,7 @@ private enum DossierNavigationRouter {
 
 struct DossierFloatingNavigation: View {
     let aktiverBereich: DossierBereich
+    let dossierKontext: DossierKontext?
     var interaktionGestartet: () -> Void = { }
     var interaktionBeendet: () -> Void = { }
     @AppStorage(DossierNavigationManager.homeReihenfolgeKey) private var homeBereicheReihenfolge = ""
@@ -183,9 +189,19 @@ struct DossierFloatingNavigation: View {
     private let inaktiverChipBreite: CGFloat = 62
 
     private var bereiche: [DossierBereich] {
-        DossierNavigationManager.bereiche(
-            homeReihenfolge: homeBereicheReihenfolge,
-            aktiveHomeBereiche: aktiveHomeBereiche
+        let reihenfolge: String
+        let aktiveBereiche: String
+        if let dossierKontext, dossierKontext.istFreigegebenesDossier {
+            let suffix = dossierKontext.dossierID.uuidString.lowercased()
+            reihenfolge = UserDefaults.standard.string(forKey: "homeBereicheReihenfolge.\(suffix)") ?? ""
+            aktiveBereiche = UserDefaults.standard.string(forKey: "homeAktiveBereiche.\(suffix)") ?? ""
+        } else {
+            reihenfolge = homeBereicheReihenfolge
+            aktiveBereiche = aktiveHomeBereiche
+        }
+        return DossierNavigationManager.bereiche(
+            homeReihenfolge: reihenfolge,
+            aktiveHomeBereiche: aktiveBereiche
         )
     }
 
@@ -253,7 +269,7 @@ struct DossierFloatingNavigation: View {
         .padding(.horizontal, 20)
         .padding(.bottom, -4)
         .navigationDestination(item: $zielBereich) { bereich in
-            bereich.zielView
+            bereich.zielView(dossierKontext: dossierKontext)
         }
         .onAppear {
             aktuellerScrollOffset = begrenzterScrollOffset(CGFloat(gespeicherterScrollOffset))
@@ -529,7 +545,9 @@ struct DossierFloatingNavigation: View {
 }
 
 private struct DossierFloatingNavigationModifier: ViewModifier {
+    @Environment(\.dismiss) private var dismiss
     let aktiverBereich: DossierBereich
+    let dossierKontext: DossierKontext?
     @State private var tastaturSichtbar = false
     @State private var navigationAusgeklappt = false
     @State private var navigationAnimationUnterdrueckt = false
@@ -550,12 +568,23 @@ private struct DossierFloatingNavigationModifier: ViewModifier {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
                         NotificationCenter.default.post(name: .dossierSyncAngefordert, object: nil)
-                        DossierNavigationRouter.navigateHome()
+                        if dossierKontext?.istFreigegebenesDossier == true {
+                            dismiss()
+                        } else {
+                            DossierNavigationRouter.navigateHome()
+                        }
                     } label: {
-                        Label("Home", systemImage: "chevron.left")
+                        Label(
+                            dossierKontext?.istFreigegebenesDossier == true ? "Vorsorge-Dossier" : "Home",
+                            systemImage: "chevron.left"
+                        )
                             .labelStyle(.titleAndIcon)
                     }
-                    .accessibilityLabel("Zurück zur Übersicht")
+                    .accessibilityLabel(
+                        dossierKontext?.istFreigegebenesDossier == true
+                            ? "Zurück zur Vorsorge-Dossierübersicht"
+                            : "Zurück zur Übersicht"
+                    )
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -580,6 +609,7 @@ private struct DossierFloatingNavigationModifier: ViewModifier {
 
                         DossierFloatingNavigation(
                             aktiverBereich: aktiverBereich,
+                            dossierKontext: dossierKontext,
                             interaktionGestartet: {
                                 navigationInteraktionAktiv = true
                                 markiereNavigationsAktivitaet()
@@ -780,7 +810,13 @@ private struct DossierFloatingNavigationHandle: View {
 }
 
 extension View {
-    func dossierFloatingNavigation(_ aktiverBereich: DossierBereich) -> some View {
-        modifier(DossierFloatingNavigationModifier(aktiverBereich: aktiverBereich))
+    func dossierFloatingNavigation(
+        _ aktiverBereich: DossierBereich,
+        dossierKontext: DossierKontext? = nil
+    ) -> some View {
+        modifier(DossierFloatingNavigationModifier(
+            aktiverBereich: aktiverBereich,
+            dossierKontext: dossierKontext
+        ))
     }
 }

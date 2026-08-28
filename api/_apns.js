@@ -10,7 +10,15 @@ export async function pushToUser(userID, payload) {
     `SELECT device_token, environment FROM push_device_tokens WHERE user_id = $1`,
     [userID]
   );
-  await Promise.allSettled(result.rows.map((row) => sendPush(row.device_token, row.environment, payload)));
+  const attempts = await Promise.allSettled(
+    result.rows.map((row) => sendPush(row.device_token, row.environment, payload))
+  );
+  const delivered = attempts.filter((attempt) => attempt.status === "fulfilled").length;
+  const failed = attempts.length - delivered;
+  if (failed > 0) {
+    console.error("APNs-Zustellung fehlgeschlagen", { userID, delivered, failed });
+  }
+  return { registeredDevices: result.rows.length, delivered, failed };
 }
 
 async function sendPush(deviceToken, environment, payload) {

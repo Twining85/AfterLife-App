@@ -339,7 +339,7 @@ struct WuenscheView: View {
                 Text("Möchtest du deinen Wunsch nur ausblenden oder auch alle erfassten Daten dazu löschen?")
             }
         }
-        .dossierFloatingNavigation(.wuensche)
+        .dossierFloatingNavigation(.wuensche, dossierKontext: dossierKontext)
     }
 
     private var wuenscheHeroSection: some View {
@@ -706,7 +706,7 @@ struct WuenscheView: View {
             .disabled(dossierKontext.istReadOnly)
 
             if bestattungsart == .kremation {
-                styledTextField("Was ist bei der Kremation zu beachten? z.B. Art der Urne, Urnengrab, Waldfriedhof", text: $kremationHinweise, axis: .vertical, lineLimit: 3...8)
+                styledTextField("Was ist bei der Kremation zu beachten? z.B. Art und Aussehen der Urne, Urnengrab, Waldfriedhof", text: $kremationHinweise, axis: .vertical, lineLimit: 3...8)
             }
 
             if bestattungsart == .erdbestattung {
@@ -1066,13 +1066,15 @@ struct WuenscheView: View {
                         .buttonStyle(.borderless)
                         .foregroundStyle(wuenscheAccentColor)
 
-                        Button(role: .destructive) {
-                            testamentDateiEntfernen()
-                        } label: {
-                            Label("Entfernen", systemImage: "trash")
-                                .font(.caption.weight(.semibold))
+                        if dossierKontext.kannLoeschen {
+                            Button(role: .destructive) {
+                                testamentDateiEntfernen()
+                            } label: {
+                                Label("Entfernen", systemImage: "trash")
+                                    .font(.caption.weight(.semibold))
+                            }
+                            .buttonStyle(.borderless)
                         }
-                        .buttonStyle(.borderless)
                     }
                 }
                 .padding(12)
@@ -1088,6 +1090,7 @@ struct WuenscheView: View {
             DetailBox(accentColor: wuenscheAccentColor) {
                 DokumentUploadBox(
                     accentColor: wuenscheAccentColor,
+                    istReadOnly: dossierKontext.istReadOnly,
                     dateiName: patientenverfuegungDateiName,
                     hochgeladenAm: patientenverfuegungHochgeladenAm,
                     timestampTitel: "Patientenverfügung hochgeladen am",
@@ -1115,6 +1118,7 @@ struct WuenscheView: View {
             DetailBox(accentColor: wuenscheAccentColor) {
                 DokumentUploadBox(
                     accentColor: wuenscheAccentColor,
+                    istReadOnly: dossierKontext.istReadOnly,
                     dateiName: vorsorgeauftragDateiName,
                     hochgeladenAm: vorsorgeauftragHochgeladenAm,
                     timestampTitel: "Vorsorgeauftrag hochgeladen am",
@@ -1172,6 +1176,7 @@ struct WuenscheView: View {
 
                 DokumentUploadBox(
                     accentColor: wuenscheAccentColor,
+                    istReadOnly: dossierKontext.istReadOnly,
                     dateiName: sterbebegleitungDateiName,
                     hochgeladenAm: sterbebegleitungHochgeladenAm,
                     timestampTitel: "Sterbebegleitung hochgeladen am",
@@ -1198,8 +1203,11 @@ struct WuenscheView: View {
         guard !wuenscheGeladen else { return }
 
         let dossierID = zielDossierID
-        if let vorhandeneWuensche = gespeicherteWuensche.first(where: { $0.dossierID == dossierID })
-            ?? gespeicherteWuensche.first(where: { $0.dossierID == nil }) {
+        let passendeWuensche = gespeicherteWuensche.first(where: { $0.dossierID == dossierID })
+            ?? (dossierKontext.istEigenesDossier
+                ? gespeicherteWuensche.first(where: { $0.dossierID == nil })
+                : nil)
+        if let vorhandeneWuensche = passendeWuensche {
             if vorhandeneWuensche.dossierID == nil {
                 vorhandeneWuensche.dossierID = dossierID
                 try? modelContext.save()
@@ -1281,7 +1289,7 @@ struct WuenscheView: View {
             if let data = vorhandeneWuensche.haustiereData {
                 haustiere = (try? JSONDecoder().decode([WuenschePetEntry].self, from: data)) ?? []
             }
-        } else {
+        } else if dossierKontext.istEigenesDossier {
             let neueWuensche = WuenscheModell(dossierID: dossierID)
             modelContext.insert(neueWuensche)
         }
@@ -1396,7 +1404,8 @@ struct WuenscheView: View {
     }
 
     private var zielDossierID: UUID {
-        UUID(uuidString: aktivesDossierID) ?? dossierKontext.dossierID
+        if dossierKontext.istFreigegebenesDossier { return dossierKontext.dossierID }
+        return UUID(uuidString: aktivesDossierID) ?? dossierKontext.dossierID
     }
 
     private func bindingFuerHaustier(id: UUID) -> Binding<WuenschePetEntry>? {
@@ -1407,6 +1416,7 @@ struct WuenscheView: View {
                 haustiere.first(where: { $0.id == id }) ?? WuenschePetEntry()
             },
             set: { neuesHaustier in
+                guard dossierKontext.kannBearbeiten else { return }
                 guard let index = haustiere.firstIndex(where: { $0.id == id }) else { return }
                 haustiere[index] = neuesHaustier
                 speichereWuenscheVerzoegert()
@@ -1435,6 +1445,7 @@ struct WuenscheView: View {
                 kontakte.first(where: { $0.id == id }) ?? BeisetzungsKontakt()
             },
             set: { neuerKontakt in
+                guard dossierKontext.kannBearbeiten else { return }
                 guard let index = kontakte.firstIndex(where: { $0.id == id }) else { return }
                 kontakte[index] = neuerKontakt
                 synchronisiereKontakteMitHinterbliebenen()
@@ -2459,6 +2470,7 @@ struct SwipeToDeleteRow<Content: View>: View {
 
 struct DokumentUploadBox: View {
     var accentColor: Color
+    var istReadOnly = false
     var dateiName: String?
     var hochgeladenAm: Date?
     var timestampTitel: String
@@ -2507,13 +2519,15 @@ struct DokumentUploadBox: View {
                         .buttonStyle(.borderless)
                         .foregroundStyle(accentColor)
                         
-                        Button(role: .destructive) {
-                            entfernenAktion()
-                        } label: {
-                            Label(entfernenTitel, systemImage: "trash")
-                                .font(.caption.weight(.semibold))
+                        if !istReadOnly {
+                            Button(role: .destructive) {
+                                entfernenAktion()
+                            } label: {
+                                Label(entfernenTitel, systemImage: "trash")
+                                    .font(.caption.weight(.semibold))
+                            }
+                            .buttonStyle(.borderless)
                         }
-                        .buttonStyle(.borderless)
                     }
                 }
                 .padding(12)
@@ -2526,7 +2540,8 @@ struct DokumentUploadBox: View {
                     .padding(.vertical, 8)
             }
             
-            HStack(spacing: 10) {
+            if !istReadOnly {
+                HStack(spacing: 10) {
                 Button {
                     uploadAktion()
                 } label: {
@@ -2568,6 +2583,7 @@ struct DokumentUploadBox: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Dokument scannen")
+                }
                 }
             }
             

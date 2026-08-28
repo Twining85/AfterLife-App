@@ -78,10 +78,22 @@ enum DossierBereichImport {
             modell.erstelltAm = wert.erstelltAm
             modell.aktualisiertAm = wert.aktualisiertAm; modell.istAktiv = wert.istAktiv
             if let reihenfolge = wert.homeBereicheReihenfolge {
-                UserDefaults.standard.set(reihenfolge, forKey: "homeBereicheReihenfolge")
+                UserDefaults.standard.set(
+                    reihenfolge,
+                    forKey: "homeBereicheReihenfolge.\(dossierID.uuidString.lowercased())"
+                )
+                if UserDefaults.standard.string(forKey: "aktivesDossierID") == dossierID.uuidString {
+                    UserDefaults.standard.set(reihenfolge, forKey: "homeBereicheReihenfolge")
+                }
             }
             if let aktiveBereiche = wert.homeAktiveBereiche {
-                UserDefaults.standard.set(aktiveBereiche, forKey: "homeAktiveBereiche")
+                UserDefaults.standard.set(
+                    aktiveBereiche,
+                    forKey: "homeAktiveBereiche.\(dossierID.uuidString.lowercased())"
+                )
+                if UserDefaults.standard.string(forKey: "aktivesDossierID") == dossierID.uuidString {
+                    UserDefaults.standard.set(aktiveBereiche, forKey: "homeAktiveBereiche")
+                }
             }
         }
     }

@@ -4,6 +4,7 @@ import UIKit
 
 struct Home: View {
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.modelContext) private var modelContext
     private let kachelFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
     private let schluessliAkzent = Color(red: 0.16, green: 0.36, blue: 0.42)
     @AppStorage("aktiveUserID") private var aktiveUserID = ""
@@ -291,6 +292,12 @@ struct Home: View {
         }
     }
 
+    private var erkannteVorsorgedossierZugaenge: [DossierZugriffModell] {
+        eigeneVertrauenspersonZugriffe.filter {
+            $0.istAktiv && $0.status == DossierZugriffStatus.erstellt
+        }
+    }
+
     private var verknuepfteVorsorgedossiers: [String] {
         bestaetigteVorsorgedossiers.map { besitzerName(fuer: $0) }
     }
@@ -317,7 +324,10 @@ struct Home: View {
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
             .joined(separator: " ")
-        return name.isEmpty ? "Vorsorgende Person" : name
+        if !name.isEmpty { return name }
+        let einladungsName = zugriff.vorsorgendePersonName?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return einladungsName.isEmpty ? "Vorsorgende Person" : einladungsName
     }
 
     private var vertrauenspersonenFuerAktivenUser: [VertrauenspersonModell] {
@@ -699,11 +709,15 @@ struct Home: View {
                 .onAppear {
                     dossierPruefungRefreshDatum = Date()
                     starteHomeEinstiegsanimation()
-                    Task { try? await PushEinladungsService.shared.registriereGespeichertesGeraet() }
+                    Task {
+                        try? await PushEinladungsService.shared.registriereGespeichertesGeraet()
+                        await aktualisiereEinladungszustaende()
+                    }
                     verarbeiteGespeichertenEntscheidungsPush()
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .vertrauenspersonPushEmpfangen)) { _ in
                     verarbeiteGespeichertenEntscheidungsPush()
+                    Task { await aktualisiereEinladungszustaende() }
                 }
                 .confirmationDialog(
                     "Synchronisationskonflikt",
@@ -783,6 +797,7 @@ struct Home: View {
                 .onChange(of: scenePhase) { _, neuePhase in
                     if neuePhase == .active {
                         dossierPruefungRefreshDatum = Date()
+                        Task { await aktualisiereEinladungszustaende() }
                     }
                 }
                 .toolbar {
@@ -799,6 +814,7 @@ struct Home: View {
             }
             .refreshable {
                 let anzahlKonflikte = await DossierSyncDienst.shared?.manuellerVollabgleich() ?? 0
+                await aktualisiereEinladungszustaende()
                 if anzahlKonflikte > 0 {
                     syncKonfliktAuswahlAnzeigen = true
                 }
@@ -808,12 +824,38 @@ struct Home: View {
 
     @ViewBuilder
     private var vertrauenspersonDossiersBereich: some View {
-            if !bestaetigteVorsorgedossiers.isEmpty ||
+            if !erkannteVorsorgedossierZugaenge.isEmpty ||
+                !bestaetigteVorsorgedossiers.isEmpty ||
                 !ausstehendeVorsorgedossierAnfragen.isEmpty ||
                 !abgelehnteVorsorgedossierAnfragen.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Vorsorge-Dossiers für dich")
+                    Text("Vorsorge-Dossiers für dich als Vertrauensperson")
                         .font(.title3.bold())
+
+                    ForEach(erkannteVorsorgedossierZugaenge) { zugriff in
+                        NavigationLink {
+                            EinladungsanfrageSendenView(zugriff: zugriff)
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "lock.icloud.fill")
+                                    .font(.title2)
+                                    .foregroundStyle(schluessliAkzent)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Vorsorge-Dossier – Zugang gewährt")
+                                        .font(.headline)
+                                    Text("Noch keine Daten geladen · Zugriff anfragen")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(15)
+                            .background(kachelFarbe, in: RoundedRectangle(cornerRadius: 18))
+                        }
+                        .buttonStyle(.plain)
+                    }
 
                     ForEach(ausstehendeVorsorgedossierAnfragen) { zugriff in
                         HStack(spacing: 12) {
@@ -849,7 +891,7 @@ struct Home: View {
                                     .font(.title2)
                                     .foregroundStyle(schluessliAkzent)
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(gespeicherteDossiers.first(where: { $0.dossierID == zugriff.dossierID })?.titel ?? "Vorsorge-Dossier von \(besitzerName(fuer: zugriff))")
+                                    Text("Vorsorge-Dossier von \(besitzerName(fuer: zugriff))")
                                         .font(.headline)
                                     Text("Bestätigt · Im Lesemodus öffnen")
                                         .font(.footnote)
@@ -866,15 +908,25 @@ struct Home: View {
                     }
 
                     ForEach(abgelehnteVorsorgedossierAnfragen) { zugriff in
-                        Label(
-                            "Die Anfrage an \(besitzerName(fuer: zugriff)) wurde abgelehnt.",
-                            systemImage: "xmark.circle.fill"
-                        )
-                        .font(.footnote)
-                        .foregroundStyle(.red)
-                        .padding(12)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
+                        NavigationLink {
+                            EinladungsanfrageSendenView(zugriff: zugriff)
+                        } label: {
+                            HStack {
+                                Label(
+                                    "Die Anfrage an \(besitzerName(fuer: zugriff)) wurde abgelehnt.",
+                                    systemImage: "xmark.circle.fill"
+                                )
+                                Spacer()
+                                Text("Erneut anfragen")
+                                    .font(.footnote.weight(.semibold))
+                                Image(systemName: "chevron.right")
+                            }
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                            .padding(12)
+                            .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -910,6 +962,15 @@ struct Home: View {
             zugriff.einladungAblehnen(registrierungsEmail: zugriff.registrierungsEmail)
         }
         UserDefaults.standard.removeObject(forKey: "letzterVertrauenspersonPush")
+    }
+
+    private func aktualisiereEinladungszustaende() async {
+        await EinladungsStatusSynchronisation.aktualisieren(
+            zugriffe: gespeicherteDossierZugriffe,
+            dossiers: gespeicherteDossiers,
+            aktiveUserID: UUID(uuidString: aktiveUserID),
+            modelContext: modelContext
+        )
     }
 
     private func handleVorsorgeCTA() {
@@ -1845,14 +1906,39 @@ struct Home: View {
         private let kachelFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
         private let akzentFarbe = Color.orange
         private let schluessliAkzent = Color(red: 0.16, green: 0.36, blue: 0.42)
-        @State private var dossierBereicheAnzeigen = false
-        @State private var dossierGeoeffnetBestaetigungAnzeigen = false
-        @State private var dossierGeoeffnetHaekchenAnimieren = false
+        @State private var dossierExportAnzeigen = false
 
         private var dossierName: String {
             dossierKontext.besitzerName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             ? (dossierKontext.besitzerName ?? "Freigegebenes Vorsorge-Dossier")
             : "Freigegebenes Vorsorge-Dossier"
+        }
+
+        private var angezeigteBereiche: [HomeBereich] {
+            let suffix = dossierKontext.dossierID.uuidString.lowercased()
+            let defaults = UserDefaults.standard
+            let aktiveIDs = defaults.string(forKey: "homeAktiveBereiche.\(suffix)") ?? ""
+            let reihenfolgeIDs = defaults.string(forKey: "homeBereicheReihenfolge.\(suffix)") ?? ""
+            let explizitAktive = Set(aktiveIDs.split(separator: ",").compactMap {
+                HomeBereich(rawValue: String($0))
+            })
+            let gespeicherteReihenfolge = reihenfolgeIDs.split(separator: ",").compactMap {
+                HomeBereich(rawValue: String($0))
+            }
+            let aktive: Set<HomeBereich>
+            if !explizitAktive.isEmpty {
+                aktive = explizitAktive.union([.profil])
+            } else if gespeicherteReihenfolge.isEmpty {
+                aktive = [.profil]
+            } else {
+                aktive = Set(HomeBereich.allCases)
+            }
+
+            let sortiert = gespeicherteReihenfolge.filter { aktive.contains($0) }
+            let fehlend = HomeBereich.allCases.filter {
+                aktive.contains($0) && !sortiert.contains($0)
+            }
+            return sortiert + fehlend
         }
 
         var body: some View {
@@ -1876,7 +1962,7 @@ struct Home: View {
                                     .foregroundStyle(akzentFarbe)
                                     .textCase(.uppercase)
 
-                                Text(dossierName)
+                                Text("Vorsorge-Dossier von \(dossierName)")
                                     .font(.title2.weight(.bold))
                                     .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
 
@@ -1907,158 +1993,60 @@ struct Home: View {
                     }
                     .shadow(color: akzentFarbe.opacity(0.10), radius: 14, x: 0, y: 8)
 
-                    if !dossierBereicheAnzeigen {
-                        Button {
-                            dossierGeoeffnetHaekchenAnimieren = false
+                    Text("Vorsorge-Dossier")
+                        .font(.title3.weight(.bold))
 
-                            withAnimation(.spring(response: 0.42, dampingFraction: 0.90)) {
-                                dossierBereicheAnzeigen = true
-                                dossierGeoeffnetBestaetigungAnzeigen = true
-                            }
+                    Button {
+                        dossierExportAnzeigen = true
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "doc.richtext.fill")
+                                .font(.body.weight(.semibold))
 
-                            Task {
-                                try? await Task.sleep(nanoseconds: 120_000_000)
-                                await MainActor.run {
-                                    withAnimation(.spring(response: 0.32, dampingFraction: 0.58)) {
-                                        dossierGeoeffnetHaekchenAnimieren = true
-                                    }
-                                }
+                            Text("Vorsorge-Dossier als PDF exportieren")
+                                .font(.body.weight(.semibold))
 
-                                try? await Task.sleep(nanoseconds: 1_500_000_000)
-                                await MainActor.run {
-                                    withAnimation(.easeOut(duration: 0.28)) {
-                                        dossierGeoeffnetBestaetigungAnzeigen = false
-                                        dossierGeoeffnetHaekchenAnimieren = false
-                                    }
-                                }
-                            }
-                        } label: {
-                            HStack(spacing: 10) {
-                                Image(systemName: "folder.fill.badge.person.crop")
-                                    .font(.body.weight(.semibold))
+                            Spacer(minLength: 0)
 
-                                Text("Vorsorge-Dossier öffnen")
-                                    .font(.body.weight(.semibold))
-
-                                Spacer(minLength: 0)
-
-                                Image(systemName: "chevron.down")
-                                    .font(.caption.weight(.bold))
-                            }
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 14)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .fill(akzentFarbe)
-                            )
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.bold))
                         }
-                        .buttonStyle(.plain)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(schluessliAkzent)
+                        )
                     }
+                    .buttonStyle(.plain)
 
-                    if dossierBereicheAnzeigen {
-                        VStack(alignment: .leading, spacing: 10) {
-                            if dossierGeoeffnetBestaetigungAnzeigen {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.subheadline.weight(.semibold))
-                                        .scaleEffect(dossierGeoeffnetHaekchenAnimieren ? 1.16 : 0.72)
-                                        .opacity(dossierGeoeffnetHaekchenAnimieren ? 1 : 0.35)
-
-                                    Text("Vorsorge-Dossier von \(dossierName) geöffnet")
-                                        .font(.subheadline.weight(.semibold))
-                                }
-                                .foregroundStyle(Color.green)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 9)
-                                .background(
-                                    Capsule()
-                                        .fill(Color.green.opacity(0.12))
-                                )
-                                .transition(.opacity.combined(with: .scale(scale: 0.96)))
-                            }
-
-                            Button {
-                                withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
-                                    dossierBereicheAnzeigen = false
-                                    dossierGeoeffnetBestaetigungAnzeigen = false
-                                    dossierGeoeffnetHaekchenAnimieren = false
-                                }
+                    LazyVGrid(
+                        columns: [
+                            GridItem(.flexible(), spacing: 16),
+                            GridItem(.flexible(), spacing: 16)
+                        ],
+                        spacing: 16
+                    ) {
+                        ForEach(angezeigteBereiche) { bereich in
+                            NavigationLink {
+                                zielView(fuer: bereich)
                             } label: {
-                                HStack(spacing: 8) {
-                                    Text("Vorsorge-Dossier")
-                                        .font(.title3.weight(.bold))
-
-                                    Image(systemName: "chevron.up.circle.fill")
-                                        .font(.subheadline.weight(.semibold))
-
-                                    Spacer(minLength: 0)
-                                }
-                                .foregroundStyle(akzentFarbe)
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-
-                            Button {
-                                // TODO: PDFExportService später hier anschliessen.
-                            } label: {
-                                HStack(spacing: 10) {
-                                    Image(systemName: "doc.richtext.fill")
-                                        .font(.body.weight(.semibold))
-
-                                    Text("Vorsorge-Dossier als PDF exportieren")
-                                        .font(.body.weight(.semibold))
-
-                                    Spacer(minLength: 0)
-
-                                    Image(systemName: "square.and.arrow.up")
-                                        .font(.caption.weight(.bold))
-                                }
-                                .foregroundStyle(akzentFarbe)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 12)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                        .fill(akzentFarbe.opacity(0.10))
+                                Home.HomeKachel(
+                                    icon: bereich.icon,
+                                    titel: bereich.titel,
+                                    untertitel: bereich.untertitel,
+                                    details: bereich.details,
+                                    statusText: nil,
+                                    farbe: kachelFarbe,
+                                    akzentFarbe: bereich.akzentFarbe
                                 )
                             }
                             .buttonStyle(.plain)
                         }
-                        .transition(.opacity.animation(.easeInOut(duration: 0.28)))
-
-                        LazyVGrid(
-                            columns: [
-                                GridItem(.flexible(), spacing: 16),
-                                GridItem(.flexible(), spacing: 16)
-                            ],
-                            spacing: 16
-                        ) {
-                            ForEach(HomeBereich.allCases) { bereich in
-                                NavigationLink {
-                                    zielView(fuer: bereich)
-                                } label: {
-                                    Home.HomeKachel(
-                                        icon: bereich.icon,
-                                        titel: bereich.titel,
-                                        untertitel: bereich.untertitel,
-                                        details: bereich.details,
-                                        statusText: nil,
-                                        farbe: kachelFarbe,
-                                        akzentFarbe: bereich.akzentFarbe
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
                 }
-                .animation(.easeInOut(duration: 0.30), value: dossierBereicheAnzeigen)
-                .animation(.easeInOut(duration: 0.24), value: dossierGeoeffnetBestaetigungAnzeigen)
-                .animation(.spring(response: 0.32, dampingFraction: 0.58), value: dossierGeoeffnetHaekchenAnimieren)
                 .padding(.horizontal, 24)
                 .padding(.top, 20)
                 .padding(.bottom, 32)
@@ -2066,6 +2054,12 @@ struct Home: View {
             .background(Color(.systemBackground))
             .navigationTitle("Vorsorge-Dossier")
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $dossierExportAnzeigen) {
+                ProfilView(
+                    dossierKontext: dossierKontext,
+                    dossierExportDirektAnzeigen: true
+                )
+            }
         }
 
         @ViewBuilder
@@ -2074,19 +2068,19 @@ struct Home: View {
             case .profil:
                 ProfilView(dossierKontext: dossierKontext)
             case .gesundheit:
-                GesundheitView()
+                GesundheitView(dossierKontext: dossierKontext)
             case .wuensche:
                 WuenscheView(dossierKontext: dossierKontext)
             case .finanzen:
-                FinanzenView()
+                FinanzenView(dossierKontext: dossierKontext)
             case .hinterbliebene:
-                HinterbliebeneView()
+                HinterbliebeneView(dossierKontext: dossierKontext)
             case .dokumente:
                 DokumenteView(dossierKontext: dossierKontext)
             case .abos:
-                AbosView()
+                AbosView(dossierKontext: dossierKontext)
             case .herzensstuecke:
-                HerzensstueckeView()
+                HerzensstueckeView(dossierKontext: dossierKontext)
             }
         }
     }

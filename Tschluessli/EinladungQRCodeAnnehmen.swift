@@ -4,14 +4,13 @@ import AVFoundation
 
 struct EinladungQRCodeAnnehmenView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var profile: [ProfilModell]
     @Query private var zugriffe: [DossierZugriffModell]
     @AppStorage("aktiveUserID") private var aktiveUserID = ""
-    @AppStorage("gespeicherteEmail") private var gespeicherteEmail = ""
 
     @State private var scannerAnzeigen = false
     @State private var meldung = ""
     @State private var warErfolgreich = false
+    @State private var arbeitet = false
 
     private let akzent = Color(red: 0.16, green: 0.36, blue: 0.42)
 
@@ -44,7 +43,7 @@ struct EinladungQRCodeAnnehmenView: View {
                 if !meldung.isEmpty {
                     VStack(spacing: 8) {
                         if warErfolgreich {
-                            Text("Bestätigung ausstehend")
+                            Text("Einladung erkannt")
                                 .font(.headline)
                         }
                         Text(meldung)
@@ -76,14 +75,6 @@ struct EinladungQRCodeAnnehmenView: View {
         }
     }
 
-    private var profilEmail: String {
-        let aktiveID = UUID(uuidString: aktiveUserID)
-        let profil = profile.first(where: { $0.userID == aktiveID }) ?? profile.first
-        let registrierung = profil?.registrierungsEmail.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let normaleEmail = profil?.email.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return (normaleEmail.isEmpty ? (registrierung.isEmpty ? gespeicherteEmail : registrierung) : normaleEmail).lowercased()
-    }
-
     private func verarbeiteScan(_ text: String) {
         warErfolgreich = false
         guard let url = URL(string: text),
@@ -106,20 +97,15 @@ struct EinladungQRCodeAnnehmenView: View {
             return
         }
 
-        guard !profilEmail.isEmpty, profilEmail == qrEmail else {
-            meldung = "Die E-Mail-Adresse im QR-Code stimmt nicht mit der E-Mail deines Profils überein."
-            return
-        }
-        guard let userID = UUID(uuidString: aktiveUserID) else {
+        guard !qrEmail.isEmpty else { return }
+        guard UUID(uuidString: aktiveUserID) != nil else {
             meldung = "Dein angemeldetes Profil konnte nicht eindeutig bestimmt werden."
             return
         }
         Task {
             do {
-                let cloud = try await PushEinladungsService.shared.bestaetigungAnfragen(
-                    token: token,
-                    profilEmail: profilEmail
-                )
+                arbeitet = true
+                let cloud = try await PushEinladungsService.shared.einladungPruefen(token: token)
                 let zugriff: DossierZugriffModell
                 if let vorhanden = zugriffe.first(where: {
                     ($0.einladungsToken ?? "").caseInsensitiveCompare(token) == .orderedSame
@@ -131,19 +117,33 @@ struct EinladungQRCodeAnnehmenView: View {
                         eingeladeneEmail: cloud.invitedEmail,
                         einladungGueltigBis: cloud.expiresAt,
                         dossierID: cloud.dossierID,
-                        vorsorgendeUserID: cloud.ownerUserID
+                        vorsorgendeUserID: cloud.ownerUserID,
+                        vorsorgendePersonName: cloud.ownerName,
+                        vertrauenspersonUserID: UUID(uuidString: aktiveUserID),
+                        status: DossierZugriffStatus.erstellt
                     )
                     modelContext.insert(zugriff)
                 }
-                zugriff.bestaetigungAnfragen(vertrauenspersonUserID: userID, registrierungsEmail: profilEmail)
+                zugriff.vertrauenspersonUserID = UUID(uuidString: aktiveUserID)
+                zugriff.vorsorgendePersonName = cloud.ownerName
+                zugriff.registrierungsEmail = cloud.invitedEmail
+                if zugriff.status != DossierZugriffStatus.bestaetigungAusstehend,
+                   zugriff.status != DossierZugriffStatus.angenommen,
+                   zugriff.status != DossierZugriffStatus.freigegeben {
+                    zugriff.status = DossierZugriffStatus.erstellt
+                }
+                zugriff.istAktiv = true
                 try modelContext.save()
+                
                 warErfolgreich = true
-                meldung = "Die vorsorgende Person wurde benachrichtigt und muss deine Anfrage noch bestätigen. Danach erscheint ihr Vorsorge-Dossier automatisch auf deinem Homescreen."
+                meldung = "Der Zugang wurde auf deinem Home-Screen abgelegt. Es wurden noch keine Dossierdaten geladen. Erst beim gewünschten Cloud-Download kannst du die Erlaubnis anfragen."
             } catch {
                 meldung = error.localizedDescription
             }
+            arbeitet = false
         }
     }
+
 }
 
 private struct QRCodeScannerView: UIViewControllerRepresentable {

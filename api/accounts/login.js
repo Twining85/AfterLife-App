@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { authenticatedUser, saveSession, verifyPassword } from "../_auth.js";
+import { authenticatedUser, refreshSession, saveSession, verifyPassword } from "../_auth.js";
 import { databasePool, withUserTransaction } from "../_database.js";
 import { sendEmail } from "../_email-service.js";
 import { createActionGrant, createChallenge, createCode, expiresAt, readVerifiedChallenge, verifyActionGrant } from "../email-verification/_challenge.js";
@@ -9,6 +9,7 @@ export default async function handler(req, res) {
   secureResponse(res);
   if (req.method === "DELETE") return handleAccountDelete(req, res);
   if (!requireMethod(req, res, "POST") || !requireJSON(req, res)) return;
+  if (req.body?.action === "refresh-session") return handleSessionRefresh(req, res);
   if (String(req.body?.action || "").startsWith("dossier-reset-")) {
     return handleDossierReset(req, res);
   }
@@ -45,9 +46,39 @@ export default async function handler(req, res) {
       client.release();
     }
     const session = await saveSession(user.id);
-    return res.status(200).json({ userID: user.id, dossierID, sessionToken: session.token, expiresAt: session.expiresAt.toISOString() });
+    return res.status(200).json({
+      userID: user.id,
+      dossierID,
+      sessionToken: session.token,
+      expiresAt: session.expiresAt.toISOString(),
+      refreshToken: session.refreshToken,
+      refreshExpiresAt: session.refreshExpiresAt.toISOString()
+    });
   } catch (error) {
     console.error("Anmeldung:", error);
+    return res.status(500).json({ error: "Interner Fehler" });
+  }
+}
+
+async function handleSessionRefresh(req, res) {
+  if (!rateLimit(req, res, {
+    namespace: "account-refresh",
+    limit: 20,
+    windowMilliseconds: 15 * 60 * 1000
+  })) return;
+
+  try {
+    const session = await refreshSession(req.body?.refreshToken);
+    if (!session) return res.status(401).json({ error: "Sitzung kann nicht erneuert werden" });
+    return res.status(200).json({
+      userID: session.userID,
+      sessionToken: session.token,
+      expiresAt: session.expiresAt.toISOString(),
+      refreshToken: session.refreshToken,
+      refreshExpiresAt: session.refreshExpiresAt.toISOString()
+    });
+  } catch (error) {
+    console.error("Sitzungserneuerung:", error);
     return res.status(500).json({ error: "Interner Fehler" });
   }
 }

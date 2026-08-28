@@ -10,11 +10,12 @@ import VisionKit
 
 struct DokumenteView: View {
     var dossierKontext: DossierKontext = .eigenesDossier(dossierID: UUID())
+    @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \FotoalbumBildModell.reihenfolge) private var gespeicherteFotos: [FotoalbumBildModell]
-    @Query private var gespeicherteWuensche: [WuenscheModell]
-    @Query private var steuerdokumente: [SteuerdokumentModell]
-    @Query(sort: \DokumenteModell.hochgeladenAm, order: .reverse) private var gespeicherteWeitereDokumente: [DokumenteModell]
+    @Query(sort: \FotoalbumBildModell.reihenfolge) private var alleGespeichertenFotos: [FotoalbumBildModell]
+    @Query private var alleGespeichertenWuensche: [WuenscheModell]
+    @Query private var alleSteuerdokumente: [SteuerdokumentModell]
+    @Query(sort: \DokumenteModell.hochgeladenAm, order: .reverse) private var alleGespeichertenWeitereDokumente: [DokumenteModell]
     @State private var wuenscheDokumenteEingeklappt = true
     @State private var finanzenDokumenteEingeklappt = true
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
@@ -68,6 +69,32 @@ struct DokumenteView: View {
     private let dokumenteHintergrundFarbe = Color(red: 0.985, green: 0.975, blue: 0.955)
     private let dokumenteKartenFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
     private let dokumenteAkzentFarbe = Color(red: 0.16, green: 0.36, blue: 0.42)
+
+    private var gespeicherteFotos: [FotoalbumBildModell] {
+        alleGespeichertenFotos.filter { passtZumDossier($0.dossierID) }
+    }
+
+    private var gespeicherteWuensche: [WuenscheModell] {
+        alleGespeichertenWuensche.filter { passtZumDossier($0.dossierID) }
+    }
+
+    private var steuerdokumente: [SteuerdokumentModell] {
+        alleSteuerdokumente.filter { passtZumDossier($0.dossierID) }
+    }
+
+    private var gespeicherteWeitereDokumente: [DokumenteModell] {
+        alleGespeichertenWeitereDokumente.filter { passtZumDossier($0.dossierID) }
+    }
+
+    private func passtZumDossier(_ dossierID: UUID?) -> Bool {
+        dossierID == zielDossierID ||
+            (dossierKontext.istEigenesDossier && dossierID == nil)
+    }
+
+    private var zielDossierID: UUID {
+        if dossierKontext.istFreigegebenesDossier { return dossierKontext.dossierID }
+        return UUID(uuidString: aktivesDossierID) ?? dossierKontext.dossierID
+    }
 
     private var dokumenteHero: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -357,7 +384,7 @@ struct DokumenteView: View {
                 pruefeDokumentBereichAuswahl()
             }
         }
-        .dossierFloatingNavigation(.dokumente)
+        .dossierFloatingNavigation(.dokumente, dossierKontext: dossierKontext)
     }
 
     private var wuenscheDokumenteSection: some View {
@@ -1478,5 +1505,3 @@ struct DocumentPreview: UIViewControllerRepresentable {
         }
     }
 }
-
-

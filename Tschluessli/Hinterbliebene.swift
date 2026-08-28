@@ -3,6 +3,7 @@ import SwiftData
 import ContactsUI
 
 struct HinterbliebeneView: View {
+    var dossierKontext: DossierKontext = .eigenesDossier(dossierID: UUID())
 
     @Environment(\.modelContext) private var modelContext
     @Query private var gespeicherteKontakte: [HinterbliebeneModell]
@@ -81,7 +82,7 @@ struct HinterbliebeneView: View {
                 }
             }
         }
-        .dossierFloatingNavigation(.hinterbliebene)
+        .dossierFloatingNavigation(.hinterbliebene, dossierKontext: dossierKontext)
     }
 
     private var vertrauensHero: some View {
@@ -160,6 +161,7 @@ struct HinterbliebeneView: View {
             .shadow(color: vertrauenAkzentFarbe.opacity(0.14), radius: 12, x: 0, y: 5)
         }
         .buttonStyle(.plain)
+        .disabled(dossierKontext.istReadOnly)
         .accessibilityHint("Öffnet die Erfassung und Verwaltung der Vertrauensperson")
     }
 
@@ -246,24 +248,26 @@ struct HinterbliebeneView: View {
                     .buttonStyle(.plain)
                 }
             }
-            Button {
-                aktiveKategorie = kategorie
-                showKontaktPicker = true
-            } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "plus")
-                        .font(.subheadline.weight(.bold))
+            if dossierKontext.kannBearbeiten {
+                Button {
+                    aktiveKategorie = kategorie
+                    showKontaktPicker = true
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "plus")
+                            .font(.subheadline.weight(.bold))
 
-                    Text("Kontakt hinzufügen")
-                        .font(.subheadline.weight(.semibold))
+                        Text("Kontakt hinzufügen")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(vertrauenAkzentFarbe)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(vertrauenAkzentFarbe)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -312,7 +316,7 @@ struct HinterbliebeneView: View {
 
             Spacer(minLength: 0)
 
-            if !istAbgeleiteterHausarztKontakt(kontakt) {
+            if dossierKontext.kannLoeschen && !istAbgeleiteterHausarztKontakt(kontakt) {
                 Button(role: .destructive) {
                     modelContext.delete(kontakt)
                     try? modelContext.save()
@@ -349,6 +353,7 @@ struct HinterbliebeneView: View {
     }
 
     private func kontaktHinzufuegen(_ kontakt: HinterbliebeneKontakt, zu kategorie: VertrauenspersonKategorie) {
+        guard dossierKontext.kannBearbeiten else { return }
         let neuerKontakt = HinterbliebeneModell(
             dossierID: UUID(uuidString: aktivesDossierID),
             vorname: kontakt.vorname,
@@ -371,7 +376,10 @@ struct HinterbliebeneView: View {
 
     private func kontakteFuerKategorie(_ kategorie: VertrauenspersonKategorie) -> [HinterbliebeneModell] {
         var kontakte = gespeicherteKontakte
-            .filter { $0.beziehung == kategorie.rawValue }
+            .filter {
+                ($0.dossierID == zielDossierID || (dossierKontext.istEigenesDossier && $0.dossierID == nil)) &&
+                    $0.beziehung == kategorie.rawValue
+            }
 
         if kategorie == .beguenstigte,
            let hausarztKontakt = abgeleiteterHausarztKontakt(),
@@ -390,7 +398,9 @@ struct HinterbliebeneView: View {
     }
 
     private func abgeleiteterHausarztKontakt() -> HinterbliebeneModell? {
-        guard let gesundheit = gesundheitsDatensaetze.first,
+        guard let gesundheit = gesundheitsDatensaetze.first(where: {
+            $0.dossierID == zielDossierID || (dossierKontext.istEigenesDossier && $0.dossierID == nil)
+        }),
               gesundheit.hatHausarzt else {
             return nil
         }
@@ -413,6 +423,11 @@ struct HinterbliebeneView: View {
             istVertrauensperson: false,
             sollInformiertWerden: false
         )
+    }
+
+    private var zielDossierID: UUID {
+        if dossierKontext.istFreigegebenesDossier { return dossierKontext.dossierID }
+        return UUID(uuidString: aktivesDossierID) ?? dossierKontext.dossierID
     }
 
     private func istDerselbeAndereKontakt(_ kontakt: HinterbliebeneModell, wie andererKontakt: HinterbliebeneModell) -> Bool {

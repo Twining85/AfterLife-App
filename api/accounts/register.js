@@ -41,7 +41,14 @@ export default async function handler(req, res) {
       client.release();
     }
     const session = await saveSession(userID);
-    return res.status(201).json({ userID, dossierID, sessionToken: session.token, expiresAt: session.expiresAt.toISOString() });
+    return res.status(201).json({
+      userID,
+      dossierID,
+      sessionToken: session.token,
+      expiresAt: session.expiresAt.toISOString(),
+      refreshToken: session.refreshToken,
+      refreshExpiresAt: session.refreshExpiresAt.toISOString()
+    });
   } catch (error) {
     if (error?.code === "23505") return res.status(409).json({ error: "Konto besteht bereits" });
     console.error("Kontoregistrierung:", error);

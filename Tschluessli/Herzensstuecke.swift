@@ -12,8 +12,9 @@ import UniformTypeIdentifiers
 import UIKit
 
 struct HerzensstueckeView: View {
+    var dossierKontext: DossierKontext = .eigenesDossier(dossierID: UUID())
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \HerzensstueckModell.erstelltAm) private var herzensstuecke: [HerzensstueckModell]
+    @Query(sort: \HerzensstueckModell.erstelltAm) private var alleHerzensstuecke: [HerzensstueckModell]
     @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
 
     @State private var ausgewaehltesHerzensstueck: HerzensstueckModell?
@@ -49,38 +50,44 @@ struct HerzensstueckeView: View {
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button(role: .destructive) {
-                                loesche(stueck)
-                            } label: {
-                                Label("Löschen", systemImage: "trash")
+                            if dossierKontext.kannLoeschen {
+                                Button(role: .destructive) {
+                                    loesche(stueck)
+                                } label: {
+                                    Label("Löschen", systemImage: "trash")
+                                }
                             }
                         }
                         .contextMenu {
-                            Button(role: .destructive) {
-                                loesche(stueck)
-                            } label: {
-                                Label("Löschen", systemImage: "trash")
+                            if dossierKontext.kannLoeschen {
+                                Button(role: .destructive) {
+                                    loesche(stueck)
+                                } label: {
+                                    Label("Löschen", systemImage: "trash")
+                                }
                             }
                         }
                     }
                 }
 
-                Button {
-                    neuesHerzensstueck()
-                } label: {
-                    Label("Neues Herzensstück", systemImage: "plus")
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(akzent, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
+                if dossierKontext.kannBearbeiten {
+                    Button {
+                        neuesHerzensstueck()
+                    } label: {
+                        Label("Neues Herzensstück", systemImage: "plus")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(akzent, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(herzensstuecke.count >= maximaleAnzahl)
+                    .opacity(herzensstuecke.count >= maximaleAnzahl ? 0.45 : 1)
+                    .listRowInsets(EdgeInsets(top: 11, leading: 16, bottom: 34, trailing: 16))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
                 }
-                .buttonStyle(.plain)
-                .disabled(herzensstuecke.count >= maximaleAnzahl)
-                .opacity(herzensstuecke.count >= maximaleAnzahl ? 0.45 : 1)
-                .listRowInsets(EdgeInsets(top: 11, leading: 16, bottom: 34, trailing: 16))
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
@@ -88,7 +95,7 @@ struct HerzensstueckeView: View {
             .navigationTitle("Herzensstücke")
             .tint(akzent)
             .sheet(item: $ausgewaehltesHerzensstueck) { stueck in
-                HerzensstueckEditor(stueck: stueck)
+                HerzensstueckEditor(stueck: stueck, istReadOnly: dossierKontext.istReadOnly)
             }
             .alert("Sieben Herzensstücke", isPresented: $limitHinweisAnzeigen) {
                 Button("OK", role: .cancel) { }
@@ -96,7 +103,18 @@ struct HerzensstueckeView: View {
                 Text("Du hast bereits sieben Herzensstücke ausgewählt. Entferne eines, bevor du ein neues hinzufügst.")
             }
         }
-        .dossierFloatingNavigation(.herzensstuecke)
+        .dossierFloatingNavigation(.herzensstuecke, dossierKontext: dossierKontext)
+    }
+
+    private var herzensstuecke: [HerzensstueckModell] {
+        alleHerzensstuecke.filter {
+            $0.dossierID == zielDossierID || (dossierKontext.istEigenesDossier && $0.dossierID == nil)
+        }
+    }
+
+    private var zielDossierID: UUID {
+        if dossierKontext.istFreigegebenesDossier { return dossierKontext.dossierID }
+        return UUID(uuidString: aktivesDossierID) ?? dossierKontext.dossierID
     }
 
     private var hero: some View {
@@ -161,17 +179,19 @@ struct HerzensstueckeView: View {
     }
 
     private func neuesHerzensstueck() {
+        guard dossierKontext.kannBearbeiten else { return }
         guard herzensstuecke.count < maximaleAnzahl else {
             limitHinweisAnzeigen = true
             return
         }
-        let stueck = HerzensstueckModell(dossierID: UUID(uuidString: aktivesDossierID))
+        let stueck = HerzensstueckModell(dossierID: zielDossierID)
         modelContext.insert(stueck)
         try? modelContext.save()
         ausgewaehltesHerzensstueck = stueck
     }
 
     private func loesche(_ stueck: HerzensstueckModell) {
+        guard dossierKontext.kannLoeschen else { return }
         modelContext.delete(stueck)
         try? modelContext.save()
         VorsorgeBereichStatusStore.markiereBearbeitet(.herzensstuecke)
@@ -244,12 +264,14 @@ private struct HerzensstueckEditor: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var kontakte: [HinterbliebeneModell]
     @Bindable var stueck: HerzensstueckModell
+    let istReadOnly: Bool
 
     @State private var fotoAuswahl: [PhotosPickerItem] = []
     @State private var dokumentImporterAnzeigen = false
     @State private var audioImporterAnzeigen = false
     @State private var vollbildBild: HerzensstueckBildModell?
     @State private var audioExportURL: URL?
+    @State private var dokumentExportURL: URL?
 
     private let akzent = Color(red: 0.78, green: 0.34, blue: 0.16)
     private let hintergrund = Color(red: 0.985, green: 0.975, blue: 0.955)
@@ -259,9 +281,9 @@ private struct HerzensstueckEditor: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     bilderBereich
-                    textBereich
-                    bestimmungsBereich
-                    wertBereich
+                    textBereich.disabled(istReadOnly)
+                    bestimmungsBereich.disabled(istReadOnly)
+                    wertBereich.disabled(istReadOnly)
                     dokumentBereich
                     audioBereich
                 }
@@ -315,6 +337,16 @@ private struct HerzensstueckEditor: View {
                     ShareSheet(activityItems: [audioExportURL])
                 }
             }
+            .sheet(isPresented: Binding(
+                get: { dokumentExportURL != nil },
+                set: { wirdAngezeigt in
+                    if !wirdAngezeigt { entferneDokumentExportdatei() }
+                }
+            )) {
+                if let dokumentExportURL {
+                    ShareSheet(activityItems: [dokumentExportURL])
+                }
+            }
         }
         .tint(akzent)
     }
@@ -332,11 +364,13 @@ private struct HerzensstueckEditor: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 16))
                                     .onTapGesture { vollbildBild = bild }
                                     .overlay(alignment: .topTrailing) {
-                                        Button { loescheBild(bild) } label: {
-                                            Image(systemName: "xmark.circle.fill")
-                                                .font(.title3).foregroundStyle(.white, akzent)
+                                        if !istReadOnly {
+                                            Button { loescheBild(bild) } label: {
+                                                Image(systemName: "xmark.circle.fill")
+                                                    .font(.title3).foregroundStyle(.white, akzent)
+                                            }
+                                            .padding(7)
                                         }
-                                        .padding(7)
                                     }
                             }
                         }
@@ -344,9 +378,11 @@ private struct HerzensstueckEditor: View {
                 }
             }
 
-            PhotosPicker(selection: $fotoAuswahl, maxSelectionCount: 10, matching: .images) {
-                Label(stueck.bilder.isEmpty ? "Titelbild auswählen" : "Weitere Fotos hinzufügen", systemImage: "photo.badge.plus")
-                    .editorAktionsButton(akzent: akzent)
+            if !istReadOnly {
+                PhotosPicker(selection: $fotoAuswahl, maxSelectionCount: 10, matching: .images) {
+                    Label(stueck.bilder.isEmpty ? "Titelbild auswählen" : "Weitere Fotos hinzufügen", systemImage: "photo.badge.plus")
+                        .editorAktionsButton(akzent: akzent)
+                }
             }
         }
     }
@@ -435,12 +471,18 @@ private struct HerzensstueckEditor: View {
                     Image(systemName: "doc.text.fill").foregroundStyle(akzent)
                     Text(dokument.dateiName).font(.subheadline).lineLimit(1)
                     Spacer()
-                    Button(role: .destructive) { loescheDokument(dokument) } label: { Image(systemName: "trash") }
+                    Button { dokumentZumDownloadBereitstellen(dokument) } label: { Image(systemName: "square.and.arrow.down") }
+                        .accessibilityLabel("Dokument herunterladen")
+                    if !istReadOnly {
+                        Button(role: .destructive) { loescheDokument(dokument) } label: { Image(systemName: "trash") }
+                    }
                 }
             }
-            Button { dokumentImporterAnzeigen = true } label: {
-                Label("Quittung, Zertifikat oder Brief hinzufügen", systemImage: "doc.badge.plus")
-                    .editorAktionsButton(akzent: akzent)
+            if !istReadOnly {
+                Button { dokumentImporterAnzeigen = true } label: {
+                    Label("Quittung, Zertifikat oder Brief hinzufügen", systemImage: "doc.badge.plus")
+                        .editorAktionsButton(akzent: akzent)
+                }
             }
         }
     }
@@ -460,12 +502,16 @@ private struct HerzensstueckEditor: View {
                         Image(systemName: "square.and.arrow.down")
                     }
                     .accessibilityLabel("Audio herunterladen")
-                    Button(role: .destructive) { loescheAudio() } label: { Image(systemName: "trash") }
+                    if !istReadOnly {
+                        Button(role: .destructive) { loescheAudio() } label: { Image(systemName: "trash") }
+                    }
                 }
             }
-            Button { audioImporterAnzeigen = true } label: {
-                Label(stueck.audio == nil ? "Audioaufnahme hinzufügen" : "Audio ersetzen", systemImage: "mic.fill")
-                    .editorAktionsButton(akzent: akzent)
+            if !istReadOnly {
+                Button { audioImporterAnzeigen = true } label: {
+                    Label(stueck.audio == nil ? "Audioaufnahme hinzufügen" : "Audio ersetzen", systemImage: "mic.fill")
+                        .editorAktionsButton(akzent: akzent)
+                }
             }
         }
     }
@@ -497,6 +543,7 @@ private struct HerzensstueckEditor: View {
 
     @MainActor
     private func fotosLaden(_ items: [PhotosPickerItem]) async {
+        guard !istReadOnly else { return }
         for item in items {
             guard let daten = try? await item.loadTransferable(type: Data.self), UIImage(data: daten) != nil else { continue }
             let bild = HerzensstueckBildModell(dateiName: "Herzensstueck_\(stueck.bilder.count + 1).jpg", bildDaten: daten, reihenfolge: stueck.bilder.count)
@@ -508,6 +555,7 @@ private struct HerzensstueckEditor: View {
     }
 
     private func importiereDokumente(_ urls: [URL]) {
+        guard !istReadOnly else { return }
         for url in urls {
             guard let daten = leseDatei(url) else { continue }
             let dokument = HerzensstueckDokumentModell(dateiName: url.lastPathComponent, dateiTyp: url.pathExtension, dateiDaten: daten)
@@ -518,6 +566,7 @@ private struct HerzensstueckEditor: View {
     }
 
     private func importiereAudio(_ ergebnis: Result<[URL], Error>) {
+        guard !istReadOnly else { return }
         guard case .success(let url) = ergebnis, let url = url.first, let daten = leseDatei(url) else { return }
         if let bisherigesAudio = stueck.audio { modelContext.delete(bisherigesAudio) }
         let audio = HerzensstueckAudioModell(dateiName: url.lastPathComponent, dateiTyp: url.pathExtension, audioDaten: daten)
@@ -533,18 +582,21 @@ private struct HerzensstueckEditor: View {
     }
 
     private func loescheBild(_ bild: HerzensstueckBildModell) {
+        guard !istReadOnly else { return }
         stueck.bilder.removeAll { $0.id == bild.id }
         modelContext.delete(bild)
         speichern()
     }
 
     private func loescheDokument(_ dokument: HerzensstueckDokumentModell) {
+        guard !istReadOnly else { return }
         stueck.dokumente.removeAll { $0.id == dokument.id }
         modelContext.delete(dokument)
         speichern()
     }
 
     private func loescheAudio() {
+        guard !istReadOnly else { return }
         guard let audio = stueck.audio else { return }
         stueck.audio = nil
         modelContext.delete(audio)
@@ -575,7 +627,28 @@ private struct HerzensstueckEditor: View {
         self.audioExportURL = nil
     }
 
+    private func dokumentZumDownloadBereitstellen(_ dokument: HerzensstueckDokumentModell) {
+        entferneDokumentExportdatei()
+        let dateiName = URL(fileURLWithPath: dokument.dateiName).lastPathComponent.isEmpty
+            ? "Dokument.\(dokument.dateiTyp.isEmpty ? "pdf" : dokument.dateiTyp)"
+            : URL(fileURLWithPath: dokument.dateiName).lastPathComponent
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(dateiName)
+        do {
+            try dokument.dateiDaten.write(to: url, options: .atomic)
+            dokumentExportURL = url
+        } catch {
+            dokumentExportURL = nil
+        }
+    }
+
+    private func entferneDokumentExportdatei() {
+        guard let dokumentExportURL else { return }
+        try? FileManager.default.removeItem(at: dokumentExportURL)
+        self.dokumentExportURL = nil
+    }
+
     private func speichern() {
+        guard !istReadOnly else { return }
         stueck.aktualisiertAm = Date()
         try? modelContext.save()
         VorsorgeBereichStatusStore.markiereBearbeitet(.herzensstuecke)

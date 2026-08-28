@@ -49,6 +49,9 @@ final class DossierZugriffModell {
     /// Besitzer des Dossiers.
     var vorsorgendeUserID: UUID
 
+    /// Anzeigename der vorsorgenden Person aus der Einladung.
+    var vorsorgendePersonName: String?
+
     /// Nutzer, der als Vertrauensperson Zugriff erhält. Bei einer offenen Einladung ist dieser Wert noch nicht bekannt.
     var vertrauenspersonUserID: UUID?
 
@@ -99,6 +102,7 @@ final class DossierZugriffModell {
         einladungsLinkVerwendetAm: Date? = nil,
         dossierID: UUID,
         vorsorgendeUserID: UUID,
+        vorsorgendePersonName: String? = nil,
         vertrauenspersonUserID: UUID? = nil,
         status: String = DossierZugriffStatus.erstellt,
         angenommenAm: Date? = nil,
@@ -123,6 +127,7 @@ final class DossierZugriffModell {
         self.einladungsLinkVerwendetAm = einladungsLinkVerwendetAm
         self.dossierID = dossierID
         self.vorsorgendeUserID = vorsorgendeUserID
+        self.vorsorgendePersonName = vorsorgendePersonName
         self.vertrauenspersonUserID = vertrauenspersonUserID
         self.status = status
         self.angenommenAm = angenommenAm
@@ -158,6 +163,8 @@ final class DossierZugriffModell {
         self.vertrauenspersonUserID = vertrauenspersonUserID
         self.registrierungsEmail = registrierungsEmail
         status = DossierZugriffStatus.bestaetigungAusstehend
+        abgelehntAm = nil
+        istAktiv = true
         aktualisiertAm = Date()
     }
 

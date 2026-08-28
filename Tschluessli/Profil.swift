@@ -139,17 +139,35 @@ struct ProfilView: View {
 
     }
 
+    private func gehoertZumExportDossier(_ dossierID: UUID?) -> Bool {
+        !dossierKontext.istFreigegebenesDossier || dossierID == dossierKontext.dossierID
+    }
+
+    private var exportProfile: [ProfilModell] { gespeicherteProfile.filter { gehoertZumExportDossier($0.dossierID) } }
+    private var exportGesundheitsdaten: [GesundheitModell] { gespeicherteGesundheitsdaten.filter { gehoertZumExportDossier($0.dossierID) } }
+    private var exportWuensche: [WuenscheModell] { gespeicherteWuensche.filter { gehoertZumExportDossier($0.dossierID) } }
+    private var exportBankkonten: [BankkontoModell] { gespeicherteBankkonten.filter { gehoertZumExportDossier($0.dossierID) } }
+    private var exportSchulden: [SchuldenModell] { gespeicherteSchulden.filter { gehoertZumExportDossier($0.dossierID) } }
+    private var exportVersicherungen: [VersicherungModell] { gespeicherteVersicherungen.filter { gehoertZumExportDossier($0.dossierID) } }
+    private var exportLiegenschaften: [LiegenschaftModell] { gespeicherteLiegenschaften.filter { gehoertZumExportDossier($0.dossierID) } }
+    private var exportWertsachen: [WertsacheModell] { gespeicherteWertsachen.filter { gehoertZumExportDossier($0.dossierID) } }
+    private var exportSteuerdokumente: [SteuerdokumentModell] { gespeicherteSteuerdokumente.filter { gehoertZumExportDossier($0.dossierID) } }
+    private var exportDokumente: [DokumenteModell] { gespeicherteWeitereDokumente.filter { gehoertZumExportDossier($0.dossierID) } }
+    private var exportFotos: [FotoalbumBildModell] { gespeicherteFotos.filter { gehoertZumExportDossier($0.dossierID) } }
+    private var exportHerzensstuecke: [HerzensstueckModell] { gespeicherteHerzensstuecke.filter { gehoertZumExportDossier($0.dossierID) } }
+    private var exportAboModelle: [AboModell] { gespeicherteAboModelle.filter { gehoertZumExportDossier($0.dossierID) } }
+
     private var anzahlFinanzEintraege: Int {
-        gespeicherteBankkonten.count
-            + gespeicherteSchulden.count
-            + gespeicherteVersicherungen.count
-            + gespeicherteLiegenschaften.count
-            + gespeicherteWertsachen.count
-            + gespeicherteSteuerdokumente.count
+        exportBankkonten.count
+            + exportSchulden.count
+            + exportVersicherungen.count
+            + exportLiegenschaften.count
+            + exportWertsachen.count
+            + exportSteuerdokumente.count
     }
 
     private var anzahlAboEintraege: Int {
-        gespeicherteAboModelle.reduce(0) { summe, modell in
+        exportAboModelle.reduce(0) { summe, modell in
             summe + modell.abos.filter { !$0.istSystemEintrag }.count
         }
     }
@@ -157,7 +175,7 @@ struct ProfilView: View {
     private var lokalHinterlegteVertrauenspersonen: [VertrauenspersonModell] {
         guard let userID = aktivesProfil?.userID else { return [] }
         return gespeicherteVertrauenspersonen.filter {
-            $0.vorsorgendeUserID == userID && $0.istLokalHinterlegt
+            $0.vorsorgendeUserID == userID && $0.istLokalHinterlegt && gehoertZumExportDossier($0.dossierID)
         }
     }
 
@@ -166,20 +184,20 @@ struct ProfilView: View {
             DossierExportBereich(
                 titel: "Profil",
                 detail: "Persönliche Angaben und Kontaktdaten",
-                status: gespeicherteProfile.isEmpty ? "Noch nicht erfasst" : "Bereit",
-                istGefuellt: !gespeicherteProfile.isEmpty
+                status: exportProfile.isEmpty ? "Noch nicht erfasst" : "Bereit",
+                istGefuellt: !exportProfile.isEmpty
             ),
             DossierExportBereich(
                 titel: "Gesundheit",
                 detail: "Hausarzt, medizinische Hinweise, Allergien und Medikamente",
-                status: gespeicherteGesundheitsdaten.isEmpty ? "Noch nicht erfasst" : "Bereit",
-                istGefuellt: !gespeicherteGesundheitsdaten.isEmpty
+                status: exportGesundheitsdaten.isEmpty ? "Noch nicht erfasst" : "Bereit",
+                istGefuellt: !exportGesundheitsdaten.isEmpty
             ),
             DossierExportBereich(
                 titel: "Wünsche",
                 detail: "Vorsorge, letzte Worte, Dokumente und Hinweise",
-                status: gespeicherteWuensche.isEmpty ? "Noch nicht erfasst" : "Bereit",
-                istGefuellt: !gespeicherteWuensche.isEmpty
+                status: exportWuensche.isEmpty ? "Noch nicht erfasst" : "Bereit",
+                istGefuellt: !exportWuensche.isEmpty
             ),
             DossierExportBereich(
                 titel: "Menschen meines Vertrauens",
@@ -212,16 +230,16 @@ struct ProfilView: View {
             DossierExportBereich(
                 titel: "Herzensstücke",
                 detail: "Bedeutungsvolle Gegenstände und ihre Geschichten",
-                status: gespeicherteHerzensstuecke.isEmpty
+                status: exportHerzensstuecke.isEmpty
                     ? "Noch keine Herzensstücke"
-                    : "\(gespeicherteHerzensstuecke.count) hinterlegt",
-                istGefuellt: !gespeicherteHerzensstuecke.isEmpty
+                    : "\(exportHerzensstuecke.count) hinterlegt",
+                istGefuellt: !exportHerzensstuecke.isEmpty
             )
         ]
     }
 
     private var anzahlDokumenteUndFotos: Int {
-        gespeicherteWeitereDokumente.count + gespeicherteFotos.count
+        exportDokumente.count + exportFotos.count
     }
 
     /// Das Profil ist die Grundlage des Exports. Als Vorsorgebereiche zählen
@@ -523,7 +541,7 @@ struct ProfilView: View {
                         Text("Wenn aktiviert, kann die App beim Öffnen Face ID oder Touch ID für die Anmeldung verwenden.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
-                        Text("Das Kontopasswort wird nicht auf dem Gerät gespeichert. Die aktive Cloud-Sitzung wird geschützt im iOS-Schlüsselbund verwaltet.")
+                        Text("Das Kontopasswort wird nicht auf dem Gerät gespeichert. Deine aktive Tschlüssli-Anmeldung wird geschützt im iOS-Schlüsselbund verwaltet.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -640,9 +658,11 @@ struct ProfilView: View {
             .onAppear {
                 ladeOderErstelleProfil()
                 verarbeiteGespeichertenVertrauenspersonPush()
+                Task { await aktualisiereEinladungszustaende() }
             }
             .onReceive(NotificationCenter.default.publisher(for: .vertrauenspersonPushEmpfangen)) { notification in
                 verarbeiteVertrauenspersonPush(notification.userInfo as? [String: String] ?? [:])
+                Task { await aktualisiereEinladungszustaende() }
             }
             .onChange(of: vorname) { _, _ in speichereProfil() }
             .onChange(of: name) { _, _ in speichereProfil() }
@@ -674,6 +694,7 @@ struct ProfilView: View {
             }
             .onChange(of: scenePhase) { _, neuePhase in
                 guard neuePhase == .active else { return }
+                Task { await aktualisiereEinladungszustaende() }
                 guard systemdialogImProfilLaeuft else { return }
 
                 Task {
@@ -683,7 +704,7 @@ struct ProfilView: View {
                 }
             }
         }
-        .dossierFloatingNavigation(.profil)
+        .dossierFloatingNavigation(.profil, dossierKontext: dossierKontext)
     }
 
     private var ausstehendeVertrauenspersonAnfragen: [DossierZugriffModell] {
@@ -730,6 +751,15 @@ struct ProfilView: View {
         verarbeiteVertrauenspersonPush(info)
     }
 
+    private func aktualisiereEinladungszustaende() async {
+        await EinladungsStatusSynchronisation.aktualisieren(
+            zugriffe: gespeicherteDossierZugriffe,
+            dossiers: gespeicherteDossiers,
+            aktiveUserID: UUID(uuidString: aktiveUserID),
+            modelContext: modelContext
+        )
+    }
+
     private func verarbeiteVertrauenspersonPush(_ info: [String: String]) {
         guard info["type"] == "trust_invitation_request",
               let token = info["token"],
@@ -748,17 +778,24 @@ struct ProfilView: View {
         VStack(spacing: 12) {
             profilbildAnsicht
 
-            Text(profilbildData == nil ? "Profilbild auswählen" : "Profilbild ändern")
+            Text(angezeigteProfilbildDaten == nil ? "Profilbild auswählen" : "Profilbild ändern")
                 .font(.headline)
                 .foregroundStyle(profilAkzentFarbe)
         }
         .contentShape(Rectangle())
     }
 
+    private var angezeigteProfilbildDaten: Data? {
+        if dossierKontext.istFreigegebenesDossier {
+            return aktivesProfil?.profilbildDaten
+        }
+        return profilbildData
+    }
+
     @ViewBuilder
     private var profilbildAnsicht: some View {
-        if let profilbildData,
-           let uiImage = UIImage(data: profilbildData) {
+        if let angezeigteProfilbildDaten,
+           let uiImage = UIImage(data: angezeigteProfilbildDaten) {
             Image(uiImage: uiImage)
                 .resizable()
                 .scaledToFill()
@@ -922,6 +959,9 @@ struct ProfilView: View {
     }
 
     private var aktivesProfil: ProfilModell? {
+        if dossierKontext.istFreigegebenesDossier {
+            return gespeicherteProfile.first { $0.dossierID == dossierKontext.dossierID }
+        }
         if !aktiveUserID.isEmpty,
            let profil = gespeicherteProfile.first(where: { $0.userID.uuidString == aktiveUserID }) {
             return profil
@@ -932,11 +972,13 @@ struct ProfilView: View {
 
     private func ladeOderErstelleProfil() {
         guard !profilGeladen else { return }
-        entferneVeralteteLoginEintraegeAusAbos()
+        if dossierKontext.istEigenesDossier {
+            entferneVeralteteLoginEintraegeAusAbos()
+        }
 
         if let vorhandenesProfil = aktivesProfil {
-            if vorhandenesProfil.dossierID == nil {
-                vorhandenesProfil.dossierID = UUID(uuidString: aktivesDossierID) ?? dossierKontext.dossierID
+            if vorhandenesProfil.dossierID == nil && dossierKontext.istEigenesDossier {
+                vorhandenesProfil.dossierID = zielDossierID
                 try? modelContext.save()
             }
             vorname = vorhandenesProfil.vorname
@@ -951,9 +993,11 @@ struct ProfilView: View {
             telefon = vorhandenesProfil.telefon
             ahvNummer = vorhandenesProfil.ahvNummer
             email = vorhandenesProfil.email
-            gespeicherteEmail = vorhandenesProfil.registrierungsEmail.isEmpty ? gespeicherteEmail : vorhandenesProfil.registrierungsEmail
-            registrierungsArt = vorhandenesProfil.registrierungsart.isEmpty ? registrierungsArt : vorhandenesProfil.registrierungsart
-            biometrieAktiviert = vorhandenesProfil.biometrieAktiviert
+            if dossierKontext.istEigenesDossier {
+                gespeicherteEmail = vorhandenesProfil.registrierungsEmail.isEmpty ? gespeicherteEmail : vorhandenesProfil.registrierungsEmail
+                registrierungsArt = vorhandenesProfil.registrierungsart.isEmpty ? registrierungsArt : vorhandenesProfil.registrierungsart
+                biometrieAktiviert = vorhandenesProfil.biometrieAktiviert
+            }
             if vorhandenesProfil.istVertrauensperson {
                 print("Aktives Profil ist Vertrauensperson:", vorhandenesProfil.userID.uuidString)
             }
@@ -961,20 +1005,23 @@ struct ProfilView: View {
                 let optimiertesProfilbild = UIImage(data: gespeichertesProfilbild)
                     .flatMap { cloudTauglichesProfilbild(aus: $0) }
                     ?? gespeichertesProfilbild
-                profilbildData = optimiertesProfilbild
+                if dossierKontext.istEigenesDossier {
+                    profilbildData = optimiertesProfilbild
+                }
 
                 // Bereits vorhandene, zu grosse Bilder einmalig verkleinern,
                 // damit auch ältere Profile innerhalb des Sync-Limits liegen.
-                if optimiertesProfilbild != gespeichertesProfilbild {
+                if dossierKontext.istEigenesDossier,
+                   optimiertesProfilbild != gespeichertesProfilbild {
                     vorhandenesProfil.profilbildDaten = optimiertesProfilbild
                     vorhandenesProfil.aktualisiertAm = Date()
                     try? modelContext.save()
                     VorsorgeBereichStatusStore.markiereBearbeitet(.profil)
                 }
             }
-        } else {
+        } else if dossierKontext.istEigenesDossier {
             let neuesProfil = ProfilModell(
-                dossierID: UUID(uuidString: aktivesDossierID) ?? dossierKontext.dossierID,
+                dossierID: zielDossierID,
                 registrierungsart: registrierungsArt,
                 registrierungsEmail: gespeicherteEmail,
                 profilbildDaten: profilbildData
@@ -985,6 +1032,11 @@ struct ProfilView: View {
         }
 
         profilGeladen = true
+    }
+
+    private var zielDossierID: UUID {
+        if dossierKontext.istFreigegebenesDossier { return dossierKontext.dossierID }
+        return UUID(uuidString: aktivesDossierID) ?? dossierKontext.dossierID
     }
 
     /// Profilbilder werden als Base64 im Profil-Payload übertragen. Rund
@@ -1056,14 +1108,14 @@ struct ProfilView: View {
             profil = vorhandenesProfil
         } else {
             let neuesProfil = ProfilModell(
-                dossierID: UUID(uuidString: aktivesDossierID) ?? dossierKontext.dossierID
+                dossierID: zielDossierID
             )
             modelContext.insert(neuesProfil)
             profil = neuesProfil
         }
 
         if profil.dossierID == nil {
-            profil.dossierID = UUID(uuidString: aktivesDossierID) ?? dossierKontext.dossierID
+            profil.dossierID = zielDossierID
         }
 
         profil.vorname = vorname
@@ -1456,17 +1508,17 @@ struct ProfilView: View {
 
         return try PDFExportService().exportVorsorgeDossier(
             profil: aktivesProfil,
-            wuensche: gespeicherteWuensche,
-            gesundheitsdaten: gespeicherteGesundheitsdaten,
-            bankkonten: gespeicherteBankkonten,
-            schulden: gespeicherteSchulden,
-            versicherungen: gespeicherteVersicherungen,
-            liegenschaften: gespeicherteLiegenschaften,
-            wertsachen: gespeicherteWertsachen,
-            dokumente: gespeicherteWeitereDokumente,
-            fotoalbumBilder: gespeicherteFotos,
-            herzensstuecke: gespeicherteHerzensstuecke,
-            aboModelle: gespeicherteAboModelle,
+            wuensche: exportWuensche,
+            gesundheitsdaten: exportGesundheitsdaten,
+            bankkonten: exportBankkonten,
+            schulden: exportSchulden,
+            versicherungen: exportVersicherungen,
+            liegenschaften: exportLiegenschaften,
+            wertsachen: exportWertsachen,
+            dokumente: exportDokumente,
+            fotoalbumBilder: exportFotos,
+            herzensstuecke: exportHerzensstuecke,
+            aboModelle: exportAboModelle,
             vertrauenspersonen: lokalHinterlegteVertrauenspersonen,
             options: options,
             attachments: dossierAnhaenge()
@@ -1479,7 +1531,7 @@ struct ProfilView: View {
         let kopieHinweis = "Hinweis: Dieses Dokument ist eine Kopie. Das Original sollte jederzeit auffindbar in einem physischen Ordner hinterlegt sein."
         var anhaenge: [DossierPDFAttachment] = []
 
-        if let nachrufBildDaten = gespeicherteWuensche.compactMap(\.nachrufBildData).first,
+        if let nachrufBildDaten = exportWuensche.compactMap(\.nachrufBildData).first,
            !nachrufBildDaten.isEmpty {
             anhaenge.append(
                 DossierPDFAttachment(
@@ -1491,7 +1543,7 @@ struct ProfilView: View {
             )
         }
 
-        for wunsch in gespeicherteWuensche {
+        for wunsch in exportWuensche {
             if let data = wunsch.testamentDateiData, !data.isEmpty {
                 anhaenge.append(
                     DossierPDFAttachment(
@@ -1545,7 +1597,7 @@ struct ProfilView: View {
             }
         }
 
-        for dokument in gespeicherteWeitereDokumente.sorted(by: { $0.hochgeladenAm < $1.hochgeladenAm }) where !dokument.dateiDaten.isEmpty {
+        for dokument in exportDokumente.sorted(by: { $0.hochgeladenAm < $1.hochgeladenAm }) where !dokument.dateiDaten.isEmpty {
             anhaenge.append(
                 DossierPDFAttachment(
                     titel: dokument.kategorie.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Weitere Dokumente" : dokument.kategorie,
@@ -1557,7 +1609,7 @@ struct ProfilView: View {
             )
         }
 
-        for (index, foto) in gespeicherteFotos.sorted(by: { $0.reihenfolge < $1.reihenfolge }).enumerated() where !foto.bildDaten.isEmpty {
+        for (index, foto) in exportFotos.sorted(by: { $0.reihenfolge < $1.reihenfolge }).enumerated() where !foto.bildDaten.isEmpty {
             anhaenge.append(
                 DossierPDFAttachment(
                     titel: "Fotoalbum",
@@ -1569,7 +1621,7 @@ struct ProfilView: View {
             )
         }
 
-        for (objektIndex, stueck) in gespeicherteHerzensstuecke
+        for (objektIndex, stueck) in exportHerzensstuecke
             .sorted(by: { $0.erstelltAm < $1.erstelltAm })
             .enumerated() {
             let objektTitel = stueck.titel.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1657,8 +1709,8 @@ struct ProfilView: View {
 
                 func drawProfileImageIfAvailable() {
 
-                    guard let profilbildData,
-                          let uiImage = UIImage(data: profilbildData) else {
+                    guard let angezeigteProfilbildDaten,
+                          let uiImage = UIImage(data: angezeigteProfilbildDaten) else {
                         return
                     }
 
