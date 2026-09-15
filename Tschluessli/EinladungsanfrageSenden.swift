@@ -99,10 +99,13 @@ struct EinladungsanfrageSendenView: View {
                     vertrauenspersonUserID: userID,
                     registrierungsEmail: cloud.invitedEmail
                 )
+                zugriff.automatischeFreigabeAm = cloud.accessReleaseAt
                 try modelContext.save()
-                meldung = cloud.notificationDelivered
-                    ? "Die vorsorgende Person wurde benachrichtigt. Das Dossier bleibt bis zu ihrer Bestätigung gesperrt."
-                    : "Die Anfrage wurde gespeichert. Die vorsorgende Person sieht sie spätestens beim nächsten Öffnen der App."
+                let frist = cloud.accessReleaseAt?.formatted(date: .abbreviated, time: .shortened)
+                let fristText = frist.map { " Ohne Reaktion wird der Zugriff am \($0) automatisch freigegeben." } ?? ""
+                meldung = (cloud.notificationDelivered
+                    ? "Die vorsorgende Person wurde benachrichtigt."
+                    : "Die Anfrage wurde gespeichert. Die vorsorgende Person sieht sie spätestens beim nächsten Öffnen der App.") + fristText
             } catch {
                 fehler = true
                 meldung = error.localizedDescription

@@ -128,6 +128,11 @@ struct VertrauenspersonView: View {
     @AppStorage("aktivesDossierID")
     private var aktivesDossierID = ""
 
+    // Neue Version, damit die überarbeitete Prozessgeschichte einmal vollständig
+    // durchgespielt werden muss, bevor Verwaltung und Rückblick sichtbar werden.
+    @AppStorage("vertrauenspersonErklaerungAbgeschlossenV2")
+    private var erklaerungAbgeschlossen = false
+
     private let hintergrundFarbe = Color(
         red: 0.96,
         green: 0.95,
@@ -186,6 +191,36 @@ struct VertrauenspersonView: View {
     @State private var mailNachrichtHTML = ""
 
     @State private var qrCodeAnzeigen = false
+    @State private var erklaerungsSchritt = 0
+    @State private var erklaerungAusgeklappt = false
+
+    private let erklaerungsSchritte: [(rolle: String, icon: String, text: String)] = [
+
+        ("DU", "person.crop.circle",
+         "1. Vertrauensperson aus deinen Kontakten auswählen. Sie muss eine aktuelle E-Mail-Adresse hinterlegt haben.\n\n2. Mitteilungen für Tschlüssli in den Einstellungen zulassen."),
+
+        ("DEINE VERTRAUENSPERSON", "person.crop.circle.badge.checkmark",
+         "1. Tschlüssli App installieren und sich mit derselben E-Mail-Adresse registrieren.\n\n2. Mitteilungen von Tschlüssli ebenfalls zulassen."),
+
+        ("DU", "qrcode",
+         "Einmaligen QR-Code für deine Vertrauensperson erstellen."),
+
+        ("DEINE VERTRAUENSPERSON", "qrcode.viewfinder",
+         "In der Tschlüssli App auf «Profil» gehen und den QR-Code scannen."),
+
+        ("", "checkmark.circle.fill",
+         "Verbunden – dein Vorsorgedossier ist nun bei deiner Vertrauensperson in der Übersicht ersichtlich."),
+
+        ("DEINE VERTRAUENSPERSON", "lock.open.fill",
+         "Bei Bedarf den vollständigen Zugriff auf dein Vorsorgedossier anfragen."),
+
+        ("DU", "checkmark.shield",
+         "Zugriff freigeben oder ablehnen."),
+
+        ("", "clock.fill",
+         "Notfall und keine Reaktion möglich? → Der Zugriff wird nach 7 Tagen automatisch freigegeben.")
+    
+    ]
 
     // MARK: - Kontaktstatus
 
@@ -210,6 +245,10 @@ struct VertrauenspersonView: View {
 
     private var bereinigteEmail: String {
         email.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var emailIstGueltig: Bool {
+        istGueltigeEmail(bereinigteEmail)
     }
 
     private var bereinigterEmpfaengerName: String {
@@ -517,19 +556,23 @@ struct VertrauenspersonView: View {
         Form {
             mvpHeroBereich
 
-            vertrauenspersonBereich
+            if !erklaerungAbgeschlossen {
+                erklaerungsBereich
+            } else {
+                abgeschlosseneErklaerung
 
-            Section("QR-Code-Einladung") {
-                qrCodeBereich
+                vertrauenspersonBereich
 
-                if !kontaktIstAusgewaehlt {
-                    Text("Wähle zuerst eine Vertrauensperson aus den Kontakten aus.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                } else if bereinigteEmail.isEmpty {
-                    Text("Für den QR-Code benötigt die Vertrauensperson eine hinterlegte E-Mail-Adresse.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                if kontaktIstAusgewaehlt {
+                    Section("QR-Code-Einladung") {
+                    qrCodeBereich
+
+                        if !emailIstGueltig {
+                            Text("Für den QR-Code benötigt die Vertrauensperson eine gültige E-Mail-Adresse.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
             }
 
@@ -616,6 +659,115 @@ struct VertrauenspersonView: View {
         .formStyle(.grouped)
     }
 
+    // MARK: - Geführte Erklärung
+
+    private var erklaerungsBereich: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("So funktioniert die sichere Verbindung")
+                    .font(.headline)
+                    .foregroundStyle(textFarbe)
+
+                ForEach(0...erklaerungsSchritt, id: \.self) { index in
+                    let schritt = erklaerungsSchritte[index]
+                    erklaerungsNachricht(schritt, index: index)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
+
+                Button {
+                    if erklaerungsSchritt == 0 {
+                        NotificationService.shared.berechtigungAnfragen { _ in }
+                    }
+                    withAnimation(.easeInOut(duration: 0.28)) {
+                        if erklaerungsSchritt < erklaerungsSchritte.count - 1 {
+                            erklaerungsSchritt += 1
+                        } else {
+                            erklaerungAbgeschlossen = true
+                        }
+                    }
+                } label: {
+                    Text("Verstanden")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(akzentFarbe)
+            }
+            .padding(.vertical, 4)
+        } footer: {
+            Text("Testversion: Erfolgt auf eine Zugriffsanfrage keine Reaktion, wird der Zugriff nach einer Minute automatisch freigegeben. Produktiv beträgt die Karenzfrist sieben Tage.")
+        }
+    }
+
+    private var abgeschlosseneErklaerung: some View {
+        Section {
+            DisclosureGroup(isExpanded: $erklaerungAusgeklappt) {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(erklaerungsSchritte.indices, id: \.self) { index in
+                        let schritt = erklaerungsSchritte[index]
+                        erklaerungsNachricht(schritt, index: index, kompakt: true)
+                    }
+                }
+                .padding(.top, 12)
+            } label: {
+                Label("So funktioniert die sichere Verbindung", systemImage: "text.bubble.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(akzentFarbe)
+            }
+        }
+    }
+
+    private func erklaerungsNachricht(
+        _ schritt: (rolle: String, icon: String, text: String),
+        index: Int,
+        kompakt: Bool = false
+    ) -> some View {
+        VStack(spacing: kompakt ? 6 : 9) {
+            if index > 0 {
+                Image(systemName: "arrow.down")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(akzentFarbe.opacity(0.45))
+                    .frame(maxWidth: .infinity)
+            }
+
+            HStack {
+                if schritt.rolle == "DU" || schritt.rolle.isEmpty {
+                    Spacer(minLength: schritt.rolle.isEmpty ? 24 : (kompakt ? 24 : 48))
+                }
+
+                HStack(alignment: .top, spacing: 9) {
+                    Image(systemName: schritt.icon)
+                        .font((kompakt ? Font.footnote : Font.body).weight(.semibold))
+                        .foregroundStyle(schritt.rolle.isEmpty ? Color.green : akzentFarbe)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        if !schritt.rolle.isEmpty {
+                            Text(schritt.rolle)
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(akzentFarbe)
+                        }
+                        Text(schritt.text)
+                            .font(kompakt ? .footnote : .subheadline.weight(schritt.rolle.isEmpty ? .semibold : .regular))
+                            .foregroundStyle(textFarbe)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(kompakt ? 10 : 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(schritt.rolle.isEmpty
+                              ? Color.green.opacity(0.10)
+                              : (schritt.rolle == "DU" ? akzentFarbe.opacity(0.10) : Color.white.opacity(0.88)))
+                )
+
+                if schritt.rolle != "DU" {
+                    Spacer(minLength: schritt.rolle.isEmpty ? 24 : (kompakt ? 24 : 48))
+                }
+            }
+        }
+    }
+
     // MARK: - MVP: Vertrauensperson lokal hinterlegen
 
     private var mvpHeroBereich: some View {
@@ -625,7 +777,7 @@ struct VertrauenspersonView: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(akzentFarbe)
 
-                Text("Halte fest, wer im Ernstfall deine Vertrauensperson ist. Eine Freigabe des Vorsorge-Dossiers oder Einladung ist in dieser Version noch nicht vorgesehen.")
+                Text("Halte fest, wer deine Vertrauensperson ist und im Ernstfall auf dein Vorsorge-Dossier zugreifen darf.")
                     .font(.footnote)
                     .foregroundStyle(sekundaerTextFarbe)
                     .fixedSize(horizontal: false, vertical: true)
@@ -994,7 +1146,7 @@ struct VertrauenspersonView: View {
                 Label(
                     kontaktIstAusgewaehlt
                     ? "Kontakt ändern"
-                    : "Kontakt aus Kontakte auswählen",
+                    : "Vertrauensperson hinzufügen",
                     systemImage:
                         "person.crop.circle.badge.plus"
                 )
@@ -1141,11 +1293,11 @@ struct VertrauenspersonView: View {
             )
             .disabled(
                 !kontaktIstAusgewaehlt ||
-                bereinigteEmail.isEmpty
+                !emailIstGueltig
             )
             .opacity(
                 kontaktIstAusgewaehlt &&
-                !bereinigteEmail.isEmpty
+                emailIstGueltig
                 ? 1
                 : 0.45
             )
@@ -1191,7 +1343,7 @@ struct VertrauenspersonView: View {
                         )
 
                         Text(
-                            "Deine Vertrauensperson kann diesen Code mit der iPhone-Kamera scannen. Der Code enthält den einmalig nutzbaren Einladungslink."
+                            "Deine Vertrauensperson kann diesen Code in der Tschlüssli App scannen. Der Code kann nur einmal genutzt werden."
                         )
                         .font(.footnote)
                         .foregroundStyle(

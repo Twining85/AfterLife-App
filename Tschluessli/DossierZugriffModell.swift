@@ -67,6 +67,9 @@ final class DossierZugriffModell {
     /// Zeitpunkt, an dem der Zugriff nach Eintritt des Ereignisses freigegeben wurde.
     var freigegebenAm: Date?
 
+    /// Serverseitig gespeicherter Zeitpunkt der automatischen Freigabe.
+    var automatischeFreigabeAm: Date?
+
     /// Zeitpunkt, an dem der Zugriff widerrufen wurde.
     var widerrufenAm: Date?
 
@@ -108,6 +111,7 @@ final class DossierZugriffModell {
         angenommenAm: Date? = nil,
         abgelehntAm: Date? = nil,
         freigegebenAm: Date? = nil,
+        automatischeFreigabeAm: Date? = nil,
         widerrufenAm: Date? = nil,
         rolle: String = "Vertrauensperson",
         istPrimaer: Bool = false,
@@ -133,6 +137,7 @@ final class DossierZugriffModell {
         self.angenommenAm = angenommenAm
         self.abgelehntAm = abgelehntAm
         self.freigegebenAm = freigegebenAm
+        self.automatischeFreigabeAm = automatischeFreigabeAm
         self.widerrufenAm = widerrufenAm
         self.rolle = rolle
         self.istPrimaer = istPrimaer

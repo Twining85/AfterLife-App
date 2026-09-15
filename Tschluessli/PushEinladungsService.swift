@@ -12,6 +12,7 @@ nonisolated struct CloudEinladungsAnfrage: Decodable, Sendable {
     let ownerName: String
     let invitedEmail: String
     let expiresAt: Date
+    let accessReleaseAt: Date?
     let notificationDelivered: Bool
 }
 
@@ -24,6 +25,7 @@ nonisolated struct CloudEinladungsStatus: Decodable, Sendable {
     let requesterName: String?
     let status: String
     let expiresAt: Date
+    let accessReleaseAt: Date?
     let title: String
     let ownerEmail: String
     let ownerName: String
@@ -216,8 +218,9 @@ final class PushAppDelegate: NSObject, UIApplicationDelegate, UNUserNotification
                 intentIdentifiers: []
             )
         ])
-        center.requestAuthorization(options: [.alert, .badge, .sound]) { erlaubt, _ in
-            guard erlaubt else { return }
+        center.getNotificationSettings { einstellungen in
+            guard einstellungen.authorizationStatus == .authorized ||
+                    einstellungen.authorizationStatus == .provisional else { return }
             DispatchQueue.main.async { application.registerForRemoteNotifications() }
         }
         return true
@@ -274,7 +277,8 @@ final class PushAppDelegate: NSObject, UIApplicationDelegate, UNUserNotification
         gespeichert["type"] = typ
         if let token = info["invitationToken"] ?? info["token"] {
             gespeichert["token"] = token
-        } else if typ != "trust_invitation_revoked" {
+        } else if typ != "trust_invitation_revoked" &&
+                    typ != "trust_invitation_auto_released" {
             return
         }
         UserDefaults.standard.set(gespeichert, forKey: "letzterVertrauenspersonPush")

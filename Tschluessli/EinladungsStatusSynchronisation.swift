@@ -71,6 +71,7 @@ enum EinladungsStatusSynchronisation {
         zugriff.eingeladeneEmail = cloud.invitedEmail
         zugriff.vorsorgendePersonName = cloud.ownerName
         zugriff.einladungGueltigBis = cloud.expiresAt
+        zugriff.automatischeFreigabeAm = cloud.accessReleaseAt
         if let requester = cloud.requesterUserID {
             zugriff.vertrauenspersonUserID = requester
         }

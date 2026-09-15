@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import {
+  automaticReleasePushPayload,
   handleInvitationOperation,
   invitationDecisionPushPayload,
   invitationRequestPushPayload,
+  releaseDueInvitations,
+  trustAccessGraceSeconds,
   revokeInvitationForOwner
 } from "../api/_invitation-handler.js";
 import { resetDatabasePoolForTests, setDatabasePoolForTests } from "../api/_database.js";
@@ -57,6 +60,7 @@ test("Scan allein erzeugt keine Anfrage und der bewusste Request meldet fehlende
   assert.match(pool.calls[0].text, /status = 'pending'/);
   assert.match(pool.calls[0].text, /'declined'/);
   assert.equal(pool.calls[0].parameters[3], "Max Muster");
+  assert.equal(pool.calls[0].parameters[4], 60);
   assert.equal(pool.calls.length, 2);
 });
 
@@ -81,6 +85,57 @@ test("nennt die beteiligten Personen in den Pushnachrichten", () => {
   });
   assert.match(accepted.aps.alert.body, /Anna Beispiel/);
   assert.match(declined.aps.alert.body, /Anna Beispiel/);
+
+  const automatic = automaticReleasePushPayload({
+    ownerName: "Anna Beispiel",
+    dossierID: "dossier-id"
+  });
+  assert.equal(automatic.aps.alert.title, "Dein Zugriff wurde freigegeben");
+  assert.equal(
+    automatic.aps.alert.body,
+    "Du kannst das Tschlüssli-Dossier von Anna Beispiel jetzt vollständig einsehen."
+  );
+});
+
+test("verwendet eine Minute im Test und sieben Tage als Produktivkonfiguration", () => {
+  assert.equal(trustAccessGraceSeconds({}), 60);
+  assert.equal(trustAccessGraceSeconds({ TRUST_ACCESS_GRACE_SECONDS: "604800" }), 604800);
+});
+
+test("gibt fällige Anfragen serverseitig frei und benachrichtigt die Vertrauensperson", async () => {
+  const queries = [];
+  const pushes = [];
+  const invitationID = "9ca650a8-a78c-4ef0-b62f-cb640531b667";
+  const client = {
+    async query(text, parameters = []) {
+      queries.push({ text: String(text), parameters });
+      if (String(text).includes("INSERT INTO dossier_access_grants")) {
+        return { rows: [{ invitation_id: invitationID }] };
+      }
+      if (String(text).includes("FROM dossier_invitations") && String(text).includes("ANY")) {
+        return { rows: [{
+          id: invitationID,
+          dossier_id: "7b4a924e-f65a-4b51-9c19-3e4c74dc79de",
+          requester_user_id: "a1a14c1c-289f-4719-b237-02c9c7534642",
+          owner_name: "Anna Beispiel"
+        }] };
+      }
+      return { rows: [] };
+    },
+    release() {}
+  };
+
+  const count = await releaseDueInvitations({
+    pool: { async connect() { return client; } },
+    async push(userID, payload) { pushes.push({ userID, payload }); }
+  });
+
+  assert.equal(count, 1);
+  assert.match(queries[1].text, /FOR UPDATE SKIP LOCKED/);
+  assert.match(queries[1].text, /status = 'accepted'/);
+  assert.equal(queries.at(-1).text, "COMMIT");
+  assert.equal(pushes[0].userID, "a1a14c1c-289f-4719-b237-02c9c7534642");
+  assert.equal(pushes[0].payload.type, "trust_invitation_auto_released");
 });
 
 test("widerruft Einladung und Dossierfreigabe gemeinsam", async () => {

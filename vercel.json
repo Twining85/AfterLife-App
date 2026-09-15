@@ -4,5 +4,11 @@
       "source": "/api/accounts/delete",
       "destination": "/api/accounts/login"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/auto-release-invitations",
+      "schedule": "* * * * *"
+    }
   ]
 }

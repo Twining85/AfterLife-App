@@ -59,6 +59,8 @@ async function registerInvitation(req, res, user) {
        requester_name = NULL,
        requested_at = NULL,
        decided_at = NULL,
+       access_release_at = NULL,
+       auto_released_at = NULL,
        updated_at = now()
      WHERE dossier_invitations.status = 'open'
      RETURNING id`,
@@ -72,16 +74,19 @@ async function requestInvitation(req, res, user) {
   const accountEmail = String(user.email || "").trim().toLowerCase();
   const requesterName = personName(req.body?.requesterName, accountEmail);
   if (!token || !accountEmail) return res.status(400).json({ error: "Ungültige Einladungsanfrage" });
+  const graceSeconds = trustAccessGraceSeconds();
   const result = await databasePool().query(
     `UPDATE dossier_invitations SET requester_user_id = $2, requester_email = $3,
-        requester_name = $4, status = 'pending', requested_at = now(), decided_at = NULL, updated_at = now()
+        requester_name = $4, status = 'pending', requested_at = now(), decided_at = NULL,
+        access_release_at = now() + ($5::integer * interval '1 second'),
+        auto_released_at = NULL, updated_at = now()
       WHERE token_hash = $1
         AND expires_at > now()
         AND invited_email = $3
         AND owner_user_id <> $2
         AND (status = 'open' OR (status IN ('pending', 'declined') AND requester_user_id = $2 AND requester_email = $3))
-      RETURNING dossier_id, owner_user_id, invited_email, owner_name, expires_at`,
-    [hash(token), user.id, accountEmail, requesterName]
+      RETURNING dossier_id, owner_user_id, invited_email, owner_name, expires_at, access_release_at`,
+    [hash(token), user.id, accountEmail, requesterName, graceSeconds]
   );
   const invitation = result.rows[0];
   if (!invitation) return res.status(403).json({ error: "Einladung ungültig oder die registrierte Konto-E-Mail stimmt nicht überein" });
@@ -95,6 +100,7 @@ async function requestInvitation(req, res, user) {
     ownerName: invitation.owner_name,
     invitedEmail: invitation.invited_email,
     expiresAt: invitation.expires_at,
+    accessReleaseAt: invitation.access_release_at,
     notificationDelivered: delivery.delivered > 0
   });
 }
@@ -235,7 +241,8 @@ async function invitationStatus(req, res, user) {
   if (!token) return res.status(400).json({ error: "Einladungstoken fehlt" });
   const result = await databasePool().query(
     `SELECT i.dossier_id, i.owner_user_id, i.requester_user_id, i.invited_email,
-            i.requester_email, i.requester_name, i.owner_name, i.status, i.expires_at, d.title,
+            i.requester_email, i.requester_name, i.owner_name, i.status, i.expires_at,
+            i.access_release_at, d.title,
             owner.email AS owner_email
        FROM dossier_invitations i
        JOIN dossiers d ON d.id = i.dossier_id
@@ -297,6 +304,7 @@ function invitationResponse(invitation) {
     requesterName: invitation.requester_name,
     status: invitation.status,
     expiresAt: invitation.expires_at,
+    accessReleaseAt: invitation.access_release_at,
     title: invitation.title,
     ownerEmail: invitation.owner_email,
     ownerName: invitation.owner_name
@@ -337,6 +345,93 @@ export function invitationDecisionPushPayload({ token, decision, ownerName }) {
     invitationToken: token,
     decision
   };
+}
+
+export function automaticReleasePushPayload({ ownerName, dossierID }) {
+  return {
+    aps: {
+      alert: {
+        title: "Dein Zugriff wurde freigegeben",
+        body: `Du kannst das Tschlüssli-Dossier von ${ownerName} jetzt vollständig einsehen.`
+      },
+      sound: "default"
+    },
+    type: "trust_invitation_auto_released",
+    dossierID
+  };
+}
+
+export function trustAccessGraceSeconds(environment = process.env) {
+  const configured = Number.parseInt(environment.TRUST_ACCESS_GRACE_SECONDS || "", 10);
+  if (Number.isInteger(configured) && configured >= 60 && configured <= 2_592_000) {
+    return configured;
+  }
+  // Aktuelle Testphase: 1 Minute. Vor Produktivstart auf 604800 (7 Tage) setzen.
+  return 60;
+}
+
+export async function releaseDueInvitations({
+  pool = databasePool(),
+  push = pushToUser,
+  limit = 100
+} = {}) {
+  const client = await pool.connect();
+  let released = [];
+  try {
+    await client.query("BEGIN");
+    const result = await client.query(
+      `WITH due AS (
+         SELECT id
+           FROM dossier_invitations
+          WHERE status = 'pending'
+            AND access_release_at IS NOT NULL
+            AND access_release_at <= now()
+            AND requester_user_id IS NOT NULL
+          ORDER BY access_release_at
+          LIMIT $1
+          FOR UPDATE SKIP LOCKED
+       ), released AS (
+         UPDATE dossier_invitations i
+            SET status = 'accepted', decided_at = now(), auto_released_at = now(), updated_at = now()
+           FROM due
+          WHERE i.id = due.id
+          RETURNING i.id, i.dossier_id, i.requester_user_id, i.owner_name
+       )
+       INSERT INTO dossier_access_grants (dossier_id, user_id, invitation_id)
+       SELECT dossier_id, requester_user_id, id FROM released
+       ON CONFLICT (dossier_id, user_id) DO UPDATE
+         SET revoked_at = NULL, granted_at = now(), invitation_id = EXCLUDED.invitation_id
+       RETURNING invitation_id`,
+      [limit]
+    );
+    const releasedIDs = result.rows.map((row) => row.invitation_id);
+    if (releasedIDs.length > 0) {
+      const details = await client.query(
+        `SELECT id, dossier_id, requester_user_id, owner_name
+           FROM dossier_invitations
+          WHERE id = ANY($1::uuid[])`,
+        [releasedIDs]
+      );
+      released = details.rows;
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  await Promise.all(released.map((invitation) =>
+    push(
+      invitation.requester_user_id,
+      automaticReleasePushPayload({
+        ownerName: invitation.owner_name,
+        dossierID: invitation.dossier_id
+      })
+    )
+  ));
+  return released.length;
 }
 
 function personName(value, fallback) {

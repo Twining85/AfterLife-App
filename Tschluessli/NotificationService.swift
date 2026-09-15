@@ -7,6 +7,7 @@
 
 import Foundation
 import UserNotifications
+import UIKit
 
 final class NotificationService {
     static let shared = NotificationService()
@@ -27,6 +28,9 @@ final class NotificationService {
             
             print("Benachrichtigungen erlaubt: \(erlaubt)")
             DispatchQueue.main.async {
+                if erlaubt {
+                    UIApplication.shared.registerForRemoteNotifications()
+                }
                 completion(erlaubt)
             }
         }

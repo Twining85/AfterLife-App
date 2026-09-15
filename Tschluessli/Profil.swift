@@ -62,6 +62,8 @@ struct ProfilView: View {
     @AppStorage("dossierLetzterExportAmISO") private var dossierLetzterExportAmISO = ""
     @AppStorage("profilWurdeGeradeGeloescht") private var profilWurdeGeradeGeloescht = false
     @AppStorage("wurdeGeradeAusgeloggt") private var wurdeGeradeAusgeloggt = false
+    @AppStorage("mitteilungenNachVollstaendigemNamenAngefragt")
+    private var mitteilungenNachVollstaendigemNamenAngefragt = false
 
     @State private var vorname = ""
 
@@ -129,6 +131,18 @@ struct ProfilView: View {
     @State private var vertrauenspersonHinterlegenAnzeigen = false
     @State private var einladungQRCodeAnnehmenAnzeigen = false
     @State private var vertrauenspersonEntscheidungsFehler = ""
+
+    private var vertrauenspersonEntscheidungsFehlerAnzeigen: Binding<Bool> {
+        Binding(
+            get: { !vertrauenspersonEntscheidungsFehler.isEmpty },
+            set: { wirdAngezeigt in
+                if !wirdAngezeigt {
+                    vertrauenspersonEntscheidungsFehler = ""
+                }
+            }
+        )
+    }
+
     private var istEmailGueltig: Bool {
 
         if email.isEmpty { return true }
@@ -331,10 +345,12 @@ struct ProfilView: View {
                 Section("Persönliche Angaben") {
                     TextField("Vorname", text: $vorname)
                         .textContentType(.name)
+                        .focused($profilFokus, equals: .vorname)
                         .disabled(dossierKontext.istReadOnly)
                     
                     TextField("Name", text: $name)
                         .textContentType(.name)
+                        .focused($profilFokus, equals: .name)
                         .disabled(dossierKontext.istReadOnly)
 
                     TextField("Strasse", text: $adresse)
@@ -436,16 +452,25 @@ struct ProfilView: View {
                         Button {
                             vertrauenspersonHinterlegenAnzeigen = true
                         } label: {
-                            Label("Vertrauensperson hinterlegen", systemImage: "person.badge.plus")
+                            Label(
+                                lokalHinterlegteVertrauenspersonen.isEmpty
+                                    ? "Vertrauensperson hinterlegen"
+                                    : "Vertrauensperson verwalten",
+                                systemImage: lokalHinterlegteVertrauenspersonen.isEmpty
+                                    ? "person.badge.plus"
+                                    : "person.crop.circle.badge.checkmark"
+                            )
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
 
                         Button {
-                            einladungQRCodeAnnehmenAnzeigen = true
+                            NotificationService.shared.berechtigungAnfragen { _ in
+                                einladungQRCodeAnnehmenAnzeigen = true
+                            }
                         } label: {
-                            Label("Ich wurde als Vertrauensperson festgelegt", systemImage: "qrcode.viewfinder")
+                            Label("QR-Code als Vertrauensperson scannen", systemImage: "qrcode.viewfinder")
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .contentShape(Rectangle())
                         }
@@ -626,10 +651,7 @@ struct ProfilView: View {
             }
             .alert(
                 "Anfrage konnte nicht verarbeitet werden",
-                isPresented: Binding(
-                    get: { !vertrauenspersonEntscheidungsFehler.isEmpty },
-                    set: { if !$0 { vertrauenspersonEntscheidungsFehler = "" } }
-                )
+                isPresented: vertrauenspersonEntscheidungsFehlerAnzeigen
             ) {
                 Button("OK", role: .cancel) { vertrauenspersonEntscheidungsFehler = "" }
             } message: {
@@ -666,6 +688,13 @@ struct ProfilView: View {
             }
             .onChange(of: vorname) { _, _ in speichereProfil() }
             .onChange(of: name) { _, _ in speichereProfil() }
+            .onChange(of: profilFokus) { alterFokus, neuerFokus in
+                let warNamensfeld = alterFokus == .vorname || alterFokus == .name
+                let istNamensfeld = neuerFokus == .vorname || neuerFokus == .name
+                if warNamensfeld && !istNamensfeld {
+                    frageMitteilungenNachVollstaendigemNamenAn()
+                }
+            }
             .onChange(of: geburtsdatum) { _, _ in
                 geburtsdatumText = formatiereGeburtsdatum(geburtsdatum)
                 speichereProfil()
@@ -815,6 +844,8 @@ struct ProfilView: View {
     @FocusState private var profilFokus: ProfilFokusFeld?
 
     private enum ProfilFokusFeld: Hashable {
+        case vorname
+        case name
         case adresse
         case hausnummer
     }
@@ -1032,6 +1063,16 @@ struct ProfilView: View {
         }
 
         profilGeladen = true
+    }
+
+    private func frageMitteilungenNachVollstaendigemNamenAn() {
+        guard dossierKontext.kannBearbeiten, profilGeladen else { return }
+        guard !mitteilungenNachVollstaendigemNamenAngefragt else { return }
+        guard !vorname.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+
+        mitteilungenNachVollstaendigemNamenAngefragt = true
+        NotificationService.shared.berechtigungAnfragen { _ in }
     }
 
     private var zielDossierID: UUID {

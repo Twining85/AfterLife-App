@@ -388,7 +388,7 @@ struct Home: View {
             return "Vertrauensperson festlegen"
         }
         if !dossierWurdeGeprueft && dossierFortschritt.kreisFortschritt >= 0.7 {
-            return "Vorsorge-Dossier jetzt abschliessen"
+            return "Ich bin fertig. Vorsorge-Dossier jetzt abschliessen"
         }
         if vorsorgeStatus == .unvollstaendig, let empfohlenerHomeBereich {
             return bereichAktivitaet(fuer: empfohlenerHomeBereich).wurdeBegonnen
@@ -535,7 +535,7 @@ struct Home: View {
                                             || vertrauenspersonenFuerAktivenUser.isEmpty),
                                     pruefenButtonTitel: dossierPruefungIstFaellig
                                         ? "Vorsorge-Dossier prüfen"
-                                        : "Vorsorge-Dossier jetzt abschliessen",
+                                        : "Ich bin fertig. Vorsorge-Dossier jetzt abschliessen",
                                     pruefenAction: { dossierPruefungSheetAnzeigen = true },
                                     pruefungZuruecksetzenAction: dossierWurdeGeprueft
                                         ? { dossierPruefungZuruecksetzenAnzeigen = true }
