@@ -133,21 +133,25 @@ nonisolated struct CloudWuenscheDaten: Codable, Sendable {
     let testamentAblageort: String
     let testamentDateiName: String
     let testamentHochgeladenAm: Date?
+    let testamentFreigegebenBeiDossierfreigabe: Bool?
     let testamentErinnerungAktiv: Bool
     let testamentErinnerungAm: Date?
     let patientenverfuegungVorhanden: Bool
     let patientenverfuegungDateiName: String
     let patientenverfuegungHochgeladenAm: Date?
+    let patientenverfuegungFreigegebenBeiDossierfreigabe: Bool?
     let patientenverfuegungErinnerungAktiv: Bool
     let patientenverfuegungErinnerungAm: Date?
     let vorsorgeauftragVorhanden: Bool
     let vorsorgeauftragDateiName: String
     let vorsorgeauftragHochgeladenAm: Date?
+    let vorsorgeauftragFreigegebenBeiDossierfreigabe: Bool?
     let vorsorgeauftragErinnerungAktiv: Bool
     let vorsorgeauftragErinnerungAm: Date?
     let sterbebegleitungGewuenscht: Bool
     let sterbebegleitungDateiName: String
     let sterbebegleitungHochgeladenAm: Date?
+    let sterbebegleitungFreigegebenBeiDossierfreigabe: Bool?
     let sterbebegleitungErinnerungAktiv: Bool
     let sterbebegleitungErinnerungAm: Date?
     let schwereErkrankungVorhanden: Bool
@@ -186,21 +190,25 @@ nonisolated struct CloudWuenscheDaten: Codable, Sendable {
         testamentAblageort = modell.testamentAblageort
         testamentDateiName = modell.testamentDateiName
         testamentHochgeladenAm = modell.testamentHochgeladenAm
+        testamentFreigegebenBeiDossierfreigabe = modell.testamentFreigegebenBeiDossierfreigabe
         testamentErinnerungAktiv = modell.testamentErinnerungAktiv
         testamentErinnerungAm = modell.testamentErinnerungAm
         patientenverfuegungVorhanden = modell.patientenverfuegungVorhanden
         patientenverfuegungDateiName = modell.patientenverfuegungDateiName
         patientenverfuegungHochgeladenAm = modell.patientenverfuegungHochgeladenAm
+        patientenverfuegungFreigegebenBeiDossierfreigabe = modell.patientenverfuegungFreigegebenBeiDossierfreigabe
         patientenverfuegungErinnerungAktiv = modell.patientenverfuegungErinnerungAktiv
         patientenverfuegungErinnerungAm = modell.patientenverfuegungErinnerungAm
         vorsorgeauftragVorhanden = modell.vorsorgeauftragVorhanden
         vorsorgeauftragDateiName = modell.vorsorgeauftragDateiName
         vorsorgeauftragHochgeladenAm = modell.vorsorgeauftragHochgeladenAm
+        vorsorgeauftragFreigegebenBeiDossierfreigabe = modell.vorsorgeauftragFreigegebenBeiDossierfreigabe
         vorsorgeauftragErinnerungAktiv = modell.vorsorgeauftragErinnerungAktiv
         vorsorgeauftragErinnerungAm = modell.vorsorgeauftragErinnerungAm
         sterbebegleitungGewuenscht = modell.sterbebegleitungGewuenscht
         sterbebegleitungDateiName = modell.sterbebegleitungDateiName
         sterbebegleitungHochgeladenAm = modell.sterbebegleitungHochgeladenAm
+        sterbebegleitungFreigegebenBeiDossierfreigabe = modell.sterbebegleitungFreigegebenBeiDossierfreigabe
         sterbebegleitungErinnerungAktiv = modell.sterbebegleitungErinnerungAktiv
         sterbebegleitungErinnerungAm = modell.sterbebegleitungErinnerungAm
         schwereErkrankungVorhanden = modell.schwereErkrankungVorhanden

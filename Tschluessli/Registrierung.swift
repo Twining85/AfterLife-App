@@ -567,6 +567,11 @@ struct Registrierung: View {
 
             Button("Mit bestehendem Konto anmelden") {
                 fehlermeldung = ""
+                // Ein möglicherweise von einem früher abgebrochenen
+                // Registrierungsablauf verbliebener Einmal-Status darf den
+                // Login eines bestehenden Kontos nicht umgehen.
+                direktNachRegistrierungEingeloggt = false
+                istEingeloggt = false
                 wiederherstellungNeuesGeraetLaeuft = true
                 bestehendesKontoAnmelden = true
             }
@@ -785,6 +790,7 @@ struct Registrierung: View {
                 gespeicherteEmail = bereinigteEmail
                 registrierungsArt = "E-Mail"
                 profilIstVorhanden = true
+                wiederherstellungNeuesGeraetLaeuft = false
                 direktNachRegistrierungEingeloggt = true
                 istEingeloggt = true
                 emailVerifizierungAnzeigen = false
@@ -854,6 +860,20 @@ struct Registrierung: View {
 
     private func erstelleDossierFallsNoetig(fuer profil: ProfilModell, email: String) {
         if let vorhandeneDossierID = profil.dossierID {
+            // Das Backend erstellt bei der Registrierung bereits das primäre
+            // Dossier und liefert dessen ID zurück. Diese ID allein genügt
+            // lokal aber nicht: Der Sync-Dienst benötigt auch ein passendes
+            // SwiftData-Dossiermodell als Eigentumsnachweis.
+            let existiertLokal = (try? modelContext.fetch(FetchDescriptor<DossierModell>()))?.contains {
+                $0.dossierID == vorhandeneDossierID && $0.besitzerUserID == profil.userID
+            } ?? false
+            if !existiertLokal {
+                modelContext.insert(DossierModell(
+                    dossierID: vorhandeneDossierID,
+                    besitzerUserID: profil.userID,
+                    vorsorgendePersonName: email.trimmingCharacters(in: .whitespacesAndNewlines)
+                ))
+            }
             aktivesDossierID = vorhandeneDossierID.uuidString
             return
         }

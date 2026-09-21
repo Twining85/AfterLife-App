@@ -122,10 +122,10 @@ actor PushEinladungsService {
         )
     }
 
-    func einladungWiderrufen(dossierID: UUID, email: String) async throws {
+    func einladungWiderrufen(token: String, dossierID: UUID, email: String) async throws {
         _ = try await sende(
             pfad: "api/sync/push?operation=revoke-invitation",
-            body: EinladungWiderrufenAnfrage(dossierID: dossierID, email: email),
+            body: EinladungWiderrufenAnfrage(token: token, dossierID: dossierID, email: email),
             antwort: LeereAntwort.self
         )
     }
@@ -156,6 +156,12 @@ actor PushEinladungsService {
         if http.statusCode == 401 {
             throw PushFehler.authentifizierung
         }
+        if http.statusCode == 404 {
+            throw PushFehler.nichtGefunden
+        }
+        if http.statusCode == 403 {
+            throw PushFehler.zugriffVerweigert
+        }
         guard (200..<300).contains(http.statusCode) else {
             let server = try? JSONDecoder().decode(ServerPushFehler.self, from: daten)
             throw PushFehler.server(server?.error ?? "Die Push-Anfrage ist fehlgeschlagen.")
@@ -176,11 +182,15 @@ actor PushEinladungsService {
 enum PushFehler: LocalizedError {
     case ungueltigeAntwort
     case authentifizierung
+    case nichtGefunden
+    case zugriffVerweigert
     case server(String)
     var errorDescription: String? {
         switch self {
         case .ungueltigeAntwort: "Der Server hat unerwartet geantwortet."
         case .authentifizierung: "Deine Tschlüssli-Anmeldung ist abgelaufen. Bitte melde dich erneut an."
+        case .nichtGefunden: "Die Einladung existiert nicht mehr."
+        case .zugriffVerweigert: "Für dieses Dossier besteht kein Zugriff mehr."
         case .server(let text): text
         }
     }
@@ -196,7 +206,11 @@ private nonisolated struct EinladungRegistrierenAnfrage: Encodable {
 private nonisolated struct TokenAnfrage: Encodable { let token: String }
 private nonisolated struct AnfrageSendenAnfrage: Encodable { let token: String; let requesterName: String }
 private nonisolated struct EntscheidungsAnfrage: Encodable { let token: String; let decision: String }
-private nonisolated struct EinladungWiderrufenAnfrage: Encodable { let dossierID: UUID; let email: String }
+private nonisolated struct EinladungWiderrufenAnfrage: Encodable {
+    let token: String
+    let dossierID: UUID
+    let email: String
+}
 private nonisolated struct ServerPushFehler: Decodable { let error: String }
 private nonisolated struct LeereAntwort: Codable { init() {} }
 

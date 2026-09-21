@@ -148,17 +148,21 @@ enum DossierBereichImport {
         m.nachrufText = w.nachrufText; m.nachrufBildDateiName = w.nachrufBildDateiName
         m.testamentVorhanden = w.testamentVorhanden; m.testamentAblageort = w.testamentAblageort
         m.testamentDateiName = w.testamentDateiName; m.testamentHochgeladenAm = w.testamentHochgeladenAm
+        m.testamentFreigegebenBeiDossierfreigabe = w.testamentFreigegebenBeiDossierfreigabe ?? false
         m.testamentErinnerungAktiv = w.testamentErinnerungAktiv; m.testamentErinnerungAm = w.testamentErinnerungAm
         m.patientenverfuegungVorhanden = w.patientenverfuegungVorhanden
         m.patientenverfuegungDateiName = w.patientenverfuegungDateiName
         m.patientenverfuegungHochgeladenAm = w.patientenverfuegungHochgeladenAm
+        m.patientenverfuegungFreigegebenBeiDossierfreigabe = w.patientenverfuegungFreigegebenBeiDossierfreigabe ?? true
         m.patientenverfuegungErinnerungAktiv = w.patientenverfuegungErinnerungAktiv
         m.patientenverfuegungErinnerungAm = w.patientenverfuegungErinnerungAm
         m.vorsorgeauftragVorhanden = w.vorsorgeauftragVorhanden; m.vorsorgeauftragDateiName = w.vorsorgeauftragDateiName
         m.vorsorgeauftragHochgeladenAm = w.vorsorgeauftragHochgeladenAm
+        m.vorsorgeauftragFreigegebenBeiDossierfreigabe = w.vorsorgeauftragFreigegebenBeiDossierfreigabe ?? true
         m.vorsorgeauftragErinnerungAktiv = w.vorsorgeauftragErinnerungAktiv; m.vorsorgeauftragErinnerungAm = w.vorsorgeauftragErinnerungAm
         m.sterbebegleitungGewuenscht = w.sterbebegleitungGewuenscht; m.sterbebegleitungDateiName = w.sterbebegleitungDateiName
         m.sterbebegleitungHochgeladenAm = w.sterbebegleitungHochgeladenAm
+        m.sterbebegleitungFreigegebenBeiDossierfreigabe = w.sterbebegleitungFreigegebenBeiDossierfreigabe ?? true
         m.sterbebegleitungErinnerungAktiv = w.sterbebegleitungErinnerungAktiv; m.sterbebegleitungErinnerungAm = w.sterbebegleitungErinnerungAm
         m.schwereErkrankungVorhanden = w.schwereErkrankungVorhanden; m.schwereErkrankungArt = w.schwereErkrankungArt
         m.mirIstWichtig = w.mirIstWichtig; m.regelmaessigBeurteilen = w.regelmaessigBeurteilen
@@ -189,7 +193,7 @@ enum DossierBereichImport {
         for w in c.vertrauenspersonen {
             let historie = w.historie.map { VertrauenspersonEinladungsHistorieModell(datum:$0.datum,beschreibung:$0.beschreibung) }
             let alt = alteVertrauenspersonen.first { $0.personenID == w.personenID || (!$0.email.isEmpty && $0.email.caseInsensitiveCompare(w.email) == .orderedSame) }
-            context.insert(VertrauenspersonModell(personenID:w.personenID,vorname:w.vorname,name:w.name,email:w.email,telefon:w.telefon,beziehung:w.beziehung,einladungsStatus:w.einladungsStatus,vorsorgeprozessStatus:w.vorsorgeprozessStatus,einladungsToken:alt?.einladungsToken,einladungsEmail:w.einladungsEmail,einladungsLinkErstelltAm:w.einladungsLinkErstelltAm,dossierID:id,vorsorgendeUserID:w.vorsorgendeUserID,vertrauenspersonUserID:w.vertrauenspersonUserID,einladungAngenommenAm:w.einladungAngenommenAm,einladungAbgelehntAm:w.einladungAbgelehntAm,istPrimaereVertrauensperson:w.istPrimaereVertrauensperson,reihenfolge:w.reihenfolge,einladungsHistorie:historie,erstelltAm:w.erstelltAm,geaendertAm:w.geaendertAm))
+            context.insert(VertrauenspersonModell(personenID:w.personenID,vorname:w.vorname,name:w.name,email:w.email,telefon:w.telefon,beziehung:w.beziehung,einladungsStatus:w.einladungsStatus,vorsorgeprozessStatus:w.vorsorgeprozessStatus,einladungsToken:alt?.einladungsToken,einladungsEmail:w.einladungsEmail,einladungsLinkErstelltAm:w.einladungsLinkErstelltAm,dossierID:id,vorsorgendeUserID:w.vorsorgendeUserID,vertrauenspersonUserID:w.vertrauenspersonUserID,einladungAngenommenAm:w.einladungAngenommenAm,einladungAbgelehntAm:w.einladungAbgelehntAm,istPrimaereVertrauensperson:w.istPrimaereVertrauensperson,reihenfolge:w.reihenfolge,wuenscheSichtbarBeiDossierfreigabe:w.wuenscheSichtbarBeiDossierfreigabe ?? true,menschenDesVertrauensSichtbarBeiDossierfreigabe:w.menschenDesVertrauensSichtbarBeiDossierfreigabe ?? true,finanzenSichtbarBeiDossierfreigabe:w.finanzenSichtbarBeiDossierfreigabe ?? false,dokumenteSichtbarBeiDossierfreigabe:w.dokumenteSichtbarBeiDossierfreigabe ?? false,abosUndProfileSichtbarBeiDossierfreigabe:w.abosUndProfileSichtbarBeiDossierfreigabe ?? false,herzensstueckeSichtbarBeiDossierfreigabe:w.herzensstueckeSichtbarBeiDossierfreigabe ?? true,gesundheitSichtbarBeiDossierfreigabe:w.gesundheitSichtbarBeiDossierfreigabe ?? true,einladungsHistorie:historie,erstelltAm:w.erstelltAm,geaendertAm:w.geaendertAm))
         }
     }
 

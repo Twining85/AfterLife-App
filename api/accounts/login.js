@@ -89,10 +89,9 @@ export async function deleteAccountForUser({ userID, pool = databasePool() }) {
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.user_id', $1, true)", [userID]);
     await client.query("DELETE FROM dossiers WHERE owner_user_id = $1", [userID]);
-    const result = await client.query(
-      "DELETE FROM app_users WHERE id = $1 RETURNING id",
-      [userID]
-    );
+    const result = client.engine === "mysql"
+      ? await client.query("DELETE FROM app_users WHERE id = $1", [userID])
+      : await client.query("DELETE FROM app_users WHERE id = $1 RETURNING id", [userID]);
     if (result.rowCount !== 1) throw new Error("Konto nicht gefunden");
     await client.query("COMMIT");
   } catch (error) {

@@ -72,6 +72,7 @@ struct WuenscheView: View {
     @State private var testamentDateiURL: URL?
     @State private var testamentDateiData: Data?
     @State private var testamentHochgeladenAm: Date?
+    @State private var testamentFreigegebenBeiDossierfreigabe = false
     @State private var testamentScannerAnzeigen = false
     @State private var testamentScanSpeichernAbfrageAnzeigen = false
     @State private var pendingTestamentScanData: Data?
@@ -90,18 +91,21 @@ struct WuenscheView: View {
     @State private var patientenverfuegungDateiURL: URL?
     @State private var patientenverfuegungDateiData: Data?
     @State private var patientenverfuegungHochgeladenAm: Date?
+    @State private var patientenverfuegungFreigegebenBeiDossierfreigabe = true
     
     @State private var hatVorsorgeauftrag = false
     @State private var vorsorgeauftragDateiName: String?
     @State private var vorsorgeauftragDateiURL: URL?
     @State private var vorsorgeauftragDateiData: Data?
     @State private var vorsorgeauftragHochgeladenAm: Date?
+    @State private var vorsorgeauftragFreigegebenBeiDossierfreigabe = true
 
     @State private var offenFuerSterbebegleitung = false
     @State private var sterbebegleitungDateiName: String?
     @State private var sterbebegleitungDateiURL: URL?
     @State private var sterbebegleitungDateiData: Data?
     @State private var sterbebegleitungHochgeladenAm: Date?
+    @State private var sterbebegleitungFreigegebenBeiDossierfreigabe = true
 
     @State private var hatSchwereGesundheitlicheErkrankung = false
     @State private var schwereErkrankung: SchwereErkrankung?
@@ -168,20 +172,24 @@ struct WuenscheView: View {
             testamentDateiName ?? "",
             testamentDateiData?.count.description ?? "",
             testamentHochgeladenAm?.timeIntervalSince1970.description ?? "",
+            String(testamentFreigegebenBeiDossierfreigabe),
             String(hatPatientenverfuegung),
             patientenverfuegungDateiName ?? "",
             patientenverfuegungDateiData?.count.description ?? "",
             patientenverfuegungHochgeladenAm?.timeIntervalSince1970.description ?? "",
+            String(patientenverfuegungFreigegebenBeiDossierfreigabe),
 
             String(hatVorsorgeauftrag),
             vorsorgeauftragDateiName ?? "",
             vorsorgeauftragDateiData?.count.description ?? "",
             vorsorgeauftragHochgeladenAm?.timeIntervalSince1970.description ?? "",
+            String(vorsorgeauftragFreigegebenBeiDossierfreigabe),
 
             String(offenFuerSterbebegleitung),
             sterbebegleitungDateiName ?? "",
             sterbebegleitungDateiData?.count.description ?? "",
             sterbebegleitungHochgeladenAm?.timeIntervalSince1970.description ?? "",
+            String(sterbebegleitungFreigegebenBeiDossierfreigabe),
             schwereErkrankung?.rawValue ?? "",
             sterbebegleitungWichtig,
             String(lebensqualitaetRegelmaessigBeurteilen),
@@ -429,14 +437,26 @@ struct WuenscheView: View {
         case .haustiere:
             haustiereSection
         case .testament:
-            testamentSection
+            if dokumentIstSichtbar(testamentFreigegebenBeiDossierfreigabe) {
+                testamentSection
+            }
         case .patientenverfuegung:
-            patientenverfuegungSection
+            if dokumentIstSichtbar(patientenverfuegungFreigegebenBeiDossierfreigabe) {
+                patientenverfuegungSection
+            }
         case .vorsorgeauftrag:
-            vorsorgeauftragSection
+            if dokumentIstSichtbar(vorsorgeauftragFreigegebenBeiDossierfreigabe) {
+                vorsorgeauftragSection
+            }
         case .sterbebegleitung:
-            sterbebegleitungSection
+            if dokumentIstSichtbar(sterbebegleitungFreigegebenBeiDossierfreigabe) {
+                sterbebegleitungSection
+            }
         }
+    }
+
+    private func dokumentIstSichtbar(_ freigegebenBeiDossierfreigabe: Bool) -> Bool {
+        dossierKontext.istEigenesDossier || freigegebenBeiDossierfreigabe
     }
 
     private func chipGruppe(titel: String, themen: [WuenscheThema]) -> some View {
@@ -571,6 +591,7 @@ struct WuenscheView: View {
             testamentDateiURL = nil
             testamentDateiData = nil
             testamentHochgeladenAm = nil
+            testamentFreigegebenBeiDossierfreigabe = false
             
         case .patientenverfuegung:
             hatPatientenverfuegung = false
@@ -578,6 +599,7 @@ struct WuenscheView: View {
             patientenverfuegungDateiURL = nil
             patientenverfuegungDateiData = nil
             patientenverfuegungHochgeladenAm = nil
+            patientenverfuegungFreigegebenBeiDossierfreigabe = true
             
 
         case .vorsorgeauftrag:
@@ -586,6 +608,7 @@ struct WuenscheView: View {
             vorsorgeauftragDateiURL = nil
             vorsorgeauftragDateiData = nil
             vorsorgeauftragHochgeladenAm = nil
+            vorsorgeauftragFreigegebenBeiDossierfreigabe = true
             
 
         case .sterbebegleitung:
@@ -594,6 +617,7 @@ struct WuenscheView: View {
             sterbebegleitungDateiURL = nil
             sterbebegleitungDateiData = nil
             sterbebegleitungHochgeladenAm = nil
+            sterbebegleitungFreigegebenBeiDossierfreigabe = true
             
             schwereErkrankung = nil
             sterbebegleitungWichtig = ""
@@ -983,6 +1007,8 @@ struct WuenscheView: View {
                 Divider()
 
                 testamentDokumentBox
+
+                dokumentFreigabeToggle(isOn: $testamentFreigegebenBeiDossierfreigabe)
             }
         }
     }
@@ -1085,6 +1111,14 @@ struct WuenscheView: View {
         }
     }
 
+    private func dokumentFreigabeToggle(isOn: Binding<Bool>) -> some View {
+        Toggle("Sichtbar bei Dossierfreigabe", isOn: isOn)
+            .font(.footnote.weight(.semibold))
+            .tint(wuenscheAccentColor)
+            .disabled(dossierKontext.istReadOnly)
+            .padding(.top, 2)
+    }
+
     private var patientenverfuegungSection: some View {
         styleGuideSection(titel: "Patientenverfügung", systemImage: "cross.case.fill", entfernenAktion: { themaEntfernen(.patientenverfuegung) }) {
             DetailBox(accentColor: wuenscheAccentColor) {
@@ -1093,6 +1127,7 @@ struct WuenscheView: View {
                     istReadOnly: dossierKontext.istReadOnly,
                     dateiName: patientenverfuegungDateiName,
                     hochgeladenAm: patientenverfuegungHochgeladenAm,
+                    freigegebenBeiDossierfreigabe: $patientenverfuegungFreigegebenBeiDossierfreigabe,
                     timestampTitel: "Patientenverfügung hochgeladen am",
                     uploadTitel: patientenverfuegungDateiName == nil ? "Patientenverfügung hochladen" : "Patientenverfügung ändern",
                     entfernenTitel: "Entfernen",
@@ -1121,6 +1156,7 @@ struct WuenscheView: View {
                     istReadOnly: dossierKontext.istReadOnly,
                     dateiName: vorsorgeauftragDateiName,
                     hochgeladenAm: vorsorgeauftragHochgeladenAm,
+                    freigegebenBeiDossierfreigabe: $vorsorgeauftragFreigegebenBeiDossierfreigabe,
                     timestampTitel: "Vorsorgeauftrag hochgeladen am",
                     uploadTitel: vorsorgeauftragDateiName == nil ? "Vorsorgeauftrag hochladen" : "Vorsorgeauftrag ändern",
                     entfernenTitel: "Entfernen",
@@ -1179,6 +1215,7 @@ struct WuenscheView: View {
                     istReadOnly: dossierKontext.istReadOnly,
                     dateiName: sterbebegleitungDateiName,
                     hochgeladenAm: sterbebegleitungHochgeladenAm,
+                    freigegebenBeiDossierfreigabe: $sterbebegleitungFreigegebenBeiDossierfreigabe,
                     timestampTitel: "Sterbebegleitung hochgeladen am",
                     uploadTitel: sterbebegleitungDateiName == nil ? "Dokument zur Sterbebegleitung hochladen" : "Dokument zur Sterbebegleitung ändern",
                     entfernenTitel: "Entfernen",
@@ -1264,21 +1301,25 @@ struct WuenscheView: View {
             testamentDateiName = vorhandeneWuensche.testamentDateiName.isEmpty ? nil : vorhandeneWuensche.testamentDateiName
             testamentDateiData = vorhandeneWuensche.testamentDateiData
             testamentHochgeladenAm = vorhandeneWuensche.testamentHochgeladenAm
+            testamentFreigegebenBeiDossierfreigabe = vorhandeneWuensche.testamentFreigegebenBeiDossierfreigabe
             
             hatPatientenverfuegung = vorhandeneWuensche.patientenverfuegungVorhanden
             patientenverfuegungDateiName = vorhandeneWuensche.patientenverfuegungDateiName.isEmpty ? nil : vorhandeneWuensche.patientenverfuegungDateiName
             patientenverfuegungDateiData = vorhandeneWuensche.patientenverfuegungDateiData
             patientenverfuegungHochgeladenAm = vorhandeneWuensche.patientenverfuegungHochgeladenAm
+            patientenverfuegungFreigegebenBeiDossierfreigabe = vorhandeneWuensche.patientenverfuegungFreigegebenBeiDossierfreigabe
             
             hatVorsorgeauftrag = vorhandeneWuensche.vorsorgeauftragVorhanden
             vorsorgeauftragDateiName = vorhandeneWuensche.vorsorgeauftragDateiName.isEmpty ? nil : vorhandeneWuensche.vorsorgeauftragDateiName
             vorsorgeauftragDateiData = vorhandeneWuensche.vorsorgeauftragDateiData
             vorsorgeauftragHochgeladenAm = vorhandeneWuensche.vorsorgeauftragHochgeladenAm
+            vorsorgeauftragFreigegebenBeiDossierfreigabe = vorhandeneWuensche.vorsorgeauftragFreigegebenBeiDossierfreigabe
             
             offenFuerSterbebegleitung = vorhandeneWuensche.sterbebegleitungGewuenscht
             sterbebegleitungDateiName = vorhandeneWuensche.sterbebegleitungDateiName.isEmpty ? nil : vorhandeneWuensche.sterbebegleitungDateiName
             sterbebegleitungDateiData = vorhandeneWuensche.sterbebegleitungDateiData
             sterbebegleitungHochgeladenAm = vorhandeneWuensche.sterbebegleitungHochgeladenAm
+            sterbebegleitungFreigegebenBeiDossierfreigabe = vorhandeneWuensche.sterbebegleitungFreigegebenBeiDossierfreigabe
             
             hatSchwereGesundheitlicheErkrankung = vorhandeneWuensche.schwereErkrankungVorhanden
             schwereErkrankung = SchwereErkrankung(rawValue: vorhandeneWuensche.schwereErkrankungArt)
@@ -1371,21 +1412,25 @@ struct WuenscheView: View {
         wuensche.testamentDateiName = testamentDateiName ?? ""
         wuensche.testamentDateiData = testamentDateiData
         wuensche.testamentHochgeladenAm = testamentHochgeladenAm
+        wuensche.testamentFreigegebenBeiDossierfreigabe = testamentFreigegebenBeiDossierfreigabe
         
         wuensche.patientenverfuegungVorhanden = ausgewaehlteThemen.contains(.patientenverfuegung)
         wuensche.patientenverfuegungDateiName = patientenverfuegungDateiName ?? ""
         wuensche.patientenverfuegungDateiData = patientenverfuegungDateiData
         wuensche.patientenverfuegungHochgeladenAm = patientenverfuegungHochgeladenAm
+        wuensche.patientenverfuegungFreigegebenBeiDossierfreigabe = patientenverfuegungFreigegebenBeiDossierfreigabe
         
         wuensche.vorsorgeauftragVorhanden = ausgewaehlteThemen.contains(.vorsorgeauftrag)
         wuensche.vorsorgeauftragDateiName = vorsorgeauftragDateiName ?? ""
         wuensche.vorsorgeauftragDateiData = vorsorgeauftragDateiData
         wuensche.vorsorgeauftragHochgeladenAm = vorsorgeauftragHochgeladenAm
+        wuensche.vorsorgeauftragFreigegebenBeiDossierfreigabe = vorsorgeauftragFreigegebenBeiDossierfreigabe
         
         wuensche.sterbebegleitungGewuenscht = ausgewaehlteThemen.contains(.sterbebegleitung)
         wuensche.sterbebegleitungDateiName = sterbebegleitungDateiName ?? ""
         wuensche.sterbebegleitungDateiData = sterbebegleitungDateiData
         wuensche.sterbebegleitungHochgeladenAm = sterbebegleitungHochgeladenAm
+        wuensche.sterbebegleitungFreigegebenBeiDossierfreigabe = sterbebegleitungFreigegebenBeiDossierfreigabe
         
         wuensche.schwereErkrankungVorhanden = hatSchwereGesundheitlicheErkrankung
         wuensche.schwereErkrankungArt = schwereErkrankung?.rawValue ?? ""
@@ -2473,6 +2518,7 @@ struct DokumentUploadBox: View {
     var istReadOnly = false
     var dateiName: String?
     var hochgeladenAm: Date?
+    @Binding var freigegebenBeiDossierfreigabe: Bool
     var timestampTitel: String
     var uploadTitel: String
     var entfernenTitel: String
@@ -2586,6 +2632,12 @@ struct DokumentUploadBox: View {
                 }
                 }
             }
+
+            Toggle("Sichtbar bei Dossierfreigabe", isOn: $freigegebenBeiDossierfreigabe)
+                .font(.footnote.weight(.semibold))
+                .tint(accentColor)
+                .disabled(istReadOnly)
+                .padding(.top, 2)
             
         }
         .frame(maxWidth: .infinity, alignment: .leading)

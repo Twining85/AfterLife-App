@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import SwiftData
 
 enum DossierBereich: String, CaseIterable, Identifiable, Hashable {
     case profil
@@ -168,6 +169,8 @@ private enum DossierNavigationRouter {
 struct DossierFloatingNavigation: View {
     let aktiverBereich: DossierBereich
     let dossierKontext: DossierKontext?
+    @Query private var dossierZugriffe: [DossierZugriffModell]
+    @Query private var vertrauenspersonen: [VertrauenspersonModell]
     var interaktionGestartet: () -> Void = { }
     var interaktionBeendet: () -> Void = { }
     @AppStorage(DossierNavigationManager.homeReihenfolgeKey) private var homeBereicheReihenfolge = ""
@@ -203,6 +206,53 @@ struct DossierFloatingNavigation: View {
             homeReihenfolge: reihenfolge,
             aktiveHomeBereiche: aktiveBereiche
         )
+        .filter(istBereichSichtbar)
+    }
+
+    private var freigabeEinstellungen: VertrauenspersonModell? {
+        guard let dossierKontext,
+              let zugriffID = dossierKontext.zugriffID,
+              let zugriff = dossierZugriffe.first(where: { $0.zugriffID == zugriffID }) else {
+            return nil
+        }
+
+        let email = (zugriff.registrierungsEmail ?? zugriff.eingeladeneEmail)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        return vertrauenspersonen.first {
+            $0.dossierID == dossierKontext.dossierID &&
+            $0.normalisierteEmail == email
+        }
+    }
+
+    private func istBereichSichtbar(_ bereich: DossierBereich) -> Bool {
+        guard dossierKontext?.istFreigegebenesDossier == true else {
+            return true
+        }
+
+        guard let freigabeEinstellungen else {
+            return bereich == .profil
+        }
+
+        switch bereich {
+        case .profil:
+            return true
+        case .wuensche:
+            return freigabeEinstellungen.wuenscheSichtbarBeiDossierfreigabe
+        case .hinterbliebene:
+            return freigabeEinstellungen.menschenDesVertrauensSichtbarBeiDossierfreigabe
+        case .finanzen:
+            return freigabeEinstellungen.finanzenSichtbarBeiDossierfreigabe
+        case .dokumente:
+            return freigabeEinstellungen.dokumenteSichtbarBeiDossierfreigabe
+        case .abos:
+            return freigabeEinstellungen.abosUndProfileSichtbarBeiDossierfreigabe
+        case .herzensstuecke:
+            return freigabeEinstellungen.herzensstueckeSichtbarBeiDossierfreigabe
+        case .gesundheit:
+            return freigabeEinstellungen.gesundheitSichtbarBeiDossierfreigabe
+        }
     }
 
     private var scrollOffset: CGFloat {
@@ -419,7 +469,9 @@ struct DossierFloatingNavigation: View {
 
     private func navigiereZuBereich(_ bereich: DossierBereich) {
         guard bereich != aktiverBereich else { return }
-        NotificationCenter.default.post(name: .dossierSyncAngefordert, object: nil)
+        if dossierKontext?.istFreigegebenesDossier != true {
+            NotificationCenter.default.post(name: .dossierSyncAngefordert, object: nil)
+        }
         speichereScrollOffset()
         DossierNavigationRuntimeState.sollNachBereichswechselAusklappen = true
         impactFeedback.impactOccurred()
@@ -567,7 +619,9 @@ private struct DossierFloatingNavigationModifier: ViewModifier {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
-                        NotificationCenter.default.post(name: .dossierSyncAngefordert, object: nil)
+                        if dossierKontext?.istFreigegebenesDossier != true {
+                            NotificationCenter.default.post(name: .dossierSyncAngefordert, object: nil)
+                        }
                         if dossierKontext?.istFreigegebenesDossier == true {
                             dismiss()
                         } else {

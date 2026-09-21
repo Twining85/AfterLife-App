@@ -35,6 +35,33 @@ export default async function handler(req, res) {
         error.statusCode = 400;
         throw error;
       }
+      if (client.engine === "mysql") {
+        const dossier = await client.query(
+          "SELECT id, owner_user_id FROM dossiers WHERE id = $1 AND owner_user_id = $2 FOR UPDATE",
+          [dossierID, user.id]
+        );
+        if (!dossier.rows[0]) return { rows: [] };
+        const existing = await client.query(
+          "SELECT revision FROM dossier_sections WHERE dossier_id = $1 AND section_type = $2 FOR UPDATE",
+          [dossierID, sectionType]
+        );
+        const revision = existing.rows[0] ? Number(existing.rows[0].revision) : 0;
+        if (revision !== expectedRevision) return { rows: [] };
+        await client.query(
+          `INSERT INTO dossier_sections
+             (dossier_id, owner_user_id, section_type, schema_version, revision, payload)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON DUPLICATE KEY UPDATE schema_version = VALUES(schema_version),
+             revision = VALUES(revision), payload = VALUES(payload), deleted_at = NULL,
+             updated_at = CURRENT_TIMESTAMP(6)`,
+          [dossierID, user.id, sectionType, schemaVersion, revision + 1, JSON.stringify(payload)]
+        );
+        return client.query(
+          `SELECT schema_version, revision, payload, updated_at FROM dossier_sections
+            WHERE dossier_id = $1 AND section_type = $2`,
+          [dossierID, sectionType]
+        );
+      }
       return client.query(
         `INSERT INTO dossier_sections (dossier_id, owner_user_id, section_type, schema_version, payload)
          SELECT id, owner_user_id, $2, $3, $4::jsonb FROM dossiers WHERE id = $1 AND $5 = 0

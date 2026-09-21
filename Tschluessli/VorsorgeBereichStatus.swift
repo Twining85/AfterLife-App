@@ -73,6 +73,12 @@ enum VorsorgeBereichStatusStore {
                 name: .dossierBereichGespeichert,
                 object: cloudBereich
             )
+            // Jeder fachliche Dossierbereich nutzt diesen zentralen Änderungs-
+            // punkt. Der Sync wird deshalb nicht nur für das Profil, sondern
+            // für sämtliche Bereiche unmittelbar angestossen.
+            Task { @MainActor in
+                DossierSyncDienst.shared?.synchronisieren()
+            }
         }
     }
 

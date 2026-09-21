@@ -97,9 +97,10 @@ test("nennt die beteiligten Personen in den Pushnachrichten", () => {
   );
 });
 
-test("verwendet eine Minute im Test und sieben Tage als Produktivkonfiguration", () => {
-  assert.equal(trustAccessGraceSeconds({}), 60);
+test("verlangt ausserhalb von Tests eine konfigurierte Karenzfrist", () => {
+  assert.equal(trustAccessGraceSeconds({ NODE_ENV: "test" }), 60);
   assert.equal(trustAccessGraceSeconds({ TRUST_ACCESS_GRACE_SECONDS: "604800" }), 604800);
+  assert.throws(() => trustAccessGraceSeconds({}), /TRUST_ACCESS_GRACE_SECONDS/);
 });
 
 test("gibt fällige Anfragen serverseitig frei und benachrichtigt die Vertrauensperson", async () => {
@@ -138,7 +139,7 @@ test("gibt fällige Anfragen serverseitig frei und benachrichtigt die Vertrauens
   assert.equal(pushes[0].payload.type, "trust_invitation_auto_released");
 });
 
-test("widerruft Einladung und Dossierfreigabe gemeinsam", async () => {
+test("widerruft alle Einladungen und Dossierfreigaben einer Vertrauensperson gemeinsam", async () => {
   const queries = [];
   const pushes = [];
   const client = {
@@ -159,16 +160,46 @@ test("widerruft Einladung und Dossierfreigabe gemeinsam", async () => {
     userID: "cbcb4c1c-289f-4719-b237-02c9c7534642",
     dossierID: "7b4a924e-f65a-4b51-9c19-3e4c74dc79de",
     email: "trust@example.ch",
+    token: "4ea4ce32-796a-4385-97d1-164630f113d9",
     pool: { async connect() { return client; } },
     async push(userID, payload) { pushes.push({ userID, payload }); }
   });
 
   assert.equal(count, 1);
+  const update = queries.find(({ text }) => text.includes("UPDATE dossier_invitations"));
+  assert.doesNotMatch(update.text, /token_hash/);
+  assert.equal(update.parameters.length, 3);
   assert.equal(queries.some(({ text }) => text.includes("UPDATE dossier_access_grants")), true);
   assert.equal(queries.at(-1).text, "COMMIT");
   assert.equal(pushes[0].userID, "a1a14c1c-289f-4719-b237-02c9c7534642");
   assert.match(pushes[0].payload.aps.alert.body, /Anna Beispiel/);
   assert.equal(pushes[0].payload.type, "trust_invitation_revoked");
+});
+
+test("unterstützt beim Widerruf weiterhin installierte Apps ohne Token-Feld", async () => {
+  const queries = [];
+  const client = {
+    async query(text, parameters = []) {
+      queries.push({ text: String(text), parameters });
+      if (String(text).includes("UPDATE dossier_invitations")) {
+        return { rows: [{ id: "9ca650a8-a78c-4ef0-b62f-cb640531b667", requester_user_id: null, owner_name: "Anna" }] };
+      }
+      return { rows: [] };
+    },
+    release() {}
+  };
+  const count = await revokeInvitationForOwner({
+    userID: "cbcb4c1c-289f-4719-b237-02c9c7534642",
+    dossierID: "7b4a924e-f65a-4b51-9c19-3e4c74dc79de",
+    email: "trust@example.ch",
+    pool: { async connect() { return client; } },
+    async push() {}
+  });
+
+  assert.equal(count, 1);
+  const update = queries.find(({ text }) => text.includes("UPDATE dossier_invitations"));
+  assert.doesNotMatch(update.text, /token_hash/);
+  assert.equal(update.parameters.length, 3);
 });
 
 function scriptedPool(responses) {

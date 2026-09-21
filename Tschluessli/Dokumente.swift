@@ -787,7 +787,8 @@ struct DokumenteView: View {
 
         var dokumente: [ReadOnlyDocument] = []
 
-        if !wuensche.testamentDateiName.isEmpty {
+        if dokumentIstSichtbar(wuensche.testamentFreigegebenBeiDossierfreigabe),
+           !wuensche.testamentDateiName.isEmpty {
             dokumente.append(
                 ReadOnlyDocument(
                     title: "Testament",
@@ -799,7 +800,8 @@ struct DokumenteView: View {
             )
         }
 
-        if !wuensche.patientenverfuegungDateiName.isEmpty {
+        if dokumentIstSichtbar(wuensche.patientenverfuegungFreigegebenBeiDossierfreigabe),
+           !wuensche.patientenverfuegungDateiName.isEmpty {
             dokumente.append(
                 ReadOnlyDocument(
                     title: "Patientenverfügung",
@@ -811,7 +813,8 @@ struct DokumenteView: View {
             )
         }
 
-        if !wuensche.vorsorgeauftragDateiName.isEmpty {
+        if dokumentIstSichtbar(wuensche.vorsorgeauftragFreigegebenBeiDossierfreigabe),
+           !wuensche.vorsorgeauftragDateiName.isEmpty {
             dokumente.append(
                 ReadOnlyDocument(
                     title: "Vorsorgeauftrag",
@@ -823,7 +826,8 @@ struct DokumenteView: View {
             )
         }
 
-        if !wuensche.sterbebegleitungDateiName.isEmpty {
+        if dokumentIstSichtbar(wuensche.sterbebegleitungFreigegebenBeiDossierfreigabe),
+           !wuensche.sterbebegleitungDateiName.isEmpty {
             dokumente.append(
                 ReadOnlyDocument(
                     title: "Sterbebegleitung",
@@ -849,6 +853,10 @@ struct DokumenteView: View {
         }
 
         return dokumente
+    }
+
+    private func dokumentIstSichtbar(_ freigegebenBeiDossierfreigabe: Bool) -> Bool {
+        dossierKontext.istEigenesDossier || freigegebenBeiDossierfreigabe
     }
 
     private var finanzDokumente: [ReadOnlyDocument] {

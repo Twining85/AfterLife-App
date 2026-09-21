@@ -37,6 +37,15 @@ final class VertrauenspersonModell {
     var istPrimaereVertrauensperson: Bool
     var reihenfolge: Int
 
+    // Sichtbarkeit der Dossierbereiche für diese Vertrauensperson.
+    var wuenscheSichtbarBeiDossierfreigabe: Bool = true
+    var menschenDesVertrauensSichtbarBeiDossierfreigabe: Bool = true
+    var finanzenSichtbarBeiDossierfreigabe: Bool = false
+    var dokumenteSichtbarBeiDossierfreigabe: Bool = false
+    var abosUndProfileSichtbarBeiDossierfreigabe: Bool = false
+    var herzensstueckeSichtbarBeiDossierfreigabe: Bool = true
+    var gesundheitSichtbarBeiDossierfreigabe: Bool = true
+
     @Relationship(deleteRule: .cascade)
     var einladungsHistorie: [VertrauenspersonEinladungsHistorieModell]
 
@@ -62,6 +71,13 @@ final class VertrauenspersonModell {
         einladungAbgelehntAm: Date? = nil,
         istPrimaereVertrauensperson: Bool = true,
         reihenfolge: Int = 0,
+        wuenscheSichtbarBeiDossierfreigabe: Bool = true,
+        menschenDesVertrauensSichtbarBeiDossierfreigabe: Bool = true,
+        finanzenSichtbarBeiDossierfreigabe: Bool = false,
+        dokumenteSichtbarBeiDossierfreigabe: Bool = false,
+        abosUndProfileSichtbarBeiDossierfreigabe: Bool = false,
+        herzensstueckeSichtbarBeiDossierfreigabe: Bool = true,
+        gesundheitSichtbarBeiDossierfreigabe: Bool = true,
         einladungsHistorie: [VertrauenspersonEinladungsHistorieModell] = [],
         erstelltAm: Date = Date(),
         geaendertAm: Date = Date()
@@ -84,6 +100,13 @@ final class VertrauenspersonModell {
         self.einladungAbgelehntAm = einladungAbgelehntAm
         self.istPrimaereVertrauensperson = istPrimaereVertrauensperson
         self.reihenfolge = reihenfolge
+        self.wuenscheSichtbarBeiDossierfreigabe = wuenscheSichtbarBeiDossierfreigabe
+        self.menschenDesVertrauensSichtbarBeiDossierfreigabe = menschenDesVertrauensSichtbarBeiDossierfreigabe
+        self.finanzenSichtbarBeiDossierfreigabe = finanzenSichtbarBeiDossierfreigabe
+        self.dokumenteSichtbarBeiDossierfreigabe = dokumenteSichtbarBeiDossierfreigabe
+        self.abosUndProfileSichtbarBeiDossierfreigabe = abosUndProfileSichtbarBeiDossierfreigabe
+        self.herzensstueckeSichtbarBeiDossierfreigabe = herzensstueckeSichtbarBeiDossierfreigabe
+        self.gesundheitSichtbarBeiDossierfreigabe = gesundheitSichtbarBeiDossierfreigabe
         self.einladungsHistorie = einladungsHistorie
         self.erstelltAm = erstelltAm
         self.geaendertAm = geaendertAm

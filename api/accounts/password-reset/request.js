@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import { hashSessionToken } from "../../_auth.js";
 import { databasePool } from "../../_database.js";
 import { sendEmail } from "../../_email-service.js";
-import { normalizeEmail, rateLimit, requireJSON, requireMethod, secureResponse } from "../../_security.js";
+import { isEmailRecipientAllowed, normalizeEmail, rateLimit, requireJSON, requireMethod, secureResponse } from "../../_security.js";
 import { createChallenge, createCode, expiresAt } from "../../email-verification/_challenge.js";
 
 export default async function handler(req, res) {
@@ -12,10 +12,7 @@ export default async function handler(req, res) {
 
   const email = normalizeEmail(req.body?.email);
   if (!email) return res.status(400).json({ error: "Ungültige E-Mail-Adresse" });
-  const allowedRecipient = String(process.env.EMAIL_VERIFICATION_ALLOWED_RECIPIENT || "")
-    .trim()
-    .toLowerCase();
-  if (allowedRecipient && email !== allowedRecipient) {
+  if (!isEmailRecipientAllowed(email)) {
     return res.status(403).json({ error: "Empfänger im Testbetrieb nicht freigegeben" });
   }
 

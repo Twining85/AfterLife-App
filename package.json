@@ -5,15 +5,18 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
+    "start": "node server.js",
     "test": "node --test",
     "db:migrate": "node database/migrate.js",
+    "db:mysql:migrate": "node database/mysql/migrate.js",
     "db:migrate:baseline": "node database/migrate.js --baseline-existing"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "nodemailer": "^9.0.4",
+    "mysql2": "^3.24.4",
+    "nodemailer": "^10.0.10",
     "pg": "^8.16.3"
   }
 }

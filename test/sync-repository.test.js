@@ -111,6 +111,38 @@ test("liefert Upserts und Tombstones seitenweise seit dem Cursor", async () => {
   assert.equal(response.changes[0].operation, "upsert");
 });
 
+test("verwendet im MySQL-Pfad Locks, JSON und MySQL-Upserts", async () => {
+  const locks = [];
+  const client = {
+    engine: "mysql",
+    calls: [],
+    async acquireLock(name) { locks.push(name); },
+    async query(text, parameters) {
+      this.calls.push({ text: String(text), parameters });
+      if (String(text).startsWith("DELETE FROM sync_idempotency")) return { rows: [] };
+      if (String(text).includes("FROM sync_idempotency") && String(text).includes("FOR UPDATE")) return { rows: [] };
+      if (String(text).includes("FROM dossiers") && String(text).includes("FOR UPDATE")) return { rows: [{ id: dossierID }] };
+      if (String(text).includes("FROM dossier_sections") && String(text).includes("FOR UPDATE")) return { rows: [] };
+      if (String(text).startsWith("INSERT INTO dossier_sections")) return { rows: [], rowCount: 1 };
+      if (String(text).startsWith("SELECT schema_version")) return { rows: [{
+        schema_version: 1, revision: "1", payload: JSON.stringify({ bestattung: "Wald" }),
+        deleted_at: null, updated_at: new Date("2026-09-15T08:00:00Z")
+      }] };
+      if (String(text).startsWith("INSERT INTO sync_changes")) return { rows: [], insertId: "51", rowCount: 1 };
+      if (String(text).startsWith("SELECT change_id")) return { rows: [{ change_id: "51", changed_at: new Date("2026-09-15T08:00:00Z") }] };
+      if (String(text).startsWith("INSERT INTO sync_idempotency")) return { rows: [], rowCount: 1 };
+      throw new Error(`Unerwartete MySQL-Query: ${text}`);
+    }
+  };
+  const response = await applySectionMutation(client, userID, mutation());
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.cursor, "51");
+  assert.deepEqual(response.body.payload, { bestattung: "Wald" });
+  assert.equal(locks.length, 2);
+  assert.ok(client.calls.some(({ text }) => text.includes("ON DUPLICATE KEY UPDATE")));
+  assert.equal(client.calls.some(({ text }) => text.includes("ON CONFLICT")), false);
+});
+
 function scriptedClient(responses) {
   return {
     calls: [],

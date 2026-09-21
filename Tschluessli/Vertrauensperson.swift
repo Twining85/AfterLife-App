@@ -106,6 +106,7 @@ struct VertrauenspersonView: View {
     @Query private var gespeicherteVertrauenspersonen: [VertrauenspersonModell]
     @Query private var gespeicherteProfile: [ProfilModell]
     @Query private var gespeicherteDossierZugriffe: [DossierZugriffModell]
+    @Query private var gespeicherteWuensche: [WuenscheModell]
 
     @AppStorage("profilIstVorhanden")
     private var profilIstVorhanden = false
@@ -194,6 +195,14 @@ struct VertrauenspersonView: View {
     @State private var erklaerungsSchritt = 0
     @State private var erklaerungAusgeklappt = false
 
+    @State private var wuenscheSichtbarBeiDossierfreigabe = true
+    @State private var menschenDesVertrauensSichtbarBeiDossierfreigabe = true
+    @State private var finanzenSichtbarBeiDossierfreigabe = false
+    @State private var dokumenteSichtbarBeiDossierfreigabe = false
+    @State private var abosUndProfileSichtbarBeiDossierfreigabe = false
+    @State private var herzensstueckeSichtbarBeiDossierfreigabe = true
+    @State private var gesundheitSichtbarBeiDossierfreigabe = true
+
     private let erklaerungsSchritte: [(rolle: String, icon: String, text: String)] = [
 
         ("DU", "person.crop.circle",
@@ -272,6 +281,25 @@ struct VertrauenspersonView: View {
         }
 
         return "Keine Vertrauensperson ausgewählt"
+    }
+
+    private var freigabeSignatur: String {
+        [
+            wuenscheSichtbarBeiDossierfreigabe,
+            menschenDesVertrauensSichtbarBeiDossierfreigabe,
+            finanzenSichtbarBeiDossierfreigabe,
+            dokumenteSichtbarBeiDossierfreigabe,
+            abosUndProfileSichtbarBeiDossierfreigabe,
+            herzensstueckeSichtbarBeiDossierfreigabe,
+            gesundheitSichtbarBeiDossierfreigabe
+        ]
+        .map(String.init)
+        .joined(separator: ",")
+    }
+
+    private var wuenscheFuerAktivesDossier: WuenscheModell? {
+        guard let aktivesDossierUUID else { return nil }
+        return gespeicherteWuensche.first { $0.dossierID == aktivesDossierUUID }
     }
 
     // MARK: - Einladungslink
@@ -564,6 +592,10 @@ struct VertrauenspersonView: View {
                 vertrauenspersonBereich
 
                 if kontaktIstAusgewaehlt {
+                    freigabeUndSichtbarkeitBereich
+                }
+
+                if kontaktIstAusgewaehlt {
                     Section("QR-Code-Einladung") {
                     qrCodeBereich
 
@@ -636,6 +668,9 @@ struct VertrauenspersonView: View {
         */
         .onAppear {
             ladeOderErstelleVertrauensperson()
+        }
+        .onChange(of: freigabeSignatur) { _, _ in
+            speichereVertrauensperson()
         }
         .sheet(
             isPresented: $kontaktPickerAnzeigen
@@ -1169,6 +1204,88 @@ struct VertrauenspersonView: View {
             .padding(.top, 6)
             */
         }
+    }
+
+    private var freigabeUndSichtbarkeitBereich: some View {
+        Section {
+            sectionTitel("Freigabe und Sichtbarkeit", icon: "eye.fill")
+
+            Toggle("Meine Wünsche", isOn: $wuenscheSichtbarBeiDossierfreigabe)
+
+            if let wuensche = wuenscheFuerAktivesDossier {
+                wunschDokumentToggle(
+                    "Testament",
+                    istVorhanden: !wuensche.testamentDateiName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                    isOn: wunschDokumentFreigabeBinding(
+                        fuer: wuensche,
+                        keyPath: \WuenscheModell.testamentFreigegebenBeiDossierfreigabe
+                    )
+                )
+                wunschDokumentToggle(
+                    "Patientenverfügung",
+                    istVorhanden: !wuensche.patientenverfuegungDateiName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                    isOn: wunschDokumentFreigabeBinding(
+                        fuer: wuensche,
+                        keyPath: \WuenscheModell.patientenverfuegungFreigegebenBeiDossierfreigabe
+                    )
+                )
+                wunschDokumentToggle(
+                    "Vorsorgeauftrag",
+                    istVorhanden: !wuensche.vorsorgeauftragDateiName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                    isOn: wunschDokumentFreigabeBinding(
+                        fuer: wuensche,
+                        keyPath: \WuenscheModell.vorsorgeauftragFreigegebenBeiDossierfreigabe
+                    )
+                )
+                wunschDokumentToggle(
+                    "Sterbebegleitung",
+                    istVorhanden: !wuensche.sterbebegleitungDateiName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                    isOn: wunschDokumentFreigabeBinding(
+                        fuer: wuensche,
+                        keyPath: \WuenscheModell.sterbebegleitungFreigegebenBeiDossierfreigabe
+                    )
+                )
+            }
+
+            Toggle("Menschen des Vertrauens", isOn: $menschenDesVertrauensSichtbarBeiDossierfreigabe)
+            Toggle("Finanzen", isOn: $finanzenSichtbarBeiDossierfreigabe)
+            Toggle("Dokumente", isOn: $dokumenteSichtbarBeiDossierfreigabe)
+            Toggle("Abos & Profile", isOn: $abosUndProfileSichtbarBeiDossierfreigabe)
+            Toggle("Herzensstücke", isOn: $herzensstueckeSichtbarBeiDossierfreigabe)
+            Toggle("Gesundheit", isOn: $gesundheitSichtbarBeiDossierfreigabe)
+        } footer: {
+            Text("Die Freigaben gelten für diese Vertrauensperson. Wunschdokumente können hier oder in «Meine Wünsche» bearbeitet werden.")
+        }
+        .tint(akzentFarbe)
+    }
+
+    @ViewBuilder
+    private func wunschDokumentToggle(
+        _ titel: String,
+        istVorhanden: Bool,
+        isOn: Binding<Bool>
+    ) -> some View {
+        if istVorhanden {
+            Toggle(titel, isOn: isOn)
+                .padding(.leading, 20)
+        }
+    }
+
+    private func wunschDokumentFreigabeBinding(
+        fuer wuensche: WuenscheModell,
+        keyPath: ReferenceWritableKeyPath<WuenscheModell, Bool>
+    ) -> Binding<Bool> {
+        Binding(
+            get: { wuensche[keyPath: keyPath] },
+            set: { neuerWert in
+                wuensche[keyPath: keyPath] = neuerWert
+                do {
+                    try modelContext.save()
+                } catch {
+                    fehlermeldung = "Dokumentfreigabe konnte nicht gespeichert werden."
+                }
+            }
+        )
     }
 
     // MARK: - Einladung
@@ -2104,6 +2221,7 @@ struct VertrauenspersonView: View {
         guard !kontaktLoeschungLaeuft else { return }
         let mussCloudZugriffWiderrufen = einladungsToken != nil || aktuellerDossierZugriff != nil
         guard mussCloudZugriffWiderrufen,
+              let token = einladungsToken ?? aktuellerDossierZugriff?.einladungsToken,
               let dossierID = aktivesDossierUUID,
               !bereinigteEmail.isEmpty else {
             kontaktLokalLoeschen()
@@ -2115,9 +2233,15 @@ struct VertrauenspersonView: View {
         Task {
             do {
                 try await PushEinladungsService.shared.einladungWiderrufen(
+                    token: token,
                     dossierID: dossierID,
                     email: bereinigteEmail
                 )
+                kontaktLoeschungLaeuft = false
+                kontaktLokalLoeschen()
+            } catch PushFehler.nichtGefunden {
+                // Der Zugriff wurde beispielsweise in einem früheren Test bereits
+                // serverseitig entfernt. Der lokale Kontakt darf dann ebenfalls weg.
                 kontaktLoeschungLaeuft = false
                 kontaktLokalLoeschen()
             } catch {
@@ -2478,6 +2602,27 @@ struct VertrauenspersonView: View {
         beziehung =
         gespeicherteVertrauensperson.beziehung
 
+        wuenscheSichtbarBeiDossierfreigabe =
+        gespeicherteVertrauensperson.wuenscheSichtbarBeiDossierfreigabe
+
+        menschenDesVertrauensSichtbarBeiDossierfreigabe =
+        gespeicherteVertrauensperson.menschenDesVertrauensSichtbarBeiDossierfreigabe
+
+        finanzenSichtbarBeiDossierfreigabe =
+        gespeicherteVertrauensperson.finanzenSichtbarBeiDossierfreigabe
+
+        dokumenteSichtbarBeiDossierfreigabe =
+        gespeicherteVertrauensperson.dokumenteSichtbarBeiDossierfreigabe
+
+        abosUndProfileSichtbarBeiDossierfreigabe =
+        gespeicherteVertrauensperson.abosUndProfileSichtbarBeiDossierfreigabe
+
+        herzensstueckeSichtbarBeiDossierfreigabe =
+        gespeicherteVertrauensperson.herzensstueckeSichtbarBeiDossierfreigabe
+
+        gesundheitSichtbarBeiDossierfreigabe =
+        gespeicherteVertrauensperson.gesundheitSichtbarBeiDossierfreigabe
+
         einladungsStatus =
         EinladungsStatus(
             rawValue:
@@ -2630,11 +2775,36 @@ struct VertrauenspersonView: View {
             aktiveUserUUID
         }
 
+        if let aktivesDossierUUID {
+            vertrauensperson.dossierID = aktivesDossierUUID
+        }
+
         vertrauensperson
             .istPrimaereVertrauensperson =
         true
 
         vertrauensperson.reihenfolge = 0
+
+        vertrauensperson.wuenscheSichtbarBeiDossierfreigabe =
+        wuenscheSichtbarBeiDossierfreigabe
+
+        vertrauensperson.menschenDesVertrauensSichtbarBeiDossierfreigabe =
+        menschenDesVertrauensSichtbarBeiDossierfreigabe
+
+        vertrauensperson.finanzenSichtbarBeiDossierfreigabe =
+        finanzenSichtbarBeiDossierfreigabe
+
+        vertrauensperson.dokumenteSichtbarBeiDossierfreigabe =
+        dokumenteSichtbarBeiDossierfreigabe
+
+        vertrauensperson.abosUndProfileSichtbarBeiDossierfreigabe =
+        abosUndProfileSichtbarBeiDossierfreigabe
+
+        vertrauensperson.herzensstueckeSichtbarBeiDossierfreigabe =
+        herzensstueckeSichtbarBeiDossierfreigabe
+
+        vertrauensperson.gesundheitSichtbarBeiDossierfreigabe =
+        gesundheitSichtbarBeiDossierfreigabe
 
         vertrauensperson
             .kontaktangabenAktualisieren(

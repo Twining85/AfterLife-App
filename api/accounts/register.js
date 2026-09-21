@@ -50,7 +50,9 @@ export default async function handler(req, res) {
       refreshExpiresAt: session.refreshExpiresAt.toISOString()
     });
   } catch (error) {
-    if (error?.code === "23505") return res.status(409).json({ error: "Konto besteht bereits" });
+    if (error?.code === "23505" || error?.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({ error: "Konto besteht bereits" });
+    }
     console.error("Kontoregistrierung:", error);
     return res.status(500).json({ error: "Interner Fehler" });
   }

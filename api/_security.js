@@ -62,6 +62,34 @@ export function normalizeEmail(value) {
   return email;
 }
 
+export function isEmailRecipientAllowed(email, environment = process.env) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) return false;
+  const configured = [
+    environment.EMAIL_VERIFICATION_ALLOWED_RECIPIENTS,
+    environment.EMAIL_VERIFICATION_ALLOWED_RECIPIENT
+  ]
+    .filter(Boolean)
+    .flatMap((value) => String(value).split(","))
+    .map((value) => normalizeEmail(value))
+    .filter(Boolean);
+  if (configured.includes(normalizedEmail)) return true;
+
+  const allowUnlisted = String(environment.EMAIL_VERIFICATION_ALLOW_UNLISTED || "")
+    .trim()
+    .toLowerCase() === "true";
+  if (allowUnlisted) {
+    const blockedDomains = String(environment.EMAIL_VERIFICATION_BLOCKED_DOMAINS || "")
+      .split(",")
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean);
+    const domain = normalizedEmail.split("@")[1];
+    return !blockedDomains.includes(domain);
+  }
+
+  return configured.length === 0;
+}
+
 export function clearRateLimitsForTests() {
   buckets.clear();
 }

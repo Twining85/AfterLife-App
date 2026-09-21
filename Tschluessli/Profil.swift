@@ -126,6 +126,7 @@ struct ProfilView: View {
     @State private var biometriePruefungLaeuft = false
     @State private var biometrieFehlermeldung = ""
     @State private var dossierRecoveryAnzeigen = false
+    @State private var dossierResetAnzeigen = false
     @State private var passwortAendernAnzeigen = false
     @State private var syncKonflikteAnzeigen = false
     @State private var vertrauenspersonHinterlegenAnzeigen = false
@@ -154,7 +155,7 @@ struct ProfilView: View {
     }
 
     private func gehoertZumExportDossier(_ dossierID: UUID?) -> Bool {
-        !dossierKontext.istFreigegebenesDossier || dossierID == dossierKontext.dossierID
+        dossierID == zielDossierID
     }
 
     private var exportProfile: [ProfilModell] { gespeicherteProfile.filter { gehoertZumExportDossier($0.dossierID) } }
@@ -575,6 +576,14 @@ struct ProfilView: View {
                 }
                 if dossierKontext.kannBearbeiten {
                     Section {
+#if DEBUG
+                        Button(role: .destructive) {
+                            dossierResetAnzeigen = true
+                        } label: {
+                            Label("DEV-Testdaten zurücksetzen", systemImage: "arrow.counterclockwise.circle")
+                        }
+                        .buttonStyle(.borderless)
+#endif
                         Button {
                             abmelden()
                         } label: {
@@ -676,6 +685,13 @@ struct ProfilView: View {
             .sheet(isPresented: $syncKonflikteAnzeigen) {
                 SyncKonfliktView()
             }
+#if DEBUG
+            .sheet(isPresented: $dossierResetAnzeigen) {
+                DossierNotfallResetView(email: gespeicherteEmail) { neueDossierID in
+                    lokalesDossierNachResetNeuAnlegen(neueDossierID)
+                }
+            }
+#endif
 
             .onAppear {
                 ladeOderErstelleProfil()
@@ -781,12 +797,14 @@ struct ProfilView: View {
     }
 
     private func aktualisiereEinladungszustaende() async {
-        await EinladungsStatusSynchronisation.aktualisieren(
+        if let fehler = await EinladungsStatusSynchronisation.aktualisieren(
             zugriffe: gespeicherteDossierZugriffe,
             dossiers: gespeicherteDossiers,
             aktiveUserID: UUID(uuidString: aktiveUserID),
             modelContext: modelContext
-        )
+        ) {
+            vertrauenspersonEntscheidungsFehler = fehler
+        }
     }
 
     private func verarbeiteVertrauenspersonPush(_ info: [String: String]) {
@@ -1283,6 +1301,69 @@ struct ProfilView: View {
         direktNachRegistrierungEingeloggt = false
         istEingeloggt = false
     }
+
+#if DEBUG
+    @MainActor
+    private func lokalesDossierNachResetNeuAnlegen(_ neueDossierID: UUID) {
+        guard let userID = UUID(uuidString: aktiveUserID) else {
+            profilLoeschenFehlermeldung = "Das neue Dossier wurde auf dem Server erstellt, konnte lokal aber keinem Benutzer zugeordnet werden. Bitte melde dich erneut an."
+            return
+        }
+
+        let alteDossierID = UUID(uuidString: aktivesDossierID)
+        do {
+            if let alteDossierID {
+                for bereich in ["profil", "gesundheit", "wuensche", "finanzen", "kontakte", "herzensstuecke", "zugaenge"] {
+                    try DossierBereichImport.loesche(
+                        bereich: bereich,
+                        dossierID: alteDossierID,
+                        in: modelContext
+                    )
+                }
+                gespeicherteWeitereDokumente
+                    .filter { $0.dossierID == alteDossierID }
+                    .forEach { modelContext.delete($0) }
+                gespeicherteFotos
+                    .filter { $0.dossierID == alteDossierID }
+                    .forEach { modelContext.delete($0) }
+                gespeicherteDossierZugriffe
+                    .filter { $0.dossierID == alteDossierID }
+                    .forEach { modelContext.delete($0) }
+                gespeicherteDossiers
+                    .filter { $0.dossierID == alteDossierID }
+                    .forEach { modelContext.delete($0) }
+            }
+
+            let neuesProfil = ProfilModell(
+                userID: userID,
+                dossierID: neueDossierID,
+                registrierungsart: registrierungsArt,
+                registrierungsEmail: gespeicherteEmail,
+                biometrieAktiviert: biometrieAktiviert
+            )
+            let neuesDossier = DossierModell(
+                dossierID: neueDossierID,
+                besitzerUserID: userID,
+                vorsorgendePersonName: ""
+            )
+            modelContext.insert(neuesProfil)
+            modelContext.insert(neuesDossier)
+            try modelContext.save()
+
+            aktivesDossierID = neueDossierID.uuidString
+            profilIstVorhanden = true
+            profilGeladen = false
+            dossierZuletztGeprueftAmISO = ""
+            dossierLetzterExportAmISO = ""
+            UserDefaults.standard.removeObject(forKey: "homeBereicheReihenfolge")
+            UserDefaults.standard.removeObject(forKey: "homeAktiveBereiche")
+            UserDefaults.standard.removeObject(forKey: "dossierFloatingNavigationScrollOffset")
+            ladeOderErstelleProfil()
+        } catch {
+            profilLoeschenFehlermeldung = "Das neue Dossier wurde auf dem Server erstellt, die lokalen Testdaten konnten aber nicht vollständig bereinigt werden: \(error.localizedDescription) Bitte melde dich erneut an."
+        }
+    }
+#endif
 
     private var dossierExportKarte: some View {
         VStack(alignment: .leading, spacing: 16) {

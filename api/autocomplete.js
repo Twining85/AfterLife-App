@@ -1,4 +1,7 @@
+import { secureResponse } from "./_security.js";
+
 export default async function handler(req, res) {
+  secureResponse(res);
   try {
     const streetname = req.query.streetname;
     const houseno = req.query.houseno || "";
@@ -49,8 +52,6 @@ export default async function handler(req, res) {
     });
 
     const streetDataText = await streetResponse.text();
-    console.log("Street autocomplete:", streetDataText);
-
     if (!includeBuildings) {
       return res.status(streetResponse.status).send(streetDataText);
     }
@@ -107,8 +108,6 @@ export default async function handler(req, res) {
       });
 
       const buildingDataText = await buildingResponse.text();
-      console.log("Building autocomplete:", buildingDataText);
-
       try {
         const buildingData = JSON.parse(buildingDataText);
         const items =
@@ -138,7 +137,7 @@ export default async function handler(req, res) {
           });
         });
       } catch (error) {
-        console.log("Building autocomplete JSON Fehler:", error.message);
+        console.error("Building autocomplete JSON Fehler", { error: error.message });
       }
     }
 
@@ -156,7 +155,7 @@ export default async function handler(req, res) {
     console.error("Autocomplete Proxy Fehler:", error);
     return res.status(500).json({
       error: "Autocomplete Proxy Fehler",
-      message: error.message
+      message: "Die Adresssuche ist derzeit nicht verfügbar."
     });
   }
 }

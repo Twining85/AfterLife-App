@@ -1,6 +1,7 @@
 import { mutationHash } from "./_sync-contract.js";
 
 export async function applySectionMutation(client, userID, mutation) {
+  if (client.engine === "mysql") return applyMySQLSectionMutation(client, userID, mutation);
   const requestHash = mutationHash(mutation);
   await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
     `idempotency:${userID}:${mutation.idempotencyKey}`
@@ -103,6 +104,7 @@ export async function applySectionMutation(client, userID, mutation) {
 }
 
 export async function changesSince(client, userID, cursor, limit = 100) {
+  if (client.engine === "mysql") return mysqlChangesSince(client, userID, cursor, limit);
   const rows = await client.query(
     `SELECT change_id, dossier_id, section_type, schema_version, revision,
             operation, payload, changed_at
@@ -159,4 +161,124 @@ function sectionResponse(dossierID, sectionType, row) {
 
 function isoDate(value) {
   return value instanceof Date ? value.toISOString() : String(value);
+}
+
+async function applyMySQLSectionMutation(client, userID, mutation) {
+  const requestHash = mutationHash(mutation);
+  await client.acquireLock(`idempotency:${userID}:${mutation.idempotencyKey}`);
+  await client.acquireLock(`section:${mutation.dossierID}:${mutation.sectionType}`);
+  await client.query(
+    `DELETE FROM sync_idempotency
+      WHERE owner_user_id = $1 AND idempotency_key = $2 AND expires_at <= CURRENT_TIMESTAMP(6)`,
+    [userID, mutation.idempotencyKey]
+  );
+  const replay = await client.query(
+    `SELECT request_hash, response_status, response_body FROM sync_idempotency
+      WHERE owner_user_id = $1 AND idempotency_key = $2 FOR UPDATE`,
+    [userID, mutation.idempotencyKey]
+  );
+  if (replay.rows[0]) {
+    const responseBody = parseJSON(replay.rows[0].response_body);
+    if (replay.rows[0].request_hash !== requestHash) {
+      return result(409, { error: "Idempotency-Key wurde für andere Daten verwendet", code: "idempotency_mismatch" });
+    }
+    return result(Number(replay.rows[0].response_status), responseBody, true);
+  }
+  const dossier = await client.query(
+    "SELECT id FROM dossiers WHERE id = $1 AND owner_user_id = $2 FOR UPDATE",
+    [mutation.dossierID, userID]
+  );
+  if (!dossier.rows[0]) {
+    return storeMySQLResult(client, userID, mutation, requestHash, 404, {
+      error: "Dossier nicht gefunden", code: "dossier_not_found"
+    });
+  }
+  const currentResult = await client.query(
+    `SELECT schema_version, revision, payload, deleted_at, updated_at
+       FROM dossier_sections WHERE dossier_id = $1 AND section_type = $2 FOR UPDATE`,
+    [mutation.dossierID, mutation.sectionType]
+  );
+  const current = normalizeJSONRow(currentResult.rows[0]);
+  const currentRevision = current ? Number(current.revision) : 0;
+  if (currentRevision !== mutation.expectedRevision) {
+    return storeMySQLResult(client, userID, mutation, requestHash, 409, {
+      error: "Daten wurden zwischenzeitlich geändert",
+      code: "revision_conflict",
+      current: current ? sectionResponse(mutation.dossierID, mutation.sectionType, current) : null
+    });
+  }
+  const revision = currentRevision + 1;
+  const deleted = mutation.operation === "delete";
+  await client.query(
+    `INSERT INTO dossier_sections
+       (dossier_id, owner_user_id, section_type, schema_version, revision, payload, deleted_at)
+     VALUES ($1, $2, $3, $4, $5, $6, CASE WHEN $7 THEN CURRENT_TIMESTAMP(6) ELSE NULL END)
+     ON DUPLICATE KEY UPDATE schema_version = VALUES(schema_version), revision = VALUES(revision),
+       payload = VALUES(payload), deleted_at = VALUES(deleted_at), updated_at = CURRENT_TIMESTAMP(6)`,
+    [mutation.dossierID, userID, mutation.sectionType, mutation.schemaVersion, revision,
+      deleted ? null : JSON.stringify(mutation.payload), deleted]
+  );
+  const saved = await client.query(
+    `SELECT schema_version, revision, payload, deleted_at, updated_at FROM dossier_sections
+      WHERE dossier_id = $1 AND section_type = $2`,
+    [mutation.dossierID, mutation.sectionType]
+  );
+  const change = await client.query(
+    `INSERT INTO sync_changes
+       (owner_user_id, dossier_id, section_type, schema_version, revision, operation, payload)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [userID, mutation.dossierID, mutation.sectionType, mutation.schemaVersion, revision,
+      mutation.operation, deleted ? null : JSON.stringify(mutation.payload)]
+  );
+  const changed = await client.query(
+    "SELECT change_id, changed_at FROM sync_changes WHERE change_id = $1",
+    [String(change.insertId)]
+  );
+  const body = {
+    ...sectionResponse(mutation.dossierID, mutation.sectionType, normalizeJSONRow(saved.rows[0])),
+    operation: mutation.operation,
+    cursor: String(changed.rows[0].change_id),
+    changedAt: isoDate(changed.rows[0].changed_at)
+  };
+  return storeMySQLResult(client, userID, mutation, requestHash, 200, body);
+}
+
+async function mysqlChangesSince(client, userID, cursor, limit) {
+  const resultRows = await client.query(
+    `SELECT change_id, dossier_id, section_type, schema_version, revision,
+            operation, payload, changed_at FROM sync_changes
+      WHERE owner_user_id = $1 AND change_id > $2 ORDER BY change_id LIMIT ${Number(limit) + 1}`,
+    [userID, cursor]
+  );
+  const normalized = resultRows.rows.map(normalizeJSONRow);
+  const hasMore = normalized.length > limit;
+  const selected = normalized.slice(0, limit);
+  return {
+    changes: selected.map((row) => ({
+      cursor: String(row.change_id), dossierID: row.dossier_id, sectionType: row.section_type,
+      schemaVersion: Number(row.schema_version), revision: Number(row.revision), operation: row.operation,
+      payload: row.operation === "delete" ? null : row.payload, changedAt: isoDate(row.changed_at)
+    })),
+    nextCursor: selected.length ? String(selected.at(-1).change_id) : cursor,
+    hasMore
+  };
+}
+
+async function storeMySQLResult(client, userID, mutation, requestHash, statusCode, body) {
+  await client.query(
+    `INSERT INTO sync_idempotency
+       (owner_user_id, idempotency_key, request_hash, response_status, response_body, expires_at)
+     VALUES ($1, $2, $3, $4, $5, DATE_ADD(CURRENT_TIMESTAMP(6), INTERVAL 30 DAY))`,
+    [userID, mutation.idempotencyKey, requestHash, statusCode, JSON.stringify(body)]
+  );
+  return result(statusCode, body);
+}
+
+function normalizeJSONRow(row) {
+  if (!row) return row;
+  return { ...row, payload: parseJSON(row.payload), response_body: parseJSON(row.response_body) };
+}
+function parseJSON(value) {
+  if (typeof value !== "string") return value;
+  try { return JSON.parse(value); } catch { return value; }
 }

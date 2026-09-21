@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   clearRateLimitsForTests,
+  isEmailRecipientAllowed,
   normalizeEmail,
   rateLimit,
   requireJSON,
@@ -23,6 +24,30 @@ function response() {
 test("normalisiert gültige E-Mail-Adressen", () => {
   assert.equal(normalizeEmail(" Test@Example.CH "), "test@example.ch");
   assert.equal(normalizeEmail("keine-adresse"), null);
+});
+
+test("erlaubt eine konfigurierbare Liste von DEV-E-Mail-Empfängern", () => {
+  const environment = {
+    EMAIL_VERIFICATION_ALLOWED_RECIPIENTS: "first@example.ch, Second@Example.ch",
+    EMAIL_VERIFICATION_ALLOWED_RECIPIENT: "legacy@example.ch"
+  };
+  assert.equal(isEmailRecipientAllowed("first@example.ch", environment), true);
+  assert.equal(isEmailRecipientAllowed("second@example.ch", environment), true);
+  assert.equal(isEmailRecipientAllowed("legacy@example.ch", environment), true);
+  assert.equal(isEmailRecipientAllowed("blocked@example.ch", environment), false);
+  assert.equal(isEmailRecipientAllowed("any@example.ch", {}), true);
+});
+
+test("erlaubt in DEV unbekannte Temp-Mail-Domains, aber keine gesperrten Standardanbieter", () => {
+  const environment = {
+    EMAIL_VERIFICATION_ALLOWED_RECIPIENTS: "allowed@gmail.com",
+    EMAIL_VERIFICATION_ALLOW_UNLISTED: "true",
+    EMAIL_VERIFICATION_BLOCKED_DOMAINS: "gmail.com, gmx.net, outlook.com"
+  };
+  assert.equal(isEmailRecipientAllowed("allowed@gmail.com", environment), true);
+  assert.equal(isEmailRecipientAllowed("random@gmail.com", environment), false);
+  assert.equal(isEmailRecipientAllowed("random@gmx.net", environment), false);
+  assert.equal(isEmailRecipientAllowed("random@temporary-random.example", environment), true);
 });
 
 test("setzt Sicherheits-Header und eine Request-ID", () => {

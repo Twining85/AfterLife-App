@@ -1,4 +1,7 @@
+import { secureResponse } from "./_security.js";
+
 export default async function handler(req, res) {
+  secureResponse(res);
   try {
     const username = process.env.POST_API_USERNAME;
     const password = process.env.POST_API_PASSWORD;
@@ -61,14 +64,12 @@ export default async function handler(req, res) {
     });
 
     const data = await response.text();
-    console.log("Building Verification Antwort:", data);
-
     return res.status(response.status).send(data);
   } catch (error) {
     console.error("Building Verification Proxy Fehler:", error);
     return res.status(500).json({
       error: "Building Verification Proxy Fehler",
-      message: error.message
+      message: "Die Adressprüfung ist derzeit nicht verfügbar."
     });
   }
 }

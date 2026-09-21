@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import http2 from "node:http2";
 import { databasePool } from "./_database.js";
 
-const bundleID = process.env.APNS_BUNDLE_ID || "ch.tschluessli.app";
+const bundleID = process.env.APNS_BUNDLE_ID;
 const teamID = process.env.APNS_TEAM_ID;
 
 export async function pushToUser(userID, payload) {
@@ -25,7 +25,9 @@ async function sendPush(deviceToken, environment, payload) {
   const production = environment === "production";
   const keyID = production ? process.env.APNS_PRODUCTION_KEY_ID : process.env.APNS_SANDBOX_KEY_ID;
   const privateKey = (production ? process.env.APNS_PRODUCTION_PRIVATE_KEY : process.env.APNS_SANDBOX_PRIVATE_KEY)?.replace(/\\n/g, "\n");
-  if (!teamID || !keyID || !privateKey) throw new Error(`APNs-Konfiguration für ${environment} fehlt`);
+  if (!bundleID || !teamID || !keyID || !privateKey) {
+    throw new Error(`APNs-Konfiguration für ${environment} fehlt`);
+  }
 
   const jwt = providerToken(keyID, privateKey);
   const host = production ? "https://api.push.apple.com" : "https://api.sandbox.push.apple.com";

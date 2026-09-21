@@ -28,6 +28,7 @@ struct TschluessliApp: App {
             SteuerdokumentModell.self,
             AboModell.self,
             AboEintrag.self,
+            DigitalekontenModell.self,
             FotoalbumBildModell.self,
             DokumenteModell.self,
             HerzensstueckModell.self,
@@ -38,6 +39,11 @@ struct TschluessliApp: App {
             VertrauenspersonEinladungsHistorieModell.self,
             DossierModell.self,
             DossierZugriffModell.self,
+            WeiteresModell.self,
+            HaustierEintrag.self,
+            FahrzeugEintrag.self,
+            SchluesselZugangEintrag.self,
+            WeitereInformationEintrag.self,
             SyncAuftrag.self,
             SyncKonflikt.self
         ])
@@ -114,6 +120,7 @@ struct AppStartView: View {
     @State private var syncAnzeigeStatus: SyncAnzeigeStatus?
     @State private var syncAnzeigeTask: Task<Void, Never>?
     @State private var neuregistrierungErzwungen = false
+    @State private var kaltstartWurdeBereinigt = false
 
     // Vor einem Release wieder auf false setzen.
     private let homeDirektStarten = false
@@ -256,6 +263,16 @@ struct AppStartView: View {
             }
         }
         .onAppear {
+            if !kaltstartWurdeBereinigt {
+                kaltstartWurdeBereinigt = true
+                // Ein Wiederherstellungsdialog kann einen vollständigen
+                // Prozessabbruch der App nicht überleben. Bleibt sein Marker
+                // dennoch in UserDefaults stehen, darf er ein bereits lokal
+                // vorhandenes Profil beim nächsten Start nicht zurück in die
+                // Registrierung schicken.
+                wiederherstellungNeuesGeraetLaeuft = false
+            }
+
             DispatchQueue.main.async {
                 UIApplication.shared
                     .aktiviereTastaturAusblendenBeiInteraktion()

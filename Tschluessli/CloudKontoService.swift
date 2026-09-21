@@ -1,7 +1,15 @@
 import Foundation
 
 enum CloudAPIKonfiguration {
-    nonisolated static let basisURL = URL(string: "https://afterlife-address-proxy.vercel.app")!
+    nonisolated static let basisURL: URL = {
+        guard let wert = Bundle.main.object(forInfoDictionaryKey: "TschluessliAPIBaseURL") as? String,
+              let url = URL(string: wert),
+              url.scheme == "https",
+              url.host != nil else {
+            preconditionFailure("TschluessliAPIBaseURL fehlt oder ist keine gueltige HTTPS-URL")
+        }
+        return url
+    }()
 }
 
 struct CloudKontoSitzung: Sendable {

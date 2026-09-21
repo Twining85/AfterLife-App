@@ -83,15 +83,15 @@ struct ReloginView: View {
                 }
             }
             .onAppear {
-                if direktNachRegistrierungEingeloggt {
-                    direktNachRegistrierungEingeloggt = false
-                    istEingeloggt = true
-                    return
-                }
-
                 if loginFuerTestsUeberspringen {
                     istEingeloggt = true
                 } else {
+                    // Diese Ansicht darf niemals allein aufgrund eines alten,
+                    // persistenten Registrierungsstatus entsperren. Ein Relogin
+                    // benötigt immer Passwort oder eine bewusst ausgelöste
+                    // biometrische Prüfung.
+                    direktNachRegistrierungEingeloggt = false
+                    istEingeloggt = false
                     bereiteLoginBeimStartVor()
                 }
             }

@@ -3,6 +3,7 @@ import { sendEmail } from "../_email-service.js";
 import { fileURLToPath } from "node:url";
 import {
   normalizeEmail,
+  isEmailRecipientAllowed,
   rateLimit,
   requireJSON,
   requireMethod,
@@ -24,10 +25,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Ungültige E-Mail-Adresse" });
   }
 
-  const allowedRecipient = String(
-    process.env.EMAIL_VERIFICATION_ALLOWED_RECIPIENT || ""
-  ).trim().toLowerCase();
-  if (allowedRecipient && email !== allowedRecipient) {
+  if (!isEmailRecipientAllowed(email)) {
     return res.status(403).json({ error: "Empfänger im Testbetrieb nicht freigegeben" });
   }
 

@@ -52,6 +52,7 @@ final class WuenscheModell {
     var testamentDateiName: String
     @Attribute(.externalStorage) var testamentDateiData: Data?
     var testamentHochgeladenAm: Date?
+    var testamentFreigegebenBeiDossierfreigabe: Bool = false
     var testamentErinnerungAktiv: Bool
     var testamentErinnerungAm: Date?
 
@@ -60,6 +61,7 @@ final class WuenscheModell {
     var patientenverfuegungDateiName: String
     @Attribute(.externalStorage) var patientenverfuegungDateiData: Data?
     var patientenverfuegungHochgeladenAm: Date?
+    var patientenverfuegungFreigegebenBeiDossierfreigabe: Bool = true
     var patientenverfuegungErinnerungAktiv: Bool
     var patientenverfuegungErinnerungAm: Date?
 
@@ -68,6 +70,7 @@ final class WuenscheModell {
     var vorsorgeauftragDateiName: String
     @Attribute(.externalStorage) var vorsorgeauftragDateiData: Data?
     var vorsorgeauftragHochgeladenAm: Date?
+    var vorsorgeauftragFreigegebenBeiDossierfreigabe: Bool = true
     var vorsorgeauftragErinnerungAktiv: Bool
     var vorsorgeauftragErinnerungAm: Date?
 
@@ -76,6 +79,7 @@ final class WuenscheModell {
     var sterbebegleitungDateiName: String
     @Attribute(.externalStorage) var sterbebegleitungDateiData: Data?
     var sterbebegleitungHochgeladenAm: Date?
+    var sterbebegleitungFreigegebenBeiDossierfreigabe: Bool = true
     var sterbebegleitungErinnerungAktiv: Bool
     var sterbebegleitungErinnerungAm: Date?
 
@@ -121,24 +125,28 @@ final class WuenscheModell {
         testamentDateiName: String = "",
         testamentDateiData: Data? = nil,
         testamentHochgeladenAm: Date? = nil,
+        testamentFreigegebenBeiDossierfreigabe: Bool = false,
         testamentErinnerungAktiv: Bool = true,
         testamentErinnerungAm: Date? = nil,
         patientenverfuegungVorhanden: Bool = false,
         patientenverfuegungDateiName: String = "",
         patientenverfuegungDateiData: Data? = nil,
         patientenverfuegungHochgeladenAm: Date? = nil,
+        patientenverfuegungFreigegebenBeiDossierfreigabe: Bool = true,
         patientenverfuegungErinnerungAktiv: Bool = true,
         patientenverfuegungErinnerungAm: Date? = nil,
         vorsorgeauftragVorhanden: Bool = false,
         vorsorgeauftragDateiName: String = "",
         vorsorgeauftragDateiData: Data? = nil,
         vorsorgeauftragHochgeladenAm: Date? = nil,
+        vorsorgeauftragFreigegebenBeiDossierfreigabe: Bool = true,
         vorsorgeauftragErinnerungAktiv: Bool = true,
         vorsorgeauftragErinnerungAm: Date? = nil,
         sterbebegleitungGewuenscht: Bool = false,
         sterbebegleitungDateiName: String = "",
         sterbebegleitungDateiData: Data? = nil,
         sterbebegleitungHochgeladenAm: Date? = nil,
+        sterbebegleitungFreigegebenBeiDossierfreigabe: Bool = true,
         sterbebegleitungErinnerungAktiv: Bool = true,
         sterbebegleitungErinnerungAm: Date? = nil,
         schwereErkrankungVorhanden: Bool = false,
@@ -179,24 +187,28 @@ final class WuenscheModell {
         self.testamentDateiName = testamentDateiName
         self.testamentDateiData = testamentDateiData
         self.testamentHochgeladenAm = testamentHochgeladenAm
+        self.testamentFreigegebenBeiDossierfreigabe = testamentFreigegebenBeiDossierfreigabe
         self.testamentErinnerungAktiv = testamentErinnerungAktiv
         self.testamentErinnerungAm = testamentErinnerungAm
         self.patientenverfuegungVorhanden = patientenverfuegungVorhanden
         self.patientenverfuegungDateiName = patientenverfuegungDateiName
         self.patientenverfuegungDateiData = patientenverfuegungDateiData
         self.patientenverfuegungHochgeladenAm = patientenverfuegungHochgeladenAm
+        self.patientenverfuegungFreigegebenBeiDossierfreigabe = patientenverfuegungFreigegebenBeiDossierfreigabe
         self.patientenverfuegungErinnerungAktiv = patientenverfuegungErinnerungAktiv
         self.patientenverfuegungErinnerungAm = patientenverfuegungErinnerungAm
         self.vorsorgeauftragVorhanden = vorsorgeauftragVorhanden
         self.vorsorgeauftragDateiName = vorsorgeauftragDateiName
         self.vorsorgeauftragDateiData = vorsorgeauftragDateiData
         self.vorsorgeauftragHochgeladenAm = vorsorgeauftragHochgeladenAm
+        self.vorsorgeauftragFreigegebenBeiDossierfreigabe = vorsorgeauftragFreigegebenBeiDossierfreigabe
         self.vorsorgeauftragErinnerungAktiv = vorsorgeauftragErinnerungAktiv
         self.vorsorgeauftragErinnerungAm = vorsorgeauftragErinnerungAm
         self.sterbebegleitungGewuenscht = sterbebegleitungGewuenscht
         self.sterbebegleitungDateiName = sterbebegleitungDateiName
         self.sterbebegleitungDateiData = sterbebegleitungDateiData
         self.sterbebegleitungHochgeladenAm = sterbebegleitungHochgeladenAm
+        self.sterbebegleitungFreigegebenBeiDossierfreigabe = sterbebegleitungFreigegebenBeiDossierfreigabe
         self.sterbebegleitungErinnerungAktiv = sterbebegleitungErinnerungAktiv
         self.sterbebegleitungErinnerungAm = sterbebegleitungErinnerungAm
         self.schwereErkrankungVorhanden = schwereErkrankungVorhanden

@@ -98,7 +98,7 @@ struct EinladungQRCodeAnnehmenView: View {
         }
 
         guard !qrEmail.isEmpty else { return }
-        guard UUID(uuidString: aktiveUserID) != nil else {
+        guard let aktiveUserUUID = UUID(uuidString: aktiveUserID) else {
             meldung = "Dein angemeldetes Profil konnte nicht eindeutig bestimmt werden."
             return
         }
@@ -119,24 +119,20 @@ struct EinladungQRCodeAnnehmenView: View {
                         dossierID: cloud.dossierID,
                         vorsorgendeUserID: cloud.ownerUserID,
                         vorsorgendePersonName: cloud.ownerName,
-                        vertrauenspersonUserID: UUID(uuidString: aktiveUserID),
+                        vertrauenspersonUserID: aktiveUserUUID,
                         status: DossierZugriffStatus.erstellt
                     )
                     modelContext.insert(zugriff)
                 }
-                zugriff.vertrauenspersonUserID = UUID(uuidString: aktiveUserID)
+                zugriff.vertrauenspersonUserID = aktiveUserUUID
                 zugriff.vorsorgendePersonName = cloud.ownerName
                 zugriff.registrierungsEmail = cloud.invitedEmail
-                if zugriff.status != DossierZugriffStatus.bestaetigungAusstehend,
-                   zugriff.status != DossierZugriffStatus.angenommen,
-                   zugriff.status != DossierZugriffStatus.freigegeben {
-                    zugriff.status = DossierZugriffStatus.erstellt
-                }
+                zugriff.status = DossierZugriffStatus.erstellt
                 zugriff.istAktiv = true
                 try modelContext.save()
                 
                 warErfolgreich = true
-                meldung = "Der Zugang wurde auf deinem Home-Screen abgelegt. Es wurden noch keine Dossierdaten geladen. Erst beim gewünschten Cloud-Download kannst du die Erlaubnis anfragen."
+                meldung = "Das gesperrte Dossier wurde auf deinem Home-Screen abgelegt. Öffne es dort, wenn du den Datenzugriff anfragen möchtest."
             } catch {
                 meldung = error.localizedDescription
             }

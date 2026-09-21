@@ -148,6 +148,13 @@ final class DossierSyncAuftragVerarbeiter: SyncAuftragVerarbeiter {
     }
 
     func verarbeite(_ auftrag: SyncAuftragSnapshot) async throws -> Int64 {
+        let userID = UUID(uuidString: UserDefaults.standard.string(forKey: "aktiveUserID") ?? "")
+        guard let userID,
+              try modelContext.fetch(FetchDescriptor<DossierModell>()).contains(where: {
+                  $0.dossierID == auftrag.dossierID && $0.besitzerUserID == userID
+              }) else {
+            throw SyncVerarbeitungsFehler.permanent("Dieser Auftrag gehört nicht zum eigenen Dossier.")
+        }
         let payload: DossierBereichPayload?
         switch auftrag.vorgang {
         case .upsert:
@@ -477,11 +484,14 @@ final class DossierSyncDienst {
         bereiche: Set<String>
     ) async {
         guard let dossierID = Self.aktivesDossierID else { return }
+        let userID = UUID(uuidString: UserDefaults.standard.string(forKey: "aktiveUserID") ?? "")
+        guard let userID else { return }
+        guard stelleEigenesDossierLokalSicher(dossierID: dossierID, besitzerUserID: userID) else { return }
         ignoriertEigeneSpeicherung = true
         defer { ignoriertEigeneSpeicherung = false }
 
         do {
-            try ordneVerwaisteDatensaetzeZu(dossierID: dossierID)
+            try ordneVerwaisteDatensaetzeZu(dossierID: dossierID, besitzerUserID: userID)
         } catch {
             // Ohne eindeutige Dossier-Zuordnung darf kein unvollständiger Upload entstehen.
             return
@@ -490,13 +500,31 @@ final class DossierSyncDienst {
         if initialerAbgleich {
             await ladeAenderungenHerunter()
         }
-        let markierteBereiche = initialerAbgleich
+        var markierteBereiche = initialerAbgleich
             ? Set(registry.bereiche.filter {
                 UserDefaults.standard.object(
                     forKey: Self.revisionKey(dossierID: dossierID, bereich: $0)
                 ) == nil && !self.hatGespeichertenKonflikt(dossierID: dossierID, bereich: $0)
             }).union(bereiche)
             : bereiche
+
+        if initialerAbgleich {
+            // Eine lokale Revision kann von einem früheren Test- oder
+            // Serverstand stammen. Fehlt der Bereich auf dem aktuellen
+            // Server trotzdem, muss der vollständige lokale Bereich einmal
+            // neu hochgeladen werden – sonst bleibt ein Fremddossier leer.
+            let fehlendeCloudBereiche = await findeFehlendeCloudBereiche(
+                dossierID: dossierID,
+                bereiche: Set(registry.bereiche)
+            )
+            for bereich in fehlendeCloudBereiche {
+                UserDefaults.standard.set(
+                    Int64(0),
+                    forKey: Self.revisionKey(dossierID: dossierID, bereich: bereich)
+                )
+            }
+            markierteBereiche.formUnion(fehlendeCloudBereiche)
+        }
 
         for bereich in markierteBereiche {
             guard let adapter = try? registry.adapter(fuer: bereich) else { continue }
@@ -514,32 +542,104 @@ final class DossierSyncDienst {
         await ladeAenderungenHerunter()
     }
 
+    /// Ein frisch registriertes oder auf einem neuen Gerät angemeldetes Konto
+    /// erhält seine Dossier-ID vom Backend. Ohne lokales Dossiermodell wurde
+    /// der Upload bislang still übersprungen. Dieses Modell ist ausschliesslich
+    /// die lokale Eigentumsreferenz; der Server prüft die Berechtigung beim
+    /// eigentlichen Upload weiterhin selbst.
+    private func stelleEigenesDossierLokalSicher(
+        dossierID: UUID,
+        besitzerUserID: UUID
+    ) -> Bool {
+        guard let dossiers = try? modelContext.fetch(FetchDescriptor<DossierModell>()) else {
+            return false
+        }
+        if dossiers.contains(where: { $0.dossierID == dossierID && $0.besitzerUserID == besitzerUserID }) {
+            return true
+        }
+        let name = (try? modelContext.fetch(FetchDescriptor<ProfilModell>()))?
+            .first(where: { $0.userID == besitzerUserID })
+            .map { "\($0.vorname) \($0.name)".trimmingCharacters(in: .whitespacesAndNewlines) }
+            ?? ""
+        modelContext.insert(DossierModell(
+            dossierID: dossierID,
+            besitzerUserID: besitzerUserID,
+            vorsorgendePersonName: name
+        ))
+        do {
+            try modelContext.save()
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// Prüft nur beim initialen Abgleich, ob ein lokaler Bereich auf dem
+    /// aktuellen Server überhaupt existiert. Vorhandene Cloud-Daten werden
+    /// nie überschrieben; nur fehlende Bereiche werden zur Wiederherstellung
+    /// des vollständigen Dossiers erneut vorgemerkt.
+    private func findeFehlendeCloudBereiche(
+        dossierID: UUID,
+        bereiche: Set<String>
+    ) async -> Set<String> {
+        var fehlende: Set<String> = []
+        for bereich in bereiche {
+            guard !hatGespeichertenKonflikt(dossierID: dossierID, bereich: bereich) else {
+                continue
+            }
+            do {
+                if try await CloudDossierSyncService.shared.laden(
+                    dossierID: dossierID,
+                    bereich: bereich
+                ) == nil {
+                    fehlende.insert(bereich)
+                }
+            } catch {
+                // Ohne belastbare Serverantwort darf kein lokaler Snapshot
+                // über einen möglicherweise vorhandenen Stand geschrieben werden.
+                continue
+            }
+        }
+        return fehlende
+    }
+
     /// Migriert lokale Bestandsdaten, die vor der dossierbasierten Speicherung
     /// angelegt wurden. Neue Datensätze sollen ihre Dossier-ID bereits beim
     /// Erstellen erhalten; diese Absicherung gilt zentral für alle Bereiche.
-    private func ordneVerwaisteDatensaetzeZu(dossierID: UUID) throws {
-        try ordneVerwaiste(ProfilModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
-        try ordneVerwaiste(GesundheitModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
-        try ordneVerwaiste(WuenscheModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+    private func ordneVerwaisteDatensaetzeZu(dossierID: UUID, besitzerUserID: UUID) throws {
+        // Nach einem Reset oder einer früheren Dossier-ID-Migration können
+        // lokale Daten noch am vorherigen eigenen Hauptdossier hängen. Diese
+        // Daten gehören weiterhin der angemeldeten Person und müssen in das
+        // aktuelle eigene Dossier überführt werden. Freigegebene Dossiers
+        // werden ausdrücklich nicht berührt: Sie gehören einem anderen Owner.
+        let alteEigeneDossierIDs = Set(
+            try modelContext.fetch(FetchDescriptor<DossierModell>())
+                .filter { $0.besitzerUserID == besitzerUserID && $0.dossierID != dossierID }
+                .map(\.dossierID)
+        )
 
-        try ordneVerwaiste(BankkontoModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
-        try ordneVerwaiste(SchuldenModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
-        try ordneVerwaiste(VersicherungModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
-        try ordneVerwaiste(LiegenschaftModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
-        try ordneVerwaiste(WertsacheModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
-        try ordneVerwaiste(SteuerdokumentModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(ProfilModell.self, dossierID: dossierID, alteEigeneDossierIDs: alteEigeneDossierIDs, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(GesundheitModell.self, dossierID: dossierID, alteEigeneDossierIDs: alteEigeneDossierIDs, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(WuenscheModell.self, dossierID: dossierID, alteEigeneDossierIDs: alteEigeneDossierIDs, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
 
-        try ordneVerwaiste(HinterbliebeneModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
-        try ordneVerwaiste(VertrauenspersonModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
-        try ordneVerwaiste(HerzensstueckModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(BankkontoModell.self, dossierID: dossierID, alteEigeneDossierIDs: alteEigeneDossierIDs, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(SchuldenModell.self, dossierID: dossierID, alteEigeneDossierIDs: alteEigeneDossierIDs, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(VersicherungModell.self, dossierID: dossierID, alteEigeneDossierIDs: alteEigeneDossierIDs, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(LiegenschaftModell.self, dossierID: dossierID, alteEigeneDossierIDs: alteEigeneDossierIDs, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(WertsacheModell.self, dossierID: dossierID, alteEigeneDossierIDs: alteEigeneDossierIDs, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(SteuerdokumentModell.self, dossierID: dossierID, alteEigeneDossierIDs: alteEigeneDossierIDs, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
 
-        try ordneVerwaiste(AboModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
-        try ordneVerwaiste(AboEintrag.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
-        try ordneVerwaiste(DigitalekontenModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(HinterbliebeneModell.self, dossierID: dossierID, alteEigeneDossierIDs: alteEigeneDossierIDs, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(VertrauenspersonModell.self, dossierID: dossierID, alteEigeneDossierIDs: alteEigeneDossierIDs, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(HerzensstueckModell.self, dossierID: dossierID, alteEigeneDossierIDs: alteEigeneDossierIDs, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+
+        try ordneVerwaiste(AboModell.self, dossierID: dossierID, alteEigeneDossierIDs: alteEigeneDossierIDs, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(AboEintrag.self, dossierID: dossierID, alteEigeneDossierIDs: alteEigeneDossierIDs, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(DigitalekontenModell.self, dossierID: dossierID, alteEigeneDossierIDs: alteEigeneDossierIDs, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
 
         // Vorbereitung für den späteren geschützten Dokument-Upload.
-        try ordneVerwaiste(DokumenteModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
-        try ordneVerwaiste(FotoalbumBildModell.self, dossierID: dossierID, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(DokumenteModell.self, dossierID: dossierID, alteEigeneDossierIDs: alteEigeneDossierIDs, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
+        try ordneVerwaiste(FotoalbumBildModell.self, dossierID: dossierID, alteEigeneDossierIDs: alteEigeneDossierIDs, lese: { $0.dossierID }, setze: { $0.dossierID = $1 })
 
         if modelContext.hasChanges {
             try modelContext.save()
@@ -549,10 +649,12 @@ final class DossierSyncDienst {
     private func ordneVerwaiste<T: PersistentModel>(
         _ typ: T.Type,
         dossierID: UUID,
+        alteEigeneDossierIDs: Set<UUID>,
         lese: (T) -> UUID?,
         setze: (T, UUID) -> Void
     ) throws {
-        for datensatz in try modelContext.fetch(FetchDescriptor<T>()) where lese(datensatz) == nil {
+        for datensatz in try modelContext.fetch(FetchDescriptor<T>()) where
+            lese(datensatz) == nil || alteEigeneDossierIDs.contains(lese(datensatz)!) {
             setze(datensatz, dossierID)
         }
     }

@@ -76,7 +76,7 @@ struct Home: View {
             return profil
         }
         
-        return gespeicherteProfile.first
+        return nil
     }
     
     private var aktiveGesundheitsdaten: GesundheitModell? {
@@ -90,7 +90,7 @@ struct Home: View {
             return gesundheit
         }
         
-        return gespeicherteGesundheitsdaten.first
+        return nil
     }
     
     private var homeAnzeigename: String {
@@ -221,7 +221,7 @@ struct Home: View {
     }
 
     private var bereicheTitelTopAbstand: CGFloat {
-        dossierPruefungIstFaellig ? 34 : 8
+        hatAusstehendeEigeneVertrauenspersonAnfragen ? 12 : 8
     }
     
     private var dossierZuletztGeprueftText: String {
@@ -269,7 +269,9 @@ struct Home: View {
            let dossier = gespeicherteDossiers.first(where: { $0.dossierID == id }) {
             return dossier
         }
-        return gespeicherteDossiers.first(where: { $0.istHauptdossier }) ?? gespeicherteDossiers.first
+        return gespeicherteDossiers.first(where: {
+            $0.istHauptdossier && $0.besitzerUserID == UUID(uuidString: aktiveUserID)
+        })
     }
 
     private var zugriffeFuerAktivesDossier: [DossierZugriffModell] {
@@ -312,6 +314,19 @@ struct Home: View {
         eigeneVertrauenspersonZugriffe.filter {
             $0.status == DossierZugriffStatus.abgelehnt
         }
+    }
+
+    private var ausstehendeEigeneVertrauenspersonAnfragen: [DossierZugriffModell] {
+        guard let userID = UUID(uuidString: aktiveUserID) else { return [] }
+        return gespeicherteDossierZugriffe.filter {
+            $0.istAktiv &&
+            $0.vorsorgendeUserID == userID &&
+            $0.status == DossierZugriffStatus.bestaetigungAusstehend
+        }
+    }
+
+    private var hatAusstehendeEigeneVertrauenspersonAnfragen: Bool {
+        !ausstehendeEigeneVertrauenspersonAnfragen.isEmpty
     }
 
     private func besitzerProfil(fuer zugriff: DossierZugriffModell) -> ProfilModell? {
@@ -560,9 +575,15 @@ struct Home: View {
                     .animation(.easeInOut(duration: 0.22), value: homeBearbeitungsmodus)
                     .animation(.easeOut(duration: 0.55), value: heroIstSichtbar)
 
+                    if hatAusstehendeEigeneVertrauenspersonAnfragen {
+                        ausstehendeVertrauenspersonAnfragenBereich
+                            .padding(.horizontal, 24)
+                            .padding(.top, 10)
+                    }
+
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(alignment: .firstTextBaseline) {
-                            Text("Bereiche")
+                            Text("Deine Bereiche")
                                 .font(.title.weight(.bold))
                                 .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
 
@@ -581,7 +602,7 @@ struct Home: View {
                             .foregroundStyle(.secondary)
                     }
                     .padding(.horizontal, 24)
-                    .padding(.top, 16)
+                    .padding(.top, bereicheTitelTopAbstand)
                     .opacity(bereicheTitelIstSichtbar ? (homeBearbeitungsmodus ? 0.45 : 1) : 0)
                     .offset(y: bereicheTitelIstSichtbar ? 0 : 10)
                     .allowsHitTesting(!homeBearbeitungsmodus && bereicheTitelIstSichtbar)
@@ -599,7 +620,7 @@ struct Home: View {
                     vertrauenspersonDossiersBereich
                         .padding(.horizontal, 24)
                         .padding(.top, 18)
-                    
+
                     // MARK: - nicht in Scope MMP 1
                     // if !verknuepfteVorsorgedossiers.isEmpty {
                     //     vorsorgedossierWechselAktion
@@ -719,6 +740,13 @@ struct Home: View {
                     verarbeiteGespeichertenEntscheidungsPush()
                     Task { await aktualisiereEinladungszustaende() }
                 }
+                .task(id: aktiveUserID) {
+                    while !Task.isCancelled {
+                        try? await Task.sleep(for: .seconds(15))
+                        guard !Task.isCancelled, scenePhase == .active else { continue }
+                        await aktualisiereEinladungszustaende()
+                    }
+                }
                 .confirmationDialog(
                     "Synchronisationskonflikt",
                     isPresented: $syncKonfliktAuswahlAnzeigen,
@@ -818,6 +846,53 @@ struct Home: View {
                 if anzahlKonflikte > 0 {
                     syncKonfliktAuswahlAnzeigen = true
                 }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var ausstehendeVertrauenspersonAnfragenBereich: some View {
+        if !ausstehendeEigeneVertrauenspersonAnfragen.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Offene Zugriffsanfragen")
+                    .font(.title3.bold())
+
+                ForEach(ausstehendeEigeneVertrauenspersonAnfragen) { zugriff in
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Eine Vertrauensperson möchte dein Dossier öffnen.")
+                            .font(.headline)
+                        Text(zugriff.registrierungsEmail ?? zugriff.eingeladeneEmail)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        HStack {
+                            Button("Bestätigen") { entscheideVertrauensperson(zugriff, angenommen: true) }
+                                .buttonStyle(.borderedProminent)
+                                .tint(schluessliAkzent)
+                            Button("Ablehnen", role: .destructive) { entscheideVertrauensperson(zugriff, angenommen: false) }
+                                .buttonStyle(.bordered)
+                        }
+                    }
+                    .padding(15)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 18))
+                }
+            }
+        }
+    }
+
+    private func entscheideVertrauensperson(_ zugriff: DossierZugriffModell, angenommen: Bool) {
+        guard let token = zugriff.einladungsToken else { return }
+        Task {
+            do {
+                try await PushEinladungsService.shared.entscheiden(token: token, angenommen: angenommen)
+                if angenommen, let userID = zugriff.vertrauenspersonUserID {
+                    zugriff.einladungAnnehmen(vertrauenspersonUserID: userID, registrierungsEmail: zugriff.registrierungsEmail)
+                } else if !angenommen {
+                    zugriff.einladungAblehnen(registrierungsEmail: zugriff.registrierungsEmail)
+                }
+                try modelContext.save()
+            } catch {
+                manuellerSyncFehler = error.localizedDescription
             }
         }
     }
@@ -965,12 +1040,14 @@ struct Home: View {
     }
 
     private func aktualisiereEinladungszustaende() async {
-        await EinladungsStatusSynchronisation.aktualisieren(
+        if let fehler = await EinladungsStatusSynchronisation.aktualisieren(
             zugriffe: gespeicherteDossierZugriffe,
             dossiers: gespeicherteDossiers,
             aktiveUserID: UUID(uuidString: aktiveUserID),
             modelContext: modelContext
-        )
+        ) {
+            manuellerSyncFehler = fehler
+        }
     }
 
     private func handleVorsorgeCTA() {
@@ -1669,7 +1746,7 @@ struct Home: View {
         var details: String {
             switch self {
             case .profil:
-                return "Kontaktdaten, Einstellungen und Sicherheit verwalten"
+                return "Personendaten, Einstellungen und Vertrauensperson verwalten"
             case .gesundheit:
                 return "Hausarzt, Medikamente, Allergien und wichtige medizinische Informationen"
             case .wuensche:
@@ -1903,6 +1980,19 @@ struct Home: View {
     
     struct FreigegebenesDossierDetailView: View {
         let dossierKontext: DossierKontext
+        @Environment(\.modelContext) private var modelContext
+        @Query private var zugriffe: [DossierZugriffModell]
+        @Query private var dossiers: [DossierModell]
+        @Query private var vertrauenspersonen: [VertrauenspersonModell]
+        @State private var laedt = false
+        @State private var geladen = false
+        @State private var ladefehler = ""
+        private var darfAnzeigen: Bool {
+            geladen && zugriffe.contains {
+                $0.zugriffID == dossierKontext.zugriffID && $0.istAktiv &&
+                ($0.status == DossierZugriffStatus.angenommen || $0.status == DossierZugriffStatus.freigegeben)
+            }
+        }
         private let kachelFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
         private let akzentFarbe = Color.orange
         private let schluessliAkzent = Color(red: 0.16, green: 0.36, blue: 0.42)
@@ -1912,6 +2002,46 @@ struct Home: View {
             dossierKontext.besitzerName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             ? (dossierKontext.besitzerName ?? "Freigegebenes Vorsorge-Dossier")
             : "Freigegebenes Vorsorge-Dossier"
+        }
+
+        private var freigabeEinstellungen: VertrauenspersonModell? {
+            guard let zugriff = zugriffe.first(where: { $0.zugriffID == dossierKontext.zugriffID }) else {
+                return nil
+            }
+
+            let email = (zugriff.registrierungsEmail ?? zugriff.eingeladeneEmail)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+
+            return vertrauenspersonen.first {
+                $0.dossierID == dossierKontext.dossierID &&
+                $0.normalisierteEmail == email
+            }
+        }
+
+        private func istBereichSichtbar(_ bereich: HomeBereich) -> Bool {
+            guard let freigabeEinstellungen else {
+                return bereich == .profil
+            }
+
+            switch bereich {
+            case .profil:
+                return true
+            case .wuensche:
+                return freigabeEinstellungen.wuenscheSichtbarBeiDossierfreigabe
+            case .hinterbliebene:
+                return freigabeEinstellungen.menschenDesVertrauensSichtbarBeiDossierfreigabe
+            case .finanzen:
+                return freigabeEinstellungen.finanzenSichtbarBeiDossierfreigabe
+            case .dokumente:
+                return freigabeEinstellungen.dokumenteSichtbarBeiDossierfreigabe
+            case .abos:
+                return freigabeEinstellungen.abosUndProfileSichtbarBeiDossierfreigabe
+            case .herzensstuecke:
+                return freigabeEinstellungen.herzensstueckeSichtbarBeiDossierfreigabe
+            case .gesundheit:
+                return freigabeEinstellungen.gesundheitSichtbarBeiDossierfreigabe
+            }
         }
 
         private var angezeigteBereiche: [HomeBereich] {
@@ -1938,12 +2068,58 @@ struct Home: View {
             let fehlend = HomeBereich.allCases.filter {
                 aktive.contains($0) && !sortiert.contains($0)
             }
-            return sortiert + fehlend
+            return (sortiert + fehlend).filter(istBereichSichtbar)
         }
 
         var body: some View {
+            Group {
+                if darfAnzeigen {
+                    inhalt
+                } else if laedt {
+                    ProgressView("Freigegebenes Dossier wird geladen …")
+                } else {
+                    VStack(spacing: 16) {
+                        Text(ladefehler.isEmpty ? "Das Dossier ist derzeit nicht verfügbar." : ladefehler)
+                            .multilineTextAlignment(.center)
+                        Button("Erneut laden") { Task { await laden() } }
+                    }.padding()
+                }
+            }
+            // Der Inhalt eines Fremddossiers darf nicht aus einer alten
+            // NavigationView-Instanz stammen. Bei jedem erneuten Öffnen wird
+            // deshalb ein vollständiger Cloud-Abgleich gestartet.
+            .onAppear {
+                Task { await laden() }
+            }
+        }
+
+        private func laden() async {
+            guard !laedt else { return }
+            laedt = true
+            geladen = false
+            ladefehler = ""
+            defer { laedt = false }
+            guard let zugriff = zugriffe.first(where: { $0.zugriffID == dossierKontext.zugriffID }),
+                  let token = zugriff.einladungsToken else {
+                ladefehler = "Der Zugriff wurde entfernt."
+                return
+            }
+            do {
+                ladefehler = try await FreigegebenesDossierSync.laden(token: token, zugriff: zugriff,
+                    vorhandeneDossiers: dossiers, modelContext: modelContext) ?? ""
+                geladen = true
+            } catch {
+                ladefehler = error.localizedDescription
+            }
+        }
+
+        private var inhalt: some View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
+                    if !ladefehler.isEmpty {
+                        Text(ladefehler).font(.callout).foregroundStyle(.orange)
+                        Button("Inhalte erneut laden") { Task { await laden() } }
+                    }
                     VStack(alignment: .leading, spacing: 14) {
                         HStack(alignment: .top, spacing: 14) {
                             ZStack {
