@@ -375,7 +375,7 @@ async function invitationStatus(req, res, user) {
   const result = await databasePool().query(
     `SELECT i.dossier_id, i.owner_user_id, i.requester_user_id, i.invited_email,
             i.requester_email, i.requester_name, i.owner_name, i.status, i.expires_at,
-            i.access_release_at, d.title,
+            i.access_release_at, i.updated_at AS invitation_updated_at, d.title,
             owner.email AS owner_email
        FROM dossier_invitations i
       JOIN dossiers d ON d.id = i.dossier_id
@@ -387,7 +387,8 @@ async function invitationStatus(req, res, user) {
   );
   const invitation = result.rows[0];
   if (!invitation) return res.status(404).json({ error: "Einladung nicht gefunden" });
-  return res.status(200).json(invitationResponse(invitation));
+  const metadata = await dossierStatusMetadata(invitation.dossier_id, invitation.owner_user_id);
+  return res.status(200).json(invitationResponse(invitation, metadata));
 }
 
 async function sharedDossier(req, res, user) {
@@ -426,6 +427,7 @@ async function sharedDossier(req, res, user) {
     updatedAt: row.updated_at
   }));
   const availableSectionTypes = dossierSectionTypes(allSections);
+  const ownerName = ownerNameFromSections(allSections, invitation.owner_user_id, invitation.owner_name);
   const visibleSectionTypes = invitation.status === "accepted"
     ? allSections.map((section) => section.sectionType).filter((type) => type !== "dossier_einstellungen")
     : partialVisibleSectionTypes(allSections, invitation.invited_email, user.id);
@@ -433,8 +435,8 @@ async function sharedDossier(req, res, user) {
     dossierID: invitation.dossier_id,
     ownerUserID: invitation.owner_user_id,
     ownerEmail: invitation.owner_email,
-    ownerName: invitation.owner_name,
-    title: invitation.title,
+    ownerName,
+    title: `Dossier von ${ownerName}`,
     sharedKeyPackage: visibleSectionTypes.includes("zugaenge") ? invitation.shared_key_package : null,
     availableSectionTypes,
     visibleSectionTypes,
@@ -479,7 +481,8 @@ function partialVisibleSectionTypes(sections, invitedEmail, requesterUserID) {
   return [...visible];
 }
 
-function invitationResponse(invitation) {
+function invitationResponse(invitation, metadata = {}) {
+  const ownerName = metadata.ownerName || invitation.owner_name;
   return {
     dossierID: invitation.dossier_id,
     ownerUserID: invitation.owner_user_id,
@@ -490,10 +493,45 @@ function invitationResponse(invitation) {
     status: invitation.status,
     expiresAt: invitation.expires_at,
     accessReleaseAt: invitation.access_release_at,
-    title: invitation.title,
+    title: `Dossier von ${ownerName}`,
     ownerEmail: invitation.owner_email,
-    ownerName: invitation.owner_name
+    ownerName,
+    lastContentUpdatedAt: metadata.lastContentUpdatedAt || null,
+    revokedAt: invitation.status === "revoked" ? invitation.invitation_updated_at : null
   };
+}
+
+async function dossierStatusMetadata(dossierID, ownerUserID) {
+  const [latestResult, profileResult] = await Promise.all([
+    databasePool().query(
+      "SELECT MAX(updated_at) AS last_content_updated_at FROM dossier_sections WHERE dossier_id = $1",
+      [dossierID]
+    ),
+    databasePool().query(
+      "SELECT payload FROM dossier_sections WHERE dossier_id = $1 AND section_type = $2 AND deleted_at IS NULL",
+      [dossierID, "profil"]
+    )
+  ]);
+  return {
+    ownerName: ownerNameFromProfilePayload(profileResult.rows[0]?.payload, ownerUserID),
+    lastContentUpdatedAt: latestResult.rows[0]?.last_content_updated_at || null
+  };
+}
+
+function ownerNameFromSections(sections, ownerUserID, fallback) {
+  const profile = sections.find((section) => section.sectionType === "profil" && !section.deleted);
+  return ownerNameFromProfilePayload(profile?.payload, ownerUserID) || fallback;
+}
+
+function ownerNameFromProfilePayload(rawPayload, ownerUserID) {
+  let payload = rawPayload;
+  if (typeof payload === "string") {
+    try { payload = JSON.parse(payload); } catch { return null; }
+  }
+  const profiles = Array.isArray(payload?.items) ? payload.items : [];
+  const owner = profiles.find((entry) => String(entry?.userID || "") === String(ownerUserID)) || profiles[0];
+  const name = [owner?.vorname, owner?.name].map((part) => String(part || "").trim()).filter(Boolean).join(" ");
+  return name || null;
 }
 
 function hash(token) { return crypto.createHash("sha256").update(token).digest("hex"); }

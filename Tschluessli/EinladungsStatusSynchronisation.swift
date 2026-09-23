@@ -23,10 +23,20 @@ enum EinladungsStatusSynchronisation {
             do {
                 let status = try await PushEinladungsService.shared.status(token: token)
                 if status.status == "revoked" {
-                    entferneLokaleFreigabe(zugriff: zugriff, modelContext: modelContext)
+                    zugriff.vorsorgendePersonName = status.ownerName
+                    entferneLokaleFreigabe(
+                        zugriff: zugriff,
+                        widerrufenAm: status.revokedAt,
+                        modelContext: modelContext
+                    )
                     continue
                 }
-                uebernehme(status, in: zugriff, aktiveUserID: aktiveUserID)
+                uebernehme(
+                    status,
+                    in: zugriff,
+                    aktiveUserID: aktiveUserID,
+                    dossiers: dossiers
+                )
 
             } catch PushFehler.nichtGefunden where zugriff.status == DossierZugriffStatus.erstellt {
                 // Direkt nach dem QR-Scan ist die eingeladene Person auf
@@ -52,8 +62,15 @@ enum EinladungsStatusSynchronisation {
 
     private static func entferneLokaleFreigabe(
         zugriff: DossierZugriffModell,
+        widerrufenAm: Date? = nil,
         modelContext: ModelContext
     ) {
+        defer {
+            if let widerrufenAm, zugriff.modelContext != nil {
+                zugriff.widerrufenAm = widerrufenAm
+                zugriff.aktualisiertAm = widerrufenAm
+            }
+        }
         // Beim Eigentümer wird nur die Freigabe entfernt, niemals sein Dossier.
         if zugriff.vorsorgendeUserID.uuidString.lowercased() ==
             UserDefaults.standard.string(forKey: "aktiveUserID")?.lowercased() {
@@ -102,7 +119,8 @@ enum EinladungsStatusSynchronisation {
     private static func uebernehme(
         _ cloud: CloudEinladungsStatus,
         in zugriff: DossierZugriffModell,
-        aktiveUserID: UUID
+        aktiveUserID: UUID,
+        dossiers: [DossierModell]
     ) {
         // Die Serverantwort ist die autoritative Zuordnung. Insbesondere nach
         // einer erneuten Einladung darf ein lokal veraltetes dossierID nie
@@ -111,6 +129,12 @@ enum EinladungsStatusSynchronisation {
         zugriff.vorsorgendeUserID = cloud.ownerUserID
         zugriff.eingeladeneEmail = cloud.invitedEmail
         zugriff.vorsorgendePersonName = cloud.ownerName
+        if let dossier = dossiers.first(where: { $0.dossierID == cloud.dossierID }) {
+            dossier.titel = cloud.title
+            if let letzteAenderung = cloud.lastContentUpdatedAt {
+                dossier.aktualisiertAm = letzteAenderung
+            }
+        }
         zugriff.einladungGueltigBis = cloud.expiresAt
         zugriff.automatischeFreigabeAm = cloud.accessReleaseAt
         if let requester = cloud.requesterUserID {
@@ -137,6 +161,10 @@ enum EinladungsStatusSynchronisation {
             zugriff.einladungAblehnen(registrierungsEmail: cloud.requesterEmail)
         case "revoked":
             zugriff.zugriffWiderrufen(notizText: "Zugriff wurde serverseitig widerrufen.")
+            if let widerrufenAm = cloud.revokedAt {
+                zugriff.widerrufenAm = widerrufenAm
+                zugriff.aktualisiertAm = widerrufenAm
+            }
         default:
             break
         }
@@ -217,9 +245,14 @@ enum FreigegebenesDossierSync {
             cloud.availableSectionTypes.joined(separator: ","),
             forKey: "verfuegbareBereiche.\(cloud.dossierID.uuidString.lowercased())"
         )
+        let letzteCloudAenderung = cloud.sections.map(\.updatedAt).max()
+        let lokalesDossier: DossierModell
         if let dossier = vorhandeneDossiers.first(where: { $0.dossierID == cloud.dossierID }) {
             dossier.titel = cloud.title
-            dossier.aktualisiertAm = Date()
+            if let letzteCloudAenderung {
+                dossier.aktualisiertAm = letzteCloudAenderung
+            }
+            lokalesDossier = dossier
         } else {
             let dossier = DossierModell(
                 dossierID: cloud.dossierID,
@@ -229,7 +262,11 @@ enum FreigegebenesDossierSync {
                 vorsorgendePersonName: cloud.ownerName
             )
             dossier.titel = cloud.title
+            if let letzteCloudAenderung {
+                dossier.aktualisiertAm = letzteCloudAenderung
+            }
             modelContext.insert(dossier)
+            lokalesDossier = dossier
         }
 
         var fehlerhafteBereiche: [String] = []
@@ -279,6 +316,17 @@ enum FreigegebenesDossierSync {
             } catch {
                 fehlerhafteBereiche.append(bereich.sectionType)
                 continue
+            }
+        }
+        if let profile = try? modelContext.fetch(FetchDescriptor<ProfilModell>()),
+           let besitzerProfil = profile.first(where: {
+               $0.dossierID == cloud.dossierID && $0.userID == cloud.ownerUserID
+           }) {
+            let aktuellerName = "\(besitzerProfil.vorname) \(besitzerProfil.name)"
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !aktuellerName.isEmpty {
+                zugriff.vorsorgendePersonName = aktuellerName
+                lokalesDossier.titel = "Dossier von \(aktuellerName)"
             }
         }
         zugriff.dossierID = cloud.dossierID

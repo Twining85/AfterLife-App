@@ -76,6 +76,33 @@ extension Color {
     )
     static let appOnAccent = adaptive(light: .white, dark: UIColor(red: 0.035, green: 0.06, blue: 0.065, alpha: 1))
 
+    // Orbit-Navigation: getrennte Rollen verhindern, dass im Dark Mode alle
+    // Informationsebenen im selben kontrastarmen Blau erscheinen.
+    static let orbitCore = adaptive(
+        light: UIColor(red: 0.16, green: 0.36, blue: 0.42, alpha: 1),
+        dark: UIColor(red: 0.56, green: 0.83, blue: 0.84, alpha: 1)
+    )
+    static let orbitSatelliteTitle = adaptive(
+        light: UIColor(red: 0.16, green: 0.36, blue: 0.42, alpha: 1),
+        dark: UIColor(red: 0.96, green: 0.95, blue: 0.92, alpha: 1)
+    )
+    static let orbitSatelliteIcon = adaptive(
+        light: UIColor(red: 0.16, green: 0.36, blue: 0.42, alpha: 1),
+        dark: UIColor(red: 0.67, green: 0.88, blue: 0.88, alpha: 1)
+    )
+    static let orbitSatelliteSubtitle = adaptive(
+        light: UIColor(red: 0.16, green: 0.36, blue: 0.42, alpha: 0.76),
+        dark: UIColor(red: 0.73, green: 0.79, blue: 0.78, alpha: 1)
+    )
+    static let orbitLine = adaptive(
+        light: UIColor(red: 0.16, green: 0.36, blue: 0.42, alpha: 1),
+        dark: UIColor(red: 0.64, green: 0.86, blue: 0.87, alpha: 1)
+    )
+    static let orbitBorder = adaptive(
+        light: UIColor(red: 0.16, green: 0.36, blue: 0.42, alpha: 0.48),
+        dark: UIColor(red: 0.70, green: 0.89, blue: 0.89, alpha: 0.72)
+    )
+
     static let areaHealth = adaptive(
         light: UIColor(red: 0.76, green: 0.24, blue: 0.30, alpha: 1),
         dark: UIColor(red: 0.96, green: 0.45, blue: 0.51, alpha: 1)

@@ -1226,6 +1226,11 @@ struct ProfilView: View {
         profil.registrierungsEmail = gespeicherteEmail
         profil.profilbildDaten = profilbildData
         profil.biometrieAktiviert = biometrieAktiviert
+        profil.aktualisiertAm = Date()
+        if let dossierID = profil.dossierID,
+           let dossier = gespeicherteDossiers.first(where: { $0.dossierID == dossierID }) {
+            dossier.titelAktualisieren(vorname: vorname, nachname: name)
+        }
         try? modelContext.save()
         VorsorgeBereichStatusStore.markiereBearbeitet(.profil)
     }

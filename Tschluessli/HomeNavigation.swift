@@ -4,6 +4,7 @@ import UIKit
 
 struct HomeNavigation: View {
     @Environment(\.appLayout) private var appLayout
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.modelContext) private var modelContext
     @AppStorage("aktiveUserID") private var aktiveUserID = ""
@@ -48,6 +49,12 @@ struct HomeNavigation: View {
     private let akzent = Color.appAccent
     private let hintergrund = Color.appCanvas
 
+    /// Etwas präsenter als das appweite Standard-Profilbild, ohne dem Text
+    /// auf kompakten Displays zu viel Breite zu entziehen.
+    private var homeProfilbildGroesse: CGFloat {
+        appLayout.profileImageSize + (appLayout.dynamicTypeSize >= .xxLarge ? 4 : 8)
+    }
+
     private var aktivesProfil: ProfilModell? {
         guard let userID = UUID(uuidString: aktiveUserID) else { return nil }
         return gespeicherteProfile.first { $0.userID == userID }
@@ -90,6 +97,50 @@ struct HomeNavigation: View {
             $0.istAktiv && $0.status != DossierZugriffStatus.widerrufen
         }.count
         return anzahl > 0 ? "(\(anzahl))" : ""
+    }
+
+    private var eigeneVertrauenspersonen: [VertrauenspersonModell] {
+        guard let profil = aktivesProfil else { return [] }
+        return gespeicherteVertrauenspersonen.filter {
+            ((profil.dossierID != nil && $0.dossierID == profil.dossierID)
+                || $0.vorsorgendeUserID == profil.userID)
+                && $0.istLokalHinterlegt
+        }
+    }
+
+    private var hatVerbundeneVertrauensperson: Bool {
+        guard let profil = aktivesProfil else { return false }
+
+        let hatAusgehendeVerbindung = gespeicherteDossierZugriffe.contains {
+            profil.dossierID != nil
+                && $0.dossierID == profil.dossierID
+                && $0.vorsorgendeUserID == profil.userID
+                && $0.istAktiv
+                && $0.vertrauenspersonUserID != nil
+                && $0.status != DossierZugriffStatus.widerrufen
+        }
+        let hatLegacyVerbindung = eigeneVertrauenspersonen.contains {
+            $0.vertrauenspersonUserID != nil && $0.einladungAngenommenAm != nil
+        }
+        return hatAusgehendeVerbindung || hatLegacyVerbindung
+    }
+
+    private var teilenUntertitel: String {
+        if hatVerbundeneVertrauensperson {
+            return "Vertrauensperson verwalten"
+        }
+        guard !eigeneVertrauenspersonen.isEmpty else {
+            return HomeNavigationKnoten.teilen.untertitel
+        }
+        return "Vertrauensperson einladen"
+    }
+
+    private func untertitel(fuer knoten: HomeNavigationKnoten) -> String {
+        switch knoten {
+        case .teilen: teilenUntertitel
+        case .dossierVon: dossierVonAnderenUntertitel
+        default: knoten.untertitel
+        }
     }
 
     private func besitzerProfil(fuer zugriff: DossierZugriffModell) -> ProfilModell? {
@@ -515,7 +566,7 @@ struct HomeNavigation: View {
 
     private var heroBild: some View {
         VStack(spacing: appLayout.sectionSpacing) {
-            homeKopfzeile(profilbildGroesse: appLayout.profileImageSize)
+            homeKopfzeile(profilbildGroesse: homeProfilbildGroesse)
 
             vorsorgeStatusKarte
 
@@ -618,7 +669,7 @@ struct HomeNavigation: View {
                                 symbol: "folder.badge.minus",
                                 farbe: .gray,
                                 titel: "Dossier von \(besitzerName(fuer: zugriff))",
-                                text: "Zugriff auf das Dossier wurde von \(besitzerName(fuer: zugriff)) entfernt."
+                                text: widerrufenerZugriffText(fuer: zugriff)
                             )
                             .opacity(0.68)
                             .accessibilityLabel(
@@ -639,7 +690,7 @@ struct HomeNavigation: View {
                                     symbol: "folder.fill.badge.person.crop",
                                     farbe: akzent,
                                     titel: "Dossier von \(besitzerName(fuer: zugriff))",
-                                    text: zugriffsUntertitel(fuer: zugriff),
+                                    text: aktiverZugriffText(fuer: zugriff),
                                     zeigtPfeil: true
                                 )
                             }
@@ -653,6 +704,9 @@ struct HomeNavigation: View {
         .background(hintergrund.ignoresSafeArea())
         .navigationTitle("Dossier von anderen")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await aktualisiereEinladungszustaende()
+        }
         .refreshable {
             await aktualisiereEinladungszustaende()
         }
@@ -669,6 +723,31 @@ struct HomeNavigation: View {
         default:
             "Freigegebene Bereiche im Lesemodus öffnen"
         }
+    }
+
+    private func aktiverZugriffText(fuer zugriff: DossierZugriffModell) -> String {
+        let status = zugriffsUntertitel(fuer: zugriff)
+        guard let datum = gespeicherteDossiers.first(where: { $0.dossierID == zugriff.dossierID })?.aktualisiertAm else {
+            return status
+        }
+        return "\(status)\nZuletzt aktualisiert: \(formatiereZugriffsdatum(datum))"
+    }
+
+    private func widerrufenerZugriffText(fuer zugriff: DossierZugriffModell) -> String {
+        let hinweis = "Zugriff auf das Dossier wurde von \(besitzerName(fuer: zugriff)) entfernt."
+        guard let datum = zugriff.widerrufenAm else { return hinweis }
+        return "\(hinweis)\nZugriff entzogen am: \(formatiereZugriffsdatum(datum))"
+    }
+
+    private func formatiereZugriffsdatum(_ datum: Date) -> String {
+        datum.formatted(
+            .dateTime
+                .day(.twoDigits)
+                .month(.twoDigits)
+                .year()
+                .hour(.twoDigits(amPM: .omitted))
+                .minute(.twoDigits)
+        )
     }
 
     private func zugriffsKarte<Inhalt: View>(
@@ -750,9 +829,9 @@ struct HomeNavigation: View {
                         .shadow(color: akzent.opacity(0.14), radius: 14, y: 8)
 
                     Image(systemName: "gearshape.fill")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(akzent)
-                        .frame(width: 31, height: 31)
+                        .frame(width: 28, height: 28)
                         .background(Color.appRaisedCard, in: Circle())
                         .shadow(color: Color.appShadow, radius: 7, y: 3)
                 }
@@ -795,18 +874,21 @@ struct HomeNavigation: View {
                             .font(appLayout.prefersCompactNavigationIcons
                                 ? .body.weight(.semibold)
                                 : .title3.weight(.semibold))
+                            .foregroundStyle(Color.orbitSatelliteIcon)
                             .frame(width: 32)
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(knoten.titel).font(.headline)
-                            Text(knoten == .dossierVon ? dossierVonAnderenUntertitel : knoten.untertitel)
+                            Text(knoten.titel)
+                                .font(.headline)
+                                .foregroundStyle(Color.orbitSatelliteTitle)
+                            Text(untertitel(fuer: knoten))
                                 .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.orbitSatelliteSubtitle)
                         }
                         Spacer(minLength: 8)
                         Image(systemName: "chevron.right")
                             .font(.caption.bold())
+                            .foregroundStyle(Color.orbitSatelliteIcon)
                     }
-                    .foregroundStyle(knoten.textFarbe)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(appLayout.cardPadding)
                     .background(knoten.flaeche, in: RoundedRectangle(cornerRadius: appLayout.cardCornerRadius))
@@ -860,9 +942,9 @@ struct HomeNavigation: View {
                         )
                     }
                     .stroke(
-                        knoten.farbe.opacity(knoten.linienDeckkraft),
+                        Color.orbitLine.opacity(orbitLinienDeckkraft(fuer: knoten)),
                         style: StrokeStyle(
-                            lineWidth: knoten.linienBreite,
+                            lineWidth: orbitLinienBreite(fuer: knoten),
                             lineCap: .round,
                             dash: knoten == .dossierVon ? [5, 6] : []
                         )
@@ -898,9 +980,9 @@ struct HomeNavigation: View {
                     }
                     .foregroundStyle(Color.appOnAccent)
                     .frame(width: kernGroesse, height: kernGroesse)
-                    .background(akzent, in: Circle())
+                    .background(Color.orbitCore, in: Circle())
                     .overlay(Circle().stroke(Color.appOnAccent.opacity(0.34), lineWidth: 2))
-                    .shadow(color: akzent.opacity(0.24), radius: 18, y: 9)
+                    .shadow(color: Color.orbitCore.opacity(0.28), radius: 18, y: 9)
                 }
                 .buttonStyle(.plain)
             }
@@ -926,14 +1008,16 @@ struct HomeNavigation: View {
                     .font(appLayout.prefersCompactNavigationIcons
                         ? .body.weight(.semibold)
                         : .title3.weight(.semibold))
+                    .foregroundStyle(Color.orbitSatelliteIcon)
                 Text(knoten.titel)
                     .font(.subheadline.bold())
                     .fontDesign(.rounded)
+                    .foregroundStyle(Color.orbitSatelliteTitle)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(knoten == .dossierVon ? dossierVonAnderenUntertitel : knoten.untertitel)
+                Text(untertitel(fuer: knoten))
                     .font(.caption2)
-                    .foregroundStyle(knoten.textFarbe.opacity(0.76))
+                    .foregroundStyle(Color.orbitSatelliteSubtitle)
                     .multilineTextAlignment(.center)
                     .lineLimit(3)
                     .minimumScaleFactor(0.9)
@@ -943,10 +1027,9 @@ struct HomeNavigation: View {
                         ? "1 Bereich gewählt"
                         : "\(anzahlGewaehlteVorsorgeBereiche) Bereiche gewählt")
                         .font(.caption2.weight(.semibold))
-                        .foregroundStyle(knoten.textFarbe.opacity(0.82))
+                        .foregroundStyle(Color.orbitSatelliteSubtitle)
                 }
             }
-            .foregroundStyle(knoten.textFarbe)
             .padding(.horizontal, knoten == .bereiche ? 8 : 10)
             .offset(y: -3)
         }
@@ -954,7 +1037,7 @@ struct HomeNavigation: View {
         // bleiben Icon und Text in Originalgrösse und ragen auf schmalen
         // Displays aus dem verkleinerten Kreis heraus.
         .frame(width: durchmesser, height: durchmesser)
-        .overlay(Circle().stroke(knoten.farbe.opacity(0.48), style: StrokeStyle(lineWidth: 1.5, dash: knoten == .dossierVon ? [7, 6] : [])))
+        .overlay(Circle().stroke(Color.orbitBorder, style: StrokeStyle(lineWidth: colorScheme == .dark ? 1.7 : 1.5, dash: knoten == .dossierVon ? [7, 6] : [])))
         .overlay(alignment: .bottom) {
             if knoten == .teilen, !offeneErweiterungsanfragen.isEmpty {
                 Text("Zugriffsanfrage bearbeiten")
@@ -972,8 +1055,23 @@ struct HomeNavigation: View {
                 .accessibilityLabel("Zugriffsanfrage bearbeiten")
             }
         }
-        .shadow(color: knoten.farbe.opacity(0.13), radius: 13, y: 6)
+        .shadow(color: Color.orbitLine.opacity(colorScheme == .dark ? 0.20 : 0.13), radius: 13, y: 6)
         .scaleEffect(scale)
+    }
+
+    private func orbitLinienDeckkraft(fuer knoten: HomeNavigationKnoten) -> Double {
+        guard colorScheme == .dark else { return knoten.linienDeckkraft }
+        return switch knoten {
+        case .bereiche: 0.55
+        case .teilen: 0.52
+        case .profil: 0.46
+        case .erinnerungen: 0.42
+        case .dossierVon: 0.38
+        }
+    }
+
+    private func orbitLinienBreite(fuer knoten: HomeNavigationKnoten) -> CGFloat {
+        colorScheme == .dark ? knoten.linienBreite + 0.25 : knoten.linienBreite
     }
 
     private func effektiverKnotenDurchmesser(_ knoten: HomeNavigationKnoten) -> CGFloat {
@@ -1221,7 +1319,7 @@ private extension VorsorgeBereichID {
 private enum HomeNavigationKnoten: String, CaseIterable, Identifiable {
     case profil, bereiche, teilen, erinnerungen, dossierVon
 
-    static let satelliten: [Self] = [.profil, .bereiche, .teilen, .erinnerungen, .dossierVon]
+    static let satelliten: [Self] = [.profil, .bereiche, .teilen, .dossierVon, .erinnerungen]
     var id: String { rawValue }
 
     var titel: String {
@@ -1259,8 +1357,8 @@ private enum HomeNavigationKnoten: String, CaseIterable, Identifiable {
         case .profil: 205
         case .bereiche: 270
         case .teilen: 335
-        case .erinnerungen: 42
-        case .dossierVon: 145
+        case .erinnerungen: 145
+        case .dossierVon: 42
         }
     }
 
@@ -1268,7 +1366,7 @@ private enum HomeNavigationKnoten: String, CaseIterable, Identifiable {
         switch self {
         case .profil: 122
         case .bereiche: 138
-        case .teilen: 132
+        case .teilen: 124
         case .erinnerungen: 112
         case .dossierVon: 146
         }
@@ -1289,8 +1387,8 @@ private enum HomeNavigationKnoten: String, CaseIterable, Identifiable {
         case .profil: CGSize(width: -20, height: 0)
         case .bereiche: CGSize(width: 0, height: 38)
         case .teilen: CGSize(width: 10, height: -32)
-        case .dossierVon: CGSize(width: 0, height: 26)
-        case .erinnerungen: .zero
+        case .dossierVon: .zero
+        case .erinnerungen: CGSize(width: 0, height: 26)
         }
     }
 
@@ -1322,15 +1420,9 @@ private enum HomeNavigationKnoten: String, CaseIterable, Identifiable {
         }
     }
 
-    var farbe: Color {
-        Color.appAccent
-    }
-
     var flaeche: Color {
         Color.appRaisedCard
     }
-
-    var textFarbe: Color { farbe }
 }
 
 #Preview {
