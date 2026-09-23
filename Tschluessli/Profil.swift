@@ -18,6 +18,7 @@ private struct ProfilSafariView: UIViewControllerRepresentable {
 
 
 struct ProfilView: View {
+    @Environment(\.appLayout) private var appLayout
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dismiss) private var dismiss
     var dossierKontext: DossierKontext = .eigenesDossier(dossierID: UUID())
@@ -47,9 +48,9 @@ struct ProfilView: View {
     @Query private var syncKonflikte: [SyncKonflikt]
     @Query private var syncAuftraege: [SyncAuftrag]
 
-    private let profilKartenFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
-    private let profilAkzentFarbe = Color(red: 0.16, green: 0.36, blue: 0.42)
-    private let profilHintergrundFarbe = Color(red: 0.985, green: 0.98, blue: 0.965)
+    private let profilKartenFarbe = Color.appCard
+    private let profilAkzentFarbe = Color.appAccent
+    private let profilHintergrundFarbe = Color.appCanvas
 
     @AppStorage("gespeicherteEmail") private var gespeicherteEmail = ""
     @AppStorage("registrierungsArt") private var registrierungsArt = "E-Mail"
@@ -65,10 +66,12 @@ struct ProfilView: View {
     @AppStorage("dossierLetzterExportAmISO") private var dossierLetzterExportAmISO = ""
     @AppStorage("profilWurdeGeradeGeloescht") private var profilWurdeGeradeGeloescht = false
     @AppStorage("wurdeGeradeAusgeloggt") private var wurdeGeradeAusgeloggt = false
+    @AppStorage("neuregistrierungErzwungen") private var neuregistrierungErzwungen = false
     @AppStorage("mitteilungenNachVollstaendigemNamenAngefragt")
     private var mitteilungenNachVollstaendigemNamenAngefragt = false
     @AppStorage("dossierErstellungsart") private var dossierErstellungsartRawValue = ""
     @AppStorage("uebersprungeneDossierSchritte") private var uebersprungeneDossierSchritte = ""
+    @AppStorage("appErscheinungsbild") private var appErscheinungsbildRawValue = AppErscheinungsbild.system.rawValue
 
     @State private var vorname = ""
 
@@ -350,7 +353,7 @@ struct ProfilView: View {
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .stroke(Color.white.opacity(0.75), lineWidth: 1)
+                            .stroke(Color.appBorder, lineWidth: 1)
                     )
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                     .listRowBackground(Color.clear)
@@ -375,12 +378,9 @@ struct ProfilView: View {
                         .textContentType(.streetAddressLine2)
                         .disabled(dossierKontext.istReadOnly)
 
-                    HStack {
-                        TextField("PLZ", text: $plz)
-                            .keyboardType(.numberPad)
-                            .disabled(dossierKontext.istReadOnly)
-                        TextField("Stadt", text: $stadt)
-                            .disabled(dossierKontext.istReadOnly)
+                    ViewThatFits(in: .horizontal) {
+                        HStack { postleitzahlFeld; stadtFeld }
+                        VStack(alignment: .leading) { postleitzahlFeld; stadtFeld }
                     }
 
                     Picker("Land", selection: $land) {
@@ -461,27 +461,52 @@ struct ProfilView: View {
                 .listRowBackground(profilKartenFarbe)
                 .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
 
-                if dossierKontext.kannBearbeiten {
-                    Section("Art der Dossier-Erstellung") {
-                        Picker(
-                            "Art der Dossier-Erstellung",
-                            selection: Binding(
-                                get: { dossierErstellungsartRawValue },
-                                set: { neuerWert in
-                                    dossierErstellungsartRawValue = neuerWert
-                                    DossierEinstellungenStore.markiereGeaendert()
-                                }
-                            )
-                        ) {
-                            ForEach(DossierErstellungsart.allCases) { art in
-                                Text(art.titel).tag(art.rawValue)
+                Section("App-Einstellungen") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Erscheinungsbild")
+                            .font(.subheadline.weight(.semibold))
+
+                        Picker("Erscheinungsbild", selection: $appErscheinungsbildRawValue) {
+                            ForEach(AppErscheinungsbild.allCases) { erscheinungsbild in
+                                Text(erscheinungsbild.titel).tag(erscheinungsbild.rawValue)
                             }
                         }
                         .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .tint(profilAkzentFarbe)
+                    }
 
-                        Text(dossierErstellungsartBeschreibung)
+                    Text("Mit „Systemeinstellungen“ folgt Tschlüssli automatisch dem Erscheinungsbild deines iPhones.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+
+                    if dossierKontext.kannBearbeiten {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Art der Dossier-Erstellung")
+                                .font(.subheadline.weight(.semibold))
+
+                            Picker(
+                                "Art der Dossier-Erstellung",
+                                selection: Binding(
+                                    get: { dossierErstellungsartRawValue },
+                                    set: { neuerWert in
+                                        dossierErstellungsartRawValue = neuerWert
+                                        DossierEinstellungenStore.markiereGeaendert()
+                                    }
+                                )
+                            ) {
+                                ForEach(DossierErstellungsart.allCases) { art in
+                                    Text(art.titel).tag(art.rawValue)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                            .tint(profilAkzentFarbe)
+                        }
+
+                        Text(dossierErstellungsartBeschreibung)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
 
                         if dossierErstellungsartRawValue == DossierErstellungsart.gefuehrt.rawValue,
                            !uebersprungeneDossierSchritte.isEmpty {
@@ -495,9 +520,9 @@ struct ProfilView: View {
                             .buttonStyle(.borderless)
                         }
                     }
-                    .listRowBackground(profilKartenFarbe)
-                    .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
                 }
+                .listRowBackground(profilKartenFarbe)
+                .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
 
                 if dossierKontext.kannBearbeiten {
                     Section("Zugangsdaten") {
@@ -826,18 +851,20 @@ struct ProfilView: View {
 
     @ViewBuilder
     private var profilbildAnsicht: some View {
+        let bildgroesse: CGFloat = appLayout.isCompact ? 82 : 90
+
         if let angezeigteProfilbildDaten,
            let uiImage = UIImage(data: angezeigteProfilbildDaten) {
             Image(uiImage: uiImage)
                 .resizable()
                 .scaledToFill()
-                .frame(width: 90, height: 90)
+                .frame(width: bildgroesse, height: bildgroesse)
                 .clipShape(Circle())
         } else {
             Image(systemName: "person.crop.circle.fill")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 90, height: 90)
+                .frame(width: bildgroesse, height: bildgroesse)
                 .foregroundStyle(profilAkzentFarbe.opacity(0.65))
         }
     }
@@ -851,6 +878,17 @@ struct ProfilView: View {
         case name
         case adresse
         case hausnummer
+    }
+
+    private var postleitzahlFeld: some View {
+        TextField("PLZ", text: $plz)
+            .keyboardType(.numberPad)
+            .disabled(dossierKontext.istReadOnly)
+    }
+
+    private var stadtFeld: some View {
+        TextField("Stadt", text: $stadt)
+            .disabled(dossierKontext.istReadOnly)
     }
 
     private func formatiereGeburtsdatum(_ datum: Date) -> String {
@@ -1273,7 +1311,13 @@ struct ProfilView: View {
         gespeicherteDossiers.forEach { modelContext.delete($0) }
         gespeicherteProfile.forEach { modelContext.delete($0) }
 
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            profilLoeschenFehlermeldung =
+                "Das Cloud-Konto wurde gelöscht, die lokalen Profildaten konnten aber nicht vollständig entfernt werden. Bitte versuche die lokale Bereinigung erneut. (\(error.localizedDescription))"
+            return
+        }
 
         lokaleFinanzdateien.forEach { pfad in
             try? FileManager.default.removeItem(at: URL(fileURLWithPath: pfad))
@@ -1310,6 +1354,7 @@ struct ProfilView: View {
         profilGeladen = false
         direktNachRegistrierungEingeloggt = false
         istEingeloggt = false
+        neuregistrierungErzwungen = true
         profilWurdeGeradeGeloescht = true
     }
 
@@ -1394,28 +1439,28 @@ struct ProfilView: View {
 
                     Image(systemName: "doc.text.magnifyingglass")
                         .font(.system(size: 27, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.appOnAccent)
                 }
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Dein Vorsorge-Dossier")
                         .font(.title3.weight(.bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.appOnAccent)
 
                     Text("Aus deinen erfassten Angaben wird ein vollständiges Vorsorge-Dossier als PDF erstellt.")
                         .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.82))
+                        .foregroundStyle(Color.appOnAccent.opacity(0.82))
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
             HStack(spacing: 8) {
                 Image(systemName: "checkmark.seal.fill")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.appOnAccent)
 
                 Text("\(anzahlBereiteExportBereiche) von \(anzahlExportBereiche) Bereichen mit Daten bereit")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.appOnAccent)
             }
             .padding(.vertical, 8)
             .padding(.horizontal, 11)
@@ -1438,7 +1483,7 @@ struct ProfilView: View {
                     Image(systemName: "chevron.right")
                         .font(.caption.weight(.bold))
                 }
-                .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+                .foregroundStyle(Color.appPrimaryText)
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 13)
@@ -1580,7 +1625,7 @@ struct ProfilView: View {
 
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.appOnAccent)
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 16)
             .padding(.vertical, 14)

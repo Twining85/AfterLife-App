@@ -2,6 +2,7 @@ import SwiftData
 import SwiftUI
 
 struct EinladungsanfrageSendenView: View {
+    @Environment(\.appLayout) private var appLayout
     @Environment(\.modelContext) private var modelContext
     @Query private var profile: [ProfilModell]
     @Bindable var zugriff: DossierZugriffModell
@@ -11,7 +12,7 @@ struct EinladungsanfrageSendenView: View {
     @State private var meldung = ""
     @State private var fehler = false
 
-    private let akzent = Color(red: 0.16, green: 0.36, blue: 0.42)
+    private let akzent = Color.appAccent
 
     private var requesterName: String {
         let userID = UUID(uuidString: aktiveUserID)
@@ -29,9 +30,10 @@ struct EinladungsanfrageSendenView: View {
     }
 
     var body: some View {
-        VStack(spacing: 22) {
+        ScrollView {
+            VStack(spacing: appLayout.sectionSpacing) {
             Image(systemName: "lock.shield.fill")
-                .font(.system(size: 58, weight: .semibold))
+                .font(.largeTitle.weight(.semibold))
                 .foregroundStyle(akzent)
 
             Text("Weitere Bereiche anfragen")
@@ -76,9 +78,11 @@ struct EinladungsanfrageSendenView: View {
                     .background((fehler ? Color.red : akzent).opacity(0.09), in: RoundedRectangle(cornerRadius: 16))
             }
 
-            Spacer()
+                Spacer(minLength: appLayout.sectionSpacing)
+            }
+            .appPagePadding()
+            .padding(.vertical, appLayout.sectionSpacing)
         }
-        .padding(24)
         .navigationTitle("Einladung")
         .navigationBarTitleDisplayMode(.inline)
     }

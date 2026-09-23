@@ -19,12 +19,13 @@ import LocalAuthentication
 
 struct ReloginEinladung: View {
     @Environment(\.modelContext) private var modelContext
-    private let hintergrundFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
-    private let kartenFarbe = Color.white.opacity(0.88)
-    private let akzentFarbe = Color(red: 0.16, green: 0.36, blue: 0.42)
-    private let akzentHell = Color(red: 0.16, green: 0.36, blue: 0.42).opacity(0.12)
-    private let textFarbe = Color.black.opacity(0.86)
-    private let sekundTextFarbe = Color.black.opacity(0.58)
+    @Environment(\.appLayout) private var appLayout
+    private let hintergrundFarbe = Color.appCard
+    private let kartenFarbe = Color.appRaisedCard
+    private let akzentFarbe = Color.appAccent
+    private let akzentHell = Color.appAccent.opacity(0.12)
+    private let textFarbe = Color.appPrimaryText
+    private let sekundTextFarbe = Color.appSecondaryText
     let eingeladeneEmail: String
     let einladungsToken: String
 
@@ -132,7 +133,7 @@ struct ReloginEinladung: View {
                                     .frame(width: 58, height: 58)
 
                                 Image(systemName: "lock.shield.fill")
-                                    .font(.system(size: 26, weight: .semibold))
+                                    .font(.title2.weight(.semibold))
                                     .foregroundStyle(akzentFarbe)
                             }
 
@@ -161,7 +162,7 @@ struct ReloginEinladung: View {
                                     .padding(.vertical, 11)
                             }
                             .buttonStyle(.plain)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.appOnAccent)
                             .background(
                                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                                     .fill(akzentFarbe)
@@ -183,7 +184,7 @@ struct ReloginEinladung: View {
                             .lineSpacing(1)
                             .padding(.horizontal, 4)
                     }
-                    .padding(18)
+                    .padding(appLayout.authCardPadding)
                     .background(
                         RoundedRectangle(cornerRadius: 28, style: .continuous)
                             .fill(kartenFarbe)
@@ -191,9 +192,9 @@ struct ReloginEinladung: View {
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 28, style: .continuous)
-                            .stroke(Color.white.opacity(0.75), lineWidth: 1)
+                            .stroke(Color.appBorder, lineWidth: 1)
                     )
-                    .padding(.horizontal, 16)
+                    .appPagePadding()
                     .padding(.bottom, 18)
                 }
                 .padding(.top, 8)
@@ -218,7 +219,7 @@ struct ReloginEinladung: View {
                             .frame(width: 58, height: 58)
 
                         Image(systemName: "person.crop.circle.badge.exclamationmark")
-                            .font(.system(size: 26, weight: .semibold))
+                            .font(.title2.weight(.semibold))
                             .foregroundStyle(akzentFarbe)
                     }
 
@@ -236,7 +237,7 @@ struct ReloginEinladung: View {
                             .lineSpacing(2)
                     }
                 }
-                .padding(18)
+                .padding(appLayout.authCardPadding)
                 .background(
                     RoundedRectangle(cornerRadius: 28, style: .continuous)
                         .fill(kartenFarbe)
@@ -244,9 +245,9 @@ struct ReloginEinladung: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(Color.white.opacity(0.75), lineWidth: 1)
+                        .stroke(Color.appBorder, lineWidth: 1)
                 )
-                .padding(.horizontal, 16)
+                .appPagePadding()
 
                 Spacer(minLength: 0)
             }
@@ -272,7 +273,7 @@ struct ReloginEinladung: View {
                     .padding(.vertical, 12)
                     .background(
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(Color.white.opacity(0.92))
+                            .fill(Color.appField)
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -306,7 +307,7 @@ struct ReloginEinladung: View {
                 .padding(.vertical, 12)
                 .background(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.white.opacity(0.92))
+                        .fill(Color.appField)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -323,7 +324,7 @@ struct ReloginEinladung: View {
                     .padding(.vertical, 11)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.appOnAccent)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(akzentFarbe)
@@ -356,14 +357,12 @@ struct ReloginEinladung: View {
                     .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
                 )
 
-            Image("Icon1_trans")
-                .resizable()
-                .scaledToFit()
+            TschluessliLogo()
                 .frame(width: 96, height: 96)
                 .accessibilityHidden(true)
         }
         .frame(height: 150)
-        .padding(.horizontal, 16)
+        .appPagePadding()
         .accessibilityHidden(true)
     }
 

@@ -8,6 +8,7 @@
 import Foundation
 import CryptoKit
 import SwiftData
+import SwiftUI
 import Testing
 @testable import Tschluessli
 
@@ -18,6 +19,50 @@ struct TschluessliTests {
         // Write your test here and use APIs like `#expect(...)` to check expected conditions.
         // Swift Testing Documentation
         // https://developer.apple.com/documentation/testing
+    }
+
+    @Test func appLayoutReagiertAufVerfuegbareBreiteStattAufGeraetemodelle() {
+        let kompakt = AppLayout(containerWidth: 393, dynamicTypeSize: .large)
+        let regulaer = AppLayout(containerWidth: 430, dynamicTypeSize: .large)
+        let erweitert = AppLayout(containerWidth: 820, dynamicTypeSize: .large)
+
+        #expect(kompakt.widthClass == .compact)
+        #expect(kompakt.pageInset == 18)
+        #expect(kompakt.profileImageSize == 70)
+        #expect(regulaer.widthClass == .regular)
+        #expect(regulaer.pageInset == 24)
+        #expect(erweitert.widthClass == .expanded)
+        #expect(erweitert.pageInset == 32)
+    }
+
+    @Test func appLayoutUebernimmtAccessibilityTextgroessen() {
+        let layout = AppLayout(containerWidth: 393, dynamicTypeSize: .accessibility3)
+        #expect(layout.isAccessibilitySize)
+        #expect(layout.prefersLinearNavigation)
+    }
+
+    @Test func orbitWechseltVorEinerTextkollisionInDieLineareNavigation() {
+        let standard = AppLayout(containerWidth: 393, dynamicTypeSize: .large)
+        let vergroessert = AppLayout(containerWidth: 393, dynamicTypeSize: .xLarge)
+        let grosseSchrift = AppLayout(containerWidth: 393, dynamicTypeSize: .xxLarge)
+
+        #expect(!standard.prefersCompactNavigationIcons)
+        #expect(!standard.prefersLinearNavigation)
+        #expect(vergroessert.prefersCompactNavigationIcons)
+        #expect(!vergroessert.prefersLinearNavigation)
+        #expect(grosseSchrift.prefersLinearNavigation)
+    }
+
+    @Test func bereicheBleibenAufNormalenIPhonesBisXlargeZweispaltig() {
+        let standard = AppLayout(containerWidth: 393, dynamicTypeSize: .large)
+        let vergroessert = AppLayout(containerWidth: 393, dynamicTypeSize: .xLarge)
+        let sehrGross = AppLayout(containerWidth: 393, dynamicTypeSize: .xxLarge)
+        let sehrSchmal = AppLayout(containerWidth: 350, dynamicTypeSize: .large)
+
+        #expect(!standard.prefersSingleColumnAreaGrid)
+        #expect(!vergroessert.prefersSingleColumnAreaGrid)
+        #expect(sehrGross.prefersSingleColumnAreaGrid)
+        #expect(sehrSchmal.prefersSingleColumnAreaGrid)
     }
 
     @Test func vorsorgeStatusFolgtDerMVPrioritaet() {
@@ -266,6 +311,13 @@ struct TschluessliTests {
         #expect(ersterHash.count == 32)
         #expect(ersterHash == wiederholt)
         #expect(ersterHash != zweiterHash)
+    }
+
+    @Test func erscheinungsbildOrdnetSystemHellUndDunkelKorrektZu() {
+        #expect(AppErscheinungsbild.system.colorScheme == nil)
+        #expect(AppErscheinungsbild.hell.colorScheme == .light)
+        #expect(AppErscheinungsbild.dunkel.colorScheme == .dark)
+        #expect(AppErscheinungsbild.allCases.map(\.rawValue) == ["system", "hell", "dunkel"])
     }
 
 }

@@ -5,8 +5,8 @@ import UIKit
 struct Home: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.modelContext) private var modelContext
-    private let kachelFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
-    private let schluessliAkzent = Color(red: 0.16, green: 0.36, blue: 0.42)
+    private let kachelFarbe = Color.appCard
+    private let schluessliAkzent = Color.appAccent
     @AppStorage("aktiveUserID") private var aktiveUserID = ""
     @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
     @AppStorage("dossierZuletztGeprueftAmISO") private var dossierZuletztGeprueftAmISO = ""
@@ -485,7 +485,7 @@ struct Home: View {
                                         
                                         Text("\(homeAnzeigename) 👋")
                                             .font(.system(size: titelGroesse, weight: .bold, design: .rounded))
-                                            .foregroundStyle(Color(red: 0.08, green: 0.12, blue: 0.18))
+                                            .foregroundStyle(Color.appPrimaryText)
                                             .lineLimit(1)
                                             .minimumScaleFactor(0.72)
                                         
@@ -503,7 +503,7 @@ struct Home: View {
                                     } label: {
                                         ZStack(alignment: .bottomTrailing) {
                                             Circle()
-                                                .fill(Color(red: 0.96, green: 0.95, blue: 0.92))
+                                                .fill(Color.appCard)
                                                 .frame(width: profilbildGroesse, height: profilbildGroesse)
                                                 .overlay {
                                                     Group {
@@ -529,7 +529,7 @@ struct Home: View {
                                             
                                             ZStack {
                                                 Circle()
-                                                    .fill(Color.white)
+                                                    .fill(Color.appRaisedCard)
                                                     .frame(width: 32, height: 32)
                                                     .shadow(color: .black.opacity(0.10), radius: 8, x: 0, y: 4)
                                                 
@@ -601,7 +601,7 @@ struct Home: View {
                         HStack(alignment: .firstTextBaseline) {
                             Text("Deine Bereiche")
                                 .font(.title.weight(.bold))
-                                .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+                                .foregroundStyle(Color.appPrimaryText)
 
                             Spacer()
 
@@ -654,9 +654,7 @@ struct Home: View {
                     //         .animation(.easeInOut(duration: 0.22), value: homeBearbeitungsmodus)
                     // }
 
-                    Image("Icon1_trans")
-                        .resizable()
-                        .scaledToFit()
+                    TschluessliLogo()
                         .frame(width: 150, height: 58)
                         .frame(maxWidth: .infinity)
                         .padding(.top, 24)
@@ -1142,7 +1140,7 @@ struct Home: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Freigegebene Vorsorge-Dossiers")
                             .font(.title3.weight(.semibold))
-                            .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+                            .foregroundStyle(Color.appPrimaryText)
                         
                         Text("Öffne ein Vorsorge-Dossier, für das du als Vertrauensperson berechtigt bist.")
                             .font(.subheadline)
@@ -1160,7 +1158,7 @@ struct Home: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(Color(red: 0.99, green: 0.96, blue: 0.91))
+                        .fill(Color.orange.opacity(0.12))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
@@ -1449,7 +1447,7 @@ struct Home: View {
                         Text(titel)
                             .font(.headline.weight(.semibold))
                             .multilineTextAlignment(.leading)
-                            .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+                            .foregroundStyle(Color.appPrimaryText)
                             .lineLimit(2)
                         
                         Text(untertitel)
@@ -1474,7 +1472,7 @@ struct Home: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(Color.white.opacity(0.72), lineWidth: 1)
+                        .stroke(Color.appBorder, lineWidth: 1)
                 )
                 .shadow(color: akzentFarbe.opacity(0.12), radius: 16, x: 0, y: 8)
             }
@@ -1505,7 +1503,7 @@ struct Home: View {
                     
                     Text(istAbgeschlossen ? "Vorsorge-Dossier geprüft" : "(Jährliche) Prüfung deines Vorsorge-Dossiers")
                         .font(.title2.weight(.bold))
-                        .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+                        .foregroundStyle(Color.appPrimaryText)
                         .multilineTextAlignment(.leading)
                         .lineLimit(nil)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1557,7 +1555,7 @@ struct Home: View {
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 15)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.appOnAccent)
                         .background(
                             RoundedRectangle(cornerRadius: 18, style: .continuous)
                                 .fill(istAbgeschlossen ? Color.green : accentColor)
@@ -1577,7 +1575,7 @@ struct Home: View {
                     .foregroundStyle(status == "Nicht begonnen" ? Color.secondary : accentColor)
                 Text(titel)
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+                    .foregroundStyle(Color.appPrimaryText)
 
                 Spacer(minLength: 8)
 
@@ -1660,7 +1658,7 @@ struct Home: View {
                     Button(action: speichern) {
                         Text(auswahl.filter { $0 != .profil }.isEmpty ? "Nur Profil anzeigen" : "Auswahl übernehmen")
                             .font(.body.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.appOnAccent)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
                             .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(accentColor))
@@ -1796,21 +1794,21 @@ struct Home: View {
         var akzentFarbe: Color {
             switch self {
             case .profil:
-                return Color(red: 0.16, green: 0.36, blue: 0.42)
+                return Color.appAccent
             case .gesundheit:
-                return Color(red: 0.76, green: 0.24, blue: 0.30)
+                return Color.areaHealth
             case .wuensche:
-                return Color(red: 0.72, green: 0.42, blue: 0.28)
+                return Color.areaWishes
             case .finanzen:
-                return Color(red: 0.62, green: 0.47, blue: 0.18)
+                return Color.areaFinance
             case .hinterbliebene:
-                return Color(red: 0.24, green: 0.50, blue: 0.34)
+                return Color.areaContacts
             case .dokumente:
-                return Color(red: 0.22, green: 0.43, blue: 0.68)
+                return Color.areaDocuments
             case .abos:
-                return Color(red: 0.46, green: 0.36, blue: 0.62)
+                return Color.areaSubscriptions
             case .herzensstuecke:
-                return Color(red: 0.78, green: 0.34, blue: 0.16)
+                return Color.areaKeepsakes
             }
         }
     }
@@ -1925,9 +1923,9 @@ struct Home: View {
                 $0.status != DossierZugriffStatus.widerrufen
             }
         }
-        private let kachelFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
+        private let kachelFarbe = Color.appCard
         private let akzentFarbe = Color.orange
-        private let schluessliAkzent = Color(red: 0.16, green: 0.36, blue: 0.42)
+        private let schluessliAkzent = Color.appAccent
         @State private var dossierExportAnzeigen = false
 
         private var dossierName: String {
@@ -2038,6 +2036,7 @@ struct Home: View {
                     }.padding()
                 }
             }
+            .background(Color.appCanvas.ignoresSafeArea())
             // Der Inhalt eines Fremddossiers darf nicht aus einer alten
             // NavigationView-Instanz stammen. Bei jedem erneuten Öffnen wird
             // deshalb ein vollständiger Cloud-Abgleich gestartet. Die Rückkehr
@@ -2076,34 +2075,11 @@ struct Home: View {
                         Text(ladefehler).font(.callout).foregroundStyle(.orange)
                         Button("Inhalte erneut laden") { Task { await laden() } }
                     }
-                    if let zugriff = zugriffe.first(where: { $0.zugriffID == dossierKontext.zugriffID }),
-                       zugriff.status == DossierZugriffStatus.erstellt || zugriff.status == DossierZugriffStatus.abgelehnt {
-                        NavigationLink {
-                            EinladungsanfrageSendenView(zugriff: zugriff)
-                        } label: {
-                            Label(
-                                zugriff.status == DossierZugriffStatus.abgelehnt
-                                    ? "Weitere Bereiche erneut anfragen"
-                                    : "Zugriff auf weitere Bereiche anfragen",
-                                systemImage: "lock.open.fill"
-                            )
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(schluessliAkzent)
-                    } else if let zugriff = zugriffe.first(where: { $0.zugriffID == dossierKontext.zugriffID }),
-                              zugriff.status == DossierZugriffStatus.bestaetigungAusstehend {
-                        Label("Anfrage für weitere Bereiche ausstehend", systemImage: "clock.badge.checkmark")
-                            .font(.callout.weight(.semibold))
-                            .foregroundStyle(.orange)
-                    }
                     VStack(alignment: .leading, spacing: 14) {
                         HStack(alignment: .top, spacing: 14) {
                             Image(systemName: "folder.badge.person.crop")
                                 .font(.title2.weight(.semibold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color.appOnAccent)
                                 .frame(width: 48, height: 48)
                                 .background(Circle().fill(schluessliAkzent))
                                 .shadow(color: schluessliAkzent.opacity(0.20), radius: 8, y: 4)
@@ -2138,36 +2114,34 @@ struct Home: View {
                         RoundedRectangle(cornerRadius: 24, style: .continuous)
                             .stroke(schluessliAkzent.opacity(0.12), lineWidth: 1)
                     }
-                    .shadow(color: .black.opacity(0.05), radius: 10, y: 4)
+                    .shadow(color: Color.appShadow, radius: 10, y: 4)
+
+                    if let zugriff = zugriffe.first(where: { $0.zugriffID == dossierKontext.zugriffID }),
+                       zugriff.status == DossierZugriffStatus.erstellt || zugriff.status == DossierZugriffStatus.abgelehnt {
+                        NavigationLink {
+                            EinladungsanfrageSendenView(zugriff: zugriff)
+                        } label: {
+                            Label(
+                                zugriff.status == DossierZugriffStatus.abgelehnt
+                                    ? "Weitere Bereiche erneut anfragen"
+                                    : "Zugriff auf weitere Bereiche anfragen",
+                                systemImage: "lock.open.fill"
+                            )
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(schluessliAkzent)
+                    } else if let zugriff = zugriffe.first(where: { $0.zugriffID == dossierKontext.zugriffID }),
+                              zugriff.status == DossierZugriffStatus.bestaetigungAusstehend {
+                        Label("Anfrage für weitere Bereiche ausstehend", systemImage: "clock.badge.checkmark")
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(.orange)
+                    }
 
                     Text("Vorsorge-Dossier")
                         .font(.title3.weight(.bold))
-
-                    Button {
-                        dossierExportAnzeigen = true
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "doc.richtext.fill")
-                                .font(.body.weight(.semibold))
-
-                            Text("Vorsorge-Dossier als PDF exportieren")
-                                .font(.body.weight(.semibold))
-
-                            Spacer(minLength: 0)
-
-                            Image(systemName: "chevron.right")
-                                .font(.caption.weight(.bold))
-                        }
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 14)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(schluessliAkzent)
-                        )
-                    }
-                    .buttonStyle(.plain)
 
                     LazyVGrid(
                         columns: [
@@ -2189,12 +2163,38 @@ struct Home: View {
                             .buttonStyle(.plain)
                         }
                     }
+
+                    Button {
+                        dossierExportAnzeigen = true
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "doc.richtext.fill")
+                                .font(.body.weight(.semibold))
+
+                            Text("Vorsorge-Dossier als PDF exportieren")
+                                .font(.body.weight(.semibold))
+
+                            Spacer(minLength: 0)
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.bold))
+                        }
+                        .foregroundStyle(Color.appOnAccent)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(schluessliAkzent)
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 18)
                 .padding(.bottom, 28)
             }
-            .background(Color(.systemBackground))
+            .background(Color.appCanvas)
             .navigationTitle("Vorsorge-Dossier")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $dossierExportAnzeigen) {
@@ -2243,7 +2243,7 @@ struct Home: View {
             }
             .frame(maxWidth: .infinity, minHeight: 198, alignment: .leading)
             .padding(16)
-            .background(.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(Color.appRaisedCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .stroke(bereich.akzentFarbe.opacity(0.15))

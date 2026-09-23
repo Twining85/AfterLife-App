@@ -3,6 +3,7 @@ import SwiftData
 import AVFoundation
 
 struct EinladungQRCodeAnnehmenView: View {
+    @Environment(\.appLayout) private var appLayout
     @Environment(\.modelContext) private var modelContext
     @Query private var zugriffe: [DossierZugriffModell]
     @AppStorage("aktiveUserID") private var aktiveUserID = ""
@@ -12,14 +13,15 @@ struct EinladungQRCodeAnnehmenView: View {
     @State private var warErfolgreich = false
     @State private var arbeitet = false
 
-    private let akzent = Color(red: 0.16, green: 0.36, blue: 0.42)
+    private let akzent = Color.appAccent
 
     var body: some View {
         ZStack {
-            Color(red: 0.985, green: 0.98, blue: 0.965).ignoresSafeArea()
-            VStack(spacing: 22) {
+            Color.appCanvas.ignoresSafeArea()
+            ScrollView {
+                VStack(spacing: appLayout.sectionSpacing) {
                 Image(systemName: warErfolgreich ? "checkmark.shield.fill" : "qrcode.viewfinder")
-                    .font(.system(size: 58, weight: .semibold))
+                    .font(.largeTitle.weight(.semibold))
                     .foregroundStyle(akzent)
 
                 Text("Einladung QR-Code annehmen")
@@ -58,9 +60,11 @@ struct EinladungQRCodeAnnehmenView: View {
                         in: RoundedRectangle(cornerRadius: 18)
                     )
                 }
-                Spacer()
+                    Spacer(minLength: appLayout.sectionSpacing)
+                }
+                .appPagePadding()
+                .padding(.vertical, appLayout.sectionSpacing)
             }
-            .padding(24)
         }
         .navigationTitle("Einladung annehmen")
         .navigationBarTitleDisplayMode(.inline)

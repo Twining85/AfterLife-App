@@ -7,6 +7,7 @@ import AVKit
 
 
 struct WuenscheView: View {
+    @Environment(\.appLayout) private var appLayout
     var dossierKontext: DossierKontext = .eigenesDossier(dossierID: UUID())
     @Environment(\.modelContext) private var modelContext
     @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
@@ -115,9 +116,9 @@ struct WuenscheView: View {
     @State private var aktiverDokumentTyp: DokumentTyp?
     @State private var dokumentVorschauURL: URL?
 
-    private let wuenscheCardColor = Color(red: 0.96, green: 0.95, blue: 0.92)
-    private let wuenscheAccentColor = Color(red: 0.72, green: 0.42, blue: 0.28)
-    private let wuenscheBackgroundColor = Color(red: 0.985, green: 0.975, blue: 0.955)
+    private let wuenscheCardColor = Color.appCard
+    private let wuenscheAccentColor = Color.areaWishes
+    private let wuenscheBackgroundColor = Color.appCanvas
 
 
     private var kontakteSpeicherSignatur: String {
@@ -207,7 +208,7 @@ struct WuenscheView: View {
                         ausgewaehlteThemenListe
                     }
                 }
-                .padding(.horizontal, 18)
+                .appPagePadding()
                 .padding(.top, 18)
                 .padding(.bottom, 32)
             }
@@ -354,14 +355,14 @@ struct WuenscheView: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "heart.text.square.fill")
                     .font(.title3.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.appOnAccent)
                     .frame(width: 42, height: 42)
                     .background(Circle().fill(wuenscheAccentColor))
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Meine Wünsche")
                         .font(.title2.weight(.bold))
-                        .foregroundStyle(.black)
+                        .foregroundStyle(Color.appPrimaryText)
 
                     Text("Ich habe besondere Wünsche und möchte, dass diese respektiert werden.")
                         .font(.subheadline)
@@ -395,7 +396,7 @@ struct WuenscheView: View {
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(Color.white.opacity(0.68), lineWidth: 1)
+                .stroke(Color.appBorder, lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.055), radius: 14, x: 0, y: 7)
     }
@@ -497,7 +498,7 @@ struct WuenscheView: View {
             .padding(.vertical, 11)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(istAusgewaehlt ? wuenscheAccentColor : Color.white.opacity(0.82))
+                    .fill(istAusgewaehlt ? wuenscheAccentColor : Color.appField)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -692,7 +693,7 @@ struct WuenscheView: View {
             styledTextField("Bemerkungen", text: haustier.bemerkungen, axis: .vertical, lineLimit: 2...6)
         }
         .padding(12)
-        .background(Color.white.opacity(0.72))
+        .background(Color.appField)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
@@ -1018,7 +1019,7 @@ struct WuenscheView: View {
                             Text("Hinzufügen")
                                 .font(.subheadline.weight(.semibold))
                         }
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.appOnAccent)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 13)
                         .background(wuenscheAccentColor, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -1040,7 +1041,7 @@ struct WuenscheView: View {
                         .foregroundStyle(wuenscheAccentColor)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(Color.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .background(Color.appField, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                         .overlay {
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
                                 .stroke(wuenscheAccentColor.opacity(0.24), lineWidth: 1)
@@ -1095,7 +1096,7 @@ struct WuenscheView: View {
                     }
                 }
                 .padding(12)
-                .background(Color.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(Color.appField, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             } else {
                 leerText("Es ist kein Dokument vorhanden.")
             }
@@ -1768,7 +1769,7 @@ struct WuenscheView: View {
                 .disabled(dossierKontext.istReadOnly)
         }
         .padding(12)
-        .background(Color.white.opacity(0.72))
+        .background(Color.appField)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
@@ -1778,13 +1779,13 @@ struct WuenscheView: View {
             HStack(spacing: 10) {
                 Image(systemName: systemImage)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.appOnAccent)
                     .frame(width: 30, height: 30)
                     .background(Circle().fill(wuenscheAccentColor))
 
                 Text(titel)
                     .font(.headline.weight(.semibold))
-                    .foregroundStyle(.black)
+                    .foregroundStyle(Color.appPrimaryText)
 
                 Spacer()
 
@@ -1813,7 +1814,7 @@ struct WuenscheView: View {
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(Color.white.opacity(0.65), lineWidth: 1)
+                .stroke(Color.appBorder, lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.045), radius: 12, x: 0, y: 6)
     }
@@ -1831,7 +1832,7 @@ struct WuenscheView: View {
                 .textFieldStyle(.plain)
                 .disabled(dossierKontext.istReadOnly)
                 .padding(12)
-                .background(Color.white.opacity(0.8))
+                .background(Color.appField)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -1842,7 +1843,7 @@ struct WuenscheView: View {
                 .textFieldStyle(.plain)
                 .disabled(dossierKontext.istReadOnly)
                 .padding(12)
-                .background(Color.white.opacity(0.8))
+                .background(Color.appField)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -1855,7 +1856,7 @@ struct WuenscheView: View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.appOnAccent)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .background(wuenscheAccentColor)
@@ -1878,7 +1879,7 @@ struct WuenscheView: View {
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(wuenscheAccentColor)
                 .frame(width: 26, height: 26)
-                .background(Circle().fill(Color.white.opacity(0.85)))
+                .background(Circle().fill(Color.appField))
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
@@ -2349,7 +2350,7 @@ struct WuenscheChipFlowLayout: Layout {
 }
 
 struct DetailBox<Content: View>: View {
-    var accentColor: Color = Color(red: 0.72, green: 0.42, blue: 0.28)
+    var accentColor: Color = Color.areaWishes
     @ViewBuilder let content: Content
 
     var body: some View {
@@ -2450,7 +2451,7 @@ struct SwipeToDeleteRow<Content: View>: View {
 
                             Image(systemName: "trash.fill")
                                 .font(.subheadline.weight(.bold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color.appOnAccent)
                                 .frame(width: 64, height: proxy.size.height)
                         }
                         .frame(width: max(0, breite), height: proxy.size.height)
@@ -2570,7 +2571,7 @@ struct DokumentUploadBox: View {
                     }
                 }
                 .padding(12)
-                .background(Color.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(Color.appField, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             } else {
                 Text("Es ist kein Dokument vorhanden.")
                     .font(.footnote)
@@ -2591,7 +2592,7 @@ struct DokumentUploadBox: View {
                         Text("Hinzufügen")
                             .font(.subheadline.weight(.semibold))
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.appOnAccent)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)
                     .background(accentColor, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -2614,7 +2615,7 @@ struct DokumentUploadBox: View {
                         .foregroundStyle(accentColor)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(Color.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .background(Color.appField, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                         .overlay {
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
                                 .stroke(accentColor.opacity(0.24), lineWidth: 1)

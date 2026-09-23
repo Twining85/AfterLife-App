@@ -20,9 +20,9 @@ struct HerzensstueckeView: View {
     @State private var ausgewaehltesHerzensstueck: HerzensstueckModell?
     @State private var limitHinweisAnzeigen = false
 
-    private let akzent = Color(red: 0.78, green: 0.34, blue: 0.16)
-    private let hintergrund = Color(red: 0.985, green: 0.975, blue: 0.955)
-    private let karte = Color(red: 0.96, green: 0.95, blue: 0.92)
+    private let akzent = Color.areaKeepsakes
+    private let hintergrund = Color.appCanvas
+    private let karte = Color.appCard
     private let maximaleAnzahl = 7
 
     var body: some View {
@@ -76,7 +76,7 @@ struct HerzensstueckeView: View {
                     } label: {
                         Label("Neues Herzensstück", systemImage: "plus")
                             .font(.headline)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.appOnAccent)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
                             .background(akzent, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
@@ -122,7 +122,7 @@ struct HerzensstueckeView: View {
             HStack(alignment: .top, spacing: 14) {
                 Image(systemName: "archivebox.fill")
                     .font(.title2.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.appOnAccent)
                     .frame(width: 48, height: 48)
                     .background(akzent, in: Circle())
                     .shadow(color: akzent.opacity(0.25), radius: 8, y: 4)
@@ -163,7 +163,7 @@ struct HerzensstueckeView: View {
     private var leerzustand: some View {
         VStack(spacing: 10) {
             Image(systemName: "shippingbox.and.arrow.backward")
-                .font(.system(size: 34))
+                .font(.largeTitle)
                 .foregroundStyle(akzent)
             Text("Noch kein Herzensstück")
                 .font(.headline)
@@ -175,7 +175,7 @@ struct HerzensstueckeView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 34)
         .padding(.horizontal, 20)
-        .background(Color.white.opacity(0.58), in: RoundedRectangle(cornerRadius: 24))
+        .background(Color.appField, in: RoundedRectangle(cornerRadius: 24))
     }
 
     private func neuesHerzensstueck() {
@@ -274,8 +274,8 @@ private struct HerzensstueckEditor: View {
     @State private var audioExportURL: URL?
     @State private var dokumentExportURL: URL?
 
-    private let akzent = Color(red: 0.78, green: 0.34, blue: 0.16)
-    private let hintergrund = Color(red: 0.985, green: 0.975, blue: 0.955)
+    private let akzent = Color.areaKeepsakes
+    private let hintergrund = Color.appCanvas
 
     var body: some View {
         NavigationStack {
@@ -678,7 +678,7 @@ private struct HerzensstueckEditorKarte<Content: View>: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.70), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(Color.appField, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay { RoundedRectangle(cornerRadius: 22).stroke(akzent.opacity(0.10)) }
     }
 }

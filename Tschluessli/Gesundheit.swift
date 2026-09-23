@@ -5,6 +5,7 @@ import SwiftData
 
 
 struct GesundheitView: View {
+    @Environment(\.appLayout) private var appLayout
     var dossierKontext: DossierKontext = .eigenesDossier(dossierID: UUID())
     @State private var ausgewaehlterHausarztKontaktID = ""
     @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
@@ -35,8 +36,8 @@ struct GesundheitView: View {
 #endif
 
 
-    private let akzentFarbe = Color(red: 0.76, green: 0.24, blue: 0.30)
-    private let kartenFarbe = Color(red: 0.98, green: 0.96, blue: 0.94)
+    private let akzentFarbe = Color.areaHealth
+    private let kartenFarbe = Color.appCard
 
     private let blutgruppen = [
         "A+",
@@ -68,7 +69,7 @@ struct GesundheitView: View {
                 }
                 hinweisBereich
             }
-            .padding(.horizontal, 24)
+            .appPagePadding()
             .padding(.top, 24)
             .padding(.bottom, 40)
         }
@@ -105,7 +106,7 @@ struct GesundheitView: View {
                 vorsorgedokumenteBereich
                 hinweisBereich
             }
-            .padding(.horizontal, 24)
+            .appPagePadding()
             .padding(.top, 24)
             .padding(.bottom, 40)
         }
@@ -130,14 +131,14 @@ struct GesundheitView: View {
                         .frame(width: 58, height: 58)
 
                     Image(systemName: "heart.text.square.fill")
-                        .font(.system(size: 28, weight: .semibold))
+                        .font(.title2.weight(.semibold))
                         .foregroundStyle(akzentFarbe)
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Gesundheit & Notfall")
                         .font(.title2.weight(.bold))
-                        .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+                        .foregroundStyle(Color.appPrimaryText)
 
                     Text("Diese Angaben sind freiwillig. Sie können Angehörigen oder medizinischem Personal im Ernstfall helfen.")
                         .font(.subheadline)
@@ -154,7 +155,7 @@ struct GesundheitView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .stroke(Color.white.opacity(0.78), lineWidth: 1)
+                .stroke(Color.appBorder, lineWidth: 1)
         )
         .shadow(color: akzentFarbe.opacity(0.12), radius: 18, x: 0, y: 10)
     }
@@ -275,14 +276,14 @@ struct GesundheitView: View {
         HStack(alignment: .top, spacing: 12) {
             Text(initialenFuerHausarzt(name))
                 .font(.subheadline.weight(.bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.appOnAccent)
                 .frame(width: 38, height: 38)
                 .background(Circle().fill(akzentFarbe.opacity(0.88)))
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(name)
                     .font(.headline)
-                    .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+                    .foregroundStyle(Color.appPrimaryText)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Label("Hausarzt", systemImage: "stethoscope")
@@ -326,7 +327,7 @@ struct GesundheitView: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.58))
+        .background(Color.appField)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -739,7 +740,7 @@ struct GesundheitKarte<Content: View>: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(titel)
                         .font(.headline.weight(.semibold))
-                        .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+                        .foregroundStyle(Color.appPrimaryText)
 
                     Text(untertitel)
                         .font(.caption)
@@ -754,11 +755,11 @@ struct GesundheitKarte<Content: View>: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(Color(red: 0.98, green: 0.97, blue: 0.94))
+                .fill(Color.appCard)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(Color.white.opacity(0.74), lineWidth: 1)
+                .stroke(Color.appBorder, lineWidth: 1)
         )
         .shadow(color: akzentFarbe.opacity(0.10), radius: 16, x: 0, y: 8)
     }
@@ -796,11 +797,11 @@ struct GesundheitTextfeld: View {
             .frame(minHeight: 140, alignment: .topLeading)
             .background(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color.white.opacity(0.65))
+                    .fill(Color.appField)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(Color.white.opacity(0.75), lineWidth: 1)
+                    .stroke(Color.appBorder, lineWidth: 1)
             )
         }
     }
@@ -877,11 +878,11 @@ struct BlutgruppenChipAuswahl: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.65))
+                .fill(Color.appField)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.white.opacity(0.75), lineWidth: 1)
+                .stroke(Color.appBorder, lineWidth: 1)
         )
     }
 
@@ -899,14 +900,14 @@ struct BlutgruppenChipAuswahl: View {
                 .fixedSize(horizontal: true, vertical: false)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
-                .foregroundStyle(istAusgewaehlt ? Color.white : Color.primary)
+                .foregroundStyle(istAusgewaehlt ? Color.appOnAccent : Color.appPrimaryText)
                 .background(
                     Capsule(style: .continuous)
-                        .fill(istAusgewaehlt ? akzentFarbe : Color.white.opacity(0.78))
+                        .fill(istAusgewaehlt ? akzentFarbe : Color.appField)
                 )
                 .overlay(
                     Capsule(style: .continuous)
-                        .stroke(istAusgewaehlt ? akzentFarbe.opacity(0.55) : Color.white.opacity(0.85), lineWidth: 1)
+                        .stroke(istAusgewaehlt ? akzentFarbe.opacity(0.55) : Color.appBorder, lineWidth: 1)
                 )
         }
         .buttonStyle(.plain)

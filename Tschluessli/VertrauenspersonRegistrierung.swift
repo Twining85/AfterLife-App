@@ -10,6 +10,7 @@ import SwiftData
 import UIKit
 
 struct VertrauenspersonRegistrierung: View {
+    @Environment(\.appLayout) private var appLayout
     @Environment(\.modelContext) private var modelContext
     @Query private var gespeicherteDossierZugriffe: [DossierZugriffModell]
 
@@ -46,12 +47,12 @@ struct VertrauenspersonRegistrierung: View {
     @State private var emailVerifizierungsCode = ""
     @State private var emailVerifizierungsAntwort = ""
 
-    private let hintergrundFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
-    private let kartenFarbe = Color.white.opacity(0.88)
-    private let akzentFarbe = Color(red: 0.16, green: 0.36, blue: 0.42)
-    private let akzentHell = Color(red: 0.16, green: 0.36, blue: 0.42).opacity(0.12)
-    private let textFarbe = Color.black.opacity(0.86)
-    private let sekundTextFarbe = Color.black.opacity(0.58)
+    private let hintergrundFarbe = Color.appCard
+    private let kartenFarbe = Color.appRaisedCard
+    private let akzentFarbe = Color.appAccent
+    private let akzentHell = Color.appAccent.opacity(0.12)
+    private let textFarbe = Color.appPrimaryText
+    private let sekundTextFarbe = Color.appSecondaryText
 
     var body: some View {
         NavigationStack {
@@ -81,7 +82,7 @@ struct VertrauenspersonRegistrierung: View {
                             registrierungsButton
                             fussHinweis
                         }
-                        .padding(18)
+                        .padding(appLayout.authCardPadding)
                         .background(
                             RoundedRectangle(cornerRadius: 28, style: .continuous)
                                 .fill(kartenFarbe)
@@ -89,9 +90,9 @@ struct VertrauenspersonRegistrierung: View {
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                                .stroke(Color.white.opacity(0.75), lineWidth: 1)
+                                .stroke(Color.appBorder, lineWidth: 1)
                         )
-                        .padding(.horizontal, 16)
+                        .appPagePadding()
                         .padding(.bottom, 18)
                     }
                     .padding(.top, 8)
@@ -137,7 +138,8 @@ struct VertrauenspersonRegistrierung: View {
     }
 
     private var heroBild: some View {
-        ZStack {
+        GeometryReader { proxy in
+            ZStack {
             RoundedRectangle(cornerRadius: 26, style: .continuous)
                 .fill(kartenFarbe)
                 .shadow(color: .black.opacity(0.06), radius: 14, x: 0, y: 8)
@@ -145,8 +147,7 @@ struct VertrauenspersonRegistrierung: View {
             Image("Home2")
                 .resizable()
                 .scaledToFill()
-                .frame(maxWidth: .infinity)
-                .frame(height: 150)
+                .frame(width: proxy.size.width, height: 150)
                 .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
                 .overlay(
                     LinearGradient(
@@ -160,14 +161,14 @@ struct VertrauenspersonRegistrierung: View {
                     .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
                 )
 
-            Image("Icon1_trans")
-                .resizable()
-                .scaledToFit()
+            TschluessliLogo()
                 .frame(width: 96, height: 96)
                 .accessibilityHidden(true)
+            }
+            .frame(width: proxy.size.width, height: 150)
         }
         .frame(height: 150)
-        .padding(.horizontal, 16)
+        .appPagePadding()
         .accessibilityHidden(true)
     }
 
@@ -179,7 +180,7 @@ struct VertrauenspersonRegistrierung: View {
                     .frame(width: 58, height: 58)
 
                 Image(systemName: "person.badge.key.fill")
-                    .font(.system(size: 26, weight: .semibold))
+                    .font(.title2.weight(.semibold))
                     .foregroundStyle(akzentFarbe)
             }
 
@@ -320,7 +321,7 @@ struct VertrauenspersonRegistrierung: View {
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.appOnAccent)
                     .background(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .fill(akzentFarbe)
@@ -336,7 +337,7 @@ struct VertrauenspersonRegistrierung: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
                 }
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.appOnAccent)
                 .background(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .fill(emailVerifizierungButtonErlaubt ? akzentFarbe : Color.gray.opacity(0.42))
@@ -384,18 +385,9 @@ struct VertrauenspersonRegistrierung: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(textFarbe)
 
-            HStack(spacing: 12) {
-                Text("Was ist \(captchaZahl1) + \(captchaZahl2)?")
-                    .font(.caption)
-                    .foregroundStyle(sekundTextFarbe)
-
-                TextField("Antwort", text: $captchaAntwort)
-                    .keyboardType(.numberPad)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(eingabeHintergrund)
-                    .frame(width: 110)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) { captchaAufgabe; captchaEingabe }
+                VStack(alignment: .leading, spacing: 10) { captchaAufgabe; captchaEingabe }
             }
 
             if !captchaAntwort.isEmpty && !captchaIstGueltig {
@@ -411,6 +403,22 @@ struct VertrauenspersonRegistrierung: View {
         )
     }
 
+    private var captchaAufgabe: some View {
+                Text("Was ist \(captchaZahl1) + \(captchaZahl2)?")
+                    .font(.caption)
+                    .foregroundStyle(sekundTextFarbe)
+    }
+
+    private var captchaEingabe: some View {
+                TextField("Antwort", text: $captchaAntwort)
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(eingabeHintergrund)
+                    .frame(maxWidth: 150)
+    }
+
     private var registrierungsButton: some View {
         Button {
             registrierenMitEmail()
@@ -420,7 +428,7 @@ struct VertrauenspersonRegistrierung: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(Color.appOnAccent)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(emailRegistrierungErlaubt ? akzentFarbe : Color.gray.opacity(0.42))
@@ -746,7 +754,7 @@ struct VertrauenspersonRegistrierung: View {
 
     private var eingabeHintergrund: some View {
         RoundedRectangle(cornerRadius: 14, style: .continuous)
-            .fill(Color.white.opacity(0.92))
+            .fill(Color.appField)
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .stroke(akzentFarbe.opacity(0.18), lineWidth: 1)

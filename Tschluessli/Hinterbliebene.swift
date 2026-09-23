@@ -3,6 +3,7 @@ import SwiftData
 import ContactsUI
 
 struct HinterbliebeneView: View {
+    @Environment(\.appLayout) private var appLayout
     var dossierKontext: DossierKontext = .eigenesDossier(dossierID: UUID())
 
     @Environment(\.modelContext) private var modelContext
@@ -11,10 +12,10 @@ struct HinterbliebeneView: View {
     @Query private var gespeicherteVertrauenspersonen: [VertrauenspersonModell]
     @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
 
-    private let vertrauenHintergrundFarbe = Color(red: 0.985, green: 0.975, blue: 0.955)
-    private let vertrauenKartenFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
-    private let vertrauenAkzentFarbe = Color(red: 0.24, green: 0.50, blue: 0.34)
-    private let vertrauenTextFarbe = Color.black.opacity(0.86)
+    private let vertrauenHintergrundFarbe = Color.appCanvas
+    private let vertrauenKartenFarbe = Color.appCard
+    private let vertrauenAkzentFarbe = Color.areaContacts
+    private let vertrauenTextFarbe = Color.primary
 
     @State private var aktiveKategorie: VertrauenspersonKategorie = .partner
     @State private var showKontaktPicker = false
@@ -67,7 +68,7 @@ struct HinterbliebeneView: View {
 
                     vertrauenspersonKarte
                 }
-                .padding(.horizontal, 16)
+                .appPagePadding()
                 .padding(.bottom, 28)
             }
             .background(vertrauenHintergrundFarbe.ignoresSafeArea())
@@ -90,7 +91,7 @@ struct HinterbliebeneView: View {
             HStack(alignment: .top, spacing: 14) {
                 Image(systemName: "person.3.sequence.fill")
                     .font(.title2.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.appOnAccent)
                     .frame(width: 48, height: 48)
                     .background(Circle().fill(vertrauenAkzentFarbe))
                     .shadow(color: vertrauenAkzentFarbe.opacity(0.22), radius: 8, x: 0, y: 4)
@@ -125,7 +126,7 @@ struct HinterbliebeneView: View {
             HStack(spacing: 16) {
                 Image(systemName: "person.crop.circle.badge.checkmark")
                     .font(.title2.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.appOnAccent)
                     .frame(width: 52, height: 52)
                     .background(Circle().fill(vertrauenAkzentFarbe))
 
@@ -152,7 +153,7 @@ struct HinterbliebeneView: View {
             }
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.white.opacity(0.82))
+            .background(Color.appField)
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
@@ -260,7 +261,7 @@ struct HinterbliebeneView: View {
                         Text("Kontakt hinzufügen")
                             .font(.subheadline.weight(.semibold))
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.appOnAccent)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
                     .background(vertrauenAkzentFarbe)
@@ -284,7 +285,7 @@ struct HinterbliebeneView: View {
         HStack(alignment: .top, spacing: 12) {
             Text(initialenFuerKontakt(kontakt))
                 .font(.subheadline.weight(.bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.appOnAccent)
                 .frame(width: 38, height: 38)
                 .background(Circle().fill(vertrauenAkzentFarbe.opacity(0.88)))
 
@@ -333,7 +334,7 @@ struct HinterbliebeneView: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.58))
+        .background(Color.appField)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 18, style: .continuous)

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct DossierRecoveryView: View {
+    @Environment(\.appLayout) private var appLayout
     var nurWiederherstellen = false
     var nurErstellen = false
     var kontoEmail = ""
@@ -64,12 +65,9 @@ struct DossierRecoveryView: View {
                         Button(recoveryBereitsEingerichtet ? "Neuen 12-Wörter-Code erstellen" : "12 Wörter erstellen") { erstelleCode() }
                             .disabled(arbeitet)
                     } else {
-                        Grid(horizontalSpacing: 18, verticalSpacing: 10) {
-                            ForEach(0..<6, id: \.self) { zeile in
-                                GridRow {
-                                    codeWortAnzeige(index: zeile)
-                                    codeWortAnzeige(index: zeile + 6)
-                                }
+                        LazyVGrid(columns: recoverySpalten, alignment: .leading, spacing: 10) {
+                            ForEach(0..<12, id: \.self) { index in
+                                codeWortAnzeige(index: index)
                             }
                         }
                     }
@@ -106,12 +104,9 @@ struct DossierRecoveryView: View {
                     Text("Gib die zwölf Wörter einzeln und in derselben Reihenfolge wie im PDF ein.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                    Grid(horizontalSpacing: 12, verticalSpacing: 10) {
-                        ForEach(0..<6, id: \.self) { zeile in
-                            GridRow {
-                                recoveryWortEingabe(index: zeile)
-                                recoveryWortEingabe(index: zeile + 6)
-                            }
+                    LazyVGrid(columns: recoverySpalten, alignment: .leading, spacing: 10) {
+                        ForEach(0..<12, id: \.self) { index in
+                            recoveryWortEingabe(index: index)
                         }
                     }
                     Button("Dossier wiederherstellen") { stelleWiederHer() }
@@ -158,6 +153,13 @@ struct DossierRecoveryView: View {
                 }
             }
         }
+    }
+
+    private var recoverySpalten: [GridItem] {
+        if appLayout.isCompact || appLayout.dynamicTypeSize >= .xLarge {
+            return [GridItem(.flexible())]
+        }
+        return [GridItem(.flexible(), spacing: 12), GridItem(.flexible())]
     }
 
     private func erstelleCode() {
@@ -224,7 +226,8 @@ struct DossierRecoveryView: View {
             Color.black.opacity(0.22)
                 .ignoresSafeArea()
 
-            VStack(alignment: .leading, spacing: 0) {
+            ScrollView {
+              VStack(alignment: .leading, spacing: 0) {
                 Text("Dossier wird wiederhergestellt")
                     .font(.title3.weight(.bold))
                     .padding(.bottom, 6)
@@ -264,11 +267,13 @@ struct DossierRecoveryView: View {
                     }
                 }
             }
-            .padding(24)
-            .frame(maxWidth: 360, alignment: .leading)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-            .shadow(color: .black.opacity(0.16), radius: 24, y: 10)
-            .padding(24)
+              }
+              .padding(appLayout.cardPadding)
+              .frame(maxWidth: 360, alignment: .leading)
+              .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+              .shadow(color: .black.opacity(0.16), radius: 24, y: 10)
+              .appPagePadding()
+              .padding(.vertical, appLayout.pageInset)
         }
     }
 

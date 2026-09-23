@@ -66,9 +66,9 @@ struct DokumenteView: View {
         }
     }
 
-    private let dokumenteHintergrundFarbe = Color(red: 0.985, green: 0.975, blue: 0.955)
-    private let dokumenteKartenFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
-    private let dokumenteAkzentFarbe = Color(red: 0.16, green: 0.36, blue: 0.42)
+    private let dokumenteHintergrundFarbe = Color.appCanvas
+    private let dokumenteKartenFarbe = Color.appCard
+    private let dokumenteAkzentFarbe = Color.areaDocuments
 
     private var gespeicherteFotos: [FotoalbumBildModell] {
         alleGespeichertenFotos.filter { passtZumDossier($0.dossierID) }
@@ -147,7 +147,7 @@ struct DokumenteView: View {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(dokumenteAkzentFarbe.opacity(0.12), lineWidth: 1)
         }
-        .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
+        .shadow(color: Color.appShadow, radius: 10, x: 0, y: 4)
     }
 
     private func dokumenteHeroChip(bereich: DokumentBereich) -> some View {
@@ -179,12 +179,12 @@ struct DokumenteView: View {
                 if anzahl > 0 {
                     Text("\(anzahl)")
                         .font(.caption2.weight(.bold))
-                        .foregroundStyle(istAusgewaehlt ? dokumenteAkzentFarbe : .white)
+                        .foregroundStyle(istAusgewaehlt ? dokumenteAkzentFarbe : Color.appOnAccent)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 3)
                         .background(
                             istAusgewaehlt
-                            ? Color.white.opacity(0.9)
+                            ? Color.appRaisedCard
                             : dokumenteAkzentFarbe.opacity(0.78),
                             in: Capsule()
                         )
@@ -192,7 +192,7 @@ struct DokumenteView: View {
             }
             .foregroundStyle(
                 istAusgewaehlt
-                ? Color.white
+                ? Color.appOnAccent
                 : istVerfuegbar ? dokumenteAkzentFarbe : Color.secondary.opacity(0.65)
             )
             .padding(.horizontal, 10)
@@ -200,7 +200,7 @@ struct DokumenteView: View {
             .background(
                 istAusgewaehlt
                 ? dokumenteAkzentFarbe
-                : Color.white.opacity(0.68),
+                : Color.appField,
                 in: Capsule()
             )
             .overlay {
@@ -400,7 +400,7 @@ struct DokumenteView: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.65))
+        .background(Color.appField)
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -431,7 +431,7 @@ struct DokumenteView: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.65))
+        .background(Color.appField)
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -447,7 +447,7 @@ struct DokumenteView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Mein persönliches Fotoalbum")
                     .font(.title3.weight(.semibold))
-                    .foregroundStyle(.black)
+                    .foregroundStyle(Color.appPrimaryText)
 
                 Text("Lade hier Fotos hoch, die für deine Vertrauenspersonen wichtig oder besonders wertvoll sind.")
                     .font(.subheadline)
@@ -481,7 +481,7 @@ struct DokumenteView: View {
             }
             .padding(15)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.white.opacity(0.65))
+            .background(Color.appField)
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -497,7 +497,7 @@ struct DokumenteView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Weitere Dokumente hochladen")
                     .font(.title3.weight(.semibold))
-                    .foregroundStyle(.black)
+                    .foregroundStyle(Color.appPrimaryText)
 
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Ergänze wichtige Unterlagen, die nicht direkt zu Wünsche oder Finanzen gehören.")
@@ -527,7 +527,7 @@ struct DokumenteView: View {
                             } label: {
                                 Label("Hinzufügen", systemImage: "doc.badge.plus")
                                     .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(Color.appOnAccent)
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 13)
                                     .background(dokumenteAkzentFarbe)
@@ -559,7 +559,7 @@ struct DokumenteView: View {
             }
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.white.opacity(0.65))
+            .background(Color.appField)
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -723,7 +723,7 @@ struct DokumenteView: View {
             HStack(spacing: 10) {
                 Text(titel)
                     .font(.title3.weight(.semibold))
-                    .foregroundStyle(.black)
+                    .foregroundStyle(Color.appPrimaryText)
 
                 Spacer()
 
@@ -939,7 +939,7 @@ struct DokumenteView: View {
             .accessibilityLabel("Dokument ansehen")
         }
         .padding(14)
-        .background(Color.white.opacity(0.72))
+        .background(Color.appField)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 16, style: .continuous)

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct VorsorgeBereicheView: View {
+    @Environment(\.appLayout) private var appLayout
     @AppStorage("homeBereicheReihenfolge") private var gespeicherteReihenfolge = ""
     @AppStorage("homeAktiveBereiche") private var gespeicherteAuswahl = ""
     @AppStorage("homeBereicheAuswahlInitialisiert") private var auswahlWurdeInitialisiert = false
@@ -10,8 +11,8 @@ struct VorsorgeBereicheView: View {
     @State private var auswahl: Set<VorsorgeBereich> = []
     @State private var verwaltungAnzeigen: Bool
 
-    private let akzent = Color(red: 0.16, green: 0.36, blue: 0.42)
-    private let hintergrund = Color(red: 0.975, green: 0.98, blue: 0.97)
+    private let akzent = Color.appAccent
+    private let hintergrund = Color.appCanvas
 
     init(startetMitVerwaltung: Bool = false) {
         _verwaltungAnzeigen = State(initialValue: startetMitVerwaltung)
@@ -29,7 +30,7 @@ struct VorsorgeBereicheView: View {
                 if aktiveBereiche.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "square.grid.2x2")
-                            .font(.system(size: 38, weight: .semibold))
+                            .font(.largeTitle.weight(.semibold))
                             .foregroundStyle(akzent)
                         Text("Noch keine Bereiche ausgewählt")
                             .font(.headline)
@@ -38,13 +39,10 @@ struct VorsorgeBereicheView: View {
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                     }
-                    .padding(.horizontal, 32)
+                    .appPagePadding()
                     .padding(.vertical, 62)
                 } else {
-                    LazyVGrid(
-                        columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)],
-                        spacing: 14
-                    ) {
+                    LazyVGrid(columns: gridSpalten, spacing: 14) {
                         ForEach(aktiveBereiche) { bereich in
                             NavigationLink {
                                 zielView(fuer: bereich)
@@ -55,7 +53,7 @@ struct VorsorgeBereicheView: View {
                             .buttonStyle(.plain)
                         }
                     }
-                    .padding(.horizontal, 20)
+                    .appPagePadding()
                     .padding(.top, 22)
                 }
             }
@@ -79,15 +77,41 @@ struct VorsorgeBereicheView: View {
     }
 
     private var hero: some View {
-        HStack(alignment: .top, spacing: 14) {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 14) {
+                heroSymbol
+                heroText
+            }
+            VStack(alignment: .leading, spacing: 12) {
+                heroSymbol
+                heroText
+            }
+        }
+        .padding(appLayout.cardPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.appCard)
+        .clipShape(RoundedRectangle(cornerRadius: appLayout.cardCornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: appLayout.cardCornerRadius, style: .continuous)
+                .stroke(akzent.opacity(0.12), lineWidth: 1)
+        }
+        .shadow(color: Color.appShadow, radius: 10, y: 4)
+        .appPagePadding()
+        .padding(.top, 18)
+    }
+
+    private var heroSymbol: some View {
             Image(systemName: "square.grid.2x2.fill")
                 .font(.title2.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.appOnAccent)
                 .frame(width: 48, height: 48)
                 .background(Circle().fill(akzent))
                 .shadow(color: akzent.opacity(0.20), radius: 8, y: 4)
 
-            VStack(alignment: .leading, spacing: 6) {
+    }
+
+    private var heroText: some View {
+        VStack(alignment: .leading, spacing: 6) {
                 Text("Vorsorge Bereiche")
                     .font(.title2.weight(.semibold))
                     .foregroundStyle(.primary)
@@ -95,19 +119,14 @@ struct VorsorgeBereicheView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-            }
         }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(red: 0.96, green: 0.95, blue: 0.92))
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(akzent.opacity(0.12), lineWidth: 1)
+    }
+
+    private var gridSpalten: [GridItem] {
+        if appLayout.prefersSingleColumnAreaGrid {
+            return [GridItem(.flexible())]
         }
-        .shadow(color: .black.opacity(0.05), radius: 10, y: 4)
-        .padding(.horizontal, 20)
-        .padding(.top, 18)
+        return [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
     }
 
     private func bereichKachel(_ bereich: VorsorgeBereich) -> some View {
@@ -145,8 +164,8 @@ struct VorsorgeBereicheView: View {
                 .lineLimit(3)
         }
         .frame(maxWidth: .infinity, minHeight: 198, alignment: .leading)
-        .padding(16)
-        .background(.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(appLayout.cardPadding)
+        .background(Color.appRaisedCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(bereich.farbe.opacity(0.15)))
     }
 
@@ -343,13 +362,13 @@ private enum VorsorgeBereich: String, CaseIterable, Identifiable {
 
     var farbe: Color {
         switch self {
-        case .hinterbliebene: Color(red: 0.24, green: 0.50, blue: 0.34)
-        case .wuensche: Color(red: 0.72, green: 0.42, blue: 0.28)
-        case .finanzen: Color(red: 0.62, green: 0.47, blue: 0.18)
-        case .dokumente: Color(red: 0.22, green: 0.43, blue: 0.68)
-        case .abos: Color(red: 0.46, green: 0.36, blue: 0.62)
-        case .herzensstuecke: Color(red: 0.78, green: 0.34, blue: 0.16)
-        case .gesundheit: Color(red: 0.76, green: 0.24, blue: 0.30)
+        case .hinterbliebene: Color.areaContacts
+        case .wuensche: Color.areaWishes
+        case .finanzen: Color.areaFinance
+        case .dokumente: Color.areaDocuments
+        case .abos: Color.areaSubscriptions
+        case .herzensstuecke: Color.areaKeepsakes
+        case .gesundheit: Color.areaHealth
         }
     }
 }

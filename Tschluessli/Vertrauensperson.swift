@@ -101,6 +101,7 @@ enum EinladungsQRPayload {
 }
 
 struct VertrauenspersonView: View {
+    @Environment(\.appLayout) private var appLayout
     @Environment(\.modelContext) private var modelContext
 
     @Query private var gespeicherteVertrauenspersonen: [VertrauenspersonModell]
@@ -134,27 +135,15 @@ struct VertrauenspersonView: View {
     @AppStorage("vertrauenspersonErklaerungAbgeschlossenV2")
     private var erklaerungAbgeschlossen = false
 
-    private let hintergrundFarbe = Color(
-        red: 0.96,
-        green: 0.95,
-        blue: 0.92
-    )
+    private let hintergrundFarbe = Color.appCanvas
 
-    private let kartenFarbe = Color.white.opacity(0.88)
+    private let kartenFarbe = Color.appRaisedCard
 
-    private let akzentFarbe = Color(
-        red: 0.16,
-        green: 0.36,
-        blue: 0.42
-    )
+    private let akzentFarbe = Color.appAccent
 
-    private let textFarbe = Color(
-        red: 0.12,
-        green: 0.12,
-        blue: 0.12
-    )
+    private let textFarbe = Color.appPrimaryText
 
-    private let sekundaerTextFarbe = Color.black.opacity(0.58)
+    private let sekundaerTextFarbe = Color.appSecondaryText
 
     private let qrCodeKontext = CIContext()
     private let qrCodeFilter = CIFilter.qrCodeGenerator()
@@ -224,7 +213,7 @@ struct VertrauenspersonView: View {
          "In der Tschlüssli App auf «Dossier von anderen» gehen und den QR-Code scannen."),
 
         ("", "checkmark.circle.fill",
-         "Verbunden – das Vorsorgedossier ist nun bei deiner Vertrauensperson in «Dossier von anderen» hinterlegt und Inhalte gemäss deiner Freigabe ersichtlich."),
+         "Verbunden – das Vorsorge-Dossier ist nun bei deiner Vertrauensperson in «Dossier von anderen» hinterlegt und Inhalte gemäss deiner Freigabe ersichtlich."),
 
         ("DEINE VERTRAUENSPERSON", "lock.open.fill",
          "Bei Bedarf den vollständigen Zugriff auf dein Vorsorgedossier anfragen."),
@@ -875,7 +864,7 @@ struct VertrauenspersonView: View {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .fill(schritt.rolle.isEmpty
                               ? Color.green.opacity(0.10)
-                              : (schritt.rolle == "DU" ? akzentFarbe.opacity(0.10) : Color.white.opacity(0.88)))
+                              : (schritt.rolle == "DU" ? akzentFarbe.opacity(0.10) : Color.appRaisedCard))
                 )
 
                 if schritt.rolle != "DU" {
@@ -893,7 +882,7 @@ struct VertrauenspersonView: View {
                 HStack(alignment: .top, spacing: 14) {
                     Image(systemName: "person.crop.circle.badge.checkmark")
                         .font(.title2.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.appOnAccent)
                         .frame(width: 48, height: 48)
                         .background(Circle().fill(akzentFarbe))
                         .shadow(color: akzentFarbe.opacity(0.22), radius: 8, y: 4)
@@ -1173,7 +1162,7 @@ struct VertrauenspersonView: View {
                     .padding(.vertical, 6)
                 }
             }
-            .listRowBackground(Color.white.opacity(0.88))
+            .listRowBackground(Color.appRaisedCard)
         }
     }
 
@@ -1775,7 +1764,7 @@ struct VertrauenspersonView: View {
                 ScrollView {
                 VStack(spacing: 18) {
                     Image(systemName: "qrcode.viewfinder")
-                        .font(.system(size: 38, weight: .semibold))
+                        .font(.largeTitle.weight(.semibold))
                         .foregroundStyle(akzentFarbe)
 
                     VStack(spacing: 6) {
@@ -1791,7 +1780,7 @@ struct VertrauenspersonView: View {
                             .interpolation(.none)
                             .resizable()
                             .scaledToFit()
-                            .frame(width: 248, height: 248)
+                            .frame(width: qrCodeKantenlaenge, height: qrCodeKantenlaenge)
                             .padding(18)
                             .background(Color.white, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                             .overlay {
@@ -1823,7 +1812,7 @@ struct VertrauenspersonView: View {
                     .background(akzentFarbe.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.horizontal, 24)
+                .appPagePadding()
                 .padding(.vertical, 28)
                 }
 
@@ -1832,7 +1821,7 @@ struct VertrauenspersonView: View {
                         .ignoresSafeArea()
                     VStack(spacing: 14) {
                         Image(systemName: "eye.slash.fill")
-                            .font(.system(size: 42, weight: .semibold))
+                            .font(.largeTitle.weight(.semibold))
                             .foregroundStyle(akzentFarbe)
                         Text("Geschützte Ansicht")
                             .font(.title2.weight(.bold))
@@ -1870,6 +1859,10 @@ struct VertrauenspersonView: View {
         }
     }
 
+    private var qrCodeKantenlaenge: CGFloat {
+        min(max(appLayout.containerWidth - (appLayout.pageInset * 2) - 48, 180), 248)
+    }
+
     @ViewBuilder
     private var qrCodeBereich: some View {
         VStack(
@@ -1890,7 +1883,7 @@ struct VertrauenspersonView: View {
                 .padding(.vertical, 11)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.appOnAccent)
             .background(
                 RoundedRectangle(
                     cornerRadius: 16,
@@ -2294,12 +2287,12 @@ struct VertrauenspersonView: View {
                 style: .continuous
             )
             .stroke(
-                Color.white.opacity(0.75),
+                Color.appBorder,
                 lineWidth: 1
             )
         )
         .shadow(
-            color: Color.black.opacity(0.06),
+            color: Color.appShadow,
             radius: 16,
             x: 0,
             y: 8

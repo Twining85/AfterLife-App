@@ -10,15 +10,16 @@ import SwiftData
 import LocalAuthentication
 
 struct ReloginView: View {
+    @Environment(\.appLayout) private var appLayout
 
     var emailFuerBestehendesKonto: String? = nil
     var onBestehendesKontoAngemeldet: ((CloudKontoSitzung, String) -> Void)? = nil
 
-    private let hintergrundFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
-    private let kartenFarbe = Color.white.opacity(0.86)
-    private let akzentFarbe = Color(red: 0.16, green: 0.36, blue: 0.42)
-    private let textFarbe = Color.black.opacity(0.86)
-    private let sekundTextFarbe = Color.black.opacity(0.58)
+    private let hintergrundFarbe = Color.appCard
+    private let kartenFarbe = Color.appRaisedCard
+    private let akzentFarbe = Color.appAccent
+    private let textFarbe = Color.appPrimaryText
+    private let sekundTextFarbe = Color.appSecondaryText
 
     @Query private var gespeicherteProfile: [ProfilModell]
 
@@ -122,9 +123,7 @@ struct ReloginView: View {
                     VStack(spacing: 12) {
                         Spacer(minLength: 20)
 
-                        Image("Icon1_trans")
-                            .resizable()
-                            .scaledToFit()
+                        TschluessliLogo()
                             .frame(width: 108, height: 88)
                             .accessibilityHidden(true)
 
@@ -135,7 +134,7 @@ struct ReloginView: View {
                                     .frame(width: 86, height: 86)
 
                                 Image(systemName: "lock.shield.fill")
-                                    .font(.system(size: 38, weight: .semibold))
+                                    .font(.title.weight(.semibold))
                                     .foregroundStyle(akzentFarbe)
                             }
 
@@ -181,7 +180,7 @@ struct ReloginView: View {
                                     .padding(.top, 2)
                             }
                         }
-                        .padding(24)
+                        .padding(appLayout.authCardPadding)
                         .background(
                             RoundedRectangle(cornerRadius: 28, style: .continuous)
                                 .fill(kartenFarbe)
@@ -189,16 +188,16 @@ struct ReloginView: View {
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                                .stroke(Color.white.opacity(0.75), lineWidth: 1)
+                                .stroke(Color.appBorder, lineWidth: 1)
                         )
-                        .padding(.horizontal, 22)
+                        .appPagePadding()
 
                         Text("Deine Angaben bleiben geschützt und sind nur nach erfolgreicher Anmeldung sichtbar.")
                             .font(.footnote)
                             .foregroundStyle(sekundTextFarbe)
                             .multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
-                            .padding(.horizontal, 32)
+                            .appPagePadding()
                             .padding(.top, 4)
 
                         Spacer(minLength: 24)
@@ -230,7 +229,7 @@ struct ReloginView: View {
                         .padding(.vertical, 12)
                         .background(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(Color.white.opacity(0.72))
+                                .fill(Color.appField)
                         )
                 } else {
                     TextField("deine.email@beispiel.ch", text: $email)
@@ -241,7 +240,7 @@ struct ReloginView: View {
                         .padding(.vertical, 12)
                         .background(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(Color.white.opacity(0.92))
+                                .fill(Color.appField)
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -276,7 +275,7 @@ struct ReloginView: View {
                 .padding(.vertical, 12)
                 .background(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.white.opacity(0.92))
+                        .fill(Color.appField)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -301,7 +300,7 @@ struct ReloginView: View {
                     .padding(.vertical, 13)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.appOnAccent)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(akzentFarbe)

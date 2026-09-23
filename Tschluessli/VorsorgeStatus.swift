@@ -70,6 +70,7 @@ struct VorsorgeStatusService {
 }
 
 struct VorsorgeStatusCard: View {
+    @Environment(\.appLayout) private var appLayout
     let status: VorsorgeStatus
     let titel: String
     let beschreibung: String
@@ -101,27 +102,16 @@ struct VorsorgeStatusCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 15) {
-            HStack(alignment: .top, spacing: 14) {
-                ZStack {
-                    Circle().stroke(fortschrittFarbe.opacity(0.16), lineWidth: 7)
-                    Circle()
-                        .trim(from: 0, to: min(max(fortschritt, 0), 1))
-                        .stroke(fortschrittFarbe, style: StrokeStyle(lineWidth: 7, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                    Text("\(Int((fortschritt * 100).rounded()))%")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: 14) {
+                    fortschrittsRing
+                    statusText
                 }
-                .frame(width: 66, height: 66)
 
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(titel)
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                    Text(beschreibung)
-                        .font(.system(size: 14, design: .rounded))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 12) {
+                    fortschrittsRing
+                    statusText
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             HStack(spacing: 12) {
@@ -145,7 +135,7 @@ struct VorsorgeStatusCard: View {
                         Spacer(minLength: 8)
                         Image(systemName: "chevron.right").font(.caption.weight(.bold))
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.appOnAccent)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 13)
                     .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(akzentFarbe))
@@ -168,7 +158,7 @@ struct VorsorgeStatusCard: View {
                     .padding(.vertical, 10)
                     .background(
                         RoundedRectangle(cornerRadius: 15, style: .continuous)
-                            .fill(Color.white)
+                            .fill(Color.appRaisedCard)
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 15, style: .continuous)
@@ -187,9 +177,37 @@ struct VorsorgeStatusCard: View {
                     .buttonStyle(.plain)
             }
         }
-        .padding(16)
+        .padding(appLayout.cardPadding)
         .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Color(.systemBackground).opacity(0.88)))
-        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Color.white.opacity(0.78)))
+        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Color.appBorder))
         .shadow(color: akzentFarbe.opacity(0.11), radius: 14, x: 0, y: 7)
+    }
+
+    private var fortschrittsRing: some View {
+        ZStack {
+            Circle().stroke(fortschrittFarbe.opacity(0.16), lineWidth: 7)
+            Circle()
+                .trim(from: 0, to: min(max(fortschritt, 0), 1))
+                .stroke(fortschrittFarbe, style: StrokeStyle(lineWidth: 7, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            Text("\(Int((fortschritt * 100).rounded()))%")
+                .font(.caption.weight(.bold))
+                .fontDesign(.rounded)
+        }
+        .frame(width: 66, height: 66)
+    }
+
+    private var statusText: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(titel)
+                .font(.headline.weight(.bold))
+                .fontDesign(.rounded)
+            Text(beschreibung)
+                .font(.subheadline)
+                .fontDesign(.rounded)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

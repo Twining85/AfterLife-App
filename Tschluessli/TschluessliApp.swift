@@ -12,6 +12,7 @@ import UIKit
 @main
 struct TschluessliApp: App {
     @UIApplicationDelegateAdaptor(PushAppDelegate.self) private var pushAppDelegate
+    @AppStorage("appErscheinungsbild") private var appErscheinungsbildRawValue = AppErscheinungsbild.system.rawValue
     var sharedModelContainer: ModelContainer = {
         LokaleSicherheitsMigration.ausfuehren()
 
@@ -68,6 +69,10 @@ struct TschluessliApp: App {
     var body: some Scene {
         WindowGroup {
             AppStartView()
+                .responsiveAppLayout()
+                .preferredColorScheme(
+                    AppErscheinungsbild(rawValue: appErscheinungsbildRawValue)?.colorScheme
+                )
                 .modelContainer(sharedModelContainer)
         }
     }
@@ -112,7 +117,8 @@ struct AppStartView: View {
     @State private var dossierSyncDienst: DossierSyncDienst?
     @State private var syncAnzeigeStatus: SyncAnzeigeStatus?
     @State private var syncAnzeigeTask: Task<Void, Never>?
-    @State private var neuregistrierungErzwungen = false
+    @AppStorage("neuregistrierungErzwungen")
+    private var neuregistrierungErzwungen = false
     @State private var kaltstartWurdeBereinigt = false
 
     // Vor einem Release wieder auf false setzen.

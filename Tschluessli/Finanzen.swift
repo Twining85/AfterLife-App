@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 import Foundation
 
 struct FinanzenView: View {
+    @Environment(\.appLayout) private var appLayout
     var dossierKontext: DossierKontext = .eigenesDossier(dossierID: UUID())
     @Environment(\.modelContext) private var modelContext
     @Query private var gespeicherteBankkonten: [BankkontoModell]
@@ -46,9 +47,9 @@ struct FinanzenView: View {
     @State private var pendingSteuerdokumentScanDateiName = ""
     @State private var steuerdokumentExportURL: URL?
     @State private var showSteuerdokumentExportSheet = false
-    private let finanzenHintergrundFarbe = Color(red: 0.985, green: 0.975, blue: 0.955)
-    private let finanzenKartenFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
-    private let finanzenAkzentFarbe = Color(red: 0.62, green: 0.47, blue: 0.18)
+    private let finanzenHintergrundFarbe = Color.appCanvas
+    private let finanzenKartenFarbe = Color.appCard
+    private let finanzenAkzentFarbe = Color.areaFinance
     @State private var ausgewaehlteFinanzenBereiche: Set<FinanzenBereich> = []
     @State private var scrollZuFinanzEintragID: UUID?
 
@@ -88,7 +89,7 @@ struct FinanzenView: View {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(finanzenAkzentFarbe.opacity(0.12), lineWidth: 1)
         }
-        .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
+        .shadow(color: Color.appShadow, radius: 10, x: 0, y: 4)
     }
 
     
@@ -138,7 +139,7 @@ struct FinanzenView: View {
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 3)
                                 .background(
-                                    istFinanzenBereichAusgewaehlt(bereich) ? Color.white.opacity(0.95) : finanzenAkzentFarbe,
+                                    istFinanzenBereichAusgewaehlt(bereich) ? Color.appOnAccent : finanzenAkzentFarbe,
                                     in: Capsule()
                                 )
                         }
@@ -229,7 +230,7 @@ struct FinanzenView: View {
                     Button(action: addAction) {
                         Image(systemName: "plus")
                             .font(.title2.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.appOnAccent)
                             .frame(width: 42, height: 42)
                             .background(Circle().fill(finanzenAkzentFarbe))
                             .shadow(color: finanzenAkzentFarbe.opacity(0.22), radius: 6, x: 0, y: 3)
@@ -255,7 +256,7 @@ struct FinanzenView: View {
                 }
             }
             .padding(16)
-            .background(Color.white.opacity(0.62))
+            .background(Color.appField)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -270,7 +271,7 @@ struct FinanzenView: View {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .stroke(finanzenAkzentFarbe.opacity(0.12), lineWidth: 1)
         }
-        .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
+        .shadow(color: Color.appShadow, radius: 10, x: 0, y: 4)
     }
 
     private var steuerSection: some View {
@@ -299,7 +300,7 @@ struct FinanzenView: View {
                             Text("Hinzufügen")
                                 .font(.subheadline.weight(.semibold))
                         }
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.appOnAccent)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 13)
                         .background(finanzenAkzentFarbe, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -321,7 +322,7 @@ struct FinanzenView: View {
                         .foregroundStyle(finanzenAkzentFarbe)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(Color.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .background(Color.appField, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                         .overlay {
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
                                 .stroke(finanzenAkzentFarbe.opacity(0.24), lineWidth: 1)
@@ -375,7 +376,7 @@ struct FinanzenView: View {
                         }
                     }
                     .padding(12)
-                    .background(Color.white.opacity(0.70))
+                    .background(Color.appField)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -384,7 +385,7 @@ struct FinanzenView: View {
                 }
             }
             .padding(16)
-            .background(Color.white.opacity(0.62))
+            .background(Color.appField)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -399,7 +400,7 @@ struct FinanzenView: View {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .stroke(finanzenAkzentFarbe.opacity(0.12), lineWidth: 1)
         }
-        .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
+        .shadow(color: Color.appShadow, radius: 10, x: 0, y: 4)
     }
 
     private var totalDebts: Double {
@@ -598,7 +599,7 @@ struct FinanzenView: View {
                         )
                     }
                 }
-                .padding(.horizontal, 16)
+                .appPagePadding()
                 .padding(.vertical, 20)
                 .frame(maxWidth: 720)
                 .frame(maxWidth: .infinity)
@@ -753,7 +754,7 @@ struct FinanzenView: View {
                     }
                 }
                 .padding(12)
-                .background(Color.white.opacity(0.70))
+                .background(Color.appField)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -793,7 +794,7 @@ struct FinanzenView: View {
                     }
                 }
                 .padding(12)
-                .background(Color.white.opacity(0.70))
+                .background(Color.appField)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -834,7 +835,7 @@ struct FinanzenView: View {
                     }
                 }
                 .padding(12)
-                .background(Color.white.opacity(0.70))
+                .background(Color.appField)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -876,7 +877,7 @@ struct FinanzenView: View {
                     }
                 }
                 .padding(12)
-                .background(Color.white.opacity(0.70))
+                .background(Color.appField)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -929,7 +930,7 @@ struct FinanzenView: View {
                     }
                 }
                 .padding(12)
-                .background(Color.white.opacity(0.70))
+                .background(Color.appField)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -977,7 +978,7 @@ struct FinanzenSwipeToDeleteRow<Content: View>: View {
 
                         Image(systemName: "trash.fill")
                             .font(.headline.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.appOnAccent)
                     }
                     .frame(width: deleteAreaWidth)
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))

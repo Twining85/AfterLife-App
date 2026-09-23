@@ -3,6 +3,7 @@ import SwiftData
 import UIKit
 
 struct HomeNavigation: View {
+    @Environment(\.appLayout) private var appLayout
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.modelContext) private var modelContext
     @AppStorage("aktiveUserID") private var aktiveUserID = ""
@@ -44,8 +45,8 @@ struct HomeNavigation: View {
     @State private var recoveryVorhanden = false
     @State private var zugriffsFehler = ""
 
-    private let akzent = Color(red: 0.16, green: 0.36, blue: 0.42)
-    private let hintergrund = Color(red: 0.975, green: 0.98, blue: 0.97)
+    private let akzent = Color.appAccent
+    private let hintergrund = Color.appCanvas
 
     private var aktivesProfil: ProfilModell? {
         guard let userID = UUID(uuidString: aktiveUserID) else { return nil }
@@ -288,16 +289,20 @@ struct HomeNavigation: View {
         NavigationStack {
             GeometryReader { geometry in
                 ScrollView {
-                    ZStack(alignment: .bottom) {
-                        hero
-
-                        Image("Icon1_trans")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 118, height: 44)
-                            .padding(.bottom, 6)
-                            .opacity(0.84)
-                            .accessibilityLabel("Tschlüssli")
+                    Group {
+                        if appLayout.prefersLinearNavigation {
+                            VStack(spacing: 12) {
+                                hero
+                                footerLogo
+                                    .padding(.bottom, 6)
+                            }
+                        } else {
+                            ZStack(alignment: .bottom) {
+                                hero
+                                footerLogo
+                                    .padding(.bottom, 6)
+                            }
+                        }
                     }
                     .frame(width: geometry.size.width)
                     .frame(minHeight: geometry.size.height)
@@ -424,7 +429,7 @@ struct HomeNavigation: View {
                     } label: {
                         Text("Auswahl übernehmen")
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.appOnAccent)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 10)
                             .background(akzent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -473,7 +478,7 @@ struct HomeNavigation: View {
                             Button { oeffne(schritt) } label: {
                                 Text("Weiter")
                                     .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(Color.appOnAccent)
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 9)
                                     .background(akzent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -489,11 +494,11 @@ struct HomeNavigation: View {
                 }
             }
         }
-        .padding(16)
-        .background(.white.opacity(0.88), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(.white.opacity(0.8)))
-        .shadow(color: .black.opacity(0.06), radius: 12, y: 5)
-        .padding(.horizontal, 20)
+        .padding(appLayout.cardPadding)
+        .background(Color.appRaisedCard, in: RoundedRectangle(cornerRadius: appLayout.cardCornerRadius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: appLayout.cardCornerRadius, style: .continuous).stroke(Color.appBorder))
+        .shadow(color: Color.appShadow, radius: 12, y: 5)
+        .appPagePadding()
         .padding(.bottom, 18)
     }
 
@@ -501,12 +506,16 @@ struct HomeNavigation: View {
         heroBild
     }
 
+    private var footerLogo: some View {
+        TschluessliLogo()
+            .frame(width: 118, height: 44)
+            .opacity(0.84)
+            .accessibilityLabel("Tschlüssli")
+    }
+
     private var heroBild: some View {
-        VStack(spacing: 18) {
-            ViewThatFits(in: .horizontal) {
-                homeKopfzeile(profilbildGroesse: 86)
-                homeKopfzeile(profilbildGroesse: 72)
-            }
+        VStack(spacing: appLayout.sectionSpacing) {
+            homeKopfzeile(profilbildGroesse: appLayout.profileImageSize)
 
             vorsorgeStatusKarte
 
@@ -524,7 +533,7 @@ struct HomeNavigation: View {
                     .clipped()
                     .overlay {
                         LinearGradient(
-                            colors: [Color.white.opacity(0.08), hintergrund.opacity(0.56), hintergrund],
+                            colors: [hintergrund.opacity(0.08), hintergrund.opacity(0.56), hintergrund],
                             startPoint: .trailing,
                             endPoint: .leading
                         )
@@ -534,7 +543,7 @@ struct HomeNavigation: View {
                     }
                     .overlay {
                         LinearGradient(
-                            colors: [.clear, Color.white.opacity(0.46), Color.white.opacity(0.72)],
+                            colors: [.clear, hintergrund.opacity(0.46), hintergrund.opacity(0.72)],
                             startPoint: .center,
                             endPoint: .bottom
                         )
@@ -554,8 +563,9 @@ struct HomeNavigation: View {
                     .overlay {
                         LinearGradient(
                             stops: [
-                                .init(color: hintergrund.opacity(0.38), location: 0),
-                                .init(color: .clear, location: 0.12),
+                                .init(color: hintergrund, location: 0),
+                                .init(color: hintergrund.opacity(0.70), location: 0.045),
+                                .init(color: .clear, location: 0.16),
                                 .init(color: .clear, location: 0.80),
                                 .init(color: hintergrund.opacity(0.76), location: 1)
                             ],
@@ -583,7 +593,7 @@ struct HomeNavigation: View {
                 } label: {
                     Label("Weiteres Dossier hinzufügen", systemImage: "qrcode.viewfinder")
                         .font(.headline)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.appOnAccent)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 13)
                         .background(akzent, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -704,8 +714,9 @@ struct HomeNavigation: View {
                     .font(.title3.weight(.medium))
                     .foregroundStyle(.secondary)
                 Text("\(anzeigename) 👋")
-                    .font(.system(size: 38, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color(red: 0.08, green: 0.12, blue: 0.18))
+                    .font(.largeTitle.bold())
+                    .fontDesign(.rounded)
+                    .foregroundStyle(Color.appPrimaryText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
                 Text("Schön, dass du heute an deine Vorsorge denkst.")
@@ -719,7 +730,7 @@ struct HomeNavigation: View {
             Button { ziel = .profil } label: {
                 ZStack(alignment: .bottomTrailing) {
                     Circle()
-                        .fill(Color(red: 0.96, green: 0.95, blue: 0.92))
+                        .fill(Color.appCard)
                         .frame(width: profilbildGroesse, height: profilbildGroesse)
                         .overlay {
                             if let daten = aktivesProfil?.profilbildDaten,
@@ -735,43 +746,107 @@ struct HomeNavigation: View {
                                     .foregroundStyle(akzent.opacity(0.55))
                             }
                         }
-                        .overlay(Circle().stroke(.white.opacity(0.9), lineWidth: 3))
+                        .overlay(Circle().stroke(Color.appBorder, lineWidth: 3))
                         .shadow(color: akzent.opacity(0.14), radius: 14, y: 8)
 
                     Image(systemName: "gearshape.fill")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(akzent)
                         .frame(width: 31, height: 31)
-                        .background(.white, in: Circle())
-                        .shadow(color: .black.opacity(0.10), radius: 7, y: 3)
+                        .background(Color.appRaisedCard, in: Circle())
+                        .shadow(color: Color.appShadow, radius: 7, y: 3)
                 }
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Profil öffnen")
         }
-        .padding(.horizontal, 24)
+        .appPagePadding()
     }
 
     private var orbitNavigation: some View {
+        Group {
+            if appLayout.prefersLinearNavigation {
+                barrierearmeNavigation
+            } else {
+                orbitDarstellung
+            }
+        }
+    }
+
+    /// Bei sehr grossen Systemschriftgrössen wird die dekorative Umlaufbahn
+    /// zu einer linearen Navigation. So bleiben Texte vollständig lesbar und
+    /// die Bedienflächen wachsen mit ihrem Inhalt.
+    private var barrierearmeNavigation: some View {
+        VStack(spacing: 12) {
+            Button { exportAnzeigen = true } label: {
+                Label("Mein Vorsorge-Dossier", systemImage: "doc.text.fill")
+                    .font(.headline)
+                    .foregroundStyle(Color.appOnAccent)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(appLayout.cardPadding)
+                    .background(akzent, in: RoundedRectangle(cornerRadius: appLayout.cardCornerRadius))
+            }
+            .buttonStyle(.plain)
+
+            ForEach(HomeNavigationKnoten.satelliten) { knoten in
+                Button { oeffne(knoten) } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: knoten.symbol)
+                            .font(appLayout.prefersCompactNavigationIcons
+                                ? .body.weight(.semibold)
+                                : .title3.weight(.semibold))
+                            .frame(width: 32)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(knoten.titel).font(.headline)
+                            Text(knoten == .dossierVon ? dossierVonAnderenUntertitel : knoten.untertitel)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 8)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.bold())
+                    }
+                    .foregroundStyle(knoten.textFarbe)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(appLayout.cardPadding)
+                    .background(knoten.flaeche, in: RoundedRectangle(cornerRadius: appLayout.cardCornerRadius))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(knoten.titel)
+            }
+        }
+        .appPagePadding()
+    }
+
+    private var orbitDarstellung: some View {
         GeometryReader { proxy in
             let breite = proxy.size.width
+            // Flüssige Skalierung anhand des real verfügbaren Containers.
+            // 430 pt entsprechen der grosszügigen Referenzdarstellung; auf
+            // schmaleren oder breiteren Geräten wird ohne Modellabfrage
+            // proportional skaliert und nur an sinnvollen Grenzen geklemmt.
+            let scale = min(max(breite / 430, 0.84), 1)
             let radiusX = min(breite * 0.34, 145)
-            let radiusY: CGFloat = 176
+            let radiusY: CGFloat = 176 * scale
+            let orbitMitteY: CGFloat = 255 * scale
+            let orbitHoehe: CGFloat = 510 * scale
+            let kernGroesse: CGFloat = 178 * scale
 
             ZStack {
                 ForEach(HomeNavigationKnoten.satelliten) { knoten in
                     Path { pfad in
-                        let mittelpunkt = CGPoint(x: breite / 2, y: 255)
+                        let knotenDurchmesser = effektiverKnotenDurchmesser(knoten)
+                        let mittelpunkt = CGPoint(x: breite / 2, y: orbitMitteY)
                         let punkt = aktuellePosition(fuer: knoten, radiusX: radiusX, radiusY: radiusY)
                         let distanz = max(hypot(punkt.width, punkt.height), 1)
                         let richtung = CGSize(width: punkt.width / distanz, height: punkt.height / distanz)
                         let start = CGPoint(
-                            x: mittelpunkt.x + richtung.width * 81,
-                            y: mittelpunkt.y + richtung.height * 81
+                            x: mittelpunkt.x + richtung.width * (kernGroesse / 2 - 8),
+                            y: mittelpunkt.y + richtung.height * (kernGroesse / 2 - 8)
                         )
                         let ende = CGPoint(
-                            x: mittelpunkt.x + punkt.width - richtung.width * (knoten.groesse / 2 - 8),
-                            y: mittelpunkt.y + punkt.height - richtung.height * (knoten.groesse / 2 - 8)
+                            x: mittelpunkt.x + punkt.width - richtung.width * (knotenDurchmesser * scale / 2 - 8),
+                            y: mittelpunkt.y + punkt.height - richtung.height * (knotenDurchmesser * scale / 2 - 8)
                         )
                         let mitte = CGPoint(x: (start.x + ende.x) / 2, y: (start.y + ende.y) / 2)
                         let normal = CGSize(width: -richtung.height, height: richtung.width)
@@ -796,7 +871,7 @@ struct HomeNavigation: View {
                 }
 
                 ForEach(HomeNavigationKnoten.satelliten) { knoten in
-                    knotenAnsicht(knoten)
+                    knotenAnsicht(knoten, scale: scale)
                     .contentShape(Circle())
                     .offset(aktuellePosition(fuer: knoten, radiusX: radiusX, radiusY: radiusY))
                     .opacity(orbitAnimationsFortschritt)
@@ -811,39 +886,49 @@ struct HomeNavigation: View {
                 Button { exportAnzeigen = true } label: {
                     VStack(spacing: 8) {
                         Image(systemName: "doc.text.fill")
-                            .font(.system(size: 30, weight: .semibold))
+                            .font(.title2.weight(.semibold))
                         Text("Mein\nVorsorge-Dossier")
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .font(.headline.bold())
+                            .fontDesign(.rounded)
                             .multilineTextAlignment(.center)
                         Text("\(anzahlBereicheMitDaten) von 7 Bereichen\nausgefüllt")
                             .font(.caption)
-                            .foregroundStyle(.white.opacity(0.82))
+                            .foregroundStyle(Color.appOnAccent.opacity(0.82))
                             .multilineTextAlignment(.center)
                     }
-                    .foregroundStyle(.white)
-                    .frame(width: 178, height: 178)
+                    .foregroundStyle(Color.appOnAccent)
+                    .frame(width: kernGroesse, height: kernGroesse)
                     .background(akzent, in: Circle())
-                    .overlay(Circle().stroke(.white.opacity(0.34), lineWidth: 2))
+                    .overlay(Circle().stroke(Color.appOnAccent.opacity(0.34), lineWidth: 2))
                     .shadow(color: akzent.opacity(0.24), radius: 18, y: 9)
                 }
                 .buttonStyle(.plain)
             }
-            .frame(width: breite, height: 510)
+            .frame(width: breite, height: orbitHoehe)
             .onAppear { starteOrbitAnimation() }
         }
-        .frame(height: 510)
+        .containerRelativeFrame(.horizontal) { breite, _ in
+            breite
+        }
+        .aspectRatio(430 / 510, contentMode: .fit)
+        .frame(minHeight: 428, maxHeight: 510)
         .padding(.top, -20)
     }
 
-    private func knotenAnsicht(_ knoten: HomeNavigationKnoten) -> some View {
-        ZStack {
+    private func knotenAnsicht(_ knoten: HomeNavigationKnoten, scale: CGFloat) -> some View {
+        let durchmesser = effektiverKnotenDurchmesser(knoten)
+
+        return ZStack {
             Circle().fill(knoten.flaeche)
 
-            VStack(spacing: 5) {
+            VStack(spacing: knoten == .bereiche ? 3 : 5) {
                 Image(systemName: knoten.symbol)
-                    .font(.system(size: 23, weight: .semibold))
+                    .font(appLayout.prefersCompactNavigationIcons
+                        ? .body.weight(.semibold)
+                        : .title3.weight(.semibold))
                 Text(knoten.titel)
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .font(.subheadline.bold())
+                    .fontDesign(.rounded)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(knoten == .dossierVon ? dossierVonAnderenUntertitel : knoten.untertitel)
@@ -862,10 +947,13 @@ struct HomeNavigation: View {
                 }
             }
             .foregroundStyle(knoten.textFarbe)
-            .padding(.horizontal, 10)
+            .padding(.horizontal, knoten == .bereiche ? 8 : 10)
             .offset(y: -3)
         }
-        .frame(width: knoten.groesse, height: knoten.groesse)
+        // Den gesamten Knoten skalieren – nicht nur seinen Kreis. Andernfalls
+        // bleiben Icon und Text in Originalgrösse und ragen auf schmalen
+        // Displays aus dem verkleinerten Kreis heraus.
+        .frame(width: durchmesser, height: durchmesser)
         .overlay(Circle().stroke(knoten.farbe.opacity(0.48), style: StrokeStyle(lineWidth: 1.5, dash: knoten == .dossierVon ? [7, 6] : [])))
         .overlay(alignment: .bottom) {
             if knoten == .teilen, !offeneErweiterungsanfragen.isEmpty {
@@ -874,7 +962,7 @@ struct HomeNavigation: View {
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .frame(maxWidth: 108)
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.appOnAccent)
                 .padding(.horizontal, 7)
                 .padding(.vertical, 4)
                 .background(Color.red, in: Capsule())
@@ -885,6 +973,20 @@ struct HomeNavigation: View {
             }
         }
         .shadow(color: knoten.farbe.opacity(0.13), radius: 13, y: 6)
+        .scaleEffect(scale)
+    }
+
+    private func effektiverKnotenDurchmesser(_ knoten: HomeNavigationKnoten) -> CGFloat {
+        guard appLayout.dynamicTypeSize >= .xLarge else { return knoten.groesse }
+
+        return switch knoten {
+        case .bereiche:
+            knoten.groesse + 10
+        case .erinnerungen:
+            knoten.groesse + 8
+        default:
+            knoten.groesse
+        }
     }
 
     private var erinnerungenSheet: some View {
@@ -1042,6 +1144,7 @@ enum DossierErstellungsart: String, CaseIterable, Identifiable {
         case .selbstaendig: "Selbständig"
         }
     }
+
 }
 
 private enum GefuehrterDossierSchritt: Hashable {
@@ -1220,11 +1323,11 @@ private enum HomeNavigationKnoten: String, CaseIterable, Identifiable {
     }
 
     var farbe: Color {
-        Color(red: 0.16, green: 0.36, blue: 0.42)
+        Color.appAccent
     }
 
     var flaeche: Color {
-        Color.white.opacity(0.94)
+        Color.appRaisedCard
     }
 
     var textFarbe: Color { farbe }

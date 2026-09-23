@@ -2,14 +2,15 @@ import SwiftUI
 import SwiftData
 
 struct AbosView: View {
+    @Environment(\.appLayout) private var appLayout
     var dossierKontext: DossierKontext = .eigenesDossier(dossierID: UUID())
     @Environment(\.modelContext) private var modelContext
     @Query private var gespeicherteAboModelle: [AboModell]
     @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
 
-    private let abosHintergrundFarbe = Color(red: 0.985, green: 0.975, blue: 0.955)
-    private let abosKartenFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
-    private let abosAkzentFarbe = Color(red: 0.46, green: 0.36, blue: 0.62)
+    private let abosHintergrundFarbe = Color.appCanvas
+    private let abosKartenFarbe = Color.appCard
+    private let abosAkzentFarbe = Color.areaSubscriptions
 
     @State private var showAddAboSheet = false
     @State private var aktiverAboSheetKontext: AboSheetKontext?
@@ -59,12 +60,12 @@ struct AbosView: View {
                 ScrollView {
                     VStack(spacing: 24) {
                         abosHero
-                            .padding(.horizontal, 16)
+                            .appPagePadding()
                             .padding(.top, 20)
 
                         abosTypChips
                             .disabled(dossierKontext.istReadOnly)
-                            .padding(.horizontal, 16)
+                            .appPagePadding()
 
                         if (aktuellesAboModell?.abos.isEmpty ?? true) && ausgewaehlteAboTypen.isEmpty {
                             Text("Hier kannst du digitale Abonnemente, Online-Profile, Streamingdienste, ÖV-Abos o.ä erfassen.")
@@ -78,7 +79,7 @@ struct AbosView: View {
                                     aboSection(gruppe)
                                 }
                             }
-                            .padding(.horizontal, 16)
+                            .appPagePadding()
                         }
                     }
                     .padding(.bottom, 24)
@@ -426,7 +427,7 @@ struct AbosView: View {
                         .padding(.horizontal, 6)
                         .padding(.vertical, 3)
                         .background(
-                            isSelected ? Color.white.opacity(0.95) : abosAkzentFarbe,
+                            isSelected ? Color.appOnAccent : abosAkzentFarbe,
                             in: Capsule()
                         )
                 }
@@ -609,7 +610,7 @@ struct AbosView: View {
                     } label: {
                         Image(systemName: "plus")
                             .font(.title2.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.appOnAccent)
                             .frame(width: 42, height: 42)
                             .background(Circle().fill(abosAkzentFarbe))
                             .shadow(color: abosAkzentFarbe.opacity(0.22), radius: 6, x: 0, y: 3)
@@ -697,7 +698,7 @@ struct AbosView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 12)
         .padding(.horizontal, 14)
-        .background(Color.white.opacity(0.68))
+        .background(Color.appField)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -1401,7 +1402,7 @@ struct AboSwipeToDeleteRow<Content: View>: View {
 
                         Image(systemName: "trash.fill")
                             .font(.headline.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.appOnAccent)
                     }
                     .frame(width: deleteAreaWidth)
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))

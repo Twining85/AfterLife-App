@@ -50,14 +50,14 @@ enum DossierBereich: String, CaseIterable, Identifiable, Hashable {
 
     var akzentFarbe: Color {
         switch self {
-        case .profil: return Color(red: 0.16, green: 0.36, blue: 0.42)
-        case .gesundheit: return Color(red: 0.76, green: 0.24, blue: 0.30)
-        case .wuensche: return Color(red: 0.72, green: 0.42, blue: 0.28)
-        case .finanzen: return Color(red: 0.62, green: 0.47, blue: 0.18)
-        case .hinterbliebene: return Color(red: 0.24, green: 0.50, blue: 0.34)
-        case .dokumente: return Color(red: 0.22, green: 0.43, blue: 0.68)
-        case .abos: return Color(red: 0.46, green: 0.36, blue: 0.62)
-        case .herzensstuecke: return Color(red: 0.78, green: 0.34, blue: 0.16)
+        case .profil: return Color.appAccent
+        case .gesundheit: return Color.areaHealth
+        case .wuensche: return Color.areaWishes
+        case .finanzen: return Color.areaFinance
+        case .hinterbliebene: return Color.areaContacts
+        case .dokumente: return Color.areaDocuments
+        case .abos: return Color.areaSubscriptions
+        case .herzensstuecke: return Color.areaKeepsakes
         }
     }
 
@@ -186,6 +186,7 @@ private enum DossierNavigationRouter {
 }
 
 struct DossierFloatingNavigation: View {
+    @Environment(\.appLayout) private var appLayout
     let aktiverBereich: DossierBereich
     let dossierKontext: DossierKontext?
     @Query private var dossierZugriffe: [DossierZugriffModell]
@@ -208,8 +209,17 @@ struct DossierFloatingNavigation: View {
 
     private let chipSpacing: CGFloat = 8
     private let inhaltHorizontalPadding: CGFloat = 10
-    private let aktiverChipBreite: CGFloat = 72
-    private let inaktiverChipBreite: CGFloat = 62
+    private var zeigtBeschriftungen: Bool {
+        !appLayout.prefersLinearNavigation
+    }
+
+    private var aktiverChipBreite: CGFloat {
+        zeigtBeschriftungen ? 72 : 56
+    }
+
+    private var inaktiverChipBreite: CGFloat {
+        zeigtBeschriftungen ? 62 : 50
+    }
 
     private var bereiche: [DossierBereich] {
         let reihenfolge: String
@@ -361,7 +371,7 @@ struct DossierFloatingNavigation: View {
         .background(glassBackground)
         .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
         .shadow(color: .black.opacity(0.11), radius: 16, x: 0, y: 7)
-        .padding(.horizontal, 20)
+        .padding(.horizontal, appLayout.pageInset)
         .padding(.bottom, -4)
         .navigationDestination(item: $zielBereich) { bereich in
             bereich.zielView(dossierKontext: dossierKontext)
@@ -388,14 +398,16 @@ struct DossierFloatingNavigation: View {
 
         return VStack(spacing: 4) {
             Image(systemName: bereich.systemImage)
-                .font(.system(size: istAktiv ? 17 : 15, weight: .semibold))
-            Text(bereich.titel)
-                .font(.system(size: 10, weight: istAktiv ? .semibold : .medium, design: .rounded))
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
+                .font((istAktiv ? Font.body : Font.callout).weight(.semibold))
+            if zeigtBeschriftungen {
+                Text(bereich.titel)
+                    .font(.caption2.weight(istAktiv ? .semibold : .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
         }
-        .foregroundStyle(istAktiv ? .white : bereich.akzentFarbe)
-        .frame(width: istAktiv ? 72 : 62, height: 56)
+        .foregroundStyle(istAktiv ? Color.appOnAccent : bereich.akzentFarbe)
+        .frame(width: istAktiv ? aktiverChipBreite : inaktiverChipBreite, height: 56)
         .background(
             chipBackground(
                 fuer: bereich,
@@ -409,7 +421,9 @@ struct DossierFloatingNavigation: View {
         .animation(.spring(response: 0.28, dampingFraction: 0.82), value: istAktiv)
         .animation(.linear(duration: 0.035), value: interaktionsPosition)
         .animation(.linear(duration: 0.035), value: istHervorgehoben)
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel(bereich.titel)
+        .accessibilityAddTraits(istAktiv ? .isSelected : [])
     }
 
     @ViewBuilder
@@ -871,7 +885,7 @@ private struct DossierFloatingNavigationHandle: View {
         } label: {
             ZStack {
                 Capsule(style: .continuous)
-                    .fill(Color(red: 0.16, green: 0.36, blue: 0.42).opacity(0.74))
+                    .fill(Color.appAccent.opacity(0.74))
                     .frame(width: 4, height: 30)
                     .shadow(color: Color.white.opacity(0.42), radius: 2, x: -1, y: 0)
             }
