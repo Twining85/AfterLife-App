@@ -3,7 +3,6 @@ import SwiftData
 import PhotosUI
 import Photos
 import UniformTypeIdentifiers
-import QuickLook
 import AVKit
 
 
@@ -287,7 +286,7 @@ struct WuenscheView: View {
                     ShareSheet(activityItems: [dokumentExportURL])
                 }
             }
-            .quickLookPreview($dokumentVorschauURL)
+            .documentPreviewSheet(url: $dokumentVorschauURL)
             .onChange(of: nachrufBildAuswahl) { _, neueAuswahl in
                 Task {
                     if let data = try? await neueAuswahl?.loadTransferable(type: Data.self) {
@@ -369,14 +368,6 @@ struct WuenscheView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    if let lesemodusHinweis = dossierKontext.lesemodusHinweis {
-                        Text(lesemodusHinweis)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(wuenscheAccentColor)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 7)
-                            .background(wuenscheAccentColor.opacity(0.10), in: Capsule())
-                    }
                 }
             }
 
@@ -943,7 +934,7 @@ struct WuenscheView: View {
                     .disabled(auswaehlbareHinterbliebenenKontakte.isEmpty)
 
                     if auswaehlbareHinterbliebenenKontakte.isEmpty {
-                        Text("Erfasse zuerst eine Person unter «Menschen meines Vertrauens». Bereits gewählte Personen werden hier nicht nochmals angeboten.")
+                        Text("Erfasse zuerst eine Person unter «Wichtige Menschen». Bereits gewählte Personen werden hier nicht nochmals angeboten.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -1622,6 +1613,7 @@ struct WuenscheView: View {
 
     private func migriereBestehendeWuenscheKontaktKopien() {
         let kopien = gespeicherteHinterbliebeneKontakte.filter(istWuenscheKontaktKopie)
+        guard !kopien.isEmpty else { return }
         var masterKontakte = gespeicherteHinterbliebeneKontakte.filter { !istWuenscheKontaktKopie($0) }
 
         for kopie in kopien {
@@ -1651,6 +1643,7 @@ struct WuenscheView: View {
         }
 
         try? modelContext.save()
+        VorsorgeBereichStatusStore.markiereBearbeitet(.hinterbliebene)
     }
 
     private func istGleicherKontakt(_ gespeicherterKontakt: HinterbliebeneModell, wie kontakt: BeisetzungsKontakt) -> Bool {

@@ -75,7 +75,7 @@ struct ReloginView: View {
         NavigationStack {
             Group {
                 if istEingeloggt {
-                    Home()
+                    HomeNavigation()
                 } else if hatBestehendenLogin {
                     loginAnsicht
                 } else {

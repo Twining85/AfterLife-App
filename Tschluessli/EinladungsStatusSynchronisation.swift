@@ -72,7 +72,7 @@ enum EinladungsStatusSynchronisation {
         }
 
         if hatWeiterenAktivenZugriff {
-            modelContext.delete(zugriff)
+            zugriff.zugriffWiderrufen(notizText: "Die Verbindung wurde von der vorsorgenden Person entfernt.")
             return
         }
 
@@ -93,7 +93,10 @@ enum EinladungsStatusSynchronisation {
            let dossier = dossiers.first(where: { $0.dossierID == zugriff.dossierID }) {
             modelContext.delete(dossier)
         }
-        modelContext.delete(zugriff)
+        // Der Zugriff bleibt als inaktiver Verlaufseintrag erhalten, damit die
+        // Vertrauensperson den entfernten Eintrag weiterhin in ihrer Übersicht
+        // erkennt. Sämtliche zuvor geladenen Dossierinhalte wurden oben gelöscht.
+        zugriff.zugriffWiderrufen(notizText: "Die Verbindung wurde von der vorsorgenden Person entfernt.")
     }
 
     private static func uebernehme(
@@ -155,16 +158,65 @@ enum FreigegebenesDossierSync {
               zugriff.vorsorgendeUserID != userID, zugriff.istAktiv else {
             throw PushFehler.zugriffVerweigert
         }
-        let status = try await PushEinladungsService.shared.status(token: token)
-        guard status.status == "accepted", status.requesterUserID == userID,
+        var status = try await PushEinladungsService.shared.status(token: token)
+        if ["open", "pending", "declined"].contains(status.status),
+           status.requesterUserID != userID {
+            do {
+                _ = try await PushEinladungsService.shared.einladungPruefen(token: token)
+                status = try await PushEinladungsService.shared.status(token: token)
+            } catch {
+                throw PushFehler.server(
+                    "Der Zugang konnte noch nicht aktiviert werden. Bitte versuche es erneut oder scanne die Einladung nochmals."
+                )
+            }
+        }
+        guard ["open", "pending", "declined", "accepted"].contains(status.status),
+              status.requesterUserID == userID,
               status.dossierID == zugriff.dossierID else {
             throw PushFehler.zugriffVerweigert
         }
-        let cloud = try await PushEinladungsService.shared.freigegebenesDossier(token: token)
+        let cloud: CloudFreigegebenesDossier
+        do {
+            cloud = try await PushEinladungsService.shared.freigegebenesDossier(token: token)
+        } catch PushFehler.zugriffVerweigert
+                    where ["open", "pending", "declined"].contains(status.status) {
+            // Ältere App-/Serverstände konnten die Einladung bereits lokal
+            // speichern, ohne den dazugehörigen Basis-Grant anzulegen. Ein
+            // erneutes Validieren repariert diesen Zustand idempotent.
+            do {
+                _ = try await PushEinladungsService.shared.einladungPruefen(token: token)
+                cloud = try await PushEinladungsService.shared.freigegebenesDossier(token: token)
+            } catch {
+                throw PushFehler.server(
+                    "Der Zugang konnte noch nicht aktiviert werden. Bitte versuche es erneut oder scanne die Einladung nochmals."
+                )
+            }
+        }
         guard cloud.dossierID == zugriff.dossierID,
               cloud.ownerUserID == zugriff.vorsorgendeUserID else {
             throw PushFehler.ungueltigeAntwort
         }
+        let sichtbarkeitsKey = "freigegebeneBereiche.\(cloud.dossierID.uuidString.lowercased())"
+        let zuvorFreigegeben = Set(
+            UserDefaults.standard.string(forKey: sichtbarkeitsKey)?
+                .split(separator: ",").map(String.init) ?? []
+        )
+        let jetztFreigegeben = Set(cloud.visibleSectionTypes)
+        for entzogenerBereich in zuvorFreigegeben.subtracting(jetztFreigegeben) {
+            try? DossierBereichImport.loesche(
+                bereich: entzogenerBereich,
+                dossierID: cloud.dossierID,
+                in: modelContext
+            )
+        }
+        UserDefaults.standard.set(
+            cloud.visibleSectionTypes.joined(separator: ","),
+            forKey: sichtbarkeitsKey
+        )
+        UserDefaults.standard.set(
+            cloud.availableSectionTypes.joined(separator: ","),
+            forKey: "verfuegbareBereiche.\(cloud.dossierID.uuidString.lowercased())"
+        )
         if let dossier = vorhandeneDossiers.first(where: { $0.dossierID == cloud.dossierID }) {
             dossier.titel = cloud.title
             dossier.aktualisiertAm = Date()
@@ -185,10 +237,6 @@ enum FreigegebenesDossierSync {
             // Die bestehende Schlüsselverwaltung gehört ausschliesslich zum
             // eigenen Konto und speichert auch dessen Recovery-Paket.
             // Fremde verschlüsselte Daten dürfen diesen Pfad nicht verwenden.
-            if bereich.sectionType == "zugaenge", !bereich.deleted {
-                fehlerhafteBereiche.append("verschlüsselte Zugänge (Schlüsselfreigabe fehlt)")
-                continue
-            }
             do {
                 if bereich.deleted {
                     try DossierBereichImport.loesche(
@@ -196,6 +244,27 @@ enum FreigegebenesDossierSync {
                         dossierID: cloud.dossierID,
                         in: modelContext
                     )
+                } else if bereich.sectionType == "zugaenge",
+                          let payload = bereich.payload,
+                          let freigabePaket = cloud.sharedKeyPackage {
+                    let encoder = JSONEncoder()
+                    let verschluesselt = try JSONDecoder().decode(
+                        VerschluesselterCloudBereich.self,
+                        from: encoder.encode(payload)
+                    )
+                    let klartext = try await CloudFeldVerschluesselung.shared.entschluesseln(
+                        verschluesselt,
+                        als: CloudZugangsDaten.self,
+                        freigabePaket: freigabePaket,
+                        token: token
+                    )
+                    try DossierBereichImport.importiereZugangsDaten(
+                        klartext,
+                        dossierID: cloud.dossierID,
+                        in: modelContext
+                    )
+                } else if bereich.sectionType == "zugaenge", !bereich.deleted {
+                    fehlerhafteBereiche.append("verschlüsselte Zugänge (Schlüsselfreigabe fehlt)")
                 } else if let payload = bereich.payload {
                     let encoder = JSONEncoder()
                     encoder.dateEncodingStrategy = .iso8601

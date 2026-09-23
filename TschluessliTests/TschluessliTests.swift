@@ -200,7 +200,7 @@ struct TschluessliTests {
     @Test func standardBereichsadapterSindEindeutigUndVollstaendig() throws {
         let registry = try DossierBereichAdapterRegistry()
         #expect(registry.bereiche == [
-            "finanzen", "gesundheit", "herzensstuecke", "kontakte",
+            "dokumente", "dossier_einstellungen", "finanzen", "gesundheit", "herzensstuecke", "kontakte",
             "profil", "wuensche", "zugaenge"
         ])
     }

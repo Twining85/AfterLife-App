@@ -74,7 +74,7 @@ struct GesundheitView: View {
         }
         .background(Color(.systemBackground))
         .navigationTitle("Gesundheit")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             if datensatz == nil {
                 if let vorhanden = gesundheitDatensaetze.first(where: { $0.dossierID == zielDossierID })
@@ -111,7 +111,7 @@ struct GesundheitView: View {
         }
         .background(Color(.systemBackground))
         .navigationTitle("Gesundheit")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .dossierFloatingNavigation(.gesundheit, dossierKontext: dossierKontext)
 #endif
     }
@@ -253,7 +253,7 @@ struct GesundheitView: View {
             .disabled(auswaehlbareHausarztKontakte.isEmpty)
 
             if auswaehlbareHausarztKontakte.isEmpty {
-                Text("Erfasse zuerst unter «Menschen meines Vertrauens» einen Kontakt der Kategorie «Andere».")
+                Text("Erfasse zuerst unter «Wichtige Menschen» einen Kontakt der Kategorie «Andere».")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

@@ -115,14 +115,6 @@ struct DokumenteView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    if let lesemodusHinweis = dossierKontext.lesemodusHinweis {
-                        Text(lesemodusHinweis)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(dokumenteAkzentFarbe)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 7)
-                            .background(dokumenteAkzentFarbe.opacity(0.10), in: Capsule())
-                    }
                 }
             }
 
@@ -325,6 +317,7 @@ struct DokumenteView: View {
 
                         if let dateiDaten = try? Data(contentsOf: url) {
                             let dokument = DokumenteModell(
+                                dossierID: zielDossierID,
                                 dateiName: url.lastPathComponent,
                                 kategorie: "Weitere Dokumente",
                                 hochgeladenAm: Date(),
@@ -993,6 +986,7 @@ struct DokumenteView: View {
         }
 
         let dokument = DokumenteModell(
+            dossierID: zielDossierID,
             dateiName: pendingScanDateiName,
             kategorie: "Weitere Dokumente",
             hochgeladenAm: Date(),
@@ -1106,6 +1100,7 @@ struct DokumenteView: View {
             if let data = try? await item.loadTransferable(type: Data.self),
                UIImage(data: data) != nil {
                 let photo = FotoalbumBildModell(
+                    dossierID: zielDossierID,
                     dateiName: "Foto_\(gespeicherteFotos.count + neueFotos.count + 1).jpg",
                     hinzugefuegtAm: Date(),
                     bildDaten: data,
@@ -1476,9 +1471,49 @@ struct DocumentScanner: UIViewControllerRepresentable {
     DokumenteView()
 }
 
-// This struct previews a document using QuickLook
+/// Zeigt eine Quick-Look-Vorschau mit einer immer erreichbaren Schliessen-Aktion.
+///
+/// Ein direkt in einem SwiftUI-Sheet präsentierter `QLPreviewController` erhält
+/// keine eigene Navigationsleiste. Insbesondere im Lesemodus eines fremden
+/// Dossiers konnte das Sheet deshalb nicht mehr geschlossen werden.
+struct DocumentPreview: View {
+    let url: URL
+    @Environment(\.dismiss) private var dismiss
 
-struct DocumentPreview: UIViewControllerRepresentable {
+    var body: some View {
+        NavigationStack {
+            QuickLookDocumentPreview(url: url)
+                .navigationTitle(url.lastPathComponent)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Schliessen") { dismiss() }
+                    }
+                }
+        }
+    }
+}
+
+extension View {
+    /// Präsentiert eine optionale Dokument-URL in der einheitlichen Vorschau
+    /// mit expliziter Schliessen-Aktion.
+    func documentPreviewSheet(url: Binding<URL?>) -> some View {
+        sheet(
+            isPresented: Binding(
+                get: { url.wrappedValue != nil },
+                set: { wirdAngezeigt in
+                    if !wirdAngezeigt { url.wrappedValue = nil }
+                }
+            )
+        ) {
+            if let previewURL = url.wrappedValue {
+                DocumentPreview(url: previewURL)
+            }
+        }
+    }
+}
+
+private struct QuickLookDocumentPreview: UIViewControllerRepresentable {
     let url: URL
 
     func makeUIViewController(context: Context) -> QLPreviewController {

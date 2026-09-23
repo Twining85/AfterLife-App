@@ -8,7 +8,7 @@
   "crons": [
     {
       "path": "/api/cron/auto-release-invitations",
-      "schedule": "* * * * *"
+      "schedule": "0 3 * * *"
     }
   ]
 }

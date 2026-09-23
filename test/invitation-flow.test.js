@@ -16,13 +16,14 @@ process.env.NODE_ENV = "test";
 afterEach(() => resetDatabasePoolForTests());
 
 test("prüft den QR-Code gegen die verifizierte Konto-E-Mail", async () => {
-  const pool = scriptedPool([{ rows: [{
+  const pool = scriptedPool([{ rows: [] }, { rows: [{
+    id: "0ca650a8-a78c-4ef0-b62f-cb640531b668",
     dossier_id: "9ca650a8-a78c-4ef0-b62f-cb640531b667",
     owner_user_id: "cbcb4c1c-289f-4719-b237-02c9c7534642",
     owner_name: "Anna Beispiel",
     invited_email: "trust@example.ch",
     expires_at: new Date("2026-09-20T10:00:00Z")
-  }] }]);
+  }] }, { rows: [] }, { rows: [] }, { rows: [] }]);
   setDatabasePoolForTests(pool);
   const res = responseRecorder();
   await handleInvitationOperation(
@@ -32,8 +33,13 @@ test("prüft den QR-Code gegen die verifizierte Konto-E-Mail", async () => {
     { id: "a1a14c1c-289f-4719-b237-02c9c7534642", email: "TRUST@example.ch" }
   );
   assert.equal(res.statusCode, 200);
-  assert.equal(pool.calls[0].parameters[1], "trust@example.ch");
-  assert.equal(pool.calls[0].parameters.includes("manipulated@example.ch"), false);
+  assert.equal(pool.calls[1].parameters[1], "trust@example.ch");
+  assert.equal(pool.calls[1].parameters.includes("manipulated@example.ch"), false);
+  assert.match(pool.calls[2].text, /requester_user_id/);
+  assert.match(pool.calls[3].text, /dossier_access_grants/);
+  assert.equal(pool.calls[2].parameters[0], "a1a14c1c-289f-4719-b237-02c9c7534642");
+  assert.equal(pool.calls[0].text, "BEGIN");
+  assert.equal(pool.calls[4].text, "COMMIT");
 });
 
 test("Scan allein erzeugt keine Anfrage und der bewusste Request meldet fehlende Push-Zustellung", async () => {
@@ -205,6 +211,8 @@ test("unterstützt beim Widerruf weiterhin installierte Apps ohne Token-Feld", a
 function scriptedPool(responses) {
   return {
     calls: [],
+    async connect() { return this; },
+    release() {},
     async query(text, parameters) {
       this.calls.push({ text: String(text), parameters });
       const response = responses.shift();

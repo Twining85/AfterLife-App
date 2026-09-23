@@ -211,14 +211,14 @@ struct DossierExportMapper {
     ) -> DossierPDFChapter {
         DossierPDFChapter(
             typ: .vertrauensperson,
-            titel: "Vertrauensperson",
-            beschreibung: "Die von dir hinterlegte Vertrauensperson und ihre Kontaktdaten.",
+            titel: "Wichtige Menschen",
+            beschreibung: "Die von dir hinterlegten wichtigen Menschen und ihre Kontaktdaten.",
             farbe: PDFThemeColor(red: 0.16, green: 0.36, blue: 0.42),
             sections: vertrauenspersonen.enumerated().map { index, person in
                 DossierPDFSection(
                     titel: vertrauenspersonen.count == 1
-                        ? "Vertrauensperson"
-                        : "Vertrauensperson \(index + 1)",
+                        ? "Wichtige Person"
+                        : "Wichtige Person \(index + 1)",
                     items: [
                         makeItem(label: "Name", value: person.vollerName, options: options),
                         makeItem(label: "Beziehung", value: person.beziehung, options: options),
@@ -245,7 +245,7 @@ struct DossierExportMapper {
             untertitel: subtitle,
             erstelltAm: erstelltAm,
             aktualisiertAm: aktualisiertAm,
-            vertraulichkeitshinweis: "Vertraulich. Dieses Dokument ist nur für die von dir bestimmten Vertrauenspersonen bestimmt.",
+            vertraulichkeitshinweis: "Vertraulich. Dieses Dokument ist nur für die von dir bestimmten wichtigen Menschen bestimmt.",
             kapitel: chapters,
             anhaenge: options.dokumenteAlsAnhangBeruecksichtigen ? attachments : []
         )

@@ -588,7 +588,7 @@ struct Registrierung: View {
             }
         }
         .fullScreenCover(isPresented: $homeVollbildAnzeigen) {
-            Home()
+            HomeNavigation()
                 .interactiveDismissDisabled()
         }
         .fullScreenCover(isPresented: $emailVerifizierungAnzeigen) {
@@ -875,6 +875,7 @@ struct Registrierung: View {
                 ))
             }
             aktivesDossierID = vorhandeneDossierID.uuidString
+            setzeDossierStartauswahlZurueck()
             return
         }
 
@@ -887,8 +888,16 @@ struct Registrierung: View {
         modelContext.insert(neuesDossier)
         profil.dossierID = neuesDossier.dossierID
         aktivesDossierID = neuesDossier.dossierID.uuidString
+        setzeDossierStartauswahlZurueck()
     }
 
+    private func setzeDossierStartauswahlZurueck() {
+        UserDefaults.standard.removeObject(forKey: "homeBereicheReihenfolge")
+        UserDefaults.standard.removeObject(forKey: "homeAktiveBereiche")
+        UserDefaults.standard.removeObject(forKey: "dossierErstellungsart")
+        UserDefaults.standard.removeObject(forKey: "uebersprungeneDossierSchritte")
+        UserDefaults.standard.removeObject(forKey: "dossierFloatingNavigationScrollOffset")
+    }
 
 }
 

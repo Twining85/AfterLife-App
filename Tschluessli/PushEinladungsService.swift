@@ -37,6 +37,9 @@ nonisolated struct CloudFreigegebenesDossier: Decodable, Sendable {
     let ownerEmail: String
     let ownerName: String
     let title: String
+    let sharedKeyPackage: String?
+    let availableSectionTypes: [String]
+    let visibleSectionTypes: [String]
     let sections: [CloudFreigegebenerBereich]
 }
 
@@ -70,14 +73,25 @@ actor PushEinladungsService {
     }
 
     func einladungRegistrieren(token: String, dossierID: UUID, email: String, ownerName: String) async throws {
+        let sharedKeyPackage = try await CloudFeldVerschluesselung.shared.schluesselFreigabePaket(token: token)
         _ = try await sende(
             pfad: "api/sync/push?operation=register-invitation",
             body: EinladungRegistrierenAnfrage(
                 token: token,
                 dossierID: dossierID,
                 email: email,
-                ownerName: ownerName
+                ownerName: ownerName,
+                sharedKeyPackage: sharedKeyPackage
             ),
+            antwort: LeereAntwort.self
+        )
+    }
+
+    func schluesselFreigeben(token: String) async throws {
+        let sharedKeyPackage = try await CloudFeldVerschluesselung.shared.schluesselFreigabePaket(token: token)
+        _ = try await sende(
+            pfad: "api/sync/push?operation=share-invitation-key",
+            body: SchluesselFreigabeAnfrage(token: token, sharedKeyPackage: sharedKeyPackage),
             antwort: LeereAntwort.self
         )
     }
@@ -115,9 +129,16 @@ actor PushEinladungsService {
     }
 
     func entscheiden(token: String, angenommen: Bool) async throws {
+        let sharedKeyPackage = angenommen
+            ? try await CloudFeldVerschluesselung.shared.schluesselFreigabePaket(token: token)
+            : nil
         _ = try await sende(
             pfad: "api/sync/push?operation=decide-invitation",
-            body: EntscheidungsAnfrage(token: token, decision: angenommen ? "accepted" : "declined"),
+            body: EntscheidungsAnfrage(
+                token: token,
+                decision: angenommen ? "accepted" : "declined",
+                sharedKeyPackage: sharedKeyPackage
+            ),
             antwort: LeereAntwort.self
         )
     }
@@ -202,10 +223,16 @@ private nonisolated struct EinladungRegistrierenAnfrage: Encodable {
     let dossierID: UUID
     let email: String
     let ownerName: String
+    let sharedKeyPackage: String
 }
+private nonisolated struct SchluesselFreigabeAnfrage: Encodable { let token: String; let sharedKeyPackage: String }
 private nonisolated struct TokenAnfrage: Encodable { let token: String }
 private nonisolated struct AnfrageSendenAnfrage: Encodable { let token: String; let requesterName: String }
-private nonisolated struct EntscheidungsAnfrage: Encodable { let token: String; let decision: String }
+private nonisolated struct EntscheidungsAnfrage: Encodable {
+    let token: String
+    let decision: String
+    let sharedKeyPackage: String?
+}
 private nonisolated struct EinladungWiderrufenAnfrage: Encodable {
     let token: String
     let dossierID: UUID

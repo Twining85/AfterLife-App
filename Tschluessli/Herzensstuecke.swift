@@ -187,6 +187,7 @@ struct HerzensstueckeView: View {
         let stueck = HerzensstueckModell(dossierID: zielDossierID)
         modelContext.insert(stueck)
         try? modelContext.save()
+        VorsorgeBereichStatusStore.markiereBearbeitet(.herzensstuecke)
         ausgewaehltesHerzensstueck = stueck
     }
 

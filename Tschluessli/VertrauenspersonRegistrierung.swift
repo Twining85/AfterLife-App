@@ -98,7 +98,7 @@ struct VertrauenspersonRegistrierung: View {
                 }
             }
             .navigationDestination(isPresented: $showHome) {
-                Home()
+                HomeNavigation()
             }
             .navigationDestination(isPresented: $showEinladungEmailVerifizierung) {
                 EinladungEmailVerifizierung(

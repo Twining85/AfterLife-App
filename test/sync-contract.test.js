@@ -10,9 +10,9 @@ import {
 
 const dossierID = "9ca650a8-a78c-4ef0-b62f-cb640531b667";
 
-test("akzeptiert den gemeinsamen Vertrag aller sieben Bereiche", () => {
+test("akzeptiert den gemeinsamen Vertrag aller neun Bereiche", () => {
   assert.deepEqual(Object.keys(supportedSectionVersions).sort(), [
-    "finanzen", "gesundheit", "herzensstuecke", "kontakte", "profil", "wuensche", "zugaenge"
+    "dokumente", "dossier_einstellungen", "finanzen", "gesundheit", "herzensstuecke", "kontakte", "profil", "wuensche", "zugaenge"
   ]);
   for (const sectionType of Object.keys(supportedSectionVersions)) {
     const mutation = parseMutation({

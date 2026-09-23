@@ -14,6 +14,14 @@ enum DossierBereich: String, CaseIterable, Identifiable, Hashable {
 
     var id: String { rawValue }
 
+    var cloudSectionType: String {
+        switch self {
+        case .hinterbliebene: return "kontakte"
+        case .abos: return "zugaenge"
+        default: return rawValue
+        }
+    }
+
     var titel: String {
         switch self {
         case .profil: return "Profil"
@@ -127,6 +135,17 @@ private enum DossierNavigationRuntimeState {
     static var sollNachBereichswechselAusklappen = false
 }
 
+private struct VorsorgeBereichRuecksprungKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+private extension EnvironmentValues {
+    var rueckkehrZuVorsorgeBereichen: Bool {
+        get { self[VorsorgeBereichRuecksprungKey.self] }
+        set { self[VorsorgeBereichRuecksprungKey.self] = newValue }
+    }
+}
+
 @MainActor
 private enum DossierNavigationRouter {
     static func navigateHome() {
@@ -179,6 +198,7 @@ struct DossierFloatingNavigation: View {
     @State private var beruehrterBereich: DossierBereich?
     @State private var interaktionsPosition: CGPoint?
     @State private var zielBereich: DossierBereich?
+    @State private var zeigtGesperrtenZugriff = false
     @State private var aktuellerScrollOffset: CGFloat = 0
     @State private var containerBreite: CGFloat = 0
     @State private var autoScrollGeschwindigkeit: CGFloat = 0
@@ -197,7 +217,21 @@ struct DossierFloatingNavigation: View {
         if let dossierKontext, dossierKontext.istFreigegebenesDossier {
             let suffix = dossierKontext.dossierID.uuidString.lowercased()
             reihenfolge = UserDefaults.standard.string(forKey: "homeBereicheReihenfolge.\(suffix)") ?? ""
-            aktiveBereiche = UserDefaults.standard.string(forKey: "homeAktiveBereiche.\(suffix)") ?? ""
+            let gespeicherteAktiveBereiche = UserDefaults.standard.string(
+                forKey: "homeAktiveBereiche.\(suffix)"
+            ) ?? ""
+            if gespeicherteAktiveBereiche.isEmpty && reihenfolge.isEmpty {
+                let sichtbareCloudBereiche = Set(
+                    UserDefaults.standard.string(forKey: "verfuegbareBereiche.\(suffix)")?
+                        .split(separator: ",").map(String.init) ?? []
+                )
+                aktiveBereiche = DossierBereich.allCases
+                    .filter { sichtbareCloudBereiche.contains($0.cloudSectionType) }
+                    .map(\.rawValue)
+                    .joined(separator: ",")
+            } else {
+                aktiveBereiche = gespeicherteAktiveBereiche
+            }
         } else {
             reihenfolge = homeBereicheReihenfolge
             aktiveBereiche = aktiveHomeBereiche
@@ -229,6 +263,17 @@ struct DossierFloatingNavigation: View {
     private func istBereichSichtbar(_ bereich: DossierBereich) -> Bool {
         guard dossierKontext?.istFreigegebenesDossier == true else {
             return true
+        }
+
+        if let dossierID = dossierKontext?.dossierID {
+            let sichtbareCloudBereiche = Set(
+                UserDefaults.standard.string(
+                    forKey: "verfuegbareBereiche.\(dossierID.uuidString.lowercased())"
+                )?.split(separator: ",").map(String.init) ?? []
+            )
+            if !sichtbareCloudBereiche.isEmpty {
+                return sichtbareCloudBereiche.contains(bereich.cloudSectionType)
+            }
         }
 
         guard let freigabeEinstellungen else {
@@ -320,6 +365,11 @@ struct DossierFloatingNavigation: View {
         .padding(.bottom, -4)
         .navigationDestination(item: $zielBereich) { bereich in
             bereich.zielView(dossierKontext: dossierKontext)
+        }
+        .alert("Zugriff noch gesperrt", isPresented: $zeigtGesperrtenZugriff) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Für diesen Bereich wurde dir noch kein Zugriff gewährt.")
         }
         .onAppear {
             aktuellerScrollOffset = begrenzterScrollOffset(CGFloat(gespeicherterScrollOffset))
@@ -469,6 +519,10 @@ struct DossierFloatingNavigation: View {
 
     private func navigiereZuBereich(_ bereich: DossierBereich) {
         guard bereich != aktiverBereich else { return }
+        if dossierKontext?.istFreigegebenesDossier == true && !istBereichFreigegeben(bereich) {
+            zeigtGesperrtenZugriff = true
+            return
+        }
         if dossierKontext?.istFreigegebenesDossier != true {
             NotificationCenter.default.post(name: .dossierSyncAngefordert, object: nil)
         }
@@ -477,6 +531,16 @@ struct DossierFloatingNavigation: View {
         impactFeedback.impactOccurred()
         impactFeedback.prepare()
         zielBereich = bereich
+    }
+
+    private func istBereichFreigegeben(_ bereich: DossierBereich) -> Bool {
+        guard let dossierKontext, dossierKontext.istFreigegebenesDossier else { return true }
+        let freigegebene = Set(
+            UserDefaults.standard.string(
+                forKey: "freigegebeneBereiche.\(dossierKontext.dossierID.uuidString.lowercased())"
+            )?.split(separator: ",").map(String.init) ?? []
+        )
+        return freigegebene.contains(bereich.cloudSectionType)
     }
 
     private func aktualisiereAutoScroll(an position: CGPoint) {
@@ -598,6 +662,7 @@ struct DossierFloatingNavigation: View {
 
 private struct DossierFloatingNavigationModifier: ViewModifier {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.rueckkehrZuVorsorgeBereichen) private var rueckkehrZuVorsorgeBereichen
     let aktiverBereich: DossierBereich
     let dossierKontext: DossierKontext?
     @State private var tastaturSichtbar = false
@@ -622,22 +687,26 @@ private struct DossierFloatingNavigationModifier: ViewModifier {
                         if dossierKontext?.istFreigegebenesDossier != true {
                             NotificationCenter.default.post(name: .dossierSyncAngefordert, object: nil)
                         }
-                        if dossierKontext?.istFreigegebenesDossier == true {
+                        if dossierKontext?.istFreigegebenesDossier == true || rueckkehrZuVorsorgeBereichen {
                             dismiss()
                         } else {
                             DossierNavigationRouter.navigateHome()
                         }
                     } label: {
                         Label(
-                            dossierKontext?.istFreigegebenesDossier == true ? "Vorsorge-Dossier" : "Home",
+                            rueckkehrZuVorsorgeBereichen
+                                ? "Vorsorge Bereiche"
+                                : (dossierKontext?.istFreigegebenesDossier == true ? "Vorsorge-Dossier" : "Home"),
                             systemImage: "chevron.left"
                         )
                             .labelStyle(.titleAndIcon)
                     }
                     .accessibilityLabel(
-                        dossierKontext?.istFreigegebenesDossier == true
-                            ? "Zurück zur Vorsorge-Dossierübersicht"
-                            : "Zurück zur Übersicht"
+                        rueckkehrZuVorsorgeBereichen
+                            ? "Zurück zu den Vorsorge Bereichen"
+                            : (dossierKontext?.istFreigegebenesDossier == true
+                                ? "Zurück zur Vorsorge-Dossierübersicht"
+                                : "Zurück zur Übersicht")
                     )
                 }
             }
@@ -864,6 +933,10 @@ private struct DossierFloatingNavigationHandle: View {
 }
 
 extension View {
+    func rueckkehrZuVorsorgeBereichen() -> some View {
+        environment(\.rueckkehrZuVorsorgeBereichen, true)
+    }
+
     func dossierFloatingNavigation(
         _ aktiverBereich: DossierBereich,
         dossierKontext: DossierKontext? = nil

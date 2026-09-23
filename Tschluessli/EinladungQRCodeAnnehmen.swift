@@ -132,7 +132,7 @@ struct EinladungQRCodeAnnehmenView: View {
                 try modelContext.save()
                 
                 warErfolgreich = true
-                meldung = "Das gesperrte Dossier wurde auf deinem Home-Screen abgelegt. Öffne es dort, wenn du den Datenzugriff anfragen möchtest."
+                meldung = "Das Dossier wurde auf deinem Home-Screen abgelegt. Du kannst die von der vorsorgenden Person freigegebenen Bereiche direkt ansehen."
             } catch {
                 meldung = error.localizedDescription
             }

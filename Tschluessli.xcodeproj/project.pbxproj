@@ -480,7 +480,7 @@
 				INFOPLIST_FILE = Tschluessli/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Tschlüssli";
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Die Kamera wird benötigt, um Dokumente zu scannen.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Die Kamera wird benötigt, um den Einladungs-QR-Code einer vorsorgenden Person zu scannen.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Tschlüssli verwendet Face ID, um dein Dossier sicher zu schützen.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Die App benötigt Zugriff, um Videos in deiner Foto-Mediathek zu speichern.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Tschlüssli benötigt Zugriff auf deine Foto-Mediathek, um ein eigenes Album für gespeicherte Fotos anzulegen.";
@@ -503,9 +503,9 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				TSCHLUESSLI_API_BASE_URL = "$(TSCHLUESSLI_DEV_API_BASE_URL)";
 				TSCHLUESSLI_DEV_API_BASE_URL = "https://api-dev.tschluessli.ch";
-				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
 		};
@@ -525,7 +525,7 @@
 				INFOPLIST_FILE = Tschluessli/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Tschlüssli";
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Die Kamera wird benötigt, um Dokumente zu scannen.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Die Kamera wird benötigt, um den Einladungs-QR-Code einer vorsorgenden Person zu scannen.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Tschlüssli verwendet Face ID, um dein Dossier sicher zu schützen.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Die App benötigt Zugriff, um Videos in deiner Foto-Mediathek zu speichern.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Tschlüssli benötigt Zugriff auf deine Foto-Mediathek, um ein eigenes Album für gespeicherte Fotos anzulegen.";
@@ -548,8 +548,8 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TSCHLUESSLI_API_BASE_URL = "$(TSCHLUESSLI_PROD_API_BASE_URL)";
 				TARGETED_DEVICE_FAMILY = "1,2";
+				TSCHLUESSLI_API_BASE_URL = "$(TSCHLUESSLI_PROD_API_BASE_URL)";
 			};
 			name = Release;
 		};

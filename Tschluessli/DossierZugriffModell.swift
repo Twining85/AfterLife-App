@@ -178,7 +178,9 @@ final class DossierZugriffModell {
         abgelehntAm = Date()
         angenommenAm = nil
         self.registrierungsEmail = registrierungsEmail
-        istAktiv = false
+        // Eine Ablehnung betrifft nur die angefragte Erweiterung. Der beim
+        // Scan gewährte Zugriff auf die vorab sichtbaren Bereiche bleibt aktiv.
+        istAktiv = true
         aktualisiertAm = Date()
         einladungAlsVerwendetMarkieren()
     }

@@ -89,12 +89,6 @@ struct AppStartView: View {
     @AppStorage("gespeicherteEmail")
     private var gespeicherteEmail = ""
 
-    @AppStorage("biometriePruefungImProfilLaeuft")
-    private var biometriePruefungImProfilLaeuft = false
-
-    @AppStorage("systemdialogImProfilLaeuft")
-    private var systemdialogImProfilLaeuft = false
-
     @AppStorage("eingehenderEinladungsToken")
     private var eingehenderEinladungsToken = ""
 
@@ -116,7 +110,6 @@ struct AppStartView: View {
     @State private var deepLinkFehlermeldung = ""
     @State private var deepLinkFehlerAnzeigen = false
     @State private var dossierSyncDienst: DossierSyncDienst?
-    @State private var cloudDatenVersion = UUID()
     @State private var syncAnzeigeStatus: SyncAnzeigeStatus?
     @State private var syncAnzeigeTask: Task<Void, Never>?
     @State private var neuregistrierungErzwungen = false
@@ -227,7 +220,7 @@ struct AppStartView: View {
                 .id(eingehenderEinladungsToken)
 
             } else if homeDirektStarten {
-                Home()
+                HomeNavigation()
 
             } else if einladungsSimulationAktiv {
                 EinladungAngenommen(
@@ -244,7 +237,7 @@ struct AppStartView: View {
             } else if istBereitsRegistriert {
                 if istEingeloggt ||
                     direktNachRegistrierungEingeloggt {
-                    Home()
+                    HomeNavigation()
                 } else {
                     ReloginView()
                 }
@@ -253,7 +246,6 @@ struct AppStartView: View {
                 Registrierung()
             }
         }
-        .id(cloudDatenVersion)
         .overlay(alignment: .top) {
             if let syncAnzeigeStatus {
                 SyncStatusHinweis(status: syncAnzeigeStatus)
@@ -330,25 +322,10 @@ struct AppStartView: View {
                 }
             }
 
-            guard !biometriePruefungImProfilLaeuft,
-                  !systemdialogImProfilLaeuft else {
-                return
-            }
-
-            guard istBereitsRegistriert else {
-                return
-            }
-
-            guard !homeDirektStarten else {
-                return
-            }
-
-            guard !hatOffeneEinladung else {
-                return
-            }
-
-            istEingeloggt = false
-            direktNachRegistrierungEingeloggt = false
+            // Ein Wechsel in den Hintergrund beendet die lokale Anmeldung
+            // nicht. Auch iOS-Systemdialoge wie Dateien, Fotos und Teilen
+            // versetzen die App kurz in diesen Zustand. Ein Logout erfolgt
+            // ausschliesslich über die explizite Logout-Aktion im Profil.
         }
         .onReceive(
             NotificationCenter.default.publisher(
@@ -373,7 +350,11 @@ struct AppStartView: View {
             // werden dort bereits direkt beobachtet und nach Abschluss mit
             // dem Wechsel zu Home angezeigt.
             guard !wiederherstellungNeuesGeraetLaeuft else { return }
-            cloudDatenVersion = UUID()
+            // SwiftData-Queries und @AppStorage aktualisieren die betroffenen
+            // Ansichten bereits gezielt. Ein neuer Root-Identifier würde hier
+            // die komplette Navigation samt Picker-Zustand neu erzeugen. Das
+            // war besonders nach Foto-, Datei-, Scanner- und Share-Dialogen als
+            // zusätzlicher Refresh sichtbar.
             zeigeErfolgreicheCloudAktualisierung()
         }
         .onChange(of: istEingeloggt) { _, istJetztEingeloggt in

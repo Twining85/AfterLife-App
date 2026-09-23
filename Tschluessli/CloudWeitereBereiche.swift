@@ -37,8 +37,23 @@ nonisolated struct CloudFinanzenDaten: Codable, Sendable {
         init(_ m: WertsacheModell) { id=m.eintragsID; art=m.art; beschreibung=m.beschreibung; betrag=m.betrag; waehrung=m.waehrung; aufbewahrungsort=m.aufbewahrungsort; bemerkungen=m.bemerkungen; dokumentDateiName=m.dokumentDateiName; erstelltAm=m.erstelltAm; aktualisiertAm=m.aktualisiertAm }
     }
     nonisolated struct Steuerdokument: Codable, Sendable {
-        let id: String; let titel: String; let jahr: Int; let dateiName: String; let hochgeladenAm: Date; let bemerkungen: String
-        init(_ m: SteuerdokumentModell) { id=m.eintragsID; titel=m.titel; jahr=m.jahr; dateiName=m.dateiName; hochgeladenAm=m.hochgeladenAm; bemerkungen=m.bemerkungen }
+        let id: String; let titel: String; let jahr: Int; let dateiName: String; let dateiDaten: String?; let hochgeladenAm: Date; let bemerkungen: String
+        init(_ m: SteuerdokumentModell) { id=m.eintragsID; titel=m.titel; jahr=m.jahr; dateiName=m.dateiName; dateiDaten=m.dateiDaten?.base64EncodedString(); hochgeladenAm=m.hochgeladenAm; bemerkungen=m.bemerkungen }
+    }
+}
+
+nonisolated struct CloudDokumenteDaten: Codable, Sendable {
+    let dokumente: [Dokument]
+    let fotos: [Foto]
+
+    nonisolated struct Dokument: Codable, Sendable {
+        let id: UUID; let dateiName: String; let kategorie: String; let hochgeladenAm: Date; let dateiDaten: String
+        init(_ m: DokumenteModell) { id=m.id; dateiName=m.dateiName; kategorie=m.kategorie; hochgeladenAm=m.hochgeladenAm; dateiDaten=m.dateiDaten.base64EncodedString() }
+    }
+
+    nonisolated struct Foto: Codable, Sendable {
+        let id: UUID; let dateiName: String; let hinzugefuegtAm: Date; let bildDaten: String; let reihenfolge: Int
+        init(_ m: FotoalbumBildModell) { id=m.id; dateiName=m.dateiName; hinzugefuegtAm=m.hinzugefuegtAm; bildDaten=m.bildDaten.base64EncodedString(); reihenfolge=m.reihenfolge }
     }
 }
 
@@ -61,8 +76,9 @@ nonisolated struct CloudKontaktDaten: Codable, Sendable {
         let wuenscheSichtbarBeiDossierfreigabe: Bool?; let menschenDesVertrauensSichtbarBeiDossierfreigabe: Bool?
         let finanzenSichtbarBeiDossierfreigabe: Bool?; let dokumenteSichtbarBeiDossierfreigabe: Bool?
         let abosUndProfileSichtbarBeiDossierfreigabe: Bool?; let herzensstueckeSichtbarBeiDossierfreigabe: Bool?
-        let gesundheitSichtbarBeiDossierfreigabe: Bool?; let historie: [Historie]; let erstelltAm: Date; let geaendertAm: Date
-        init(_ m: VertrauenspersonModell) { personenID=m.personenID; vorname=m.vorname; name=m.name; email=m.email; telefon=m.telefon; beziehung=m.beziehung; einladungsStatus=m.einladungsStatus; vorsorgeprozessStatus=m.vorsorgeprozessStatus; einladungsEmail=m.einladungsEmail; einladungsLinkErstelltAm=m.einladungsLinkErstelltAm; vorsorgendeUserID=m.vorsorgendeUserID; vertrauenspersonUserID=m.vertrauenspersonUserID; einladungAngenommenAm=m.einladungAngenommenAm; einladungAbgelehntAm=m.einladungAbgelehntAm; istPrimaereVertrauensperson=m.istPrimaereVertrauensperson; reihenfolge=m.reihenfolge; wuenscheSichtbarBeiDossierfreigabe=m.wuenscheSichtbarBeiDossierfreigabe; menschenDesVertrauensSichtbarBeiDossierfreigabe=m.menschenDesVertrauensSichtbarBeiDossierfreigabe; finanzenSichtbarBeiDossierfreigabe=m.finanzenSichtbarBeiDossierfreigabe; dokumenteSichtbarBeiDossierfreigabe=m.dokumenteSichtbarBeiDossierfreigabe; abosUndProfileSichtbarBeiDossierfreigabe=m.abosUndProfileSichtbarBeiDossierfreigabe; herzensstueckeSichtbarBeiDossierfreigabe=m.herzensstueckeSichtbarBeiDossierfreigabe; gesundheitSichtbarBeiDossierfreigabe=m.gesundheitSichtbarBeiDossierfreigabe; historie=m.einladungsHistorie.map(Historie.init); erstelltAm=m.erstelltAm; geaendertAm=m.geaendertAm }
+        let gesundheitSichtbarBeiDossierfreigabe: Bool?; let zugriffsHistorieJSON: String?
+        let historie: [Historie]; let erstelltAm: Date; let geaendertAm: Date
+        init(_ m: VertrauenspersonModell) { personenID=m.personenID; vorname=m.vorname; name=m.name; email=m.email; telefon=m.telefon; beziehung=m.beziehung; einladungsStatus=m.einladungsStatus; vorsorgeprozessStatus=m.vorsorgeprozessStatus; einladungsEmail=m.einladungsEmail; einladungsLinkErstelltAm=m.einladungsLinkErstelltAm; vorsorgendeUserID=m.vorsorgendeUserID; vertrauenspersonUserID=m.vertrauenspersonUserID; einladungAngenommenAm=m.einladungAngenommenAm; einladungAbgelehntAm=m.einladungAbgelehntAm; istPrimaereVertrauensperson=m.istPrimaereVertrauensperson; reihenfolge=m.reihenfolge; wuenscheSichtbarBeiDossierfreigabe=m.wuenscheSichtbarBeiDossierfreigabe; menschenDesVertrauensSichtbarBeiDossierfreigabe=m.menschenDesVertrauensSichtbarBeiDossierfreigabe; finanzenSichtbarBeiDossierfreigabe=m.finanzenSichtbarBeiDossierfreigabe; dokumenteSichtbarBeiDossierfreigabe=m.dokumenteSichtbarBeiDossierfreigabe; abosUndProfileSichtbarBeiDossierfreigabe=m.abosUndProfileSichtbarBeiDossierfreigabe; herzensstueckeSichtbarBeiDossierfreigabe=m.herzensstueckeSichtbarBeiDossierfreigabe; gesundheitSichtbarBeiDossierfreigabe=m.gesundheitSichtbarBeiDossierfreigabe; zugriffsHistorieJSON=m.zugriffsHistorieJSON; historie=m.einladungsHistorie.map(Historie.init); erstelltAm=m.erstelltAm; geaendertAm=m.geaendertAm }
     }
     nonisolated struct Historie: Codable, Sendable { let datum: Date; let beschreibung: String; init(_ m: VertrauenspersonEinladungsHistorieModell) { datum=m.datum; beschreibung=m.beschreibung } }
 }
@@ -72,8 +88,10 @@ nonisolated struct CloudHerzensstueckDaten: Codable, Sendable {
     let bestimmung: String; let empfaengerName: String; let empfaengerEmail: String; let persoenlicheNachricht: String
     let hatGeschaetztenWert: Bool; let geschaetzterWert: Double; let wertUnbekannt: Bool; let andereBestimmung: String
     let bilder: [Datei]; let dokumente: [Datei]; let audio: Datei?; let erstelltAm: Date; let aktualisiertAm: Date
-    init(_ m: HerzensstueckModell) { id=m.id; titel=m.titel; beschreibung=m.beschreibung; geschichte=m.geschichte; erinnerung=m.erinnerung; bestimmung=m.bestimmungRawValue; empfaengerName=m.empfaengerName; empfaengerEmail=m.empfaengerEmail; persoenlicheNachricht=m.persoenlicheNachricht; hatGeschaetztenWert=m.hatGeschaetztenWert; geschaetzterWert=m.geschaetzterWert; wertUnbekannt=m.wertUnbekannt; andereBestimmung=m.andereBestimmung; bilder=m.bilder.map { Datei(id:$0.id,dateiName:$0.dateiName,dateiTyp:"image",datum:$0.hinzugefuegtAm) }; dokumente=m.dokumente.map { Datei(id:$0.id,dateiName:$0.dateiName,dateiTyp:$0.dateiTyp,datum:$0.hinzugefuegtAm) }; audio=m.audio.map { Datei(id:$0.id,dateiName:$0.dateiName,dateiTyp:$0.dateiTyp,datum:$0.hinzugefuegtAm) }; erstelltAm=m.erstelltAm; aktualisiertAm=m.aktualisiertAm }
-    nonisolated struct Datei: Codable, Sendable { let id: UUID; let dateiName: String; let dateiTyp: String; let datum: Date }
+    init(_ m: HerzensstueckModell) { id=m.id; titel=m.titel; beschreibung=m.beschreibung; geschichte=m.geschichte; erinnerung=m.erinnerung; bestimmung=m.bestimmungRawValue; empfaengerName=m.empfaengerName; empfaengerEmail=m.empfaengerEmail; persoenlicheNachricht=m.persoenlicheNachricht; hatGeschaetztenWert=m.hatGeschaetztenWert; geschaetzterWert=m.geschaetzterWert; wertUnbekannt=m.wertUnbekannt; andereBestimmung=m.andereBestimmung; bilder=m.bilder.map { Datei(id:$0.id,dateiName:$0.dateiName,dateiTyp:"image",datum:$0.hinzugefuegtAm,daten:$0.bildDaten.base64EncodedString(),reihenfolge:$0.reihenfolge) }; dokumente=m.dokumente.map { Datei(id:$0.id,dateiName:$0.dateiName,dateiTyp:$0.dateiTyp,datum:$0.hinzugefuegtAm,daten:$0.dateiDaten.base64EncodedString(),reihenfolge:nil) }; audio=m.audio.map { Datei(id:$0.id,dateiName:$0.dateiName,dateiTyp:$0.dateiTyp,datum:$0.hinzugefuegtAm,daten:$0.audioDaten.base64EncodedString(),reihenfolge:nil) }; erstelltAm=m.erstelltAm; aktualisiertAm=m.aktualisiertAm }
+    nonisolated struct Datei: Codable, Sendable {
+        let id: UUID; let dateiName: String; let dateiTyp: String; let datum: Date; let daten: String?; let reihenfolge: Int?
+    }
 }
 
 nonisolated struct CloudAboDaten: Codable, Sendable {
@@ -148,6 +166,41 @@ actor CloudFeldVerschluesselung {
         let klartext = try AES.GCM.open(
             box,
             using: SymmetricKey(data: try await vorhandeneSchluesselDaten())
+        )
+        return try JSONDecoder().decode(T.self, from: klartext)
+    }
+
+    func schluesselFreigabePaket(token: String) async throws -> String {
+        let wrappingKey = SymmetricKey(data: SHA256.hash(
+            data: Data("Tschluessli-Dossierfreigabe-v1\u{0}\(token)".utf8)
+        ))
+        let box = try AES.GCM.seal(try await schluesselDaten(), using: wrappingKey)
+        guard let combined = box.combined else { throw CloudDossierSyncFehler.ungueltigeDaten }
+        return combined.base64EncodedString()
+    }
+
+    func entschluesseln<T: Decodable & Sendable>(
+        _ wert: VerschluesselterCloudBereich,
+        als typ: T.Type,
+        freigabePaket: String,
+        token: String
+    ) async throws -> T {
+        guard wert.algorithmus == "AES-256-GCM", wert.schluesselVersion == 1,
+              let verschluesselteDaten = Data(base64Encoded: wert.daten),
+              let paketDaten = Data(
+                base64Encoded: freigabePaket,
+                options: .ignoreUnknownCharacters
+              ) else {
+            throw CloudDossierSyncFehler.ungueltigeDaten
+        }
+        let wrappingKey = SymmetricKey(data: SHA256.hash(
+            data: Data("Tschluessli-Dossierfreigabe-v1\u{0}\(token)".utf8)
+        ))
+        let dossierKey = try AES.GCM.open(try AES.GCM.SealedBox(combined: paketDaten), using: wrappingKey)
+        guard dossierKey.count == 32 else { throw CloudDossierSyncFehler.ungueltigeDaten }
+        let klartext = try AES.GCM.open(
+            try AES.GCM.SealedBox(combined: verschluesselteDaten),
+            using: SymmetricKey(data: dossierKey)
         )
         return try JSONDecoder().decode(T.self, from: klartext)
     }

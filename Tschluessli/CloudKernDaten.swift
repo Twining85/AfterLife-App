@@ -30,7 +30,7 @@ nonisolated struct CloudProfilDaten: Codable, Sendable {
     let homeBereicheReihenfolge: String?
     let homeAktiveBereiche: String?
 
-    init(_ modell: ProfilModell, homeBereicheReihenfolge: String, homeAktiveBereiche: String) {
+    init(_ modell: ProfilModell) {
         userID = modell.userID
         dossierID = modell.dossierID
         istVertrauensperson = modell.istVertrauensperson
@@ -53,8 +53,8 @@ nonisolated struct CloudProfilDaten: Codable, Sendable {
         erstelltAm = modell.erstelltAm
         aktualisiertAm = modell.aktualisiertAm
         istAktiv = modell.istAktiv
-        self.homeBereicheReihenfolge = homeBereicheReihenfolge
-        self.homeAktiveBereiche = homeAktiveBereiche
+        homeBereicheReihenfolge = nil
+        homeAktiveBereiche = nil
     }
 }
 
@@ -126,30 +126,36 @@ nonisolated struct CloudWuenscheDaten: Codable, Sendable {
     let moechteNochEtwasSagen: Bool
     let letzteBotschaft: String
     let letzteBotschaftVideoName: String
+    let letzteBotschaftVideo: String?
     let nachrufGewuenscht: Bool
     let nachrufText: String
     let nachrufBildDateiName: String
+    let nachrufBild: String?
     let testamentVorhanden: Bool
     let testamentAblageort: String
     let testamentDateiName: String
+    let testamentDatei: String?
     let testamentHochgeladenAm: Date?
     let testamentFreigegebenBeiDossierfreigabe: Bool?
     let testamentErinnerungAktiv: Bool
     let testamentErinnerungAm: Date?
     let patientenverfuegungVorhanden: Bool
     let patientenverfuegungDateiName: String
+    let patientenverfuegungDatei: String?
     let patientenverfuegungHochgeladenAm: Date?
     let patientenverfuegungFreigegebenBeiDossierfreigabe: Bool?
     let patientenverfuegungErinnerungAktiv: Bool
     let patientenverfuegungErinnerungAm: Date?
     let vorsorgeauftragVorhanden: Bool
     let vorsorgeauftragDateiName: String
+    let vorsorgeauftragDatei: String?
     let vorsorgeauftragHochgeladenAm: Date?
     let vorsorgeauftragFreigegebenBeiDossierfreigabe: Bool?
     let vorsorgeauftragErinnerungAktiv: Bool
     let vorsorgeauftragErinnerungAm: Date?
     let sterbebegleitungGewuenscht: Bool
     let sterbebegleitungDateiName: String
+    let sterbebegleitungDatei: String?
     let sterbebegleitungHochgeladenAm: Date?
     let sterbebegleitungFreigegebenBeiDossierfreigabe: Bool?
     let sterbebegleitungErinnerungAktiv: Bool
@@ -183,30 +189,36 @@ nonisolated struct CloudWuenscheDaten: Codable, Sendable {
         moechteNochEtwasSagen = modell.moechteNochEtwasSagen
         letzteBotschaft = modell.letzteBotschaft
         letzteBotschaftVideoName = modell.letzteBotschaftVideoName
+        letzteBotschaftVideo = modell.letzteBotschaftVideoData?.base64EncodedString()
         nachrufGewuenscht = modell.nachrufGewuenscht
         nachrufText = modell.nachrufText
         nachrufBildDateiName = modell.nachrufBildDateiName
+        nachrufBild = modell.nachrufBildData?.base64EncodedString()
         testamentVorhanden = modell.testamentVorhanden
         testamentAblageort = modell.testamentAblageort
         testamentDateiName = modell.testamentDateiName
+        testamentDatei = modell.testamentDateiData?.base64EncodedString()
         testamentHochgeladenAm = modell.testamentHochgeladenAm
         testamentFreigegebenBeiDossierfreigabe = modell.testamentFreigegebenBeiDossierfreigabe
         testamentErinnerungAktiv = modell.testamentErinnerungAktiv
         testamentErinnerungAm = modell.testamentErinnerungAm
         patientenverfuegungVorhanden = modell.patientenverfuegungVorhanden
         patientenverfuegungDateiName = modell.patientenverfuegungDateiName
+        patientenverfuegungDatei = modell.patientenverfuegungDateiData?.base64EncodedString()
         patientenverfuegungHochgeladenAm = modell.patientenverfuegungHochgeladenAm
         patientenverfuegungFreigegebenBeiDossierfreigabe = modell.patientenverfuegungFreigegebenBeiDossierfreigabe
         patientenverfuegungErinnerungAktiv = modell.patientenverfuegungErinnerungAktiv
         patientenverfuegungErinnerungAm = modell.patientenverfuegungErinnerungAm
         vorsorgeauftragVorhanden = modell.vorsorgeauftragVorhanden
         vorsorgeauftragDateiName = modell.vorsorgeauftragDateiName
+        vorsorgeauftragDatei = modell.vorsorgeauftragDateiData?.base64EncodedString()
         vorsorgeauftragHochgeladenAm = modell.vorsorgeauftragHochgeladenAm
         vorsorgeauftragFreigegebenBeiDossierfreigabe = modell.vorsorgeauftragFreigegebenBeiDossierfreigabe
         vorsorgeauftragErinnerungAktiv = modell.vorsorgeauftragErinnerungAktiv
         vorsorgeauftragErinnerungAm = modell.vorsorgeauftragErinnerungAm
         sterbebegleitungGewuenscht = modell.sterbebegleitungGewuenscht
         sterbebegleitungDateiName = modell.sterbebegleitungDateiName
+        sterbebegleitungDatei = modell.sterbebegleitungDateiData?.base64EncodedString()
         sterbebegleitungHochgeladenAm = modell.sterbebegleitungHochgeladenAm
         sterbebegleitungFreigegebenBeiDossierfreigabe = modell.sterbebegleitungFreigegebenBeiDossierfreigabe
         sterbebegleitungErinnerungAktiv = modell.sterbebegleitungErinnerungAktiv

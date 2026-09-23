@@ -51,9 +51,11 @@ struct DossierBereichAdapterRegistry {
     static var standardAdapter: [any DossierBereichAdapter] {
         [
             ProfilBereichAdapter(),
+            DossierEinstellungenBereichAdapter(),
             GesundheitBereichAdapter(),
             WuenscheBereichAdapter(),
             FinanzenBereichAdapter(),
+            DokumenteBereichAdapter(),
             KontakteBereichAdapter(),
             HerzensstueckeBereichAdapter(),
             ZugaengeBereichAdapter()
@@ -123,15 +125,19 @@ struct ProfilBereichAdapter: CodableDossierBereichAdapter {
 
     func erzeugePayload(dossierID: UUID, aus modelContext: ModelContext) throws -> CloudDatenListe<CloudProfilDaten> {
         let modelle = try modelContext.fetch(FetchDescriptor<ProfilModell>())
-        let reihenfolge = UserDefaults.standard.string(forKey: "homeBereicheReihenfolge") ?? ""
-        let aktiveBereiche = UserDefaults.standard.string(forKey: "homeAktiveBereiche") ?? ""
         return CloudDatenListe(items: modelle.filter { $0.dossierID == dossierID }.map {
-            CloudProfilDaten(
-                $0,
-                homeBereicheReihenfolge: reihenfolge,
-                homeAktiveBereiche: aktiveBereiche
-            )
+            CloudProfilDaten($0)
         })
+    }
+}
+
+@MainActor
+struct DossierEinstellungenBereichAdapter: CodableDossierBereichAdapter {
+    let bereich = DossierEinstellungenStore.cloudBereich
+    let schemaVersion = 1
+
+    func erzeugePayload(dossierID: UUID, aus modelContext: ModelContext) throws -> CloudDossierEinstellungenDaten {
+        DossierEinstellungenStore.cloudDaten(fuer: dossierID)
     }
 }
 
@@ -170,6 +176,23 @@ struct FinanzenBereichAdapter: CodableDossierBereichAdapter {
             liegenschaften: try modelContext.fetch(FetchDescriptor<LiegenschaftModell>()).filter { $0.dossierID == dossierID }.map(CloudFinanzenDaten.Liegenschaft.init),
             wertsachen: try modelContext.fetch(FetchDescriptor<WertsacheModell>()).filter { $0.dossierID == dossierID }.map(CloudFinanzenDaten.Wertsache.init),
             steuerdokumente: try modelContext.fetch(FetchDescriptor<SteuerdokumentModell>()).filter { $0.dossierID == dossierID }.map(CloudFinanzenDaten.Steuerdokument.init)
+        )
+    }
+}
+
+@MainActor
+struct DokumenteBereichAdapter: CodableDossierBereichAdapter {
+    let bereich = "dokumente"
+    let schemaVersion = 1
+
+    func erzeugePayload(dossierID: UUID, aus modelContext: ModelContext) throws -> CloudDokumenteDaten {
+        CloudDokumenteDaten(
+            dokumente: try modelContext.fetch(FetchDescriptor<DokumenteModell>())
+                .filter { $0.dossierID == dossierID }
+                .map(CloudDokumenteDaten.Dokument.init),
+            fotos: try modelContext.fetch(FetchDescriptor<FotoalbumBildModell>())
+                .filter { $0.dossierID == dossierID }
+                .map(CloudDokumenteDaten.Foto.init)
         )
     }
 }

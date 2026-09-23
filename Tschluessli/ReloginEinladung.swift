@@ -97,7 +97,7 @@ struct ReloginEinladung: View {
         NavigationStack {
             Group {
                 if showHome {
-                    Home()
+                    HomeNavigation()
                 } else if showEinladungEmailVerifizierung {
                     EinladungEmailVerifizierung(
                         eingeladeneEmail: eingeladeneEmail,

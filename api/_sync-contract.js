@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 
 export const supportedSectionVersions = Object.freeze({
+  dossier_einstellungen: 1,
+  dokumente: 1,
   profil: 1,
   gesundheit: 1,
   wuensche: 1,

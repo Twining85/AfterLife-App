@@ -3,7 +3,6 @@ import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
 import Foundation
-import QuickLook
 
 struct FinanzenView: View {
     var dossierKontext: DossierKontext = .eigenesDossier(dossierID: UUID())
@@ -699,7 +698,7 @@ struct FinanzenView: View {
                         ShareSheet(activityItems: [steuerdokumentExportURL])
                     }
                 }
-                .quickLookPreview($oldTaxReturnPreviewURL)
+                .documentPreviewSheet(url: $oldTaxReturnPreviewURL)
                 .onChange(of: scrollZuFinanzEintragID) { _, zielID in
                     guard let zielID else { return }
 

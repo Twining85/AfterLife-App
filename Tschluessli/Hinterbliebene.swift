@@ -27,8 +27,6 @@ struct HinterbliebeneView: View {
                     vertrauensHero
                         .padding(.top, 18)
 
-                    vertrauenspersonKarte
-
                     Text("Personen")
                         .font(.title2.weight(.bold))
                         .foregroundStyle(vertrauenTextFarbe)
@@ -66,12 +64,14 @@ struct HinterbliebeneView: View {
                         kategorie: .beguenstigte,
                         kontakte: kontakteFuerKategorie(.beguenstigte)
                     )
+
+                    vertrauenspersonKarte
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 28)
             }
             .background(vertrauenHintergrundFarbe.ignoresSafeArea())
-            .navigationTitle("Menschen des Vertrauens")
+            .navigationTitle("Wichtige Menschen")
             .tint(vertrauenAkzentFarbe)
             .sheet(isPresented: $showKontaktPicker) {
                 HinterbliebeneKontaktPicker { kontakt in
@@ -355,7 +355,7 @@ struct HinterbliebeneView: View {
     private func kontaktHinzufuegen(_ kontakt: HinterbliebeneKontakt, zu kategorie: VertrauenspersonKategorie) {
         guard dossierKontext.kannBearbeiten else { return }
         let neuerKontakt = HinterbliebeneModell(
-            dossierID: UUID(uuidString: aktivesDossierID),
+            dossierID: zielDossierID,
             vorname: kontakt.vorname,
             name: kontakt.name,
             rolle: kategorie.anzeigetitel,

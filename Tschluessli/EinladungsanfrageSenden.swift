@@ -34,10 +34,10 @@ struct EinladungsanfrageSendenView: View {
                 .font(.system(size: 58, weight: .semibold))
                 .foregroundStyle(akzent)
 
-            Text("Vorsorge-Dossier gesperrt")
+            Text("Weitere Bereiche anfragen")
                 .font(.title2.bold())
 
-            Text("Der Zugang wurde erkannt, aber es wurden noch keine Daten geladen. Fordere die Erlaubnis erst an, wenn du das Dossier aus der Cloud laden möchtest.")
+            Text("Die bereits freigegebenen Bereiche kannst du weiterhin ansehen. Sende diese Anfrage nur, wenn du auch Zugriff auf die bisher verborgenen Bereiche benötigst.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
 
@@ -50,8 +50,8 @@ struct EinladungsanfrageSendenView: View {
             } label: {
                 Label(
                     zugriff.status == DossierZugriffStatus.abgelehnt
-                        ? "Datenzugriff erneut anfragen"
-                        : "Datenzugriff anfragen",
+                        ? "Weitere Bereiche erneut anfragen"
+                        : "Weitere Bereiche anfragen",
                     systemImage: "icloud.and.arrow.down"
                 )
                     .font(.headline)
