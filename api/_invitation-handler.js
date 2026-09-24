@@ -286,15 +286,17 @@ export async function revokeInvitationForOwner({
   push = pushToUser
 }) {
   const client = await pool.connect();
+  const tokenHash = String(token || "").trim() ? hash(String(token).trim()) : null;
   let revoked = [];
   try {
     await client.query("BEGIN");
     if (client.engine === "mysql") {
       const selected = await client.query(
         `SELECT id, requester_user_id, owner_name FROM dossier_invitations
-          WHERE owner_user_id = $1 AND dossier_id = $2 AND invited_email = $3
+          WHERE owner_user_id = $1 AND dossier_id = $2
+            AND (($4 IS NOT NULL AND token_hash = $4) OR ($4 IS NULL AND invited_email = $3))
             AND status <> 'revoked' FOR UPDATE`,
-        [userID, dossierID, email]
+        [userID, dossierID, email, tokenHash]
       );
       revoked = selected.rows;
       if (revoked.length > 0) {
@@ -315,10 +317,11 @@ export async function revokeInvitationForOwner({
     const result = await client.query(
       `UPDATE dossier_invitations
           SET status = 'revoked', decided_at = now(), updated_at = now()
-        WHERE owner_user_id = $1 AND dossier_id = $2 AND invited_email = $3
+        WHERE owner_user_id = $1 AND dossier_id = $2
+          AND (($4::text IS NOT NULL AND token_hash = $4) OR ($4::text IS NULL AND invited_email = $3))
           AND status <> 'revoked'
         RETURNING id, requester_user_id, owner_name`,
-      [userID, dossierID, email]
+      [userID, dossierID, email, tokenHash]
     );
     revoked = result.rows;
     if (revoked.length > 0) {
@@ -428,9 +431,10 @@ async function sharedDossier(req, res, user) {
   }));
   const availableSectionTypes = dossierSectionTypes(allSections);
   const ownerName = ownerNameFromSections(allSections, invitation.owner_user_id, invitation.owner_name);
-  const visibleSectionTypes = invitation.status === "accepted"
-    ? allSections.map((section) => section.sectionType).filter((type) => type !== "dossier_einstellungen")
-    : partialVisibleSectionTypes(allSections, invitation.invited_email, user.id);
+  // Auch ein angenommener Zugriff bleibt auf die vom Eigentümer ausdrücklich
+  // freigegebenen Bereiche beschränkt. Die Annahme erweitert nicht automatisch
+  // auf das gesamte Dossier, und spätere Änderungen müssen sofort wirksam sein.
+  const visibleSectionTypes = partialVisibleSectionTypes(allSections, invitation.invited_email, user.id);
   return res.status(200).json({
     dossierID: invitation.dossier_id,
     ownerUserID: invitation.owner_user_id,
@@ -457,7 +461,7 @@ function dossierSectionTypes(sections) {
   return [...new Set(["profil", ...available])];
 }
 
-function partialVisibleSectionTypes(sections, invitedEmail, requesterUserID) {
+export function partialVisibleSectionTypes(sections, invitedEmail, requesterUserID) {
   const visible = new Set(["profil"]);
   const kontakte = sections.find((section) => section.sectionType === "kontakte" && !section.deleted);
   let payload = kontakte?.payload;

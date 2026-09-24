@@ -102,6 +102,10 @@ extension Color {
         light: UIColor(red: 0.16, green: 0.36, blue: 0.42, alpha: 0.48),
         dark: UIColor(red: 0.70, green: 0.89, blue: 0.89, alpha: 0.72)
     )
+    static let orbitGlow = adaptive(
+        light: UIColor(red: 0.42, green: 0.78, blue: 0.79, alpha: 1),
+        dark: UIColor(red: 0.68, green: 0.91, blue: 0.91, alpha: 1)
+    )
 
     static let areaHealth = adaptive(
         light: UIColor(red: 0.76, green: 0.24, blue: 0.30, alpha: 1),

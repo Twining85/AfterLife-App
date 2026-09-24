@@ -5,6 +5,7 @@ import {
   handleInvitationOperation,
   invitationDecisionPushPayload,
   invitationRequestPushPayload,
+  partialVisibleSectionTypes,
   releaseDueInvitations,
   trustAccessGraceSeconds,
   revokeInvitationForOwner
@@ -14,6 +15,35 @@ import { resetDatabasePoolForTests, setDatabasePoolForTests } from "../api/_data
 process.env.NODE_ENV = "test";
 
 afterEach(() => resetDatabasePoolForTests());
+
+test("beschränkt auch angenommene Zugriffe auf die aktuell freigegebenen Bereiche", () => {
+  const sections = [{
+    sectionType: "kontakte",
+    deleted: false,
+    payload: {
+      vertrauenspersonen: [{
+        vertrauenspersonUserID: "a1a14c1c-289f-4719-b237-02c9c7534642",
+        email: "trust@example.ch",
+        wuenscheSichtbarBeiDossierfreigabe: false,
+        menschenDesVertrauensSichtbarBeiDossierfreigabe: true,
+        finanzenSichtbarBeiDossierfreigabe: false,
+        dokumenteSichtbarBeiDossierfreigabe: false,
+        abosUndProfileSichtbarBeiDossierfreigabe: false,
+        herzensstueckeSichtbarBeiDossierfreigabe: true,
+        gesundheitSichtbarBeiDossierfreigabe: false
+      }]
+    }
+  }];
+
+  assert.deepEqual(
+    partialVisibleSectionTypes(
+      sections,
+      "trust@example.ch",
+      "a1a14c1c-289f-4719-b237-02c9c7534642"
+    ),
+    ["profil", "kontakte", "herzensstuecke"]
+  );
+});
 
 test("prüft den QR-Code gegen die verifizierte Konto-E-Mail", async () => {
   const pool = scriptedPool([{ rows: [] }, { rows: [{
@@ -173,8 +203,9 @@ test("widerruft alle Einladungen und Dossierfreigaben einer Vertrauensperson gem
 
   assert.equal(count, 1);
   const update = queries.find(({ text }) => text.includes("UPDATE dossier_invitations"));
-  assert.doesNotMatch(update.text, /token_hash/);
-  assert.equal(update.parameters.length, 3);
+  assert.match(update.text, /token_hash/);
+  assert.equal(update.parameters.length, 4);
+  assert.equal(typeof update.parameters[3], "string");
   assert.equal(queries.some(({ text }) => text.includes("UPDATE dossier_access_grants")), true);
   assert.equal(queries.at(-1).text, "COMMIT");
   assert.equal(pushes[0].userID, "a1a14c1c-289f-4719-b237-02c9c7534642");
@@ -204,8 +235,9 @@ test("unterstützt beim Widerruf weiterhin installierte Apps ohne Token-Feld", a
 
   assert.equal(count, 1);
   const update = queries.find(({ text }) => text.includes("UPDATE dossier_invitations"));
-  assert.doesNotMatch(update.text, /token_hash/);
-  assert.equal(update.parameters.length, 3);
+  assert.match(update.text, /token_hash/);
+  assert.equal(update.parameters.length, 4);
+  assert.equal(update.parameters[3], null);
 });
 
 function scriptedPool(responses) {

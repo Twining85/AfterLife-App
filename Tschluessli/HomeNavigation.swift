@@ -4,6 +4,7 @@ import UIKit
 
 struct HomeNavigation: View {
     @Environment(\.appLayout) private var appLayout
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.modelContext) private var modelContext
@@ -41,6 +42,7 @@ struct HomeNavigation: View {
     @State private var animationWurdeAbgespielt = false
     @State private var satellitenVerschiebungen: [HomeNavigationKnoten: CGSize] = [:]
     @State private var gezogenerSatellit: HomeNavigationKnoten?
+    @State private var bereicheGlowHervorgehoben = false
     @State private var temporaereErstellungsart: DossierErstellungsart = .gefuehrt
     @State private var recoveryStatusGeladen = false
     @State private var recoveryVorhanden = false
@@ -96,7 +98,7 @@ struct HomeNavigation: View {
         let anzahl = freigegebeneDossiers.filter {
             $0.istAktiv && $0.status != DossierZugriffStatus.widerrufen
         }.count
-        return anzahl > 0 ? "(\(anzahl))" : ""
+        return anzahl > 0 ? "(\(anzahl))" : "QR-Code scannen"
     }
 
     private var eigeneVertrauenspersonen: [VertrauenspersonModell] {
@@ -429,6 +431,9 @@ struct HomeNavigation: View {
             .onChange(of: ziel) { _, neuesZiel in
                 guard neuesZiel == nil else { return }
                 Task { await ladeRecoveryStatus() }
+            }
+            .onChange(of: naechsterGefuehrterSchritt?.id) { _, _ in
+                starteBereicheGlowFallsNoetig()
             }
         }
     }
@@ -987,7 +992,10 @@ struct HomeNavigation: View {
                 .buttonStyle(.plain)
             }
             .frame(width: breite, height: orbitHoehe)
-            .onAppear { starteOrbitAnimation() }
+            .onAppear {
+                starteOrbitAnimation()
+                starteBereicheGlowFallsNoetig()
+            }
         }
         .containerRelativeFrame(.horizontal) { breite, _ in
             breite
@@ -1001,6 +1009,21 @@ struct HomeNavigation: View {
         let durchmesser = effektiverKnotenDurchmesser(knoten)
 
         return ZStack {
+            if knoten == .bereiche {
+                Circle()
+                    .stroke(
+                        Color.orbitGlow.opacity(bereicheGlowHervorgehoben ? 0.96 : 0.58),
+                        lineWidth: bereicheGlowHervorgehoben ? 5 : 3
+                    )
+                    .blur(radius: bereicheGlowHervorgehoben ? 11 : 6)
+                    .scaleEffect(bereicheGlowHervorgehoben ? 1.14 : 1.065)
+                    .shadow(
+                        color: Color.orbitGlow.opacity(bereicheGlowHervorgehoben ? 0.82 : 0.48),
+                        radius: bereicheGlowHervorgehoben ? 18 : 10
+                    )
+                    .allowsHitTesting(false)
+            }
+
             Circle().fill(knoten.flaeche)
 
             VStack(spacing: knoten == .bereiche ? 3 : 5) {
@@ -1147,6 +1170,30 @@ struct HomeNavigation: View {
         DispatchQueue.main.async {
             withAnimation(.easeOut(duration: 0.56)) {
                 orbitAnimationsFortschritt = 1
+            }
+        }
+    }
+
+    private func starteBereicheGlowFallsNoetig() {
+        guard dossierErstellungsart == .gefuehrt,
+              naechsterGefuehrterSchritt == .bereiche,
+              !accessibilityReduceMotion else {
+            bereicheGlowHervorgehoben = false
+            return
+        }
+
+        bereicheGlowHervorgehoben = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) {
+            guard dossierErstellungsart == .gefuehrt,
+                  naechsterGefuehrterSchritt == .bereiche,
+                  !accessibilityReduceMotion else { return }
+            withAnimation(.easeInOut(duration: 0.48)) {
+                bereicheGlowHervorgehoben = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.15) {
+                withAnimation(.easeOut(duration: 0.85)) {
+                    bereicheGlowHervorgehoben = false
+                }
             }
         }
     }

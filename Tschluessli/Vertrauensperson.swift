@@ -1011,14 +1011,14 @@ struct VertrauenspersonView: View {
             Form {
                 Section {
                     zugriffszeile("Wünsche", bereich: "wuensche", binding: $wuenscheSichtbarBeiDossierfreigabe)
-                    zugriffszeile("Vertrauen", bereich: "kontakte", binding: $menschenDesVertrauensSichtbarBeiDossierfreigabe)
+                    zugriffszeile("Wichtige Menschen", bereich: "kontakte", binding: $menschenDesVertrauensSichtbarBeiDossierfreigabe)
                     zugriffszeile("Finanzen", bereich: "finanzen", binding: $finanzenSichtbarBeiDossierfreigabe)
-                    zugriffszeile("Dokumente", bereich: "dokumente", binding: $dokumenteSichtbarBeiDossierfreigabe)
+                    zugriffszeile("Dokumente & Fotoalbum", bereich: "dokumente", binding: $dokumenteSichtbarBeiDossierfreigabe)
                     zugriffszeile("Abos & Profile", bereich: "zugaenge", binding: $abosUndProfileSichtbarBeiDossierfreigabe)
                     zugriffszeile("Herzensstücke", bereich: "herzensstuecke", binding: $herzensstueckeSichtbarBeiDossierfreigabe)
                     zugriffszeile("Gesundheit", bereich: "gesundheit", binding: $gesundheitSichtbarBeiDossierfreigabe)
                 } header: {
-                    Text("Zugriff für diese Vertrauensperson")
+                    Text("Zugriff für diese Vertrauensperson für die Bereiche")
                 } footer: {
                     Text("Änderungen werden gespeichert und im freigegebenen Dossier übernommen.")
                 }
@@ -1097,9 +1097,9 @@ struct VertrauenspersonView: View {
     private func zugriffsbereichTitel(_ bereich: String) -> String {
         switch bereich {
         case "wuensche": "Wünsche"
-        case "kontakte": "Vertrauen"
+        case "kontakte": "Wichtige Menschen"
         case "finanzen": "Finanzen"
-        case "dokumente": "Dokumente"
+        case "dokumente": "Dokumente & Fotoalbum"
         case "zugaenge": "Abos & Profile"
         case "herzensstuecke": "Herzensstücke"
         case "gesundheit": "Gesundheit"
@@ -2625,10 +2625,9 @@ struct VertrauenspersonView: View {
                 kontaktLoeschungLaeuft = false
                 kontaktLokalLoeschen()
             } catch PushFehler.nichtGefunden {
-                // Der Zugriff wurde beispielsweise in einem früheren Test bereits
-                // serverseitig entfernt. Der lokale Kontakt darf dann ebenfalls weg.
                 kontaktLoeschungLaeuft = false
-                kontaktLokalLoeschen()
+                fehlermeldung = "Der Zugriff konnte auf dem Server nicht eindeutig gefunden werden. Die Vertrauensperson wurde lokal nicht entfernt."
+                erfolgsmeldung = ""
             } catch {
                 kontaktLoeschungLaeuft = false
                 fehlermeldung = "Die Vertrauensperson konnte nicht entfernt werden: \(error.localizedDescription)"
