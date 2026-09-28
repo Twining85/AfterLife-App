@@ -72,7 +72,7 @@ test("liefert in Produktion nur Status und keine Vertrauensperson-E-Mail", async
     { rows: [{ id: "user-id", email: "owner@example.ch", email_verified_at: new Date(), created_at: new Date(), updated_at: new Date(), disabled_at: null, is_admin: "0" }] },
     { rows: [{ id: "dossier-id", is_primary: 1, is_active: 1, is_released: 0, created_at: new Date(), updated_at: new Date() }] },
     { rows: [{ section_type: "kontakte", schema_version: 1, revision: "2", payload: { hinterbliebene: [], vertrauenspersonen: [{ vorname: "Bea", name: "Beispiel", email: "trust@example.ch", beziehung: "Schwester", istPrimaereVertrauensperson: true }] }, deleted_at: null, updated_at: new Date() }] },
-    { rows: [{ status: "accepted", invited_email: "trust@example.ch", requester_email: "trust@example.ch", access_active: 1 }] },
+    { rows: [{ status: "accepted", invited_email: "trust@example.ch", requester_email: "trust@example.ch", requester_name: "Bea Registriert", access_active: 1 }] },
     { rows: [{ status: "available", count: "2", bytes: "1200" }] }
   ]);
   const result = await lookupSupportUser({ email: "owner@example.ch", pool, loadPayload: async (payload) => payload });
@@ -87,7 +87,7 @@ test("liefert in Produktion nur Status und keine Vertrauensperson-E-Mail", async
   assert.equal(result.dossiers[0].trustedPeople[0].hasEmail, true);
   assert.equal(result.dossiers[0].sections.find((section) => section.type === "kontakte").hasData, true);
   assert.doesNotMatch(JSON.stringify(result), /trust@example\.ch/);
-  assert.doesNotMatch(JSON.stringify(result), /Bea|Beispiel|Schwester/);
+  assert.doesNotMatch(JSON.stringify(result), /Bea|Beispiel|Registriert|Schwester/);
 });
 
 test("erkennt MySQL-Adminflags und schützt den Account in der Supportantwort", async () => {
@@ -109,6 +109,7 @@ test("führt hinterlegte Vertrauenspersonen und Einladungen zusammen", () => {
     status: "pending",
     invited_email: "trust@example.ch",
     requester_email: "trust@example.ch",
+    requester_name: "Bea Registriert",
     requested_at: new Date("2026-09-28T10:00:00Z"),
     access_release_at: new Date("2026-10-05T10:00:00Z"),
     access_active: 0
@@ -119,7 +120,7 @@ test("führt hinterlegte Vertrauenspersonen und Einladungen zusammen", () => {
     configured: true,
     primary: true,
     hasName: true,
-    name: "Bea Beispiel",
+    name: "Bea Registriert",
     hasEmail: true,
     email: "trust@example.ch",
     relationship: "Schwester",
@@ -133,6 +134,26 @@ test("führt hinterlegte Vertrauenspersonen und Einladungen zusammen", () => {
   });
   assert.equal(people[1].status, null);
   assert.equal(people[1].name, "Max Muster");
+});
+
+test("zeigt Name und E-Mail reiner Einladungen nur in DEV-Details", () => {
+  const invitation = {
+    status: "pending",
+    invited_email: "trust@example.ch",
+    requester_email: "registered@example.ch",
+    requester_name: "Bea Registriert",
+    access_active: 0
+  };
+
+  const hidden = buildTrustedPeople({}, [invitation], false)[0];
+  assert.equal(hidden.hasName, true);
+  assert.equal(hidden.hasEmail, true);
+  assert.equal(hidden.name, null);
+  assert.equal(hidden.email, null);
+
+  const visible = buildTrustedPeople({}, [invitation], true)[0];
+  assert.equal(visible.name, "Bea Registriert");
+  assert.equal(visible.email, "registered@example.ch");
 });
 
 function scriptedPool(responses) {

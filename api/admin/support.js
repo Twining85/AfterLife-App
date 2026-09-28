@@ -171,7 +171,8 @@ export async function lookupSupportUser({
         [dossier.id]
       ),
       pool.query(
-        `SELECT i.status, i.invited_email, i.requester_email, i.expires_at, i.requested_at,
+        `SELECT i.status, i.invited_email, i.requester_email, i.requester_name,
+                i.expires_at, i.requested_at,
                 i.decided_at, i.access_release_at, i.auto_released_at,
                 CASE WHEN g.dossier_id IS NULL OR g.revoked_at IS NOT NULL THEN 0 ELSE 1 END AS access_active
            FROM dossier_invitations i
@@ -265,13 +266,14 @@ export function buildTrustedPeople(contactsPayload, invitations, includeDetails 
     const invitation = invitationIndex >= 0 ? invitationRows[invitationIndex] : null;
     if (invitationIndex >= 0) usedInvitations.add(invitationIndex);
     const displayEmail = contactEmail || normalizedOptionalEmail(invitation?.requester_email || invitation?.invited_email);
-    const fullName = [contact.vorname, contact.name].map((value) => String(value || "").trim()).filter(Boolean).join(" ");
+    const configuredName = [contact.vorname, contact.name].map((value) => String(value || "").trim()).filter(Boolean).join(" ");
+    const displayName = normalizedOptionalText(invitation?.requester_name) || configuredName || null;
     return trustedPersonResponse({
       invitation,
       configured: true,
       primary: Boolean(contact.istPrimaereVertrauensperson),
-      hasName: Boolean(fullName),
-      name: includeDetails ? fullName || null : null,
+      hasName: Boolean(displayName),
+      name: includeDetails ? displayName : null,
       hasEmail: Boolean(displayEmail),
       email: includeDetails ? displayEmail : null,
       relationship: includeDetails ? String(contact.beziehung || "").trim() || null : null,
@@ -282,12 +284,13 @@ export function buildTrustedPeople(contactsPayload, invitations, includeDetails 
   invitationRows.forEach((invitation, index) => {
     if (usedInvitations.has(index)) return;
     const email = normalizedOptionalEmail(invitation.requester_email || invitation.invited_email);
+    const name = normalizedOptionalText(invitation.requester_name);
     people.push(trustedPersonResponse({
       invitation,
       configured: false,
       primary: false,
-      hasName: false,
-      name: null,
+      hasName: Boolean(name),
+      name: includeDetails ? name : null,
       hasEmail: Boolean(email),
       email: includeDetails ? email : null,
       relationship: null,
@@ -372,6 +375,10 @@ function trustedPersonResponse({ invitation, configured, primary, hasName, name,
 
 function normalizedOptionalEmail(value) {
   return normalizeEmail(value) || null;
+}
+
+function normalizedOptionalText(value) {
+  return String(value || "").trim() || null;
 }
 
 function databaseFlag(value) {
