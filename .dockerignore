@@ -7,6 +7,8 @@
 !api/**
 !database/
 !database/**
+!scripts/
+!scripts/migrate-object-storage.js
 .git
 .git/**
 .env
