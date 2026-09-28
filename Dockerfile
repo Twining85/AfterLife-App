@@ -10,6 +10,7 @@ COPY --from=dependencies --chown=node:node /app/node_modules ./node_modules
 COPY --chown=node:node package.json package-lock.json server.js worker.js ./
 COPY --chown=node:node api ./api
 COPY --chown=node:node database ./database
+COPY --chown=node:node scripts ./scripts
 USER node
 EXPOSE 3000
 CMD ["node", "server.js"]

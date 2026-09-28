@@ -18,7 +18,7 @@ Storage-Container, APNs-Umgebung und fachlich begruendete Zeitwerte.
 - Registrierung, E-Mail-Code, Einladung, Push, Bereichsrechte, manueller und
   automatischer Vollzugriff, Widerruf sowie Dokument-/PDF-Pfade auf zwei iPhones
   funktional getestet
-- Backend-Vertragstests: 57 bestanden
+- Backend-Vertragstests: 61 bestanden
 - iPhone-Geraetebuild: erfolgreich
 
 ## Verbindliche Freigabegates
@@ -60,7 +60,8 @@ sind:
 - GHCR-Workflow ist lokal vorbereitet; nach Git-Sicherung ausführen und den
   ersten Digest in DEV deployen.
 - DEV aus einem vollstaendig gebauten Image neu ausrollen; keine Container-Patches.
-- Infomaniak Object-Storage-Adapter implementieren und in DEV aktivieren.
+- Infomaniak Object Storage in DEV aktivieren, bestehende Payloads migrieren
+  und Upload, Download sowie Löschung auf zwei iPhones abnehmen.
 - Backup-/Restore-Test der Infomaniak-DEV-Datenbank durchfuehren.
 - Monitoring fuer Ready-Healthcheck und Worker einrichten.
 - SSH-Zugang zum DEV-Host wiederherstellen und den internen Stand erneut pruefen.

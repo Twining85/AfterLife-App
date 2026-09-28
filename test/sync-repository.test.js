@@ -35,7 +35,7 @@ test("speichert Upload, Änderungsereignis und Idempotenzantwort", async () => {
   assert.equal(response.statusCode, 200);
   assert.equal(response.body.revision, 1);
   assert.equal(response.body.cursor, "42");
-  assert.deepEqual(response.body.payload, { bestattung: "Wald" });
+  assert.equal("payload" in response.body, false);
   assert.ok(client.calls.some(({ text }) => text.includes("INSERT INTO sync_changes")));
   assert.ok(client.calls.some(({ text }) => text.includes("INSERT INTO sync_idempotency")));
 });
@@ -95,7 +95,7 @@ test("speichert eine Löschung als versionierten Tombstone", async () => {
   assert.equal(response.statusCode, 200);
   assert.equal(response.body.revision, 3);
   assert.equal(response.body.deleted, true);
-  assert.equal(response.body.payload, null);
+  assert.equal("payload" in response.body, false);
 });
 
 test("liefert Upserts und Tombstones seitenweise seit dem Cursor", async () => {
@@ -137,7 +137,7 @@ test("verwendet im MySQL-Pfad Locks, JSON und MySQL-Upserts", async () => {
   const response = await applySectionMutation(client, userID, mutation());
   assert.equal(response.statusCode, 200);
   assert.equal(response.body.cursor, "51");
-  assert.deepEqual(response.body.payload, { bestattung: "Wald" });
+  assert.equal("payload" in response.body, false);
   assert.equal(locks.length, 2);
   assert.ok(client.calls.some(({ text }) => text.includes("ON DUPLICATE KEY UPDATE")));
   assert.equal(client.calls.some(({ text }) => text.includes("ON CONFLICT")), false);

@@ -1,4 +1,5 @@
 import { mutationHash } from "./_sync-contract.js";
+import { storageService } from "./_storage.js";
 
 export async function applySectionMutation(client, userID, mutation) {
   if (client.engine === "mysql") return applyMySQLSectionMutation(client, userID, mutation);
@@ -51,12 +52,18 @@ export async function applySectionMutation(client, userID, mutation) {
     return storeResult(client, userID, mutation, requestHash, 409, {
       error: "Daten wurden zwischenzeitlich geändert",
       code: "revision_conflict",
-      current: current ? sectionResponse(mutation.dossierID, mutation.sectionType, current) : null
+      current: current ? await hydratedSectionResponse(mutation.dossierID, mutation.sectionType, current) : null
     });
   }
 
   const revision = currentRevision + 1;
   const deleted = mutation.operation === "delete";
+  const storedPayload = deleted ? {} : await storageService().storeSectionPayload({
+    dossierID: mutation.dossierID,
+    sectionType: mutation.sectionType,
+    revision,
+    payload: mutation.payload
+  });
   const saved = await client.query(
     `INSERT INTO dossier_sections
        (dossier_id, owner_user_id, section_type, schema_version, revision, payload, deleted_at)
@@ -74,7 +81,7 @@ export async function applySectionMutation(client, userID, mutation) {
       mutation.sectionType,
       mutation.schemaVersion,
       revision,
-      JSON.stringify(deleted ? {} : mutation.payload),
+      JSON.stringify(storedPayload),
       deleted
     ]
   );
@@ -91,11 +98,11 @@ export async function applySectionMutation(client, userID, mutation) {
       mutation.schemaVersion,
       revision,
       mutation.operation,
-      deleted ? null : JSON.stringify(mutation.payload)
+      deleted ? null : JSON.stringify(storedPayload)
     ]
   );
   const body = {
-    ...sectionResponse(mutation.dossierID, mutation.sectionType, savedSection),
+    ...mutationResponse(mutation.dossierID, mutation.sectionType, savedSection),
     operation: mutation.operation,
     cursor: String(change.rows[0].change_id),
     changedAt: isoDate(change.rows[0].changed_at)
@@ -117,16 +124,19 @@ export async function changesSince(client, userID, cursor, limit = 100) {
   const hasMore = rows.rows.length > limit;
   const selected = rows.rows.slice(0, limit);
   return {
-    changes: selected.map((row) => ({
+    changes: await Promise.all(selected.map(async (row) => ({
       cursor: String(row.change_id),
       dossierID: row.dossier_id,
       sectionType: row.section_type,
       schemaVersion: Number(row.schema_version),
       revision: Number(row.revision),
       operation: row.operation,
-      payload: row.operation === "delete" ? null : row.payload,
+      payload: row.operation === "delete" ? null : await storageService().loadSectionPayload(
+        row.payload,
+        { dossierID: row.dossier_id, sectionType: row.section_type }
+      ),
       changedAt: isoDate(row.changed_at)
-    })),
+    }))),
     nextCursor: selected.length ? String(selected.at(-1).change_id) : cursor,
     hasMore
   };
@@ -157,6 +167,22 @@ function sectionResponse(dossierID, sectionType, row) {
     deleted,
     updatedAt: isoDate(row.updated_at)
   };
+}
+
+async function hydratedSectionResponse(dossierID, sectionType, row) {
+  const response = sectionResponse(dossierID, sectionType, row);
+  if (!response.deleted) {
+    response.payload = await storageService().loadSectionPayload(response.payload, {
+      dossierID,
+      sectionType
+    });
+  }
+  return response;
+}
+
+function mutationResponse(dossierID, sectionType, row) {
+  const { payload: _payload, ...response } = sectionResponse(dossierID, sectionType, row);
+  return response;
 }
 
 function isoDate(value) {
@@ -204,11 +230,17 @@ async function applyMySQLSectionMutation(client, userID, mutation) {
     return storeMySQLResult(client, userID, mutation, requestHash, 409, {
       error: "Daten wurden zwischenzeitlich geändert",
       code: "revision_conflict",
-      current: current ? sectionResponse(mutation.dossierID, mutation.sectionType, current) : null
+      current: current ? await hydratedSectionResponse(mutation.dossierID, mutation.sectionType, current) : null
     });
   }
   const revision = currentRevision + 1;
   const deleted = mutation.operation === "delete";
+  const storedPayload = deleted ? {} : await storageService().storeSectionPayload({
+    dossierID: mutation.dossierID,
+    sectionType: mutation.sectionType,
+    revision,
+    payload: mutation.payload
+  });
   await client.query(
     `INSERT INTO dossier_sections
        (dossier_id, owner_user_id, section_type, schema_version, revision, payload, deleted_at)
@@ -216,7 +248,7 @@ async function applyMySQLSectionMutation(client, userID, mutation) {
      ON DUPLICATE KEY UPDATE schema_version = VALUES(schema_version), revision = VALUES(revision),
        payload = VALUES(payload), deleted_at = VALUES(deleted_at), updated_at = CURRENT_TIMESTAMP(6)`,
     [mutation.dossierID, userID, mutation.sectionType, mutation.schemaVersion, revision,
-      deleted ? null : JSON.stringify(mutation.payload), deleted]
+      deleted ? null : JSON.stringify(storedPayload), deleted]
   );
   const saved = await client.query(
     `SELECT schema_version, revision, payload, deleted_at, updated_at FROM dossier_sections
@@ -228,14 +260,14 @@ async function applyMySQLSectionMutation(client, userID, mutation) {
        (owner_user_id, dossier_id, section_type, schema_version, revision, operation, payload)
      VALUES ($1, $2, $3, $4, $5, $6, $7)`,
     [userID, mutation.dossierID, mutation.sectionType, mutation.schemaVersion, revision,
-      mutation.operation, deleted ? null : JSON.stringify(mutation.payload)]
+      mutation.operation, deleted ? null : JSON.stringify(storedPayload)]
   );
   const changed = await client.query(
     "SELECT change_id, changed_at FROM sync_changes WHERE change_id = $1",
     [String(change.insertId)]
   );
   const body = {
-    ...sectionResponse(mutation.dossierID, mutation.sectionType, normalizeJSONRow(saved.rows[0])),
+    ...mutationResponse(mutation.dossierID, mutation.sectionType, normalizeJSONRow(saved.rows[0])),
     operation: mutation.operation,
     cursor: String(changed.rows[0].change_id),
     changedAt: isoDate(changed.rows[0].changed_at)
@@ -254,11 +286,15 @@ async function mysqlChangesSince(client, userID, cursor, limit) {
   const hasMore = normalized.length > limit;
   const selected = normalized.slice(0, limit);
   return {
-    changes: selected.map((row) => ({
+    changes: await Promise.all(selected.map(async (row) => ({
       cursor: String(row.change_id), dossierID: row.dossier_id, sectionType: row.section_type,
       schemaVersion: Number(row.schema_version), revision: Number(row.revision), operation: row.operation,
-      payload: row.operation === "delete" ? null : row.payload, changedAt: isoDate(row.changed_at)
-    })),
+      payload: row.operation === "delete" ? null : await storageService().loadSectionPayload(
+        row.payload,
+        { dossierID: row.dossier_id, sectionType: row.section_type }
+      ),
+      changedAt: isoDate(row.changed_at)
+    }))),
     nextCursor: selected.length ? String(selected.at(-1).change_id) : cursor,
     hasMore
   };

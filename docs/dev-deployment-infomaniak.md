@@ -90,6 +90,12 @@ CRON_SECRET=RANDOM_SECRET
 STORAGE_DRIVER=disabled
 OBJECT_STORAGE_CONTAINER=tschluessli-dev-files
 OBJECT_STORAGE_EXPECTED_CONTAINER=tschluessli-dev-files
+OBJECT_STORAGE_ENDPOINT=https://OBJECT-STORAGE-ENDPOINT
+OBJECT_STORAGE_ACCESS_KEY=SECRET
+OBJECT_STORAGE_SECRET_KEY=SECRET
+OBJECT_STORAGE_REGION=dc4
+OBJECT_STORAGE_ENCRYPTION_KEY=32_BYTE_BASE64_SECRET
+OBJECT_STORAGE_THRESHOLD_BYTES=65536
 ```
 
 Das DB-Passwort muss URL-kodiert sein, falls es Zeichen wie `@`, `:`, `/`, `#`
@@ -114,6 +120,15 @@ sudo docker compose -f compose.yml config --quiet
 
 `config --quiet` verwenden, damit auf dem Terminal keine aufgeloesten Secrets
 ausgegeben werden.
+
+`OBJECT_STORAGE_ENCRYPTION_KEY` ist ein separater, zufälliger 32-Byte-Schlüssel
+in Base64 und darf weder im Repository noch in GitHub Actions liegen. Solange
+`STORAGE_DRIVER=disabled` gesetzt ist, verbleiben alle Payloads in der
+Datenbank. Nach dem geprüften Verbindungsaufbau wird der Treiber auf
+`infomaniak` gesetzt. Das Deployment migriert dann bestehende grosse Payloads
+idempotent in den getrennten DEV-Container. Die API verschlüsselt jedes Objekt
+zusätzlich mit AES-256-GCM, bevor es über HTTPS übertragen wird; der Schlüssel
+bleibt ausschliesslich auf dem Server.
 
 ## 4. Image bauen
 

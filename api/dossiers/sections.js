@@ -1,6 +1,7 @@
 import { authenticatedUser } from "../_auth.js";
 import { withUserTransaction } from "../_database.js";
 import { requireJSON, secureResponse } from "../_security.js";
+import { storageService } from "../_storage.js";
 
 export default async function handler(req, res) {
   secureResponse(res);
@@ -47,6 +48,12 @@ export default async function handler(req, res) {
         );
         const revision = existing.rows[0] ? Number(existing.rows[0].revision) : 0;
         if (revision !== expectedRevision) return { rows: [] };
+        const storedPayload = await storageService().storeSectionPayload({
+          dossierID,
+          sectionType,
+          revision: revision + 1,
+          payload
+        });
         await client.query(
           `INSERT INTO dossier_sections
              (dossier_id, owner_user_id, section_type, schema_version, revision, payload)
@@ -54,7 +61,7 @@ export default async function handler(req, res) {
            ON DUPLICATE KEY UPDATE schema_version = VALUES(schema_version),
              revision = VALUES(revision), payload = VALUES(payload), deleted_at = NULL,
              updated_at = CURRENT_TIMESTAMP(6)`,
-          [dossierID, user.id, sectionType, schemaVersion, revision + 1, JSON.stringify(payload)]
+          [dossierID, user.id, sectionType, schemaVersion, revision + 1, JSON.stringify(storedPayload)]
         );
         return client.query(
           `SELECT schema_version, revision, payload, updated_at FROM dossier_sections
@@ -62,6 +69,12 @@ export default async function handler(req, res) {
           [dossierID, sectionType]
         );
       }
+      const storedPayload = await storageService().storeSectionPayload({
+        dossierID,
+        sectionType,
+        revision: expectedRevision + 1,
+        payload
+      });
       return client.query(
         `INSERT INTO dossier_sections (dossier_id, owner_user_id, section_type, schema_version, payload)
          SELECT id, owner_user_id, $2, $3, $4::jsonb FROM dossiers WHERE id = $1 AND $5 = 0
@@ -72,11 +85,13 @@ export default async function handler(req, res) {
                updated_at = now()
          WHERE dossier_sections.revision = $5
          RETURNING schema_version, revision, payload, updated_at`,
-        [dossierID, sectionType, schemaVersion, JSON.stringify(payload), expectedRevision]
+        [dossierID, sectionType, schemaVersion, JSON.stringify(storedPayload), expectedRevision]
       );
     });
     if (!result.rows[0]) return res.status(req.method === "PUT" ? 409 : 404).json({ error: req.method === "PUT" ? "Daten wurden zwischenzeitlich geändert" : "Bereich nicht gefunden" });
-    return res.status(200).json(result.rows[0]);
+    const row = result.rows[0];
+    row.payload = await storageService().loadSectionPayload(row.payload, { dossierID, sectionType });
+    return res.status(200).json(row);
   } catch (error) {
     if (error.statusCode) return res.status(error.statusCode).json({ error: error.message });
     console.error("Dossierbereich:", error);
