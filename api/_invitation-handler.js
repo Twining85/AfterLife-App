@@ -315,6 +315,7 @@ export async function revokeInvitationForOwner({
   const client = await pool.connect();
   const tokenHash = String(token || "").trim() ? hash(String(token).trim()) : null;
   let revoked = [];
+  let alreadyRevoked = false;
   try {
     await client.query("BEGIN");
     if (client.engine === "mysql") {
@@ -338,6 +339,15 @@ export async function revokeInvitationForOwner({
             WHERE invitation_id IN (${ids.map((_, index) => `$${index + 1}`).join(",")}) AND revoked_at IS NULL`,
           ids
         );
+      } else {
+        const existing = await client.query(
+          `SELECT id FROM dossier_invitations
+            WHERE owner_user_id = $1 AND dossier_id = $2
+              AND (($4 IS NOT NULL AND token_hash = $4) OR invited_email = $3)
+              AND status = 'revoked' LIMIT 1`,
+          [userID, dossierID, email, tokenHash]
+        );
+        alreadyRevoked = existing.rows.length > 0;
       }
       await client.query("COMMIT");
     } else {
@@ -358,6 +368,16 @@ export async function revokeInvitationForOwner({
           WHERE invitation_id = ANY($1::uuid[]) AND revoked_at IS NULL`,
         [revoked.map((invitation) => invitation.id)]
       );
+    } else {
+      const existing = await client.query(
+        `SELECT id FROM dossier_invitations
+          WHERE owner_user_id = $1 AND dossier_id = $2
+            AND (($4::text IS NOT NULL AND token_hash = $4) OR invited_email = $3)
+            AND status = 'revoked'
+          LIMIT 1`,
+        [userID, dossierID, email, tokenHash]
+      );
+      alreadyRevoked = existing.rows.length > 0;
     }
     await client.query("COMMIT");
     }
@@ -387,7 +407,7 @@ export async function revokeInvitationForOwner({
       dossierID
     })
   ));
-  return revoked.length;
+  return revoked.length || (alreadyRevoked ? 1 : 0);
 }
 
 async function invitationStatus(req, res, user) {

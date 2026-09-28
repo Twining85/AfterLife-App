@@ -497,6 +497,13 @@ final class DossierSyncDienst {
             return
         }
 
+        let profilMussBereinigtHochgeladenWerden = initialerAbgleich
+            ? await repariereRecoveryProfilFallsNoetig(dossierID: dossierID)
+            : false
+        let kontakteMuessenBereinigtHochgeladenWerden = initialerAbgleich
+            ? await repariereRecoveryKontakteFallsNoetig(dossierID: dossierID)
+            : false
+
         if initialerAbgleich {
             await ladeAenderungenHerunter()
         }
@@ -507,6 +514,12 @@ final class DossierSyncDienst {
                 ) == nil && !self.hatGespeichertenKonflikt(dossierID: dossierID, bereich: $0)
             }).union(bereiche)
             : bereiche
+        if profilMussBereinigtHochgeladenWerden {
+            markierteBereiche.insert("profil")
+        }
+        if kontakteMuessenBereinigtHochgeladenWerden {
+            markierteBereiche.insert("kontakte")
+        }
 
         if initialerAbgleich {
             // Eine lokale Revision kann von einem früheren Test- oder
@@ -540,6 +553,98 @@ final class DossierSyncDienst {
         }
         await coordinator.synchronisieren()
         await ladeAenderungenHerunter()
+    }
+
+    /// Repariert den von älteren Recovery-Versionen erzeugten leeren
+    /// Profil-Doppelgänger. Der Server wird zuerst direkt gelesen; bei einem
+    /// Fehler wird weder der lokale Stand noch die Cloud verändert.
+    private func repariereRecoveryProfilFallsNoetig(dossierID: UUID) async -> Bool {
+        let reparaturKey = "Tschluessli.ProfilRecoveryReparatur.v1.\(dossierID.uuidString.lowercased())"
+        guard !UserDefaults.standard.bool(forKey: reparaturKey) else { return false }
+
+        do {
+            guard let cloudBereich = try await CloudDossierSyncService.shared.laden(
+                dossierID: dossierID,
+                bereich: "profil"
+            ) else {
+                UserDefaults.standard.set(true, forKey: reparaturKey)
+                return false
+            }
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let cloudProfile = try decoder.decode(
+                CloudDatenListe<CloudProfilDaten>.self,
+                from: cloudBereich.payload
+            )
+            let enthaeltDoppelgaenger = Set(cloudProfile.items.map(\.userID)).count
+                < cloudProfile.items.count
+
+            let adapter = try registry.adapter(fuer: "profil")
+            let validierteDaten = try adapter.validiere(
+                cloudBereich.payload,
+                schemaVersion: cloudBereich.schemaVersion
+            )
+            try await DossierBereichImport.importiere(
+                validierteDaten,
+                bereich: "profil",
+                dossierID: dossierID,
+                in: modelContext
+            )
+            UserDefaults.standard.set(
+                Int64(cloudBereich.revision),
+                forKey: Self.revisionKey(dossierID: dossierID, bereich: "profil")
+            )
+            UserDefaults.standard.set(true, forKey: reparaturKey)
+            return enthaeltDoppelgaenger
+        } catch {
+            return false
+        }
+    }
+
+    /// Lädt bestehende Vertrauenspersonen einmal direkt nach und ergänzt
+    /// bei Legacy-Daten die fehlende Besitzerzuordnung aus dem Dossier.
+    private func repariereRecoveryKontakteFallsNoetig(dossierID: UUID) async -> Bool {
+        let reparaturKey = "Tschluessli.KontakteRecoveryReparatur.v1.\(dossierID.uuidString.lowercased())"
+        guard !UserDefaults.standard.bool(forKey: reparaturKey) else { return false }
+
+        do {
+            guard let cloudBereich = try await CloudDossierSyncService.shared.laden(
+                dossierID: dossierID,
+                bereich: "kontakte"
+            ) else {
+                UserDefaults.standard.set(true, forKey: reparaturKey)
+                return false
+            }
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let cloudKontakte = try decoder.decode(
+                CloudKontaktDaten.self,
+                from: cloudBereich.payload
+            )
+            let benoetigtBesitzerZuordnung = cloudKontakte.vertrauenspersonen.contains {
+                $0.vorsorgendeUserID == nil
+            }
+
+            let adapter = try registry.adapter(fuer: "kontakte")
+            let validierteDaten = try adapter.validiere(
+                cloudBereich.payload,
+                schemaVersion: cloudBereich.schemaVersion
+            )
+            try await DossierBereichImport.importiere(
+                validierteDaten,
+                bereich: "kontakte",
+                dossierID: dossierID,
+                in: modelContext
+            )
+            UserDefaults.standard.set(
+                Int64(cloudBereich.revision),
+                forKey: Self.revisionKey(dossierID: dossierID, bereich: "kontakte")
+            )
+            UserDefaults.standard.set(true, forKey: reparaturKey)
+            return benoetigtBesitzerZuordnung
+        } catch {
+            return false
+        }
     }
 
     /// Ein frisch registriertes oder auf einem neuen Gerät angemeldetes Konto

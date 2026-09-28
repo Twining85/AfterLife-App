@@ -1,6 +1,12 @@
 import SwiftUI
 
 struct DossierRecoveryView: View {
+    private enum WiederherstellungsPhase {
+        case bereichePruefen
+        case letzteDatenLaden
+        case erfolgreich
+    }
+
     @Environment(\.appLayout) private var appLayout
     var nurWiederherstellen = false
     var nurErstellen = false
@@ -24,16 +30,31 @@ struct DossierRecoveryView: View {
     @State private var recoveryBereitsEingerichtet = false
     @State private var wiederherstellungsFortschrittAnzeigen = false
     @State private var abgeschlosseneWiederherstellungsSchritte = 0
+    @State private var wiederherstellungsPhase: WiederherstellungsPhase = .bereichePruefen
+    @State private var datenladenAbgeschlossen = false
+    @State private var erfolgsSymbolSichtbar = false
+    @State private var erfolgsTextSichtbar = false
+    @State private var finalisierungsMeldungsIndex = 0
     @State private var notfallResetAnzeigen = false
+    @State private var recoveryScannerAnzeigen = false
 
     private let wiederherstellungsSchritte = [
-        "Profildaten prüfen und laden",
-        "Gesundheit prüfen und laden",
-        "Meine Wünsche prüfen und laden",
-        "Finanzen prüfen und laden",
-        "Kontakte prüfen und laden",
-        "Herzensstücke prüfen und laden",
-        "Abos & Zugänge prüfen und laden"
+        "Profildaten",
+        "Gesundheit",
+        "Meine Wünsche",
+        "Finanzen",
+        "Kontakte",
+        "Vertrauenspersonen",
+        "Herzensstücke",
+        "Abos & Zugänge"
+    ]
+
+    private let finalisierungsMeldungen = [
+        (symbol: "🚀", titel: "Auf der Zielgeraden – 3", detail: "Auf dem Weg durch die Cloud."),
+        (symbol: "🚀", titel: "Auf der Zielgeraden – 2", detail: "Auf dem Weg durch die Cloud."),
+        (symbol: "🚀", titel: "Auf der Zielgeraden – 1", detail: "Auf dem Weg durch die Cloud."),
+        (symbol: "🌤️", titel: "Restliche Daten aus der Cloud laden", detail: "Einen kleinen Moment noch."),
+        (symbol: "📥", titel: "Fast geschafft", detail: "Die letzten Daten werden geladen und sicher eingerichtet.")
     ]
 
     private var woerter: [String] { code.split(separator: " ").map(String.init) }
@@ -111,6 +132,12 @@ struct DossierRecoveryView: View {
                     }
                     Button("Dossier wiederherstellen") { stelleWiederHer() }
                         .disabled(arbeitet || !recoveryCodeVollstaendig)
+                    Button {
+                        recoveryScannerAnzeigen = true
+                    } label: {
+                        Label("QR-Code scannen", systemImage: "camera.viewfinder")
+                    }
+                    .disabled(arbeitet)
                     if nurWiederherstellen, onDossierZurueckgesetzt != nil {
                         Button("Wiederherstellungscode nicht mehr vorhanden?") {
                             notfallResetAnzeigen = true
@@ -152,6 +179,13 @@ struct DossierRecoveryView: View {
                     onDossierZurueckgesetzt(dossierID)
                 }
             }
+        }
+        .fullScreenCover(isPresented: $recoveryScannerAnzeigen) {
+            QRCodeScannerView(
+                ergebnis: recoveryQRCodeUebernehmen,
+                abbruch: { recoveryScannerAnzeigen = false }
+            )
+            .ignoresSafeArea()
         }
     }
 
@@ -203,14 +237,40 @@ struct DossierRecoveryView: View {
                     wiederherstellungsFortschrittAnzeigen = true
                 }
                 abgeschlosseneWiederherstellungsSchritte = 0
-                async let datenGeladen = ladeDatenNachRecovery()
+                wiederherstellungsPhase = .bereichePruefen
+                datenladenAbgeschlossen = false
+                erfolgsSymbolSichtbar = false
+                erfolgsTextSichtbar = false
+                let datenLadeTask = Task { @MainActor in
+                    let erfolgreich = await ladeDatenNachRecovery()
+                    datenladenAbgeschlossen = true
+                    return erfolgreich
+                }
                 await animiereWiederherstellungsFortschritt()
-                guard await datenGeladen else {
+                if !datenladenAbgeschlossen {
+                    finalisierungsMeldungsIndex = 0
+                    withAnimation(.easeInOut(duration: bewegungReduzieren ? 0 : 0.3)) {
+                        wiederherstellungsPhase = .letzteDatenLaden
+                    }
+                }
+                let finalisierungsTask = Task { @MainActor in
+                    guard wiederherstellungsPhase == .letzteDatenLaden else { return }
+                    await animiereFinalisierungsMeldungen()
+                }
+                guard await datenLadeTask.value else {
+                    finalisierungsTask.cancel()
                     withAnimation(.easeInOut(duration: 0.22)) {
                         wiederherstellungsFortschrittAnzeigen = false
                     }
                     throw DossierRecoveryFehler.cloudWiederherstellungFehlgeschlagen
                 }
+                finalisierungsTask.cancel()
+
+                withAnimation(.easeInOut(duration: bewegungReduzieren ? 0 : 0.28)) {
+                    wiederherstellungsPhase = .erfolgreich
+                }
+                zeigeErfolgreichenAbschluss()
+                try? await Task.sleep(for: .milliseconds(bewegungReduzieren ? 900 : 1_500))
                 withAnimation(.easeInOut(duration: bewegungReduzieren ? 0 : 0.22)) {
                     wiederherstellungsFortschrittAnzeigen = false
                 }
@@ -227,63 +287,181 @@ struct DossierRecoveryView: View {
                 .ignoresSafeArea()
 
             ScrollView {
-              VStack(alignment: .leading, spacing: 0) {
-                Text("Dossier wird wiederhergestellt")
-                    .font(.title3.weight(.bold))
-                    .padding(.bottom, 6)
-                Text("Bereiche werden geprüft und etwaige Daten geladen.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .padding(.bottom, 22)
-
-                ForEach(Array(wiederherstellungsSchritte.enumerated()), id: \.offset) { index, titel in
-                    HStack(alignment: .top, spacing: 13) {
-                        VStack(spacing: 0) {
-                            ZStack {
-                                Circle()
-                                    .fill(index < abgeschlosseneWiederherstellungsSchritte ? Color.green : Color.secondary.opacity(0.14))
-                                    .frame(width: 27, height: 27)
-                                if index < abgeschlosseneWiederherstellungsSchritte {
-                                    Image(systemName: "checkmark")
-                                        .font(.caption.weight(.bold))
-                                        .foregroundStyle(.white)
-                                } else if index == abgeschlosseneWiederherstellungsSchritte {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                }
-                            }
-
-                            if index < wiederherstellungsSchritte.count - 1 {
-                                Rectangle()
-                                    .fill(index < abgeschlosseneWiederherstellungsSchritte ? Color.green.opacity(0.65) : Color.secondary.opacity(0.16))
-                                    .frame(width: 2, height: 25)
-                            }
-                        }
-
-                        Text(titel)
-                            .font(.body.weight(index == abgeschlosseneWiederherstellungsSchritte ? .semibold : .regular))
-                            .foregroundStyle(index <= abgeschlosseneWiederherstellungsSchritte ? Color.primary : Color.secondary)
-                            .padding(.top, 3)
+                Group {
+                    switch wiederherstellungsPhase {
+                    case .bereichePruefen:
+                        bereichsFortschrittAnsicht
+                    case .letzteDatenLaden:
+                        letzteDatenAnsicht
+                    case .erfolgreich:
+                        erfolgreicheWiederherstellungAnsicht
                     }
                 }
-            }
-              }
               .padding(appLayout.cardPadding)
               .frame(maxWidth: 360, alignment: .leading)
               .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
               .shadow(color: .black.opacity(0.16), radius: 24, y: 10)
               .appPagePadding()
               .padding(.vertical, appLayout.pageInset)
+            }
         }
     }
 
+    private var bereichsFortschrittAnsicht: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Dossier wird geprüft und wiederhergestellt")
+                .font(.title3.weight(.bold))
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, 6)
+            Text("Alle Bereiche werden geprüft. Vorhandene Daten werden sicher auf dieses Gerät geladen.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, 22)
+
+            ForEach(Array(wiederherstellungsSchritte.enumerated()), id: \.offset) { index, titel in
+                HStack(alignment: .top, spacing: 13) {
+                    VStack(spacing: 0) {
+                        ZStack {
+                            Circle()
+                                .fill(index < abgeschlosseneWiederherstellungsSchritte ? Color.green : Color.secondary.opacity(0.14))
+                                .frame(width: 27, height: 27)
+                            if index < abgeschlosseneWiederherstellungsSchritte {
+                                Image(systemName: "checkmark")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(.white)
+                            } else if index == abgeschlosseneWiederherstellungsSchritte {
+                                ProgressView()
+                                    .controlSize(.small)
+                            }
+                        }
+
+                        if index < wiederherstellungsSchritte.count - 1 {
+                            Rectangle()
+                                .fill(index < abgeschlosseneWiederherstellungsSchritte ? Color.green.opacity(0.65) : Color.secondary.opacity(0.16))
+                                .frame(width: 2, height: 25)
+                        }
+                    }
+
+                    Text(wiederherstellungsText(titel, index: index))
+                        .font(.body.weight(index == abgeschlosseneWiederherstellungsSchritte ? .semibold : .regular))
+                        .foregroundStyle(index <= abgeschlosseneWiederherstellungsSchritte ? Color.primary : Color.secondary)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .layoutPriority(1)
+                        .padding(.top, 3)
+                }
+            }
+        }
+    }
+
+    private var letzteDatenAnsicht: some View {
+        let meldung = finalisierungsMeldungen[finalisierungsMeldungsIndex]
+        return VStack(spacing: 18) {
+            Text(meldung.symbol)
+                .font(.system(size: 54))
+                .contentTransition(.numericText())
+            VStack(spacing: 8) {
+                Text(meldung.titel)
+                    .font(.system(.title2, design: .rounded, weight: .bold))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(meldung.detail)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            ProgressView()
+                .controlSize(.regular)
+                .tint(Color.appAccent)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 22)
+        .id(finalisierungsMeldungsIndex)
+        .transition(.opacity.combined(with: .scale(scale: 0.97)))
+    }
+
+    private var erfolgreicheWiederherstellungAnsicht: some View {
+        VStack(spacing: appLayout.sectionSpacing) {
+            ZStack {
+                Circle()
+                    .fill(Color.green.opacity(0.12))
+                    .frame(width: 118, height: 118)
+                    .scaleEffect(erfolgsSymbolSichtbar ? 1 : 0.55)
+                    .opacity(erfolgsSymbolSichtbar ? 1 : 0)
+
+                Circle()
+                    .stroke(Color.green.opacity(0.18), lineWidth: 1)
+                    .frame(width: 94, height: 94)
+
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 72, weight: .semibold))
+                    .foregroundStyle(Color.green)
+                    .symbolEffect(.bounce, value: erfolgsSymbolSichtbar)
+                    .scaleEffect(erfolgsSymbolSichtbar ? 1 : 0.25)
+                    .opacity(erfolgsSymbolSichtbar ? 1 : 0)
+            }
+
+            VStack(spacing: 10) {
+                Text("Alles bereit")
+                    .font(.system(.title2, design: .rounded, weight: .bold))
+                    .foregroundStyle(Color.appPrimaryText)
+                Text("Dein Dossier wurde erfolgreich wiederhergestellt.")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .opacity(erfolgsTextSichtbar ? 1 : 0)
+            .offset(y: erfolgsTextSichtbar ? 0 : 10)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+    }
+
     private func animiereWiederherstellungsFortschritt() async {
-        let pause: Duration = .seconds(1)
+        let pause: Duration = .seconds(bewegungReduzieren ? 1 : 3)
         for schritt in 1...wiederherstellungsSchritte.count {
             try? await Task.sleep(for: pause)
-            withAnimation(bewegungReduzieren ? nil : .spring(response: 0.28, dampingFraction: 0.82)) {
+            guard !Task.isCancelled else { return }
+            withAnimation(bewegungReduzieren ? nil : .easeInOut(duration: 0.3)) {
                 abgeschlosseneWiederherstellungsSchritte = schritt
             }
+        }
+    }
+
+    private func animiereFinalisierungsMeldungen() async {
+        while !Task.isCancelled {
+            let pause: Duration = finalisierungsMeldungsIndex < 3 ? .seconds(1) : .seconds(3)
+            try? await Task.sleep(for: pause)
+            guard !Task.isCancelled else { return }
+            let naechsterIndex: Int
+            if finalisierungsMeldungsIndex < finalisierungsMeldungen.count - 1 {
+                naechsterIndex = finalisierungsMeldungsIndex + 1
+            } else {
+                naechsterIndex = 3
+            }
+            withAnimation(.easeInOut(duration: bewegungReduzieren ? 0 : 0.35)) {
+                finalisierungsMeldungsIndex = naechsterIndex
+            }
+        }
+    }
+
+    private func wiederherstellungsText(_ titel: String, index: Int) -> String {
+        if index < abgeschlosseneWiederherstellungsSchritte {
+            return "\(titel) geprüft"
+        }
+        if index == abgeschlosseneWiederherstellungsSchritte {
+            return "\(titel) wird geprüft …"
+        }
+        return titel
+    }
+
+    private func zeigeErfolgreichenAbschluss() {
+        withAnimation(bewegungReduzieren ? nil : .spring(response: 0.52, dampingFraction: 0.68)) {
+            erfolgsSymbolSichtbar = true
+        }
+        withAnimation(.easeOut(duration: bewegungReduzieren ? 0 : 0.38).delay(bewegungReduzieren ? 0 : 0.22)) {
+            erfolgsTextSichtbar = true
         }
     }
 
@@ -368,6 +546,18 @@ struct DossierRecoveryView: View {
         }
         if DossierRecoveryCode.woerter.contains(normalisiert), index < 11 {
             fokussiertesRecoveryWort = index + 1
+        }
+    }
+
+    private func recoveryQRCodeUebernehmen(_ inhalt: String) {
+        recoveryScannerAnzeigen = false
+        do {
+            let normalisiert = try DossierRecoveryCode.ausQRCode(inhalt)
+            recoveryWoerter = normalisiert.split(separator: " ").map(String.init)
+            fokussiertesRecoveryWort = nil
+            meldung = "Erfolgreich erkannt. Prüfe die zwölf Wörter und starte anschliessend die Wiederherstellung."
+        } catch {
+            meldung = "Dieser QR-Code ist kein gültiger Tschlüssli-Wiederherstellungscode."
         }
     }
 }

@@ -310,6 +310,39 @@ test("unterstützt beim Widerruf weiterhin installierte Apps ohne Token-Feld", a
   assert.equal(update.parameters[3], null);
 });
 
+test("behandelt einen bereits widerrufenen Zugriff beim Entfernen idempotent", async () => {
+  const queries = [];
+  const pushes = [];
+  const client = {
+    async query(text, parameters = []) {
+      queries.push({ text: String(text), parameters });
+      if (String(text).includes("UPDATE dossier_invitations")) {
+        return { rows: [] };
+      }
+      if (String(text).includes("status = 'revoked'")) {
+        return { rows: [{ id: "9ca650a8-a78c-4ef0-b62f-cb640531b667" }] };
+      }
+      return { rows: [] };
+    },
+    release() {}
+  };
+
+  const count = await revokeInvitationForOwner({
+    userID: "cbcb4c1c-289f-4719-b237-02c9c7534642",
+    dossierID: "7b4a924e-f65a-4b51-9c19-3e4c74dc79de",
+    email: "trust@example.ch",
+    token: "4ea4ce32-796a-4385-97d1-164630f113d9",
+    pool: { async connect() { return client; } },
+    async push(userID, payload) { pushes.push({ userID, payload }); }
+  });
+
+  assert.equal(count, 1);
+  assert.equal(queries.some(({ text }) => text.includes("status = 'revoked'")), true);
+  assert.equal(queries.some(({ text }) => text.includes("UPDATE dossier_access_grants")), false);
+  assert.equal(queries.at(-1).text, "COMMIT");
+  assert.deepEqual(pushes, []);
+});
+
 function scriptedPool(responses) {
   return {
     calls: [],
