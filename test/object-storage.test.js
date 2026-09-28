@@ -76,7 +76,7 @@ test("lässt kleine Payloads in der Datenbank und löscht Dossierobjekte präfix
       if (command.constructor.name === "ListObjectsV2Command") {
         return { Contents: [{ Key: `dossiers/${dossierID}/sections/dokumente/1-a.json.enc` }] };
       }
-      if (command.constructor.name === "DeleteObjectsCommand") return {};
+      if (command.constructor.name === "DeleteObjectCommand") return {};
       throw new Error(`Unerwarteter Storage-Befehl: ${command.constructor.name}`);
     }
   };
@@ -91,5 +91,5 @@ test("lässt kleine Payloads in der Datenbank und löscht Dossierobjekte präfix
 
   await service.deleteDossier(dossierID);
   assert.equal(calls[0].input.Prefix, `dossiers/${dossierID}/`);
-  assert.equal(calls[1].input.Delete.Objects.length, 1);
+  assert.equal(calls[1].input.Key, `dossiers/${dossierID}/sections/dokumente/1-a.json.enc`);
 });
