@@ -15,6 +15,8 @@ Administratorzugriff. Er darf über `sudo` ausschließlich das root-eigene Skrip
 Das Skript akzeptiert nur Images aus
 `ghcr.io/twining85/tschluessli-api`, führt Migration und Healthcheck aus und
 stellt bei einem Fehler die vorherige Konfiguration wieder her.
+Die Image-Referenz liegt getrennt von den Anwendungsgeheimnissen in der
+root-eigenen Datei `/etc/tschluessli/deploy.env`.
 
 Die früher verwendeten Repository-Secrets `DEV_SSH_HOST`, `DEV_SSH_USER`,
 `DEV_SSH_PRIVATE_KEY` und `DEV_SSH_KNOWN_HOSTS` werden nicht benötigt und

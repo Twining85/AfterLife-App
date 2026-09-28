@@ -9,6 +9,7 @@ fi
 readonly image_digest="$1"
 readonly image_ref="ghcr.io/twining85/tschluessli-api@${image_digest}"
 readonly deployment_dir="/opt/tschluessli"
+readonly deployment_env="/etc/tschluessli/deploy.env"
 readonly lock_file="/run/lock/tschluessli-deploy.lock"
 
 exec 9>"$lock_file"
@@ -18,30 +19,35 @@ if ! flock -n 9; then
 fi
 
 cd "$deployment_dir"
-backup_file=".env.before-deploy-$(date -u +%Y%m%dT%H%M%SZ)"
-cp .env "$backup_file"
+backup_file="${deployment_env}.before-deploy-$(date -u +%Y%m%dT%H%M%SZ)"
+cp "$deployment_env" "$backup_file"
+
+compose() {
+  docker compose --env-file "$deployment_env" "$@"
+}
 
 rollback() {
   echo "Deployment fehlgeschlagen – vorherige Konfiguration wird wiederhergestellt." >&2
-  cp "$backup_file" .env
-  docker compose up -d --no-build api auto-release-worker || true
+  cp "$backup_file" "$deployment_env"
+  compose up -d --no-build api auto-release-worker || true
 }
 trap rollback ERR
 
-TSCHLUESSLI_IMAGE_REF="$image_ref" docker compose pull api auto-release-worker
-TSCHLUESSLI_IMAGE_REF="$image_ref" docker compose --profile tools run --rm migrate
+TSCHLUESSLI_IMAGE_REF="$image_ref" compose pull api auto-release-worker
+TSCHLUESSLI_IMAGE_REF="$image_ref" compose --profile tools run --rm migrate
 
-if grep -q '^TSCHLUESSLI_IMAGE_REF=' .env; then
-  sed "s|^TSCHLUESSLI_IMAGE_REF=.*|TSCHLUESSLI_IMAGE_REF=${image_ref}|" .env > .env.next
+if grep -q '^TSCHLUESSLI_IMAGE_REF=' "$deployment_env"; then
+  sed "s|^TSCHLUESSLI_IMAGE_REF=.*|TSCHLUESSLI_IMAGE_REF=${image_ref}|" \
+    "$deployment_env" > "${deployment_env}.next"
 else
-  cp .env .env.next
-  printf '\nTSCHLUESSLI_IMAGE_REF=%s\n' "$image_ref" >> .env.next
+  cp "$deployment_env" "${deployment_env}.next"
+  printf '\nTSCHLUESSLI_IMAGE_REF=%s\n' "$image_ref" >> "${deployment_env}.next"
 fi
-chown --reference=.env .env.next
-chmod --reference=.env .env.next
-mv .env.next .env
+chown --reference="$deployment_env" "${deployment_env}.next"
+chmod --reference="$deployment_env" "${deployment_env}.next"
+mv "${deployment_env}.next" "$deployment_env"
 
-docker compose up -d --no-build api auto-release-worker
+compose up -d --no-build api auto-release-worker
 
 healthy=false
 for _ in $(seq 1 18); do
@@ -52,6 +58,6 @@ for _ in $(seq 1 18); do
   sleep 5
 done
 test "$healthy" = true
-docker compose ps
+compose ps
 trap - ERR
 echo "DEV erfolgreich auf ${image_ref} aktualisiert."
