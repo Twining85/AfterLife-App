@@ -26,7 +26,16 @@ struct EinladungsanfrageSendenView: View {
 
     private var kannAnfragen: Bool {
         zugriff.status == DossierZugriffStatus.erstellt ||
-            zugriff.status == DossierZugriffStatus.abgelehnt
+            zugriff.status == DossierZugriffStatus.abgelehnt ||
+            (zugriff.status == DossierZugriffStatus.angenommen && hatGesperrteBereiche)
+    }
+
+    private var hatGesperrteBereiche: Bool {
+        let suffix = zugriff.dossierID.uuidString.lowercased()
+        let defaults = UserDefaults.standard
+        let verfuegbar = Set((defaults.string(forKey: "verfuegbareBereiche.\(suffix)") ?? "").split(separator: ",").map(String.init))
+        let freigegeben = Set((defaults.string(forKey: "freigegebeneBereiche.\(suffix)") ?? "").split(separator: ",").map(String.init))
+        return !verfuegbar.isEmpty && !verfuegbar.isSubset(of: freigegeben)
     }
 
     var body: some View {
@@ -36,7 +45,7 @@ struct EinladungsanfrageSendenView: View {
                 .font(.largeTitle.weight(.semibold))
                 .foregroundStyle(akzent)
 
-            Text("Weitere Bereiche anfragen")
+            Text("Zugriff für gesperrte Bereiche anfragen")
                 .font(.title2.bold())
 
             Text("Die bereits freigegebenen Bereiche kannst du weiterhin ansehen. Sende diese Anfrage nur, wenn du auch Zugriff auf die bisher verborgenen Bereiche benötigst.")
@@ -51,9 +60,9 @@ struct EinladungsanfrageSendenView: View {
                 sendeAnfrage()
             } label: {
                 Label(
-                    zugriff.status == DossierZugriffStatus.abgelehnt
-                        ? "Weitere Bereiche erneut anfragen"
-                        : "Weitere Bereiche anfragen",
+                    zugriff.status == DossierZugriffStatus.abgelehnt || zugriff.status == DossierZugriffStatus.angenommen
+                        ? "Zugriff für gesperrte Bereiche erneut anfragen"
+                        : "Zugriff auf alle gesperrten Bereiche anfragen",
                     systemImage: "icloud.and.arrow.down"
                 )
                     .font(.headline)

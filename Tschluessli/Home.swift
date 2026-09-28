@@ -1917,6 +1917,8 @@ struct Home: View {
         @State private var laedt = false
         @State private var geladen = false
         @State private var ladefehler = ""
+        @State private var hinweisAutomatischeFreigabeAnzeigen = false
+        @State private var automatischeFreigabeHinweisDatum: Date?
         private var darfAnzeigen: Bool {
             geladen && zugriffe.contains {
                 $0.zugriffID == dossierKontext.zugriffID && $0.istAktiv &&
@@ -1995,6 +1997,14 @@ struct Home: View {
             return bereich == .profil || freigegebeneBereiche.contains(bereich.cloudSectionType)
         }
 
+        private func hatGesperrteBereiche(_ zugriff: DossierZugriffModell) -> Bool {
+            let suffix = zugriff.dossierID.uuidString.lowercased()
+            let defaults = UserDefaults.standard
+            let verfuegbar = Set((defaults.string(forKey: "verfuegbareBereiche.\(suffix)") ?? "").split(separator: ",").map(String.init))
+            let freigegeben = Set((defaults.string(forKey: "freigegebeneBereiche.\(suffix)") ?? "").split(separator: ",").map(String.init))
+            return !verfuegbar.isEmpty && !verfuegbar.isSubset(of: freigegeben)
+        }
+
         private var angezeigteBereiche: [HomeBereich] {
             let suffix = dossierKontext.dossierID.uuidString.lowercased()
             let defaults = UserDefaults.standard
@@ -2046,6 +2056,24 @@ struct Home: View {
                 guard !geladen else { return }
                 Task { await laden() }
             }
+            .alert(
+                "Zugriff automatisch freigegeben",
+                isPresented: $hinweisAutomatischeFreigabeAnzeigen
+            ) {
+                Button("Verstanden") {
+                    guard let datum = automatischeFreigabeHinweisDatum else { return }
+                    UserDefaults.standard.set(
+                        datum.timeIntervalSince1970,
+                        forKey: automatischeFreigabeHinweisKey
+                    )
+                }
+            } message: {
+                Text("Der Zugriff wurde nach Ablauf der Wartefrist automatisch freigegeben. Falls ein Ernstfall eingetreten ist, nimm dir die nötige Zeit und gehe behutsam mit den hinterlegten Informationen um. Wir wünschen alles Gute. ❤️")
+            }
+        }
+
+        private var automatischeFreigabeHinweisKey: String {
+            "automatischeFreigabeHinweisGezeigt.\(dossierKontext.dossierID.uuidString.lowercased())"
         }
 
         private func laden() async {
@@ -2060,9 +2088,19 @@ struct Home: View {
                 return
             }
             do {
-                ladefehler = try await FreigegebenesDossierSync.laden(token: token, zugriff: zugriff,
-                    vorhandeneDossiers: dossiers, modelContext: modelContext) ?? ""
+                let ergebnis = try await FreigegebenesDossierSync.laden(
+                    token: token,
+                    zugriff: zugriff,
+                    vorhandeneDossiers: dossiers,
+                    modelContext: modelContext
+                )
+                ladefehler = ergebnis.hinweis ?? ""
                 geladen = true
+                if let datum = ergebnis.automatischFreigegebenAm,
+                   UserDefaults.standard.double(forKey: automatischeFreigabeHinweisKey) < datum.timeIntervalSince1970 {
+                    automatischeFreigabeHinweisDatum = datum
+                    hinweisAutomatischeFreigabeAnzeigen = true
+                }
             } catch {
                 ladefehler = error.localizedDescription
             }
@@ -2117,13 +2155,15 @@ struct Home: View {
                     .shadow(color: Color.appShadow, radius: 10, y: 4)
 
                     if let zugriff = zugriffe.first(where: { $0.zugriffID == dossierKontext.zugriffID }),
-                       zugriff.status == DossierZugriffStatus.erstellt || zugriff.status == DossierZugriffStatus.abgelehnt {
+                       zugriff.status == DossierZugriffStatus.erstellt ||
+                       zugriff.status == DossierZugriffStatus.abgelehnt ||
+                       (zugriff.status == DossierZugriffStatus.angenommen && hatGesperrteBereiche(zugriff)) {
                         NavigationLink {
                             EinladungsanfrageSendenView(zugriff: zugriff)
                         } label: {
                             Label(
-                                zugriff.status == DossierZugriffStatus.abgelehnt
-                                    ? "Weitere Bereiche erneut anfragen"
+                                zugriff.status == DossierZugriffStatus.abgelehnt || zugriff.status == DossierZugriffStatus.angenommen
+                                    ? "Zugriff für gesperrte Bereiche erneut anfragen"
                                     : "Zugriff auf weitere Bereiche anfragen",
                                 systemImage: "lock.open.fill"
                             )

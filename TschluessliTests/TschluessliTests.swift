@@ -107,6 +107,35 @@ struct TschluessliTests {
         }) == true)
     }
 
+    @Test func fremddossierPDFEnthaeltNurFreigegebeneWunschdokumente() throws {
+        let wuensche = WuenscheModell()
+        wuensche.testamentDateiName = "Testament.pdf"
+        wuensche.testamentDateiData = Data("testament".utf8)
+        wuensche.testamentFreigegebenBeiDossierfreigabe = false
+        wuensche.patientenverfuegungDateiName = "Patientenverfuegung.pdf"
+        wuensche.patientenverfuegungDateiData = Data("patientenverfuegung".utf8)
+        wuensche.patientenverfuegungFreigegebenBeiDossierfreigabe = true
+
+        let mapper = DossierExportMapper()
+        let eigenesDossier = mapper.makeDossierDocument(profil: nil, wuensche: [wuensche])
+        let fremddossier = mapper.makeDossierDocument(
+            profil: nil,
+            wuensche: [wuensche],
+            wunschDokumenteNachFreigabeFiltern: true
+        )
+
+        let eigeneLabels = try #require(
+            eigenesDossier.kapitel.first(where: { $0.typ == .wuensche })
+        ).sections.flatMap(\.items).map(\.label)
+        let fremdeLabels = try #require(
+            fremddossier.kapitel.first(where: { $0.typ == .wuensche })
+        ).sections.flatMap(\.items).map(\.label)
+
+        #expect(eigeneLabels.contains("Testament"))
+        #expect(fremdeLabels.contains("Patientenverfügung"))
+        #expect(!fremdeLabels.contains("Testament"))
+    }
+
     @Test func personenInformierenBietetGenauDieZweiVorgesehenenBehandlungen() {
         #expect(KontaktBehandlung.allCases == [
             .nurInformieren,

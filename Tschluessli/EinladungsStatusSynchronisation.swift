@@ -35,7 +35,8 @@ enum EinladungsStatusSynchronisation {
                     status,
                     in: zugriff,
                     aktiveUserID: aktiveUserID,
-                    dossiers: dossiers
+                    dossiers: dossiers,
+                    modelContext: modelContext
                 )
 
             } catch PushFehler.nichtGefunden where zugriff.status == DossierZugriffStatus.erstellt {
@@ -49,6 +50,11 @@ enum EinladungsStatusSynchronisation {
                 continue
             } catch PushFehler.zugriffVerweigert {
                 entferneLokaleFreigabe(zugriff: zugriff, modelContext: modelContext)
+                continue
+            } catch let keychainFehler as KeychainHelper.KeychainError
+                where keychainFehler.istVoruebergehendNichtVerfuegbar {
+                // Das Gerät war gesperrt oder wurde gerade erst entsperrt.
+                // Der nächste aktive bzw. periodische Sync versucht es erneut.
                 continue
             } catch {
                 letzterFehler = error.localizedDescription
@@ -120,7 +126,8 @@ enum EinladungsStatusSynchronisation {
         _ cloud: CloudEinladungsStatus,
         in zugriff: DossierZugriffModell,
         aktiveUserID: UUID,
-        dossiers: [DossierModell]
+        dossiers: [DossierModell],
+        modelContext: ModelContext
     ) {
         // Die Serverantwort ist die autoritative Zuordnung. Insbesondere nach
         // einer erneuten Einladung darf ein lokal veraltetes dossierID nie
@@ -152,10 +159,35 @@ enum EinladungsStatusSynchronisation {
             }
         case "accepted":
             if let requester = cloud.requesterUserID {
-                zugriff.einladungAnnehmen(
-                    vertrauenspersonUserID: requester,
-                    registrierungsEmail: cloud.requesterEmail
-                )
+                let vorherigerStatus = zugriff.status
+                let entscheidungAm = cloud.decidedAt ?? cloud.autoReleasedAt
+                let istNeueVollzugriffsentscheidung: Bool
+                if let entscheidungAm,
+                   let bereitsVerarbeitetAm = zugriff.vollzugriffVerarbeitetAm {
+                    istNeueVollzugriffsentscheidung = entscheidungAm > bereitsVerarbeitetAm
+                } else {
+                    // Bei bestehenden Installationen ohne Marker gilt ein lokal
+                    // bereits angenommener Zugriff als verarbeitet. So werden
+                    // spätere manuelle Sperren beim Update nicht überschrieben.
+                    istNeueVollzugriffsentscheidung = vorherigerStatus != DossierZugriffStatus.angenommen
+                }
+
+                if cloud.ownerUserID == aktiveUserID && istNeueVollzugriffsentscheidung {
+                    gewaehreVollzugriff(
+                        dossierID: cloud.dossierID,
+                        requesterUserID: requester,
+                        requesterEmail: cloud.requesterEmail ?? cloud.invitedEmail,
+                        automatisch: cloud.autoReleasedAt != nil,
+                        modelContext: modelContext
+                    )
+                }
+                if vorherigerStatus != DossierZugriffStatus.angenommen {
+                    zugriff.einladungAnnehmen(
+                        vertrauenspersonUserID: requester,
+                        registrierungsEmail: cloud.requesterEmail
+                    )
+                }
+                zugriff.vollzugriffVerarbeitetAm = entscheidungAm ?? zugriff.vollzugriffVerarbeitetAm
             }
         case "declined":
             zugriff.einladungAblehnen(registrierungsEmail: cloud.requesterEmail)
@@ -170,17 +202,104 @@ enum EinladungsStatusSynchronisation {
         }
     }
 
+    private static func gewaehreVollzugriff(
+        dossierID: UUID,
+        requesterUserID: UUID,
+        requesterEmail: String,
+        automatisch: Bool,
+        modelContext: ModelContext
+    ) {
+        guard let personen = try? modelContext.fetch(FetchDescriptor<VertrauenspersonModell>()),
+              let person = personen.first(where: {
+                  $0.dossierID == dossierID &&
+                  ($0.vertrauenspersonUserID == requesterUserID ||
+                   $0.normalisierteEmail == requesterEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+              }) else { return }
+
+        let bisher: [(String, Bool)] = [
+            ("wuensche", person.wuenscheSichtbarBeiDossierfreigabe),
+            ("kontakte", person.menschenDesVertrauensSichtbarBeiDossierfreigabe),
+            ("finanzen", person.finanzenSichtbarBeiDossierfreigabe),
+            ("dokumente", person.dokumenteSichtbarBeiDossierfreigabe),
+            ("zugaenge", person.abosUndProfileSichtbarBeiDossierfreigabe),
+            ("herzensstuecke", person.herzensstueckeSichtbarBeiDossierfreigabe),
+            ("gesundheit", person.gesundheitSichtbarBeiDossierfreigabe)
+        ]
+        let geaendert = bisher.filter { !$0.1 }.map(\.0)
+
+        let wuensche = automatisch
+            ? (try? modelContext.fetch(FetchDescriptor<WuenscheModell>()))?.first(where: {
+                $0.dossierID == dossierID
+            })
+            : nil
+        let wunschdokumenteGeaendert = wuensche.map {
+            !$0.testamentFreigegebenBeiDossierfreigabe
+                || !$0.patientenverfuegungFreigegebenBeiDossierfreigabe
+                || !$0.vorsorgeauftragFreigegebenBeiDossierfreigabe
+                || !$0.sterbebegleitungFreigegebenBeiDossierfreigabe
+        } ?? false
+
+        guard !geaendert.isEmpty || wunschdokumenteGeaendert else { return }
+
+        person.wuenscheSichtbarBeiDossierfreigabe = true
+        person.menschenDesVertrauensSichtbarBeiDossierfreigabe = true
+        person.finanzenSichtbarBeiDossierfreigabe = true
+        person.dokumenteSichtbarBeiDossierfreigabe = true
+        person.abosUndProfileSichtbarBeiDossierfreigabe = true
+        person.herzensstueckeSichtbarBeiDossierfreigabe = true
+        person.gesundheitSichtbarBeiDossierfreigabe = true
+        person.geaendertAm = Date()
+
+        if automatisch, let wuensche {
+            wuensche.testamentFreigegebenBeiDossierfreigabe = true
+            wuensche.patientenverfuegungFreigegebenBeiDossierfreigabe = true
+            wuensche.vorsorgeauftragFreigegebenBeiDossierfreigabe = true
+            wuensche.sterbebegleitungFreigegebenBeiDossierfreigabe = true
+        }
+
+        var historie = (try? JSONDecoder().decode(
+            [ZugriffsHistorienEreignis].self,
+            from: Data(person.zugriffsHistorieJSON.utf8)
+        )) ?? []
+        let grund = automatisch
+            ? "Vollzugriff nach Wartefrist automatisch freigegeben"
+            : "Vollzugriff gewährt"
+        historie.append(contentsOf: geaendert.map {
+            ZugriffsHistorienEreignis(bereich: $0, freigegeben: true, datum: Date(), ausloeser: grund)
+        })
+        if wunschdokumenteGeaendert {
+            historie.append(ZugriffsHistorienEreignis(
+                bereich: "wunschdokumente",
+                freigegeben: true,
+                datum: Date(),
+                ausloeser: grund
+            ))
+        }
+        if let daten = try? JSONEncoder().encode(historie) {
+            person.zugriffsHistorieJSON = String(decoding: daten, as: UTF8.self)
+        }
+        for bereich in Set(geaendert + ["kontakte"] + (wunschdokumenteGeaendert ? ["wuensche"] : [])) {
+            NotificationCenter.default.post(name: .dossierBereichGespeichert, object: bereich)
+        }
+        DossierSyncDienst.shared?.synchronisieren()
+    }
+
 }
 
 /// Ausschliesslich durch das Öffnen eines freigegebenen Dossiers ausgelöst.
 @MainActor
 enum FreigegebenesDossierSync {
+    struct Ladeergebnis {
+        let hinweis: String?
+        let automatischFreigegebenAm: Date?
+    }
+
     static func laden(
         token: String,
         zugriff: DossierZugriffModell,
         vorhandeneDossiers: [DossierModell],
         modelContext: ModelContext
-    ) async throws -> String? {
+    ) async throws -> Ladeergebnis {
         let userID = UUID(uuidString: UserDefaults.standard.string(forKey: "aktiveUserID") ?? "")
         guard zugriff.vertrauenspersonUserID == userID,
               zugriff.vorsorgendeUserID != userID, zugriff.istAktiv else {
@@ -332,8 +451,14 @@ enum FreigegebenesDossierSync {
         zugriff.dossierID = cloud.dossierID
         try modelContext.save()
         if !fehlerhafteBereiche.isEmpty {
-            return "Nicht alle Inhalte sind verfügbar: \(fehlerhafteBereiche.joined(separator: ", ")). Verschlüsselte Inhalte benötigen den freigegebenen Dossierschlüssel."
+            return Ladeergebnis(
+                hinweis: "Nicht alle Inhalte sind verfügbar: \(fehlerhafteBereiche.joined(separator: ", ")). Verschlüsselte Inhalte benötigen den freigegebenen Dossierschlüssel.",
+                automatischFreigegebenAm: status.autoReleasedAt
+            )
         }
-        return nil
+        return Ladeergebnis(
+            hinweis: nil,
+            automatischFreigegebenAm: status.autoReleasedAt
+        )
     }
 }

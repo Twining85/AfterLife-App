@@ -134,13 +134,14 @@ async function requestInvitation(req, res, user) {
   const result = await databasePool().query(
     `UPDATE dossier_invitations SET requester_user_id = $2, requester_email = $3,
         requester_name = $4, status = 'pending', requested_at = now(), decided_at = NULL,
+        access_reminder_last_sent_at = NULL,
         access_release_at = now() + ($5::integer * interval '1 second'),
         auto_released_at = NULL, updated_at = now()
       WHERE token_hash = $1
         AND expires_at > now()
         AND invited_email = $3
         AND owner_user_id <> $2
-        AND (status = 'open' OR (status IN ('pending', 'declined') AND requester_user_id = $2 AND requester_email = $3))
+        AND (status = 'open' OR (status IN ('pending', 'declined', 'accepted') AND requester_user_id = $2 AND requester_email = $3))
       RETURNING dossier_id, owner_user_id, invited_email, owner_name, expires_at, access_release_at`,
     [hash(token), user.id, accountEmail, requesterName, graceSeconds]
   );
@@ -266,7 +267,33 @@ async function revokeInvitation(req, res, user) {
     return res.status(400).json({ error: "Ungültiger Widerruf" });
   }
   try {
-    const revoked = await revokeInvitationForOwner({ userID: user.id, dossierID, email, token });
+    let revoked = await revokeInvitationForOwner({ userID: user.id, dossierID, email, token });
+    if (revoked === 0) {
+      const candidates = await databasePool().query(
+        `SELECT invited_email FROM dossier_invitations
+          WHERE owner_user_id = $1 AND dossier_id = $2 AND status <> 'revoked'
+          ORDER BY updated_at DESC LIMIT 2`,
+        [user.id, dossierID]
+      );
+      let uniqueCandidate = candidates.rows.length === 1 ? candidates.rows[0] : null;
+      if (!uniqueCandidate && candidates.rows.length === 0) {
+        const ownerCandidates = await databasePool().query(
+          `SELECT dossier_id, invited_email FROM dossier_invitations
+            WHERE owner_user_id = $1 AND status <> 'revoked'
+            ORDER BY updated_at DESC LIMIT 2`,
+          [user.id]
+        );
+        if (ownerCandidates.rows.length === 1) uniqueCandidate = ownerCandidates.rows[0];
+      }
+      if (uniqueCandidate) {
+        revoked = await revokeInvitationForOwner({
+          userID: user.id,
+          dossierID: uniqueCandidate.dossier_id || dossierID,
+          email: uniqueCandidate.invited_email,
+          token: ""
+        });
+      }
+    }
     if (revoked === 0) {
       return res.status(404).json({ error: "Keine passende aktive Einladung gefunden" });
     }
@@ -294,7 +321,7 @@ export async function revokeInvitationForOwner({
       const selected = await client.query(
         `SELECT id, requester_user_id, owner_name FROM dossier_invitations
           WHERE owner_user_id = $1 AND dossier_id = $2
-            AND (($4 IS NOT NULL AND token_hash = $4) OR ($4 IS NULL AND invited_email = $3))
+            AND (($4 IS NOT NULL AND token_hash = $4) OR invited_email = $3)
             AND status <> 'revoked' FOR UPDATE`,
         [userID, dossierID, email, tokenHash]
       );
@@ -318,7 +345,7 @@ export async function revokeInvitationForOwner({
       `UPDATE dossier_invitations
           SET status = 'revoked', decided_at = now(), updated_at = now()
         WHERE owner_user_id = $1 AND dossier_id = $2
-          AND (($4::text IS NOT NULL AND token_hash = $4) OR ($4::text IS NULL AND invited_email = $3))
+          AND (($4::text IS NOT NULL AND token_hash = $4) OR invited_email = $3)
           AND status <> 'revoked'
         RETURNING id, requester_user_id, owner_name`,
       [userID, dossierID, email, tokenHash]
@@ -378,7 +405,8 @@ async function invitationStatus(req, res, user) {
   const result = await databasePool().query(
     `SELECT i.dossier_id, i.owner_user_id, i.requester_user_id, i.invited_email,
             i.requester_email, i.requester_name, i.owner_name, i.status, i.expires_at,
-            i.access_release_at, i.updated_at AS invitation_updated_at, d.title,
+            i.access_release_at, i.auto_released_at, i.decided_at,
+            i.updated_at AS invitation_updated_at, d.title,
             owner.email AS owner_email
        FROM dossier_invitations i
       JOIN dossiers d ON d.id = i.dossier_id
@@ -403,7 +431,8 @@ async function sharedDossier(req, res, user) {
             AND k.revoked_at IS NULL ORDER BY k.key_version DESC LIMIT 1) AS shared_key_package`
     : `, NULL AS shared_key_package`;
   const invitationResult = await databasePool().query(
-    `SELECT i.dossier_id, i.owner_user_id, i.invited_email, i.owner_name, i.status, d.title,
+    `SELECT i.dossier_id, i.owner_user_id, i.invited_email, i.owner_name, i.status, i.decided_at,
+            i.auto_released_at, d.title,
             owner.email AS owner_email
             ${keyPackageSelection}
        FROM dossier_invitations i
@@ -421,7 +450,7 @@ async function sharedDossier(req, res, user) {
        FROM dossier_sections WHERE dossier_id = $1 ORDER BY section_type`,
     [invitation.dossier_id]
   );
-  const allSections = sections.rows.map((row) => ({
+  let allSections = sections.rows.map((row) => ({
     sectionType: row.section_type,
     schemaVersion: Number(row.schema_version),
     revision: Number(row.revision),
@@ -429,12 +458,17 @@ async function sharedDossier(req, res, user) {
     deleted: Boolean(row.deleted_at),
     updatedAt: row.updated_at
   }));
+  if (invitation.auto_released_at) {
+    allSections = allSections.map(releaseAllWishDocuments);
+  }
   const availableSectionTypes = dossierSectionTypes(allSections);
   const ownerName = ownerNameFromSections(allSections, invitation.owner_user_id, invitation.owner_name);
-  // Auch ein angenommener Zugriff bleibt auf die vom Eigentümer ausdrücklich
-  // freigegebenen Bereiche beschränkt. Die Annahme erweitert nicht automatisch
-  // auf das gesamte Dossier, und spätere Änderungen müssen sofort wirksam sein.
-  const visibleSectionTypes = partialVisibleSectionTypes(allSections, invitation.invited_email, user.id);
+  const kontakte = allSections.find((section) => section.sectionType === "kontakte" && !section.deleted);
+  const einschraenkungNachVollfreigabe = invitation.status === "accepted" && invitation.decided_at &&
+    kontakte?.updatedAt && new Date(kontakte.updatedAt) > new Date(invitation.decided_at);
+  const visibleSectionTypes = invitation.status === "accepted" && !einschraenkungNachVollfreigabe
+    ? allSections.map((section) => section.sectionType).filter((type) => type !== "dossier_einstellungen")
+    : partialVisibleSectionTypes(allSections, invitation.invited_email, user.id);
   return res.status(200).json({
     dossierID: invitation.dossier_id,
     ownerUserID: invitation.owner_user_id,
@@ -446,6 +480,28 @@ async function sharedDossier(req, res, user) {
     visibleSectionTypes,
     sections: allSections.filter((section) => visibleSectionTypes.includes(section.sectionType))
   });
+}
+
+export function releaseAllWishDocuments(section) {
+  if (section.sectionType !== "wuensche" || section.deleted || !section.payload) return section;
+  let payload = section.payload;
+  if (typeof payload === "string") {
+    try { payload = JSON.parse(payload); } catch { return section; }
+  }
+  if (!payload || typeof payload !== "object" || !Array.isArray(payload.items)) return section;
+  return {
+    ...section,
+    payload: {
+      ...payload,
+      items: payload.items.map((item) => ({
+        ...item,
+        testamentFreigegebenBeiDossierfreigabe: true,
+        patientenverfuegungFreigegebenBeiDossierfreigabe: true,
+        vorsorgeauftragFreigegebenBeiDossierfreigabe: true,
+        sterbebegleitungFreigegebenBeiDossierfreigabe: true
+      }))
+    }
+  };
 }
 
 function dossierSectionTypes(sections) {
@@ -497,6 +553,8 @@ function invitationResponse(invitation, metadata = {}) {
     status: invitation.status,
     expiresAt: invitation.expires_at,
     accessReleaseAt: invitation.access_release_at,
+    autoReleasedAt: invitation.auto_released_at,
+    decidedAt: invitation.decided_at,
     title: `Dossier von ${ownerName}`,
     ownerEmail: invitation.owner_email,
     ownerName,
@@ -586,7 +644,7 @@ export function invitationDecisionPushPayload({ token, decision, ownerName }) {
       alert: {
         title: decision === "accepted" ? "Weitere Bereiche freigegeben" : "Erweiterungsanfrage abgelehnt",
         body: decision === "accepted"
-          ? `${ownerName} hat deine Anfrage angenommen. Du kannst jetzt alle Bereiche des Vorsorge-Dossiers sehen.`
+          ? `${ownerName} hat deine Anfrage bearbeitet. Die freigegebenen Bereiche sind jetzt für dich sichtbar.`
           : `${ownerName} hat deine Anfrage abgelehnt. Deine bisher sichtbaren Bereiche bleiben verfügbar.`
       },
       sound: "default"
@@ -601,8 +659,8 @@ export function automaticReleasePushPayload({ ownerName, dossierID }) {
   return {
     aps: {
       alert: {
-        title: "Dein Zugriff wurde freigegeben",
-        body: `Du kannst das Tschlüssli-Dossier von ${ownerName} jetzt vollständig einsehen.`
+        title: "Zugriff automatisch freigegeben",
+        body: `Auf deine Anfrage erfolgte keine Reaktion. Du kannst das Vorsorge-Dossier von ${ownerName} jetzt vollständig einsehen. Für solche Situationen ist Tschlüssli da.`
       },
       sound: "default"
     },
@@ -618,6 +676,95 @@ export function trustAccessGraceSeconds(environment = process.env) {
   }
   if (environment.NODE_ENV === "test") return 60;
   throw new Error("TRUST_ACCESS_GRACE_SECONDS fehlt oder ist ungueltig");
+}
+
+export function trustAccessReminderSeconds(environment = process.env) {
+  const configured = Number.parseInt(environment.TRUST_ACCESS_REMINDER_SECONDS || "", 10);
+  if (Number.isInteger(configured) && configured >= 30 && configured <= 604_800) {
+    return configured;
+  }
+  if (environment.NODE_ENV === "test") return 30;
+  throw new Error("TRUST_ACCESS_REMINDER_SECONDS fehlt oder ist ungueltig");
+}
+
+export function accessRequestReminderPushPayload({ requesterName }) {
+  return {
+    aps: {
+      alert: {
+        title: "⚠️ Offene Zugriffsanfrage",
+        body: `${requesterName} wartet noch auf deine Entscheidung zum Vollzugriff.`
+      },
+      sound: "default"
+    },
+    type: "trust_invitation_request_reminder"
+  };
+}
+
+export async function sendPendingAccessReminders({
+  pool = databasePool(),
+  push = pushToUser,
+  intervalSeconds = trustAccessReminderSeconds(),
+  limit = 100
+} = {}) {
+  const reminderSeconds = Number(intervalSeconds);
+  if (!Number.isInteger(reminderSeconds) || reminderSeconds < 30 || reminderSeconds > 604_800) {
+    throw new Error("Ungueltiges Erinnerungsintervall");
+  }
+  const client = await pool.connect();
+  let reminders = [];
+  try {
+    await client.query("BEGIN");
+    const cappedLimit = Math.max(1, Math.min(Number(limit) || 100, 1000));
+    if (client.engine === "mysql") {
+      const due = await client.query(
+        `SELECT id, owner_user_id, requester_name, requester_email FROM dossier_invitations
+          WHERE status = 'pending' AND requested_at IS NOT NULL
+            AND requested_at <= DATE_SUB(CURRENT_TIMESTAMP(6), INTERVAL ${reminderSeconds} SECOND)
+            AND (access_reminder_last_sent_at IS NULL OR
+                 access_reminder_last_sent_at <= DATE_SUB(CURRENT_TIMESTAMP(6), INTERVAL ${reminderSeconds} SECOND))
+            AND (access_release_at IS NULL OR access_release_at > CURRENT_TIMESTAMP(6))
+          ORDER BY requested_at LIMIT ${cappedLimit} FOR UPDATE SKIP LOCKED`
+      );
+      reminders = due.rows;
+      for (const reminder of reminders) {
+        await client.query(
+          "UPDATE dossier_invitations SET access_reminder_last_sent_at = CURRENT_TIMESTAMP(6) WHERE id = $1",
+          [reminder.id]
+        );
+      }
+    } else {
+      const due = await client.query(
+        `WITH due AS (
+           SELECT id FROM dossier_invitations
+            WHERE status = 'pending' AND requested_at IS NOT NULL
+              AND requested_at <= now() - ($1::integer * interval '1 second')
+              AND (access_reminder_last_sent_at IS NULL OR
+                   access_reminder_last_sent_at <= now() - ($1::integer * interval '1 second'))
+              AND (access_release_at IS NULL OR access_release_at > now())
+            ORDER BY requested_at LIMIT $2 FOR UPDATE SKIP LOCKED
+         )
+         UPDATE dossier_invitations i SET access_reminder_last_sent_at = now()
+          FROM due WHERE i.id = due.id
+          RETURNING i.id, i.owner_user_id, i.requester_name, i.requester_email`,
+        [reminderSeconds, cappedLimit]
+      );
+      reminders = due.rows;
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  await Promise.all(reminders.map((reminder) => push(
+    reminder.owner_user_id,
+    accessRequestReminderPushPayload({
+      requesterName: personName(reminder.requester_name, reminder.requester_email || "Deine Vertrauensperson")
+    })
+  )));
+  return reminders.length;
 }
 
 export async function releaseDueInvitations({
@@ -761,7 +908,7 @@ async function requestMySQLInvitation({ token, userID, accountEmail, requesterNa
     const selected = await client.query(
       `SELECT id FROM dossier_invitations WHERE token_hash = $1 AND expires_at > CURRENT_TIMESTAMP(6)
         AND invited_email = $2 AND owner_user_id <> $3
-        AND (status = 'open' OR (status IN ('pending', 'declined') AND requester_user_id = $3 AND requester_email = $2))
+        AND (status = 'open' OR (status IN ('pending', 'declined', 'accepted') AND requester_user_id = $3 AND requester_email = $2))
         FOR UPDATE`,
       [hash(token), accountEmail, userID]
     );
@@ -769,6 +916,7 @@ async function requestMySQLInvitation({ token, userID, accountEmail, requesterNa
     await client.query(
       `UPDATE dossier_invitations SET requester_user_id = $1, requester_email = $2, requester_name = $3,
         status = 'pending', requested_at = CURRENT_TIMESTAMP(6), decided_at = NULL,
+        access_reminder_last_sent_at = NULL,
         access_release_at = DATE_ADD(CURRENT_TIMESTAMP(6), INTERVAL $4 SECOND), auto_released_at = NULL,
         updated_at = CURRENT_TIMESTAMP(6) WHERE id = $5`,
       [userID, accountEmail, requesterName, graceSeconds, selected.rows[0].id]

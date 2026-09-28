@@ -13,6 +13,8 @@ struct WuenscheView: View {
     @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
     @Query private var gespeicherteWuensche: [WuenscheModell]
     @Query private var gespeicherteHinterbliebeneKontakte: [HinterbliebeneModell]
+    @Query private var gespeicherteVertrauenspersonen: [VertrauenspersonModell]
+    @Query private var gespeicherteDossierZugriffe: [DossierZugriffModell]
     @State private var wuenscheGeladen = false
     @State private var speicherTask: Task<Void, Never>? = nil
     @State private var speicherungLaeuft = false
@@ -115,6 +117,8 @@ struct WuenscheView: View {
     @State private var dokumentImporterAnzeigen = false
     @State private var aktiverDokumentTyp: DokumentTyp?
     @State private var dokumentVorschauURL: URL?
+    @State private var dokumentFreigabeAbfrageAnzeigen = false
+    @State private var dokumentFreigabeAbfrageTyp: DokumentTyp?
 
     private let wuenscheCardColor = Color.appCard
     private let wuenscheAccentColor = Color.areaWishes
@@ -228,6 +232,24 @@ struct WuenscheView: View {
                 allowsMultipleSelection: false
             ) { result in
                 dokumentImportVerarbeiten(result)
+            }
+            .alert(
+                "Dokument für Vertrauensperson freigeben?",
+                isPresented: $dokumentFreigabeAbfrageAnzeigen
+            ) {
+                Button("Nicht sichtbar", role: .cancel) {
+                    dokumentFreigabeAbfrageTyp = nil
+                    speichereWuenscheVerzoegert()
+                }
+                Button("Sichtbar machen") {
+                    if let typ = dokumentFreigabeAbfrageTyp {
+                        setzeDokumentFreigabe(true, fuer: typ)
+                    }
+                    dokumentFreigabeAbfrageTyp = nil
+                    speichereWuenscheVerzoegert()
+                }
+            } message: {
+                Text("\(dokumentFreigabeAbfrageTyp?.titel ?? "Dieses Dokument") auch im freigegebenen Dossier für deine Vertrauensperson sichtbar machen?")
             }
             .sheet(isPresented: $testamentScannerAnzeigen) {
                 DocumentScanner { pdfData in
@@ -1445,6 +1467,35 @@ struct WuenscheView: View {
         return UUID(uuidString: aktivesDossierID) ?? dossierKontext.dossierID
     }
 
+    /// Neue, private Wunschdokumente sollen bei einem bereits vollständig
+    /// freigegebenen Dossier nicht stillschweigend sichtbar werden. Die
+    /// Rückfrage ist deshalb nur nötig, wenn sowohl ein aktiver Zugriff als
+    /// auch die Freigabe aller Dossierbereiche besteht.
+    private var bestehtAktiverVollzugriff: Bool {
+        guard dossierKontext.istEigenesDossier else { return false }
+
+        let dossierID = zielDossierID
+        let hatAktivenZugriff = gespeicherteDossierZugriffe.contains { zugriff in
+            zugriff.dossierID == dossierID
+                && zugriff.istAktiv
+                && (zugriff.status == DossierZugriffStatus.angenommen
+                    || zugriff.status == DossierZugriffStatus.freigegeben)
+        }
+
+        guard hatAktivenZugriff else { return false }
+
+        return gespeicherteVertrauenspersonen.contains { person in
+            person.dossierID == dossierID
+                && person.wuenscheSichtbarBeiDossierfreigabe
+                && person.menschenDesVertrauensSichtbarBeiDossierfreigabe
+                && person.finanzenSichtbarBeiDossierfreigabe
+                && person.dokumenteSichtbarBeiDossierfreigabe
+                && person.abosUndProfileSichtbarBeiDossierfreigabe
+                && person.herzensstueckeSichtbarBeiDossierfreigabe
+                && person.gesundheitSichtbarBeiDossierfreigabe
+        }
+    }
+
     private func bindingFuerHaustier(id: UUID) -> Binding<WuenschePetEntry>? {
         guard haustiere.contains(where: { $0.id == id }) else { return nil }
 
@@ -1751,8 +1802,8 @@ struct WuenscheView: View {
             kontaktAnzeigeZeile(titel: "Hausnummer", wert: kontakt.wrappedValue.hausnummer)
             kontaktAnzeigeZeile(titel: "PLZ", wert: kontakt.wrappedValue.plz)
             kontaktAnzeigeZeile(titel: "Ort", wert: kontakt.wrappedValue.ort)
-            kontaktAnzeigeZeile(titel: "Telefonnummer", wert: kontakt.wrappedValue.telefon)
-            kontaktAnzeigeZeile(titel: "E-Mail", wert: kontakt.wrappedValue.email)
+            kontaktAnzeigeZeile(titel: "Telefonnummern", wert: kontakt.wrappedValue.telefon)
+            kontaktAnzeigeZeile(titel: "E-Mail-Adressen", wert: kontakt.wrappedValue.email)
 
             Picker("Im Todesfall", selection: Binding(
                 get: { kontakt.wrappedValue.einladen ? KontaktBehandlung.informierenUndEinladen : .nurInformieren },
@@ -2092,6 +2143,7 @@ struct WuenscheView: View {
         switch result {
         case .success(let urls):
             guard let url = urls.first else { return }
+            guard let dokumentTyp = aktiverDokumentTyp else { return }
 
             let hatZugriffErhalten = url.startAccessingSecurityScopedResource()
             defer {
@@ -2102,7 +2154,7 @@ struct WuenscheView: View {
 
             let dateiData = try? Data(contentsOf: url)
 
-            switch aktiverDokumentTyp {
+            switch dokumentTyp {
             case .testament:
                 testamentDateiURL = url
                 testamentDateiName = url.lastPathComponent
@@ -2127,10 +2179,8 @@ struct WuenscheView: View {
                 sterbebegleitungDateiData = dateiData
                 sterbebegleitungHochgeladenAm = Date()
                 
-            case .none:
-                break
             }
-            speichereWuenscheVerzoegert()
+            verarbeiteNeuesDokument(dokumentTyp)
         case .failure:
             break
         }
@@ -2210,7 +2260,7 @@ struct WuenscheView: View {
         pendingDokumentScanData = nil
         pendingDokumentScanDateiName = ""
         aktiverScanDokumentTyp = nil
-        speichereWuenscheVerzoegert()
+        verarbeiteNeuesDokument(typ)
     }
 
     private func speichereGescanntesTestament(sollZusätzlichSpeichern: Bool) {
@@ -2234,7 +2284,47 @@ struct WuenscheView: View {
 
         pendingTestamentScanData = nil
         pendingTestamentScanDateiName = ""
-        speichereWuenscheVerzoegert()
+        verarbeiteNeuesDokument(.testament)
+    }
+
+    private func verarbeiteNeuesDokument(_ typ: DokumentTyp) {
+        guard bestehtAktiverVollzugriff, !dokumentIstFreigegeben(typ) else {
+            speichereWuenscheVerzoegert()
+            return
+        }
+
+        dokumentFreigabeAbfrageTyp = typ
+        // Beim Scan wird unmittelbar zuvor bereits die Speichern-Abfrage
+        // geschlossen. Die kurze Verzögerung verhindert überlappende Alerts.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            dokumentFreigabeAbfrageAnzeigen = true
+        }
+    }
+
+    private func dokumentIstFreigegeben(_ typ: DokumentTyp) -> Bool {
+        switch typ {
+        case .testament:
+            return testamentFreigegebenBeiDossierfreigabe
+        case .patientenverfuegung:
+            return patientenverfuegungFreigegebenBeiDossierfreigabe
+        case .vorsorgeauftrag:
+            return vorsorgeauftragFreigegebenBeiDossierfreigabe
+        case .sterbebegleitung:
+            return sterbebegleitungFreigegebenBeiDossierfreigabe
+        }
+    }
+
+    private func setzeDokumentFreigabe(_ sichtbar: Bool, fuer typ: DokumentTyp) {
+        switch typ {
+        case .testament:
+            testamentFreigegebenBeiDossierfreigabe = sichtbar
+        case .patientenverfuegung:
+            patientenverfuegungFreigegebenBeiDossierfreigabe = sichtbar
+        case .vorsorgeauftrag:
+            vorsorgeauftragFreigegebenBeiDossierfreigabe = sichtbar
+        case .sterbebegleitung:
+            sterbebegleitungFreigegebenBeiDossierfreigabe = sichtbar
+        }
     }
 
     private func testamentDateiEntfernen() {
@@ -2769,6 +2859,15 @@ struct DokumentUploadBox: View {
         case patientenverfuegung
         case vorsorgeauftrag
         case sterbebegleitung
+
+        var titel: String {
+            switch self {
+            case .testament: return "Testament"
+            case .patientenverfuegung: return "Patientenverfügung"
+            case .vorsorgeauftrag: return "Vorsorgeauftrag"
+            case .sterbebegleitung: return "Dokument zur Sterbebegleitung"
+            }
+        }
     }
     
     enum SchwereErkrankung: String, CaseIterable, Identifiable {

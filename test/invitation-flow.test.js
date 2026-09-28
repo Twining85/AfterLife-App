@@ -2,12 +2,16 @@ import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import {
   automaticReleasePushPayload,
+  accessRequestReminderPushPayload,
   handleInvitationOperation,
   invitationDecisionPushPayload,
   invitationRequestPushPayload,
   partialVisibleSectionTypes,
+  releaseAllWishDocuments,
   releaseDueInvitations,
+  sendPendingAccessReminders,
   trustAccessGraceSeconds,
+  trustAccessReminderSeconds,
   revokeInvitationForOwner
 } from "../api/_invitation-handler.js";
 import { resetDatabasePoolForTests, setDatabasePoolForTests } from "../api/_database.js";
@@ -43,6 +47,28 @@ test("beschränkt auch angenommene Zugriffe auf die aktuell freigegebenen Bereic
     ),
     ["profil", "kontakte", "herzensstuecke"]
   );
+});
+
+test("automatische Freigabe schaltet alle Wunschdokumente für das Fremddossier frei", () => {
+  const section = releaseAllWishDocuments({
+    sectionType: "wuensche",
+    deleted: false,
+    payload: {
+      items: [{
+        testamentFreigegebenBeiDossierfreigabe: false,
+        patientenverfuegungFreigegebenBeiDossierfreigabe: false,
+        vorsorgeauftragFreigegebenBeiDossierfreigabe: false,
+        sterbebegleitungFreigegebenBeiDossierfreigabe: false
+      }]
+    }
+  });
+
+  assert.deepEqual(section.payload.items[0], {
+    testamentFreigegebenBeiDossierfreigabe: true,
+    patientenverfuegungFreigegebenBeiDossierfreigabe: true,
+    vorsorgeauftragFreigegebenBeiDossierfreigabe: true,
+    sterbebegleitungFreigegebenBeiDossierfreigabe: true
+  });
 });
 
 test("prüft den QR-Code gegen die verifizierte Konto-E-Mail", async () => {
@@ -126,10 +152,10 @@ test("nennt die beteiligten Personen in den Pushnachrichten", () => {
     ownerName: "Anna Beispiel",
     dossierID: "dossier-id"
   });
-  assert.equal(automatic.aps.alert.title, "Dein Zugriff wurde freigegeben");
+  assert.equal(automatic.aps.alert.title, "Zugriff automatisch freigegeben");
   assert.equal(
     automatic.aps.alert.body,
-    "Du kannst das Tschlüssli-Dossier von Anna Beispiel jetzt vollständig einsehen."
+    "Auf deine Anfrage erfolgte keine Reaktion. Du kannst das Vorsorge-Dossier von Anna Beispiel jetzt vollständig einsehen. Für solche Situationen ist Tschlüssli da."
   );
 });
 
@@ -137,6 +163,50 @@ test("verlangt ausserhalb von Tests eine konfigurierte Karenzfrist", () => {
   assert.equal(trustAccessGraceSeconds({ NODE_ENV: "test" }), 60);
   assert.equal(trustAccessGraceSeconds({ TRUST_ACCESS_GRACE_SECONDS: "604800" }), 604800);
   assert.throws(() => trustAccessGraceSeconds({}), /TRUST_ACCESS_GRACE_SECONDS/);
+});
+
+test("konfiguriert Erinnerungen in DEV und Produktion explizit", () => {
+  assert.equal(trustAccessReminderSeconds({ NODE_ENV: "test" }), 30);
+  assert.equal(trustAccessReminderSeconds({ TRUST_ACCESS_REMINDER_SECONDS: "86400" }), 86400);
+  assert.throws(() => trustAccessReminderSeconds({}), /TRUST_ACCESS_REMINDER_SECONDS/);
+  const payload = accessRequestReminderPushPayload({ requesterName: "Bea Beispiel" });
+  assert.equal(payload.type, "trust_invitation_request_reminder");
+  assert.equal(payload.aps.alert.title, "⚠️ Offene Zugriffsanfrage");
+  assert.match(payload.aps.alert.body, /Bea Beispiel/);
+});
+
+test("erinnert den Dossiereigentümer nur bei weiterhin offener Anfrage", async () => {
+  const queries = [];
+  const pushes = [];
+  const client = {
+    engine: "mysql",
+    async query(text, parameters = []) {
+      queries.push({ text: String(text), parameters });
+      if (String(text).includes("SELECT id, owner_user_id")) {
+        return { rows: [{
+          id: "9ca650a8-a78c-4ef0-b62f-cb640531b667",
+          owner_user_id: "cbcb4c1c-289f-4719-b237-02c9c7534642",
+          requester_name: "Bea Beispiel",
+          requester_email: "bea@example.ch"
+        }] };
+      }
+      return { rows: [] };
+    },
+    release() {}
+  };
+
+  const count = await sendPendingAccessReminders({
+    pool: { async connect() { return client; } },
+    async push(userID, payload) { pushes.push({ userID, payload }); },
+    intervalSeconds: 30
+  });
+
+  assert.equal(count, 1);
+  assert.match(queries[1].text, /status = 'pending'/);
+  assert.match(queries[1].text, /access_release_at > CURRENT_TIMESTAMP/);
+  assert.match(queries[2].text, /access_reminder_last_sent_at/);
+  assert.equal(pushes[0].payload.type, "trust_invitation_request_reminder");
+  assert.equal(queries.at(-1).text, "COMMIT");
 });
 
 test("gibt fällige Anfragen serverseitig frei und benachrichtigt die Vertrauensperson", async () => {

@@ -26,6 +26,8 @@ nonisolated struct CloudEinladungsStatus: Decodable, Sendable {
     let status: String
     let expiresAt: Date
     let accessReleaseAt: Date?
+    let autoReleasedAt: Date?
+    let decidedAt: Date?
     let title: String
     let ownerEmail: String
     let ownerName: String

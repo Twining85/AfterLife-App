@@ -1712,6 +1712,7 @@ struct ProfilView: View {
             herzensstuecke: exportHerzensstuecke,
             aboModelle: exportAboModelle,
             vertrauenspersonen: lokalHinterlegteVertrauenspersonen,
+            wunschDokumenteNachFreigabeFiltern: dossierKontext.istFreigegebenesDossier,
             options: options,
             attachments: dossierAnhaenge()
         )
@@ -1736,7 +1737,8 @@ struct ProfilView: View {
         }
 
         for wunsch in exportWuensche {
-            if let data = wunsch.testamentDateiData, !data.isEmpty {
+            if dokumentDarfExportiertWerden(wunsch.testamentFreigegebenBeiDossierfreigabe),
+               let data = wunsch.testamentDateiData, !data.isEmpty {
                 anhaenge.append(
                     DossierPDFAttachment(
                         titel: "Testament",
@@ -1749,7 +1751,8 @@ struct ProfilView: View {
                 )
             }
 
-            if let data = wunsch.patientenverfuegungDateiData, !data.isEmpty {
+            if dokumentDarfExportiertWerden(wunsch.patientenverfuegungFreigegebenBeiDossierfreigabe),
+               let data = wunsch.patientenverfuegungDateiData, !data.isEmpty {
                 anhaenge.append(
                     DossierPDFAttachment(
                         titel: "Patientenverfügung",
@@ -1762,7 +1765,8 @@ struct ProfilView: View {
                 )
             }
 
-            if let data = wunsch.vorsorgeauftragDateiData, !data.isEmpty {
+            if dokumentDarfExportiertWerden(wunsch.vorsorgeauftragFreigegebenBeiDossierfreigabe),
+               let data = wunsch.vorsorgeauftragDateiData, !data.isEmpty {
                 anhaenge.append(
                     DossierPDFAttachment(
                         titel: "Vorsorgeauftrag",
@@ -1775,7 +1779,8 @@ struct ProfilView: View {
                 )
             }
 
-            if let data = wunsch.sterbebegleitungDateiData, !data.isEmpty {
+            if dokumentDarfExportiertWerden(wunsch.sterbebegleitungFreigegebenBeiDossierfreigabe),
+               let data = wunsch.sterbebegleitungDateiData, !data.isEmpty {
                 anhaenge.append(
                     DossierPDFAttachment(
                         titel: "Sterbebegleitung",
@@ -1840,6 +1845,10 @@ struct ProfilView: View {
         }
 
         return anhaenge
+    }
+
+    private func dokumentDarfExportiertWerden(_ freigegeben: Bool) -> Bool {
+        dossierKontext.istEigenesDossier || freigegeben
     }
 
     private func fallbackDateiname(_ dateiname: String, fallback: String) -> String {

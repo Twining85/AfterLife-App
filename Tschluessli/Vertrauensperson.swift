@@ -130,6 +130,15 @@ struct VertrauenspersonView: View {
     @AppStorage("aktivesDossierID")
     private var aktivesDossierID = ""
 
+    @AppStorage("vertrauenspersonKontaktEmailAdressen")
+    private var kontaktEmailAdressenJSON = "[]"
+
+    @AppStorage("vertrauenspersonKontaktTelefonnummern")
+    private var kontaktTelefonnummernJSON = "[]"
+
+    @AppStorage("vertrauenspersonKontaktAdressen")
+    private var kontaktAdressenJSON = "[]"
+
     // Neue Version, damit die überarbeitete Prozessgeschichte einmal vollständig
     // durchgespielt werden muss, bevor Verwaltung und Rückblick sichtbar werden.
     @AppStorage("vertrauenspersonErklaerungAbgeschlossenV2")
@@ -169,6 +178,9 @@ struct VertrauenspersonView: View {
     @State private var datenGeladen = false
     @State private var kontaktLoeschungLaeuft = false
     @State private var zugriffsentscheidungLaeuft = false
+    @State private var vollzugriffFreigabeAnzeigen = false
+    @State private var vollzugriffAnfrageID: UUID?
+    @State private var vollzugriffAuswahl = VollzugriffFreigabeAuswahl()
     @State private var zugriffVerwaltenAnzeigen = false
     @State private var zugriffsverlaufAnzeigen = false
     @State private var ausstehendeFreigabeSyncBereiche: Set<String> = []
@@ -186,6 +198,8 @@ struct VertrauenspersonView: View {
     @State private var qrCodeAnzeigen = false
     @State private var qrCodeSheetAnzeigen = false
     @State private var screenshotHinweisAnzeigen = false
+    @State private var emailAuswahlFuerQRCodeAnzeigen = false
+    @State private var kontaktScrollAnforderung = 0
     @State private var bildschirmWirdAufgezeichnet = false
     @State private var erklaerungsSchritt = 0
     @State private var erklaerungAusgeklappt = false
@@ -253,6 +267,59 @@ struct VertrauenspersonView: View {
 
     private var emailIstGueltig: Bool {
         istGueltigeEmail(bereinigteEmail)
+    }
+
+    private var kontaktEmailAdressen: [String] {
+        guard let daten = kontaktEmailAdressenJSON.data(using: .utf8),
+              let adressen = try? JSONDecoder().decode([String].self, from: daten) else {
+            return emailIstGueltig ? [bereinigteEmail] : []
+        }
+
+        let eindeutigeAdressen = adressen.reduce(into: [String]()) { ergebnis, adresse in
+            let bereinigt = adresse.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard istGueltigeEmail(bereinigt),
+                  !ergebnis.contains(where: { $0.caseInsensitiveCompare(bereinigt) == .orderedSame }) else {
+                return
+            }
+            ergebnis.append(bereinigt)
+        }
+        let gehoertZumAktuellenKontakt = eindeutigeAdressen.contains {
+            $0.caseInsensitiveCompare(bereinigteEmail) == .orderedSame
+        }
+        guard gehoertZumAktuellenKontakt else {
+            return emailIstGueltig ? [bereinigteEmail] : []
+        }
+        return eindeutigeAdressen
+    }
+
+    private var qrEinladungHatGueltigeEmail: Bool {
+        !kontaktEmailAdressen.isEmpty
+    }
+
+    private var kontaktTelefonnummern: [String] {
+        dekodiereKontaktwerte(kontaktTelefonnummernJSON, fallback: telefon)
+    }
+
+    private var kontaktAdressen: [String] {
+        dekodiereKontaktwerte(kontaktAdressenJSON)
+    }
+
+    private func dekodiereKontaktwerte(_ json: String, fallback: String = "") -> [String] {
+        let werte: [String]
+        if let daten = json.data(using: .utf8),
+           let dekodiert = try? JSONDecoder().decode([String].self, from: daten) {
+            werte = dekodiert
+        } else {
+            werte = []
+        }
+
+        let bereinigteWerte = werte
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let bereinigterFallback = fallback.trimmingCharacters(in: .whitespacesAndNewlines)
+        return bereinigteWerte.isEmpty && !bereinigterFallback.isEmpty
+            ? [bereinigterFallback]
+            : bereinigteWerte
     }
 
     private var bereinigterEmpfaengerName: String {
@@ -639,7 +706,7 @@ struct VertrauenspersonView: View {
                     Section("QR-Code-Einladung") {
                     qrCodeBereich
 
-                        if !emailIstGueltig {
+                        if !qrEinladungHatGueltigeEmail {
                             Text("Für den QR-Code benötigt die Vertrauensperson eine gültige E-Mail-Adresse.")
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
@@ -733,6 +800,9 @@ struct VertrauenspersonView: View {
         .sheet(isPresented: $zugriffsverlaufAnzeigen) {
             zugriffsverlauf
         }
+        .sheet(isPresented: $vollzugriffFreigabeAnzeigen) {
+            vollzugriffFreigabeSheet
+        }
         // MARK: - Nicht im MVP Scope: Einladung per E-Mail
         /* .sheet(
             isPresented: $mailComposerAnzeigen
@@ -761,6 +831,14 @@ struct VertrauenspersonView: View {
                 withAnimation(.easeInOut(duration: 0.36)) {
                     scrollProxy.scrollTo("vertrauensperson-bereich", anchor: .top)
                 }
+            }
+        }
+        .onChange(of: kontaktScrollAnforderung) { _, _ in
+            withAnimation(.easeInOut(duration: 0.38)) {
+                scrollProxy.scrollTo(
+                    "vertrauensperson-bereich",
+                    anchor: UnitPoint(x: 0.5, y: 0.36)
+                )
             }
         }
         }
@@ -1011,6 +1089,12 @@ struct VertrauenspersonView: View {
             Form {
                 Section {
                     zugriffszeile("Wünsche", bereich: "wuensche", binding: $wuenscheSichtbarBeiDossierfreigabe)
+                    if let wuensche = wuenscheFuerAktivesDossier {
+                        wunschDokumentToggle("inkl. Testament", istVorhanden: !wuensche.testamentDateiName.isEmpty, isOn: wunschDokumentFreigabeBinding(fuer: wuensche, keyPath: \WuenscheModell.testamentFreigegebenBeiDossierfreigabe))
+                        wunschDokumentToggle("inkl. Patientenverfügung", istVorhanden: !wuensche.patientenverfuegungDateiName.isEmpty, isOn: wunschDokumentFreigabeBinding(fuer: wuensche, keyPath: \WuenscheModell.patientenverfuegungFreigegebenBeiDossierfreigabe))
+                        wunschDokumentToggle("inkl. Vorsorgeauftrag", istVorhanden: !wuensche.vorsorgeauftragDateiName.isEmpty, isOn: wunschDokumentFreigabeBinding(fuer: wuensche, keyPath: \WuenscheModell.vorsorgeauftragFreigegebenBeiDossierfreigabe))
+                        wunschDokumentToggle("inkl. Sterbebegleitung", istVorhanden: !wuensche.sterbebegleitungDateiName.isEmpty, isOn: wunschDokumentFreigabeBinding(fuer: wuensche, keyPath: \WuenscheModell.sterbebegleitungFreigegebenBeiDossierfreigabe))
+                    }
                     zugriffszeile("Wichtige Menschen", bereich: "kontakte", binding: $menschenDesVertrauensSichtbarBeiDossierfreigabe)
                     zugriffszeile("Finanzen", bereich: "finanzen", binding: $finanzenSichtbarBeiDossierfreigabe)
                     zugriffszeile("Dokumente & Fotoalbum", bereich: "dokumente", binding: $dokumenteSichtbarBeiDossierfreigabe)
@@ -1023,20 +1107,17 @@ struct VertrauenspersonView: View {
                     Text("Änderungen werden gespeichert und im freigegebenen Dossier übernommen.")
                 }
 
-                if let wuensche = wuenscheFuerAktivesDossier {
-                    Section("Dokumente im Bereich Wünsche") {
-                        wunschDokumentToggle("Testament", istVorhanden: !wuensche.testamentDateiName.isEmpty, isOn: wunschDokumentFreigabeBinding(fuer: wuensche, keyPath: \WuenscheModell.testamentFreigegebenBeiDossierfreigabe))
-                        wunschDokumentToggle("Patientenverfügung", istVorhanden: !wuensche.patientenverfuegungDateiName.isEmpty, isOn: wunschDokumentFreigabeBinding(fuer: wuensche, keyPath: \WuenscheModell.patientenverfuegungFreigegebenBeiDossierfreigabe))
-                        wunschDokumentToggle("Vorsorgeauftrag", istVorhanden: !wuensche.vorsorgeauftragDateiName.isEmpty, isOn: wunschDokumentFreigabeBinding(fuer: wuensche, keyPath: \WuenscheModell.vorsorgeauftragFreigegebenBeiDossierfreigabe))
-                        wunschDokumentToggle("Sterbebegleitung", istVorhanden: !wuensche.sterbebegleitungDateiName.isEmpty, isOn: wunschDokumentFreigabeBinding(fuer: wuensche, keyPath: \WuenscheModell.sterbebegleitungFreigegebenBeiDossierfreigabe))
-                    }
-                }
             }
             .navigationTitle("Zugriff verwalten")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Fertig") {
+                        // Auch bereits gesetzte Dokumentfreigaben nochmals
+                        // übertragen. Das repariert Geräte, bei denen die
+                        // frühere verzögerte Synchronisation ausblieb.
+                        ausstehendeFreigabeSyncBereiche.insert("wuensche")
+                        ausstehendeFreigabeSyncBereiche.insert("kontakte")
                         synchronisiereAusstehendeFreigaben()
                         zugriffsverlaufAnzeigen = false
                         zugriffVerwaltenAnzeigen = false
@@ -1103,6 +1184,7 @@ struct VertrauenspersonView: View {
         case "zugaenge": "Abos & Profile"
         case "herzensstuecke": "Herzensstücke"
         case "gesundheit": "Gesundheit"
+        case "wunschdokumente": "Dokumente in Wünsche"
         default: bereich
         }
     }
@@ -1147,7 +1229,7 @@ struct VertrauenspersonView: View {
 
                         HStack(spacing: 10) {
                             Button("Vollen Zugriff geben") {
-                                entscheideErweiterungsanfrage(zugriff, angenommen: true)
+                                bereiteVollzugriffFreigabeVor(zugriff)
                             }
                             .buttonStyle(.borderedProminent)
                             .tint(akzentFarbe)
@@ -1166,9 +1248,158 @@ struct VertrauenspersonView: View {
         }
     }
 
+    private var vollzugriffFreigabeSheet: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    vollzugriffAuswahlZeile("Wünsche", isOn: $vollzugriffAuswahl.wuensche)
+
+                    if let wuensche = wuenscheFuerAktivesDossier {
+                        vollzugriffDokumentAuswahlZeile(
+                            "Testament",
+                            istVorhanden: !wuensche.testamentDateiName.isEmpty,
+                            isOn: $vollzugriffAuswahl.testament
+                        )
+                        vollzugriffDokumentAuswahlZeile(
+                            "Patientenverfügung",
+                            istVorhanden: !wuensche.patientenverfuegungDateiName.isEmpty,
+                            isOn: $vollzugriffAuswahl.patientenverfuegung
+                        )
+                        vollzugriffDokumentAuswahlZeile(
+                            "Vorsorgeauftrag",
+                            istVorhanden: !wuensche.vorsorgeauftragDateiName.isEmpty,
+                            isOn: $vollzugriffAuswahl.vorsorgeauftrag
+                        )
+                        vollzugriffDokumentAuswahlZeile(
+                            "Sterbebegleitung",
+                            istVorhanden: !wuensche.sterbebegleitungDateiName.isEmpty,
+                            isOn: $vollzugriffAuswahl.sterbebegleitung
+                        )
+                    }
+
+                    vollzugriffAuswahlZeile("Wichtige Menschen", isOn: $vollzugriffAuswahl.kontakte)
+                    vollzugriffAuswahlZeile("Finanzen", isOn: $vollzugriffAuswahl.finanzen)
+                    vollzugriffAuswahlZeile("Dokumente & Fotoalbum", isOn: $vollzugriffAuswahl.dokumente)
+                    vollzugriffAuswahlZeile("Abos & Profile", isOn: $vollzugriffAuswahl.zugaenge)
+                    vollzugriffAuswahlZeile("Herzensstücke", isOn: $vollzugriffAuswahl.herzensstuecke)
+                    vollzugriffAuswahlZeile("Gesundheit", isOn: $vollzugriffAuswahl.gesundheit)
+                } header: {
+                    Text("Diese Bereiche werden freigegeben")
+                } footer: {
+                    Text("Deaktivierte Bereiche bleiben gesperrt und können von deiner Vertrauensperson später erneut angefragt werden.")
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                HStack(spacing: 12) {
+                    Button(role: .cancel) {
+                        vollzugriffFreigabeAnzeigen = false
+                        vollzugriffAnfrageID = nil
+                    } label: {
+                        Text("Abbrechen")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 52, alignment: .center)
+                            .contentShape(Rectangle())
+                    }
+                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.plain)
+                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(.primary.opacity(0.10), lineWidth: 1)
+                    }
+                    .disabled(zugriffsentscheidungLaeuft)
+
+                    Button {
+                        bestaetigeVollzugriffFreigabe()
+                    } label: {
+                        HStack(spacing: 8) {
+                            if zugriffsentscheidungLaeuft {
+                                ProgressView()
+                                    .tint(.white)
+                            } else {
+                                Text("Zugriff gewähren")
+                            }
+                        }
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, minHeight: 52, alignment: .center)
+                        .contentShape(Rectangle())
+                    }
+                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.appOnAccent)
+                    .background(akzentFarbe, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .disabled(zugriffsentscheidungLaeuft)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(.regularMaterial)
+            }
+            .navigationTitle("Vollzugriff auf dein Vorsorge-Dossier gewähren?")
+            .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled(zugriffsentscheidungLaeuft)
+        }
+    }
+
+    private func vollzugriffAuswahlZeile(_ titel: String, isOn: Binding<Bool>) -> some View {
+        Toggle(isOn: isOn) {
+            Label {
+                Text(titel)
+            } icon: {
+                Image(systemName: isOn.wrappedValue ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isOn.wrappedValue ? .green : .secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func vollzugriffDokumentAuswahlZeile(
+        _ titel: String,
+        istVorhanden: Bool,
+        isOn: Binding<Bool>
+    ) -> some View {
+        if istVorhanden {
+            vollzugriffAuswahlZeile(titel, isOn: isOn)
+                .padding(.leading, 20)
+                .disabled(!vollzugriffAuswahl.wuensche)
+        }
+    }
+
+    private func bereiteVollzugriffFreigabeVor(_ zugriff: DossierZugriffModell) {
+        let wuensche = wuenscheFuerAktivesDossier
+        vollzugriffAuswahl = VollzugriffFreigabeAuswahl(
+            wuensche: true,
+            kontakte: true,
+            finanzen: true,
+            dokumente: true,
+            zugaenge: true,
+            herzensstuecke: true,
+            gesundheit: true,
+            testament: wuensche?.testamentFreigegebenBeiDossierfreigabe ?? false,
+            patientenverfuegung: wuensche?.patientenverfuegungFreigegebenBeiDossierfreigabe ?? true,
+            vorsorgeauftrag: wuensche?.vorsorgeauftragFreigegebenBeiDossierfreigabe ?? true,
+            sterbebegleitung: wuensche?.sterbebegleitungFreigegebenBeiDossierfreigabe ?? true
+        )
+        vollzugriffAnfrageID = zugriff.zugriffID
+        vollzugriffFreigabeAnzeigen = true
+    }
+
+    private func bestaetigeVollzugriffFreigabe() {
+        guard let anfrageID = vollzugriffAnfrageID,
+              let zugriff = offeneErweiterungsanfragen.first(where: { $0.zugriffID == anfrageID }) else {
+            vollzugriffFreigabeAnzeigen = false
+            return
+        }
+        entscheideErweiterungsanfrage(
+            zugriff,
+            angenommen: true,
+            freigabeAuswahl: vollzugriffAuswahl
+        )
+    }
+
     private func entscheideErweiterungsanfrage(
         _ zugriff: DossierZugriffModell,
-        angenommen: Bool
+        angenommen: Bool,
+        freigabeAuswahl: VollzugriffFreigabeAuswahl? = nil
     ) {
         guard !zugriffsentscheidungLaeuft,
               let token = zugriff.einladungsToken else { return }
@@ -1182,27 +1413,51 @@ struct VertrauenspersonView: View {
                     angenommen: angenommen
                 )
                 if angenommen, let userID = zugriff.vertrauenspersonUserID {
+                    if let freigabeAuswahl {
+                        uebernehmeVollzugriffFreigabe(freigabeAuswahl)
+                    }
                     zugriff.einladungAnnehmen(
                         vertrauenspersonUserID: userID,
                         registrierungsEmail: zugriff.registrierungsEmail
                     )
-                    wuenscheSichtbarBeiDossierfreigabe = true
-                    menschenDesVertrauensSichtbarBeiDossierfreigabe = true
-                    finanzenSichtbarBeiDossierfreigabe = true
-                    dokumenteSichtbarBeiDossierfreigabe = true
-                    abosUndProfileSichtbarBeiDossierfreigabe = true
-                    herzensstueckeSichtbarBeiDossierfreigabe = true
-                    gesundheitSichtbarBeiDossierfreigabe = true
+                    // Der Serverzeitpunkt liegt vor dieser lokalen Markierung.
+                    // Dadurch überschreibt die anschliessende Statussynchronisation
+                    // die bewusst eingeschränkte manuelle Auswahl nicht erneut.
+                    zugriff.vollzugriffVerarbeitetAm = Date()
                 } else if !angenommen {
                     zugriff.einladungAblehnen(
                         registrierungsEmail: zugriff.registrierungsEmail
                     )
                 }
                 try modelContext.save()
+                if angenommen {
+                    synchronisiereAusstehendeFreigaben()
+                    vollzugriffFreigabeAnzeigen = false
+                    vollzugriffAnfrageID = nil
+                }
             } catch {
                 fehlermeldung = error.localizedDescription
             }
         }
+    }
+
+    private func uebernehmeVollzugriffFreigabe(_ auswahl: VollzugriffFreigabeAuswahl) {
+        wuenscheSichtbarBeiDossierfreigabe = auswahl.wuensche
+        menschenDesVertrauensSichtbarBeiDossierfreigabe = auswahl.kontakte
+        finanzenSichtbarBeiDossierfreigabe = auswahl.finanzen
+        dokumenteSichtbarBeiDossierfreigabe = auswahl.dokumente
+        abosUndProfileSichtbarBeiDossierfreigabe = auswahl.zugaenge
+        herzensstueckeSichtbarBeiDossierfreigabe = auswahl.herzensstuecke
+        gesundheitSichtbarBeiDossierfreigabe = auswahl.gesundheit
+
+        if let wuensche = wuenscheFuerAktivesDossier {
+            wuensche.testamentFreigegebenBeiDossierfreigabe = auswahl.testament
+            wuensche.patientenverfuegungFreigegebenBeiDossierfreigabe = auswahl.patientenverfuegung
+            wuensche.vorsorgeauftragFreigegebenBeiDossierfreigabe = auswahl.vorsorgeauftrag
+            wuensche.sterbebegleitungFreigegebenBeiDossierfreigabe = auswahl.sterbebegleitung
+        }
+        speichereVertrauensperson()
+        ausstehendeFreigabeSyncBereiche.insert("wuensche")
     }
 
     // MARK: - Hero
@@ -1502,32 +1757,50 @@ struct VertrauenspersonView: View {
             if kontaktIstAusgewaehlt {
                 VStack(
                     alignment: .leading,
-                    spacing: 6
+                    spacing: 10
                 ) {
                     Text(kontaktAnzeigename)
                         .font(.headline)
+                        .confirmationDialog(
+                            "E-Mail-Adresse auswählen",
+                            isPresented: $emailAuswahlFuerQRCodeAnzeigen,
+                            titleVisibility: .visible
+                        ) {
+                            ForEach(kontaktEmailAdressen, id: \.self) { adresse in
+                                Button(adresse) {
+                                    qrCodeFuerDossierZugriffGenerieren(fuer: adresse)
+                                }
+                            }
+                            Button("Abbrechen", role: .cancel) { }
+                        } message: {
+                            Text("Welche E-Mail-Adresse verwendet \(kontaktAnzeigename) für das Tschlüssli-Konto?")
+                        }
 
-                    if !bereinigteEmail.isEmpty {
-                        Text(bereinigteEmail)
+                    ForEach(kontaktAdressen, id: \.self) { adresse in
+                        Label(adresse, systemImage: "mappin.and.ellipse")
                             .font(.footnote)
-                            .foregroundStyle(
-                                .secondary
-                            )
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    let bereinigtesTelefon =
-                        telefon.trimmingCharacters(
-                            in: .whitespacesAndNewlines
-                        )
-
-                    if !bereinigtesTelefon.isEmpty {
-                        Text(bereinigtesTelefon)
+                    ForEach(kontaktEmailAdressen, id: \.self) { adresse in
+                        Label(adresse, systemImage: "envelope")
                             .font(.footnote)
-                            .foregroundStyle(
-                                .secondary
-                            )
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+
+                    ForEach(kontaktTelefonnummern, id: \.self) { nummer in
+                        Label(nummer, systemImage: "phone")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
                     }
                 }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.appField)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
                 Button(
                     role: .destructive
@@ -1642,6 +1915,7 @@ struct VertrauenspersonView: View {
         if istVorhanden {
             Toggle(titel, isOn: isOn)
                 .padding(.leading, 20)
+                .tint(akzentFarbe)
         }
     }
 
@@ -1655,8 +1929,15 @@ struct VertrauenspersonView: View {
                 wuensche[keyPath: keyPath] = neuerWert
                 do {
                     try modelContext.save()
-                    ausstehendeFreigabeSyncBereiche.insert("wuensche")
-                    ausstehendeFreigabeSyncBereiche.insert("kontakte")
+                    NotificationCenter.default.post(
+                        name: .dossierBereichGespeichert,
+                        object: "wuensche"
+                    )
+                    NotificationCenter.default.post(
+                        name: .dossierBereichGespeichert,
+                        object: "kontakte"
+                    )
+                    DossierSyncDienst.shared?.synchronisieren()
                 } catch {
                     fehlermeldung = "Dokumentfreigabe konnte nicht gespeichert werden."
                 }
@@ -1893,11 +2174,11 @@ struct VertrauenspersonView: View {
             )
             .disabled(
                 !kontaktIstAusgewaehlt ||
-                !emailIstGueltig
+                !qrEinladungHatGueltigeEmail
             )
             .opacity(
                 kontaktIstAusgewaehlt &&
-                emailIstGueltig
+                qrEinladungHatGueltigeEmail
                 ? 1
                 : 0.45
             )
@@ -2354,13 +2635,28 @@ struct VertrauenspersonView: View {
             return
         }
 
-        let empfaengerEmail = bereinigteEmail
-
-        guard istGueltigeEmail(empfaengerEmail) else {
+        guard qrEinladungHatGueltigeEmail else {
             fehlermeldung =
             "Bitte hinterlege zuerst eine gültige E-Mail-Adresse für die Vertrauensperson."
             return
         }
+
+        if kontaktEmailAdressen.count > 1 {
+            kontaktScrollAnforderung += 1
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(420))
+                emailAuswahlFuerQRCodeAnzeigen = true
+            }
+            return
+        }
+
+        guard let empfaengerEmail = kontaktEmailAdressen.first else { return }
+        qrCodeFuerDossierZugriffGenerieren(fuer: empfaengerEmail)
+    }
+
+    private func qrCodeFuerDossierZugriffGenerieren(fuer empfaengerEmail: String) {
+        email = empfaengerEmail
+        speichereVertrauensperson()
 
         erneuereEinladungsTokenFallsNoetig()
         stelleEinladungsTokenSicher(
@@ -2567,24 +2863,34 @@ struct VertrauenspersonView: View {
         vorname = kontakt.givenName
         name = kontakt.familyName
 
-        if let ersteEmail =
-            kontakt.emailAddresses
-            .first?
-            .value {
-            email = String(ersteEmail)
+        let emailAdressen = kontakt.emailAddresses.map {
+            String($0.value).trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter(istGueltigeEmail)
+
+        kontaktEmailAdressenJSON = kodiereKontaktwerte(emailAdressen)
+
+        if let ersteEmail = emailAdressen.first {
+            email = ersteEmail
         } else {
             email = ""
         }
 
-        if let ersteTelefonnummer =
-            kontakt.phoneNumbers
-            .first?
-            .value
-            .stringValue {
+        let telefonnummern = kontakt.phoneNumbers.map {
+            $0.value.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter { !$0.isEmpty }
+        kontaktTelefonnummernJSON = kodiereKontaktwerte(telefonnummern)
+
+        if let ersteTelefonnummer = telefonnummern.first {
             telefon = ersteTelefonnummer
         } else {
             telefon = ""
         }
+
+        let adressen = kontakt.postalAddresses.map {
+            CNPostalAddressFormatter.string(from: $0.value, style: .mailingAddress)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter { !$0.isEmpty }
+        kontaktAdressenJSON = kodiereKontaktwerte(adressen)
 
         fehlermeldung = ""
 
@@ -2595,19 +2901,33 @@ struct VertrauenspersonView: View {
         speichereVertrauensperson()
     }
 
+    private func kodiereKontaktwerte(_ werte: [String]) -> String {
+        let eindeutigeWerte = werte.reduce(into: [String]()) { ergebnis, wert in
+            guard !ergebnis.contains(where: { $0.caseInsensitiveCompare(wert) == .orderedSame }) else {
+                return
+            }
+            ergebnis.append(wert)
+        }
+        guard let daten = try? JSONEncoder().encode(eindeutigeWerte),
+              let json = String(data: daten, encoding: .utf8) else {
+            return "[]"
+        }
+        return json
+    }
+
     private func kontaktLoeschen() {
         guard !kontaktLoeschungLaeuft else { return }
         let zugriff = aktuellerDossierZugriff ?? zugriffeFuerAktuelleVertrauensperson.first
         let widerrufsEmail = [
-            bereinigteEmail,
-            einladungsEmail ?? "",
             zugriff?.eingeladeneEmail ?? "",
-            zugriff?.registrierungsEmail ?? ""
+            zugriff?.registrierungsEmail ?? "",
+            einladungsEmail ?? "",
+            bereinigteEmail
         ]
         .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
         .first { !$0.isEmpty }
 
-        guard let dossierID = aktivesDossierUUID,
+        guard let dossierID = zugriff?.dossierID ?? aktivesDossierUUID,
               let widerrufsEmail else {
             kontaktLokalLoeschen()
             return
@@ -2661,6 +2981,20 @@ struct VertrauenspersonView: View {
         email = ""
         telefon = ""
         beziehung = ""
+        kontaktEmailAdressenJSON = "[]"
+        kontaktTelefonnummernJSON = "[]"
+        kontaktAdressenJSON = "[]"
+
+        // Eine neue Vertrauensperson beginnt immer mit den vorgesehenen
+        // Standardfreigaben und übernimmt keine Rechte des gelöschten Kontakts.
+        ausstehendeFreigabeSyncBereiche.removeAll()
+        wuenscheSichtbarBeiDossierfreigabe = true
+        menschenDesVertrauensSichtbarBeiDossierfreigabe = true
+        finanzenSichtbarBeiDossierfreigabe = false
+        dokumenteSichtbarBeiDossierfreigabe = false
+        abosUndProfileSichtbarBeiDossierfreigabe = false
+        herzensstueckeSichtbarBeiDossierfreigabe = true
+        gesundheitSichtbarBeiDossierfreigabe = true
 
         einladungsStatus = .offen
         vorsorgeprozessStatus =
@@ -3497,7 +3831,21 @@ private struct EinladungsHistorieEintrag:
     }
 }
 
-private struct ZugriffsHistorienEreignis: Codable, Identifiable {
+private struct VollzugriffFreigabeAuswahl {
+    var wuensche = true
+    var kontakte = true
+    var finanzen = true
+    var dokumente = true
+    var zugaenge = true
+    var herzensstuecke = true
+    var gesundheit = true
+    var testament = false
+    var patientenverfuegung = true
+    var vorsorgeauftrag = true
+    var sterbebegleitung = true
+}
+
+struct ZugriffsHistorienEreignis: Codable, Identifiable {
     var id = UUID()
     let bereich: String
     let freigegeben: Bool
@@ -3518,6 +3866,14 @@ private struct VertrauenspersonKontaktPicker:
     ) -> CNContactPickerViewController {
         let picker =
             CNContactPickerViewController()
+
+        picker.displayedPropertyKeys = [
+            CNContactGivenNameKey,
+            CNContactFamilyNameKey,
+            CNContactPostalAddressesKey,
+            CNContactEmailAddressesKey,
+            CNContactPhoneNumbersKey
+        ]
 
         picker.delegate =
         context.coordinator

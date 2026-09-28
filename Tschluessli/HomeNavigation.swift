@@ -426,7 +426,14 @@ struct HomeNavigation: View {
             }
             .onChange(of: scenePhase) { _, neuePhase in
                 guard neuePhase == .active else { return }
-                Task { await aktualisiereEinladungszustaende() }
+                Task {
+                    // Nach dem Entsperren benötigt iOS gelegentlich einen
+                    // kurzen Moment, bevor WhenUnlocked-Keychain-Einträge
+                    // wieder gelesen werden können.
+                    try? await Task.sleep(for: .milliseconds(650))
+                    guard !Task.isCancelled, scenePhase == .active else { return }
+                    await aktualisiereEinladungszustaende()
+                }
             }
             .onChange(of: ziel) { _, neuesZiel in
                 guard neuesZiel == nil else { return }
@@ -1025,6 +1032,11 @@ struct HomeNavigation: View {
             }
 
             Circle().fill(knoten.flaeche)
+            if knoten == .bereiche {
+                Circle()
+                    .fill(Color.orbitAreaFill)
+                    .allowsHitTesting(false)
+            }
 
             VStack(spacing: knoten == .bereiche ? 3 : 5) {
                 Image(systemName: knoten.symbol)

@@ -6,7 +6,9 @@ struct EinladungQRCodeAnnehmenView: View {
     @Environment(\.appLayout) private var appLayout
     @Environment(\.modelContext) private var modelContext
     @Query private var zugriffe: [DossierZugriffModell]
+    @Query private var profile: [ProfilModell]
     @AppStorage("aktiveUserID") private var aktiveUserID = ""
+    @AppStorage("gespeicherteEmail") private var gespeicherteEmail = ""
 
     @State private var scannerAnzeigen = false
     @State private var meldung = ""
@@ -14,6 +16,29 @@ struct EinladungQRCodeAnnehmenView: View {
     @State private var arbeitet = false
 
     private let akzent = Color.appAccent
+
+    private var aktuelleProfilEmail: String {
+        let profil: ProfilModell?
+        if let aktiveID = UUID(uuidString: aktiveUserID) {
+            profil = profile.first(where: { $0.userID == aktiveID })
+        } else {
+            profil = profile.first
+        }
+
+        let registrierungsEmail = profil?.registrierungsEmail
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let profilEmail = profil?.email
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !registrierungsEmail.isEmpty { return registrierungsEmail.lowercased() }
+        if !profilEmail.isEmpty { return profilEmail.lowercased() }
+        return gespeicherteEmail
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+
+    private var meldungFuerFalscheEmailAdresse: String {
+        "Dieser QR-Code ist für eine andere E-Mail-Adresse bestimmt. Prüfe gemeinsam mit der vorsorgenden Person, ob in der Einladung und deinem Tschlüssli-Konto dieselbe E-Mail-Adresse verwendet wird. Erstellt danach einen neuen QR-Code und versucht es erneut."
+    }
 
     var body: some View {
         ZStack {
@@ -101,7 +126,15 @@ struct EinladungQRCodeAnnehmenView: View {
             return
         }
 
-        guard !qrEmail.isEmpty else { return }
+        let normalisierteQREmail = qrEmail
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        guard !normalisierteQREmail.isEmpty else { return }
+        if !aktuelleProfilEmail.isEmpty,
+           normalisierteQREmail != aktuelleProfilEmail {
+            meldung = meldungFuerFalscheEmailAdresse
+            return
+        }
         guard let aktiveUserUUID = UUID(uuidString: aktiveUserID) else {
             meldung = "Dein angemeldetes Profil konnte nicht eindeutig bestimmt werden."
             return
@@ -137,6 +170,8 @@ struct EinladungQRCodeAnnehmenView: View {
                 
                 warErfolgreich = true
                 meldung = "Das Dossier wurde auf deinem Home-Screen abgelegt. Du kannst die von der vorsorgenden Person freigegebenen Bereiche direkt ansehen."
+            } catch PushFehler.zugriffVerweigert {
+                meldung = meldungFuerFalscheEmailAdresse
             } catch {
                 meldung = error.localizedDescription
             }
