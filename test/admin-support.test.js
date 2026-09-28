@@ -4,6 +4,7 @@ import { hashPassword, saveSession } from "../api/_auth.js";
 import {
   authenticateAdmin,
   buildTrustedPeople,
+  countRegisteredAccounts,
   lookupSupportUser,
   pendingSubscriptionStatus,
   payloadHasData,
@@ -56,6 +57,11 @@ test("liefert einen stabilen Platzhalter für die spätere Aboanbindung", () => 
     promoCode: null,
     promoRedemptionAvailable: false
   });
+});
+
+test("zählt registrierte Benutzerkonten für die Supportübersicht", async () => {
+  const pool = { async query() { return { rows: [{ count: "124" }] }; } };
+  assert.equal(await countRegisteredAccounts(pool), 124);
 });
 
 test("erkennt die Supportumgebung konservativ", () => {

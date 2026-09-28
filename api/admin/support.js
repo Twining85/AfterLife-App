@@ -74,6 +74,27 @@ export async function supportLookupHandler(req, res) {
   }
 }
 
+export async function supportSummaryHandler(req, res) {
+  secureResponse(res);
+  if (!supportSiteEnabled()) return res.status(404).json({ error: "Nicht gefunden" });
+  if (!requireMethod(req, res, "POST") || !requireJSON(req, res)) return;
+  if (!rateLimit(req, res, { namespace: "admin-summary", limit: 60, windowMilliseconds: 60 * 60 * 1000 })) return;
+
+  const admin = await authenticatedAdmin(req);
+  if (!admin) return res.status(401).json({ error: "Admin-Anmeldung erforderlich" });
+  try {
+    return res.status(200).json({ registeredAccounts: await countRegisteredAccounts() });
+  } catch (error) {
+    console.error("Support-Übersicht:", { code: error?.code || "SUPPORT_SUMMARY_ERROR" });
+    return res.status(500).json({ error: "Support-Übersicht konnte nicht geladen werden" });
+  }
+}
+
+export async function countRegisteredAccounts(pool = databasePool()) {
+  const result = await pool.query("SELECT COUNT(*) AS count FROM app_users");
+  return Number(result.rows[0]?.count || 0);
+}
+
 export async function supportDeleteAccountHandler(req, res) {
   secureResponse(res);
   if (!supportSiteEnabled()) return res.status(404).json({ error: "Nicht gefunden" });

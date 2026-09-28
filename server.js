@@ -16,7 +16,7 @@ import autoRelease from "./api/cron/auto-release-invitations.js";
 import { databaseHealth, databasePool } from "./api/_database.js";
 import { secureResponse } from "./api/_security.js";
 import { storageService } from "./api/_storage.js";
-import { adminLoginHandler, supportDeleteAccountHandler, supportLookupHandler, supportSiteEnabled } from "./api/admin/support.js";
+import { adminLoginHandler, supportDeleteAccountHandler, supportLookupHandler, supportSiteEnabled, supportSummaryHandler } from "./api/admin/support.js";
 
 const applicationDirectory = path.dirname(fileURLToPath(import.meta.url));
 const supportAssets = new Map([
@@ -41,6 +41,7 @@ const routes = new Map([
   ["/api/dossiers/sections", dossierSections],
   ["/api/cron/auto-release-invitations", autoRelease],
   ["/api/admin/login", adminLoginHandler],
+  ["/api/admin/summary", supportSummaryHandler],
   ["/api/admin/users/lookup", supportLookupHandler],
   ["/api/admin/users/delete", supportDeleteAccountHandler]
 ]);

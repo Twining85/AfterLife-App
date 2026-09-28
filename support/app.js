@@ -11,6 +11,8 @@ const elements = {
   loginError: document.querySelector("#login-error"),
   logoutButton: document.querySelector("#logout-button"),
   environmentBadge: document.querySelector("#environment-badge"),
+  accountCount: document.querySelector("#account-count"),
+  accountCountValue: document.querySelector("#account-count-value"),
   searchForm: document.querySelector("#search-form"),
   searchEmail: document.querySelector("#search-email"),
   includeDetails: document.querySelector("#include-details"),
@@ -325,7 +327,21 @@ function showAuthenticated(authenticated) {
   elements.appView.hidden = !authenticated;
   if (authenticated) {
     setEnvironment(state.environment || "unbekannt");
+    void loadSummary();
     elements.searchEmail.focus();
+  } else {
+    elements.accountCount.hidden = true;
+  }
+}
+
+async function loadSummary() {
+  try {
+    const summary = await request("/api/admin/summary", {});
+    elements.accountCountValue.textContent = new Intl.NumberFormat("de-CH").format(summary.registeredAccounts);
+    elements.accountCount.hidden = false;
+  } catch (error) {
+    elements.accountCount.hidden = true;
+    if (error.status === 401) logout();
   }
 }
 
