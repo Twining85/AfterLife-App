@@ -5,6 +5,8 @@
 !worker.js
 !api/
 !api/**
+!support/
+!support/**
 !database/
 !database/**
 !scripts/

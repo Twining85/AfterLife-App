@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Tschlüssli Support</title>
+  <link rel="stylesheet" href="/support/styles.css">
+</head>
+<body>
+  <main>
+    <section id="login-view" class="login-view" aria-labelledby="login-title">
+      <div class="login-panel">
+        <img class="brand-mark" src="/support/logo.png" alt="Tschlüssli">
+        <p class="eyebrow">Interner Bereich</p>
+        <h1 id="login-title">Support</h1>
+        <p class="login-copy">Melde dich mit einem freigeschalteten Administrationskonto an.</p>
+        <form id="login-form">
+          <label for="login-email">E-Mail-Adresse</label>
+          <input id="login-email" name="email" type="email" autocomplete="username" required>
+          <label for="login-password">Passwort</label>
+          <input id="login-password" name="password" type="password" autocomplete="current-password" minlength="12" required>
+          <p id="login-error" class="form-error" role="alert" hidden></p>
+          <button class="primary-button" type="submit">Anmelden</button>
+        </form>
+      </div>
+    </section>
+
+    <section id="app-view" class="app-view" hidden>
+      <header class="topbar">
+        <div class="brand-lockup">
+          <img src="/support/logo.png" alt="">
+          <div>
+            <strong>Tschlüssli Support</strong>
+            <span id="environment-badge" class="environment-badge"></span>
+          </div>
+        </div>
+        <button id="logout-button" class="quiet-button" type="button">Abmelden</button>
+      </header>
+
+      <div class="workspace">
+        <aside class="sidebar">
+          <nav aria-label="Supportnavigation">
+            <button class="nav-item active" type="button" aria-current="page">Kontosuche</button>
+          </nav>
+          <div class="privacy-note">
+            <strong>Datensparsame Ansicht</strong>
+            <span>Produktivdaten werden nur als technischer Status ausgegeben.</span>
+          </div>
+        </aside>
+
+        <section class="content" aria-labelledby="page-title">
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">Kontosuche</p>
+              <h1 id="page-title">Technischer Status</h1>
+            </div>
+          </div>
+
+          <form id="search-form" class="search-bar">
+            <label class="sr-only" for="search-email">E-Mail-Adresse des Kontos</label>
+            <input id="search-email" name="email" type="email" autocomplete="off" placeholder="name@beispiel.ch" required>
+            <label id="details-option" class="checkbox-label" hidden>
+              <input id="include-details" type="checkbox">
+              DEV-Daten anzeigen
+            </label>
+            <button class="primary-button" type="submit">Suchen</button>
+          </form>
+
+          <div id="notice" class="notice" role="status" hidden></div>
+          <div id="empty-state" class="empty-state">
+            <h2>Noch kein Konto ausgewählt</h2>
+            <p>Suche nach der registrierten E-Mail-Adresse, um den technischen Status zu prüfen.</p>
+          </div>
+          <div id="result" hidden></div>
+        </section>
+      </div>
+    </section>
+  </main>
+  <script src="/support/app.js" defer></script>
+</body>
+</html>

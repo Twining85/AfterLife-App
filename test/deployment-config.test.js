@@ -24,6 +24,7 @@ test("Docker-Image laeuft ohne Root und enthaelt nur Backend-Verzeichnisse", asy
   const dockerfile = await fs.readFile(new URL("../Dockerfile", import.meta.url), "utf8");
   assert.match(dockerfile, /USER node/);
   assert.match(dockerfile, /COPY --chown=node:node api \.\/api/);
+  assert.match(dockerfile, /COPY --chown=node:node support \.\/support/);
   assert.match(dockerfile, /COPY --chown=node:node database \.\/database/);
   assert.match(dockerfile, /COPY --chown=node:node scripts \.\/scripts/);
   assert.doesNotMatch(dockerfile, /COPY\s+\.\s+\./);

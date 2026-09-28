@@ -1,5 +1,7 @@
 import http from "node:http";
-import { pathToFileURL } from "node:url";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import accountLogin from "./api/accounts/login.js";
 import accountRegister from "./api/accounts/register.js";
 import changePassword from "./api/accounts/change-password.js";
@@ -14,6 +16,16 @@ import autoRelease from "./api/cron/auto-release-invitations.js";
 import { databaseHealth, databasePool } from "./api/_database.js";
 import { secureResponse } from "./api/_security.js";
 import { storageService } from "./api/_storage.js";
+import { adminLoginHandler, supportLookupHandler, supportSiteEnabled } from "./api/admin/support.js";
+
+const applicationDirectory = path.dirname(fileURLToPath(import.meta.url));
+const supportAssets = new Map([
+  ["/support", ["support/index.html", "text/html; charset=utf-8"]],
+  ["/support/", ["support/index.html", "text/html; charset=utf-8"]],
+  ["/support/app.js", ["support/app.js", "text/javascript; charset=utf-8"]],
+  ["/support/styles.css", ["support/styles.css", "text/css; charset=utf-8"]],
+  ["/support/logo.png", ["api/assets/tschluessli-email-logo.png", "image/png"]]
+]);
 
 const routes = new Map([
   ["/api/accounts/login", accountLogin],
@@ -27,7 +39,9 @@ const routes = new Map([
   ["/api/sync/push", syncPush],
   ["/api/sync/pull", syncPull],
   ["/api/dossiers/sections", dossierSections],
-  ["/api/cron/auto-release-invitations", autoRelease]
+  ["/api/cron/auto-release-invitations", autoRelease],
+  ["/api/admin/login", adminLoginHandler],
+  ["/api/admin/users/lookup", supportLookupHandler]
 ]);
 
 export function createServer() {
@@ -36,6 +50,7 @@ export function createServer() {
     const res = responseAdapter(response);
     if (url.pathname === "/health/live") return liveHealth(request, res);
     if (url.pathname === "/health/ready") return readyHealth(request, res);
+    if (supportAssets.has(url.pathname) && supportSiteEnabled()) return serveSupportAsset(request, response, url.pathname);
     const handler = routes.get(url.pathname);
     if (!handler) { secureResponse(res); return res.status(404).json({ error: "Nicht gefunden" }); }
     try {
@@ -52,6 +67,24 @@ export function createServer() {
       return res.status(500).json({ error: "Interner Fehler" });
     }
   });
+}
+
+async function serveSupportAsset(request, response, pathname) {
+  if (!["GET", "HEAD"].includes(request.method)) {
+    response.statusCode = 405;
+    response.setHeader("Allow", "GET, HEAD");
+    return response.end();
+  }
+  const [relativePath, contentType] = supportAssets.get(pathname);
+  const content = await fs.readFile(path.join(applicationDirectory, relativePath));
+  response.statusCode = 200;
+  response.setHeader("Content-Type", contentType);
+  response.setHeader("Cache-Control", pathname === "/support/app.js" || pathname === "/support/styles.css" ? "public, max-age=300" : "no-store");
+  response.setHeader("Content-Security-Policy", "default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+  response.setHeader("Referrer-Policy", "no-referrer");
+  response.setHeader("X-Content-Type-Options", "nosniff");
+  response.setHeader("X-Frame-Options", "DENY");
+  return request.method === "HEAD" ? response.end() : response.end(content);
 }
 
 export function liveHealth(req, res) {
