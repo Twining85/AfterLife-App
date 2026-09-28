@@ -25,7 +25,15 @@ test("Docker-Image laeuft ohne Root und enthaelt nur Backend-Verzeichnisse", asy
   assert.match(dockerfile, /USER node/);
   assert.match(dockerfile, /COPY --chown=node:node api \.\/api/);
   assert.match(dockerfile, /COPY --chown=node:node database \.\/database/);
+  assert.match(dockerfile, /COPY --chown=node:node scripts \.\/scripts/);
   assert.doesNotMatch(dockerfile, /COPY\s+\.\s+\./);
+});
+
+test("Docker-Kontext enthält nur das Object-Storage-Migrationsskript", async () => {
+  const ignored = await fs.readFile(new URL("../.dockerignore", import.meta.url), "utf8");
+  assert.match(ignored, /^!scripts\/$/m);
+  assert.match(ignored, /^!scripts\/migrate-object-storage\.js$/m);
+  assert.doesNotMatch(ignored, /^!scripts\/\*\*$/m);
 });
 
 function escape(value) {
