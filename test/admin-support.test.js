@@ -6,6 +6,7 @@ import {
   buildTrustedPeople,
   countRegisteredAccounts,
   lookupSupportUser,
+  monitoringSnapshot,
   pendingSubscriptionStatus,
   payloadHasData,
   supportEnvironment,
@@ -62,6 +63,34 @@ test("liefert einen stabilen Platzhalter für die spätere Aboanbindung", () => 
 test("zählt registrierte Benutzerkonten für die Supportübersicht", async () => {
   const pool = { async query() { return { rows: [{ count: "124" }] }; } };
   assert.equal(await countRegisteredAccounts(pool), 124);
+});
+
+test("liefert aggregiertes Monitoring ohne personenbezogene Daten", async () => {
+  const pool = { async query() { return { rows: [{
+    registered_accounts: "124",
+    active_dossiers: "98",
+    open_invitations: "7",
+    pending_requests: "3",
+    stored_documents: "42",
+    stored_bytes: "2048"
+  }] }; } };
+  const result = await monitoringSnapshot({
+    pool,
+    getDatabaseHealth: async () => ({ healthy: true, schemaReady: true }),
+    getStorageHealth: async () => ({ configured: true, connected: true }),
+    environment: "development"
+  });
+  assert.equal(result.environment, "development");
+  assert.deepEqual(result.services.database, { available: true, schemaReady: true });
+  assert.deepEqual(result.metrics, {
+    registeredAccounts: 124,
+    activeDossiers: 98,
+    openInvitations: 7,
+    pendingRequests: 3,
+    storedDocuments: 42,
+    storedBytes: 2048
+  });
+  assert.doesNotMatch(JSON.stringify(result), /email|name|dossierID/i);
 });
 
 test("erkennt die Supportumgebung konservativ", () => {

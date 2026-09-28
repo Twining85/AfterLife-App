@@ -11,6 +11,15 @@ const elements = {
   loginError: document.querySelector("#login-error"),
   logoutButton: document.querySelector("#logout-button"),
   environmentBadge: document.querySelector("#environment-badge"),
+  searchNav: document.querySelector("#search-nav"),
+  monitoringNav: document.querySelector("#monitoring-nav"),
+  searchView: document.querySelector("#search-view"),
+  monitoringView: document.querySelector("#monitoring-view"),
+  monitoringRefresh: document.querySelector("#monitoring-refresh"),
+  monitoringUpdated: document.querySelector("#monitoring-updated"),
+  monitoringError: document.querySelector("#monitoring-error"),
+  serviceStatus: document.querySelector("#service-status"),
+  monitoringMetrics: document.querySelector("#monitoring-metrics"),
   accountCount: document.querySelector("#account-count"),
   accountCountValue: document.querySelector("#account-count-value"),
   searchForm: document.querySelector("#search-form"),
@@ -34,6 +43,9 @@ elements.searchForm.addEventListener("submit", search);
 elements.logoutButton.addEventListener("click", logout);
 elements.deleteForm.addEventListener("submit", deleteAccount);
 elements.deleteCancel.addEventListener("click", closeDeleteDialog);
+elements.searchNav.addEventListener("click", () => showView("search"));
+elements.monitoringNav.addEventListener("click", () => showView("monitoring"));
+elements.monitoringRefresh.addEventListener("click", loadMonitoring);
 showAuthenticated(Boolean(state.token));
 
 async function login(event) {
@@ -345,6 +357,91 @@ async function loadSummary() {
   }
 }
 
+function showView(view) {
+  const monitoring = view === "monitoring";
+  elements.searchView.hidden = monitoring;
+  elements.monitoringView.hidden = !monitoring;
+  elements.searchNav.classList.toggle("active", !monitoring);
+  elements.monitoringNav.classList.toggle("active", monitoring);
+  elements.searchNav.toggleAttribute("aria-current", !monitoring);
+  elements.monitoringNav.toggleAttribute("aria-current", monitoring);
+  if (monitoring) void loadMonitoring();
+  else elements.searchEmail.focus();
+}
+
+async function loadMonitoring() {
+  setBusy(elements.monitoringRefresh, true, "Aktualisieren");
+  elements.monitoringError.hidden = true;
+  try {
+    const data = await request("/api/admin/monitoring", {});
+    setEnvironment(data.environment);
+    renderServices(data.services);
+    renderMonitoringMetrics(data.metrics);
+    elements.monitoringUpdated.textContent = `Zuletzt geprüft: ${formatDate(data.checkedAt)}`;
+  } catch (error) {
+    if (error.status === 401) return logout();
+    elements.monitoringError.textContent = error.message;
+    elements.monitoringError.hidden = false;
+  } finally {
+    setBusy(elements.monitoringRefresh, false, "Aktualisieren");
+  }
+}
+
+function renderServices(services) {
+  elements.serviceStatus.replaceChildren(
+    serviceItem("API", services.api.available, services.api.available ? "Erreichbar" : "Nicht erreichbar"),
+    serviceItem(
+      "Datenbank",
+      services.database.available && services.database.schemaReady,
+      !services.database.available ? "Nicht verbunden" : services.database.schemaReady ? "Verbunden" : "Schema nicht bereit"
+    ),
+    serviceItem(
+      "Object Storage",
+      services.objectStorage.available,
+      services.objectStorage.available ? "Verbunden" : services.objectStorage.configured ? "Nicht verbunden" : "Nicht konfiguriert"
+    )
+  );
+}
+
+function serviceItem(label, healthy, status) {
+  const item = node("article", "service-item");
+  item.append(node("h2", "", label), statusText(status, healthy ? "good" : "bad"));
+  return item;
+}
+
+function renderMonitoringMetrics(metrics) {
+  const values = [
+    ["Benutzerkonten", formatNumber(metrics.registeredAccounts)],
+    ["Aktive Dossiers", formatNumber(metrics.activeDossiers)],
+    ["Offene Einladungen", formatNumber(metrics.openInvitations)],
+    ["Offene Anfragen", formatNumber(metrics.pendingRequests)],
+    ["Dokumente", formatNumber(metrics.storedDocuments)],
+    ["Belegter Speicher", formatBytes(metrics.storedBytes)]
+  ];
+  elements.monitoringMetrics.replaceChildren(...values.map(([label, value]) => {
+    const item = node("article", "metric-item");
+    item.append(node("span", "", label), node("strong", "", value));
+    return item;
+  }));
+}
+
+function formatNumber(value) {
+  return new Intl.NumberFormat("de-CH").format(Number(value || 0));
+}
+
+function formatBytes(value) {
+  const bytes = Number(value || 0);
+  if (bytes < 1024) return `${formatNumber(bytes)} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let amount = bytes / 1024;
+  let unit = units[0];
+  for (let index = 1; amount >= 1024 && index < units.length; index += 1) {
+    amount /= 1024;
+    unit = units[index];
+  }
+  return `${new Intl.NumberFormat("de-CH", { maximumFractionDigits: 1 }).format(amount)} ${unit}`;
+}
+
 function setEnvironment(environment) {
   state.environment = environment;
   elements.environmentBadge.textContent = environment === "production" ? "Produktion" : environment === "development" ? "DEV" : environment;
@@ -358,6 +455,7 @@ function logout() {
   sessionStorage.removeItem("supportEnvironment");
   elements.result.hidden = true;
   elements.emptyState.hidden = false;
+  showView("search");
   showAuthenticated(false);
 }
 

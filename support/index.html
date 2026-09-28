@@ -41,7 +41,8 @@
       <div class="workspace">
         <aside class="sidebar">
           <nav aria-label="Supportnavigation">
-            <button class="nav-item active" type="button" aria-current="page">Kontosuche</button>
+            <button id="search-nav" class="nav-item active" type="button" aria-current="page">Kontosuche</button>
+            <button id="monitoring-nav" class="nav-item" type="button">Monitoring</button>
           </nav>
           <div class="privacy-note">
             <strong>Datensparsame Ansicht</strong>
@@ -49,7 +50,8 @@
           </div>
         </aside>
 
-        <section class="content" aria-labelledby="page-title">
+        <section class="content">
+          <div id="search-view" aria-labelledby="page-title">
           <div class="page-heading">
             <div>
               <p class="eyebrow">Kontosuche</p>
@@ -77,6 +79,21 @@
             <p>Suche nach der registrierten E-Mail-Adresse, um den technischen Status zu prüfen.</p>
           </div>
           <div id="result" hidden></div>
+          </div>
+
+          <div id="monitoring-view" aria-labelledby="monitoring-title" hidden>
+            <div class="page-heading">
+              <div>
+                <p class="eyebrow">Monitoring</p>
+                <h1 id="monitoring-title">Systemstatus</h1>
+              </div>
+              <button id="monitoring-refresh" class="quiet-action" type="button">Aktualisieren</button>
+            </div>
+            <p id="monitoring-updated" class="monitoring-updated"></p>
+            <div id="monitoring-error" class="notice error" role="alert" hidden></div>
+            <section id="service-status" class="service-status" aria-label="Dienste"></section>
+            <section id="monitoring-metrics" class="monitoring-metrics" aria-label="Kennzahlen"></section>
+          </div>
         </section>
       </div>
     </section>

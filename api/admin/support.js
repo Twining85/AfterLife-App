@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { authenticatedUser, saveSession, verifyPassword } from "../_auth.js";
-import { databasePool } from "../_database.js";
+import { databaseHealth, databasePool } from "../_database.js";
 import { normalizeEmail, rateLimit, requireJSON, requireMethod, secureResponse } from "../_security.js";
 import { storageService } from "../_storage.js";
 import { supportedSectionVersions } from "../_sync-contract.js";
@@ -88,6 +88,61 @@ export async function supportSummaryHandler(req, res) {
     console.error("Support-Übersicht:", { code: error?.code || "SUPPORT_SUMMARY_ERROR" });
     return res.status(500).json({ error: "Support-Übersicht konnte nicht geladen werden" });
   }
+}
+
+export async function supportMonitoringHandler(req, res) {
+  secureResponse(res);
+  if (!supportSiteEnabled()) return res.status(404).json({ error: "Nicht gefunden" });
+  if (!requireMethod(req, res, "POST") || !requireJSON(req, res)) return;
+  if (!rateLimit(req, res, { namespace: "admin-monitoring", limit: 60, windowMilliseconds: 60 * 60 * 1000 })) return;
+
+  const admin = await authenticatedAdmin(req);
+  if (!admin) return res.status(401).json({ error: "Admin-Anmeldung erforderlich" });
+  try {
+    return res.status(200).json(await monitoringSnapshot());
+  } catch (error) {
+    console.error("Support-Monitoring:", { code: error?.code || "SUPPORT_MONITORING_ERROR" });
+    return res.status(500).json({ error: "Monitoring konnte nicht geladen werden" });
+  }
+}
+
+export async function monitoringSnapshot({
+  pool = databasePool(),
+  getDatabaseHealth = databaseHealth,
+  getStorageHealth = () => storageService().health(),
+  environment = supportEnvironment()
+} = {}) {
+  const [health, storage, result] = await Promise.all([
+    getDatabaseHealth(),
+    Promise.resolve().then(getStorageHealth).catch(() => ({ configured: true, connected: false })),
+    pool.query(
+      `SELECT
+         (SELECT COUNT(*) FROM app_users) AS registered_accounts,
+         (SELECT COUNT(*) FROM dossiers WHERE is_active = TRUE) AS active_dossiers,
+         (SELECT COUNT(*) FROM dossier_invitations WHERE status IN ('open', 'pending')) AS open_invitations,
+         (SELECT COUNT(*) FROM dossier_invitations WHERE status = 'pending') AS pending_requests,
+         (SELECT COUNT(*) FROM stored_files WHERE status = 'available' AND deleted_at IS NULL) AS stored_documents,
+         (SELECT COALESCE(SUM(byte_size), 0) FROM stored_files WHERE status = 'available' AND deleted_at IS NULL) AS stored_bytes`
+    )
+  ]);
+  const row = result.rows[0] || {};
+  return {
+    environment,
+    checkedAt: new Date().toISOString(),
+    services: {
+      api: { available: true },
+      database: { available: Boolean(health.healthy), schemaReady: Boolean(health.schemaReady) },
+      objectStorage: { configured: Boolean(storage.configured), available: Boolean(storage.connected) }
+    },
+    metrics: {
+      registeredAccounts: Number(row.registered_accounts || 0),
+      activeDossiers: Number(row.active_dossiers || 0),
+      openInvitations: Number(row.open_invitations || 0),
+      pendingRequests: Number(row.pending_requests || 0),
+      storedDocuments: Number(row.stored_documents || 0),
+      storedBytes: Number(row.stored_bytes || 0)
+    }
+  };
 }
 
 export async function countRegisteredAccounts(pool = databasePool()) {
