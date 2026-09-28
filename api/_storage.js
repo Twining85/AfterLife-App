@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import {
-  DeleteObjectsCommand,
+  DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
   ListObjectsV2Command,
@@ -140,11 +140,13 @@ export class InfomaniakStorageService {
         ContinuationToken: continuationToken
       }));
       const objects = (listed.Contents || []).map(({ Key }) => ({ Key })).filter(({ Key }) => Key);
-      if (objects.length) {
-        await this.client.send(new DeleteObjectsCommand({
-          Bucket: this.configuration.container,
-          Delete: { Objects: objects, Quiet: true }
-        }));
+      for (let index = 0; index < objects.length; index += 20) {
+        await Promise.all(objects.slice(index, index + 20).map(({ Key }) =>
+          this.client.send(new DeleteObjectCommand({
+            Bucket: this.configuration.container,
+            Key
+          }))
+        ));
       }
       continuationToken = listed.IsTruncated ? listed.NextContinuationToken : undefined;
     } while (continuationToken);
