@@ -143,11 +143,27 @@ function renderDossier(dossier, index) {
   } else {
     dossier.trustedPeople.forEach((person, personIndex) => {
       const item = node("article", "trust-item");
-      item.append(
-        node("h3", "", person.email || `Vertrauensperson ${personIndex + 1}`),
-        node("p", "", `${invitationLabel(person.status)} · ${person.accessActive ? "Zugriff aktiv" : "Kein aktiver Zugriff"}`),
-        node("p", "", person.email ? "E-Mail in DEV sichtbar" : person.hasEmail ? "E-Mail in dieser Umgebung ausgeblendet" : "Keine E-Mail hinterlegt")
-      );
+      const title = person.name || person.email || `Vertrauensperson ${personIndex + 1}`;
+      const subtitle = [person.name ? person.email : null, person.relationship].filter(Boolean).join(" · ");
+      item.append(node("h3", "", title));
+      if (subtitle) item.append(node("p", "trust-identity", subtitle));
+      const facts = node("dl", "trust-facts");
+      appendFact(facts, "Hinterlegt", person.configured ? "Ja" : "Nein");
+      appendFact(facts, "Primär", person.primary ? "Ja" : "Nein");
+      appendFact(facts, "Einladung", invitationLabel(person.status));
+      appendFact(facts, "Zugriff", person.accessActive ? "Aktiv" : "Nicht aktiv");
+      if (person.requestedAt) appendFact(facts, "Angefragt", formatDate(person.requestedAt));
+      if (person.decidedAt) appendFact(facts, "Entschieden", formatDate(person.decidedAt));
+      if (person.expiresAt) appendFact(facts, "Einladung gültig bis", formatDate(person.expiresAt));
+      if (person.accessReleaseAt && !person.accessActive) appendFact(facts, "Freigabe geplant", formatDate(person.accessReleaseAt));
+      if (person.autoReleasedAt) appendFact(facts, "Automatisch freigegeben", formatDate(person.autoReleasedAt));
+      item.append(facts);
+      const privacy = person.email
+        ? "Personendaten sind nur in DEV sichtbar."
+        : person.hasEmail || person.hasName
+          ? "Name und E-Mail sind in dieser Umgebung ausgeblendet."
+          : "Keine Kontaktdaten hinterlegt.";
+      item.append(node("p", "trust-privacy", privacy));
       trustGrid.append(item);
     });
   }
@@ -200,7 +216,12 @@ function statusText(label, tone) {
 }
 
 function invitationLabel(status) {
+  if (!status) return "Noch nicht eingeladen";
   return ({ open: "Einladung offen", pending: "Anfrage offen", accepted: "Angenommen", declined: "Abgelehnt", revoked: "Widerrufen" })[status] || status;
+}
+
+function appendFact(list, label, value) {
+  list.append(node("dt", "", label), node("dd", "", value));
 }
 
 function formatDate(value) {

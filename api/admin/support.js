@@ -146,6 +146,7 @@ export async function lookupSupportUser({
       rawSections.set(row.section_type, { row, payload: parseJSON(payload) });
     }
     const settings = rawSections.get("dossier_einstellungen")?.payload;
+    const contacts = rawSections.get("kontakte")?.payload;
     const selected = Array.isArray(settings?.homeAktiveBereiche) ? settings.homeAktiveBereiche : [];
     const sections = Object.keys(supportedSectionVersions).map((sectionType) => {
       const stored = rawSections.get(sectionType);
@@ -173,17 +174,7 @@ export async function lookupSupportUser({
       createdAt: dossier.created_at,
       updatedAt: dossier.updated_at,
       sections,
-      trustedPeople: invitationsResult.rows.map((invitation) => ({
-        status: invitation.status,
-        hasEmail: Boolean(invitation.invited_email || invitation.requester_email),
-        email: includeDetails ? invitation.requester_email || invitation.invited_email : null,
-        accessActive: Boolean(invitation.access_active),
-        expiresAt: invitation.expires_at,
-        requestedAt: invitation.requested_at,
-        decidedAt: invitation.decided_at,
-        accessReleaseAt: invitation.access_release_at,
-        autoReleasedAt: invitation.auto_released_at
-      })),
+      trustedPeople: buildTrustedPeople(contacts, invitationsResult.rows, includeDetails),
       files: filesResult.rows.map((row) => ({
         status: row.status,
         count: Number(row.count),
@@ -204,6 +195,55 @@ export async function lookupSupportUser({
     },
     dossiers
   };
+}
+
+export function buildTrustedPeople(contactsPayload, invitations, includeDetails = false) {
+  const configured = Array.isArray(contactsPayload?.vertrauenspersonen)
+    ? contactsPayload.vertrauenspersonen
+    : [];
+  const invitationRows = Array.isArray(invitations) ? invitations : [];
+  const usedInvitations = new Set();
+  const people = configured.map((contact) => {
+    const contactEmail = normalizedOptionalEmail(contact.einladungsEmail || contact.email);
+    const invitationIndex = invitationRows.findIndex((invitation, index) => {
+      if (usedInvitations.has(index) || !contactEmail) return false;
+      return [invitation.requester_email, invitation.invited_email]
+        .map(normalizedOptionalEmail)
+        .includes(contactEmail);
+    });
+    const invitation = invitationIndex >= 0 ? invitationRows[invitationIndex] : null;
+    if (invitationIndex >= 0) usedInvitations.add(invitationIndex);
+    const displayEmail = contactEmail || normalizedOptionalEmail(invitation?.requester_email || invitation?.invited_email);
+    const fullName = [contact.vorname, contact.name].map((value) => String(value || "").trim()).filter(Boolean).join(" ");
+    return trustedPersonResponse({
+      invitation,
+      configured: true,
+      primary: Boolean(contact.istPrimaereVertrauensperson),
+      hasName: Boolean(fullName),
+      name: includeDetails ? fullName || null : null,
+      hasEmail: Boolean(displayEmail),
+      email: includeDetails ? displayEmail : null,
+      relationship: includeDetails ? String(contact.beziehung || "").trim() || null : null,
+      localInvitationStatus: contact.einladungsStatus || null
+    });
+  });
+
+  invitationRows.forEach((invitation, index) => {
+    if (usedInvitations.has(index)) return;
+    const email = normalizedOptionalEmail(invitation.requester_email || invitation.invited_email);
+    people.push(trustedPersonResponse({
+      invitation,
+      configured: false,
+      primary: false,
+      hasName: false,
+      name: null,
+      hasEmail: Boolean(email),
+      email: includeDetails ? email : null,
+      relationship: null,
+      localInvitationStatus: null
+    }));
+  });
+  return people;
 }
 
 export function payloadHasData(sectionType, rawPayload) {
@@ -247,6 +287,29 @@ function meaningfulValue(value) {
   if (value && typeof value === "object") return Object.values(value).some(meaningfulValue);
   if (typeof value === "string") return value.trim().length > 0;
   return typeof value === "number" ? value !== 0 : value === true;
+}
+
+function trustedPersonResponse({ invitation, configured, primary, hasName, name, hasEmail, email, relationship, localInvitationStatus }) {
+  return {
+    configured,
+    primary,
+    hasName,
+    name,
+    hasEmail,
+    email,
+    relationship,
+    status: invitation?.status || localInvitationStatus || null,
+    accessActive: Boolean(invitation?.access_active),
+    expiresAt: invitation?.expires_at || null,
+    requestedAt: invitation?.requested_at || null,
+    decidedAt: invitation?.decided_at || null,
+    accessReleaseAt: invitation?.access_release_at || null,
+    autoReleasedAt: invitation?.auto_released_at || null
+  };
+}
+
+function normalizedOptionalEmail(value) {
+  return normalizeEmail(value) || null;
 }
 
 function redactDeveloperPayload(value, key = "") {

@@ -3,6 +3,7 @@ import test from "node:test";
 import { hashPassword, saveSession } from "../api/_auth.js";
 import {
   authenticateAdmin,
+  buildTrustedPeople,
   lookupSupportUser,
   payloadHasData,
   supportEnvironment,
@@ -58,16 +59,57 @@ test("liefert in Produktion nur Status und keine Vertrauensperson-E-Mail", async
   const pool = scriptedPool([
     { rows: [{ id: "user-id", email: "owner@example.ch", email_verified_at: new Date(), created_at: new Date(), updated_at: new Date(), disabled_at: null }] },
     { rows: [{ id: "dossier-id", is_primary: 1, is_active: 1, is_released: 0, created_at: new Date(), updated_at: new Date() }] },
-    { rows: [{ section_type: "kontakte", schema_version: 1, revision: "2", payload: { hinterbliebene: [], vertrauenspersonen: [{ email: "trust@example.ch" }] }, deleted_at: null, updated_at: new Date() }] },
+    { rows: [{ section_type: "kontakte", schema_version: 1, revision: "2", payload: { hinterbliebene: [], vertrauenspersonen: [{ vorname: "Bea", name: "Beispiel", email: "trust@example.ch", beziehung: "Schwester", istPrimaereVertrauensperson: true }] }, deleted_at: null, updated_at: new Date() }] },
     { rows: [{ status: "accepted", invited_email: "trust@example.ch", requester_email: "trust@example.ch", access_active: 1 }] },
     { rows: [{ status: "available", count: "2", bytes: "1200" }] }
   ]);
   const result = await lookupSupportUser({ email: "owner@example.ch", pool, loadPayload: async (payload) => payload });
   assert.equal(result.found, true);
   assert.equal(result.dossiers[0].trustedPeople[0].email, null);
+  assert.equal(result.dossiers[0].trustedPeople[0].name, null);
+  assert.equal(result.dossiers[0].trustedPeople[0].configured, true);
+  assert.equal(result.dossiers[0].trustedPeople[0].primary, true);
+  assert.equal(result.dossiers[0].trustedPeople[0].status, "accepted");
   assert.equal(result.dossiers[0].trustedPeople[0].hasEmail, true);
   assert.equal(result.dossiers[0].sections.find((section) => section.type === "kontakte").hasData, true);
   assert.doesNotMatch(JSON.stringify(result), /trust@example\.ch/);
+  assert.doesNotMatch(JSON.stringify(result), /Bea|Beispiel|Schwester/);
+});
+
+test("führt hinterlegte Vertrauenspersonen und Einladungen zusammen", () => {
+  const people = buildTrustedPeople({
+    vertrauenspersonen: [
+      { vorname: "Bea", name: "Beispiel", email: "TRUST@example.ch", beziehung: "Schwester", istPrimaereVertrauensperson: true },
+      { vorname: "Max", name: "Muster", email: "max@example.ch", beziehung: "Freund", istPrimaereVertrauensperson: false }
+    ]
+  }, [{
+    status: "pending",
+    invited_email: "trust@example.ch",
+    requester_email: "trust@example.ch",
+    requested_at: new Date("2026-09-28T10:00:00Z"),
+    access_release_at: new Date("2026-10-05T10:00:00Z"),
+    access_active: 0
+  }], true);
+
+  assert.equal(people.length, 2);
+  assert.deepEqual(people[0], {
+    configured: true,
+    primary: true,
+    hasName: true,
+    name: "Bea Beispiel",
+    hasEmail: true,
+    email: "trust@example.ch",
+    relationship: "Schwester",
+    status: "pending",
+    accessActive: false,
+    expiresAt: null,
+    requestedAt: new Date("2026-09-28T10:00:00Z"),
+    decidedAt: null,
+    accessReleaseAt: new Date("2026-10-05T10:00:00Z"),
+    autoReleasedAt: null
+  });
+  assert.equal(people[1].status, null);
+  assert.equal(people[1].name, "Max Muster");
 });
 
 function scriptedPool(responses) {
