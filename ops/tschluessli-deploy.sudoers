@@ -1,0 +1,1 @@
+tschluessli-deploy ALL=(root) NOPASSWD: /usr/local/sbin/tschluessli-deploy *
