@@ -1,6 +1,7 @@
 const state = {
   token: sessionStorage.getItem("supportToken"),
-  environment: sessionStorage.getItem("supportEnvironment")
+  environment: sessionStorage.getItem("supportEnvironment"),
+  currentAccount: null
 };
 
 const elements = {
@@ -16,12 +17,21 @@ const elements = {
   detailsOption: document.querySelector("#details-option"),
   notice: document.querySelector("#notice"),
   emptyState: document.querySelector("#empty-state"),
-  result: document.querySelector("#result")
+  result: document.querySelector("#result"),
+  deleteDialog: document.querySelector("#delete-dialog"),
+  deleteForm: document.querySelector("#delete-form"),
+  deleteEmail: document.querySelector("#delete-email"),
+  deleteConfirmation: document.querySelector("#delete-confirmation"),
+  deleteError: document.querySelector("#delete-error"),
+  deleteCancel: document.querySelector("#delete-cancel"),
+  deleteSubmit: document.querySelector("#delete-submit")
 };
 
 elements.loginForm.addEventListener("submit", login);
 elements.searchForm.addEventListener("submit", search);
 elements.logoutButton.addEventListener("click", logout);
+elements.deleteForm.addEventListener("submit", deleteAccount);
+elements.deleteCancel.addEventListener("click", closeDeleteDialog);
 showAuthenticated(Boolean(state.token));
 
 async function login(event) {
@@ -83,6 +93,7 @@ async function search(event) {
 
 function renderResult(data) {
   const account = data.account;
+  state.currentAccount = account;
   elements.emptyState.hidden = true;
   elements.result.hidden = false;
   elements.result.replaceChildren();
@@ -105,12 +116,59 @@ function renderResult(data) {
 
   const actions = node("section", "safe-actions");
   const actionCopy = node("div");
-  actionCopy.append(node("h3", "", "Kontolöschung"), node("p", "", "Die Diagnoseansicht führt keine Löschung aus. Löschungen benötigen einen separat bestätigten Supportprozess."));
-  const disabled = node("button", "disabled-button", "Löschung nicht freigeschaltet");
-  disabled.type = "button";
-  disabled.disabled = true;
-  actions.append(actionCopy, disabled);
+  const protectedAccount = account.admin || !data.capabilities.accountDeletion;
+  const actionText = account.admin
+    ? "Administratorkonten sind vor der Löschung über die Supportwebsite geschützt."
+    : "Entfernt den Account und alle zugehörigen Cloud- und Dossierdaten endgültig.";
+  actionCopy.append(node("h3", "", "Kontolöschung"), node("p", "", actionText));
+  const deleteButton = node("button", protectedAccount ? "disabled-button" : "danger-button", account.admin ? "Admin geschützt" : "Konto löschen");
+  deleteButton.type = "button";
+  deleteButton.disabled = protectedAccount;
+  if (!protectedAccount) deleteButton.addEventListener("click", openDeleteDialog);
+  actions.append(actionCopy, deleteButton);
   elements.result.append(actions);
+}
+
+function openDeleteDialog() {
+  if (!state.currentAccount || state.currentAccount.admin) return;
+  elements.deleteEmail.textContent = state.currentAccount.email;
+  elements.deleteConfirmation.value = "";
+  elements.deleteError.hidden = true;
+  elements.deleteDialog.showModal();
+  elements.deleteConfirmation.focus();
+}
+
+function closeDeleteDialog() {
+  if (!elements.deleteSubmit.disabled) elements.deleteDialog.close();
+}
+
+async function deleteAccount(event) {
+  event.preventDefault();
+  if (!state.currentAccount || state.currentAccount.admin) return;
+  elements.deleteError.hidden = true;
+  setBusy(elements.deleteSubmit, true, "Endgültig löschen");
+  elements.deleteCancel.disabled = true;
+  try {
+    await request("/api/admin/users/delete", {
+      userID: state.currentAccount.id,
+      email: state.currentAccount.email,
+      confirmation: elements.deleteConfirmation.value
+    });
+    const deletedEmail = state.currentAccount.email;
+    state.currentAccount = null;
+    elements.deleteDialog.close();
+    elements.result.hidden = true;
+    elements.result.replaceChildren();
+    elements.emptyState.hidden = false;
+    elements.searchForm.reset();
+    showNotice(`Das Konto ${deletedEmail} und sämtliche zugehörigen Daten wurden vollständig gelöscht.`);
+  } catch (error) {
+    elements.deleteError.textContent = error.message;
+    elements.deleteError.hidden = false;
+  } finally {
+    elements.deleteCancel.disabled = false;
+    setBusy(elements.deleteSubmit, false, "Endgültig löschen");
+  }
 }
 
 function renderDossier(dossier, index) {
@@ -136,6 +194,8 @@ function renderDossier(dossier, index) {
   table.append(thead, tbody);
   band.append(table);
 
+  band.append(node("div", "section-title", "Abos"), renderSubscription(dossier.subscription, index));
+
   band.append(node("div", "section-title", `Vertrauenspersonen (${dossier.trustedPeople.length})`));
   const trustGrid = node("div", "trust-grid");
   if (dossier.trustedPeople.length === 0) {
@@ -143,16 +203,58 @@ function renderDossier(dossier, index) {
   } else {
     dossier.trustedPeople.forEach((person, personIndex) => {
       const item = node("article", "trust-item");
-      item.append(
-        node("h3", "", person.email || `Vertrauensperson ${personIndex + 1}`),
-        node("p", "", `${invitationLabel(person.status)} · ${person.accessActive ? "Zugriff aktiv" : "Kein aktiver Zugriff"}`),
-        node("p", "", person.email ? "E-Mail in DEV sichtbar" : person.hasEmail ? "E-Mail in dieser Umgebung ausgeblendet" : "Keine E-Mail hinterlegt")
-      );
+      const title = person.name || person.email || `Vertrauensperson ${personIndex + 1}`;
+      const subtitle = [person.name ? person.email : null, person.relationship].filter(Boolean).join(" · ");
+      item.append(node("h3", "", title));
+      if (subtitle) item.append(node("p", "trust-identity", subtitle));
+      const facts = node("dl", "trust-facts");
+      appendFact(facts, "Hinterlegt", person.configured ? "Ja" : "Nein");
+      appendFact(facts, "Primär", person.primary ? "Ja" : "Nein");
+      appendFact(facts, "Einladung", invitationLabel(person.status));
+      appendFact(facts, "Zugriff", person.accessActive ? "Aktiv" : "Nicht aktiv");
+      if (person.requestedAt) appendFact(facts, "Angefragt", formatDate(person.requestedAt));
+      if (person.decidedAt) appendFact(facts, "Entschieden", formatDate(person.decidedAt));
+      if (person.expiresAt) appendFact(facts, "Einladung gültig bis", formatDate(person.expiresAt));
+      if (person.accessReleaseAt && !person.accessActive) appendFact(facts, "Freigabe geplant", formatDate(person.accessReleaseAt));
+      if (person.autoReleasedAt) appendFact(facts, "Automatisch freigegeben", formatDate(person.autoReleasedAt));
+      item.append(facts);
+      const privacy = person.email
+        ? "Personendaten sind nur in DEV sichtbar."
+        : person.hasEmail || person.hasName
+          ? "Name und E-Mail sind in dieser Umgebung ausgeblendet."
+          : "Keine Kontaktdaten hinterlegt.";
+      item.append(node("p", "trust-privacy", privacy));
       trustGrid.append(item);
     });
   }
   band.append(trustGrid);
   return band;
+}
+
+function renderSubscription(subscription = {}, dossierIndex = 0) {
+  const panel = node("section", "subscription-panel");
+  const summary = node("dl", "subscription-summary");
+  appendFact(summary, "Aktuelles Abo", subscription.plan || "Noch nicht angebunden");
+  appendFact(summary, "Status", subscriptionStatusLabel(subscription.status));
+  appendFact(summary, "Gültig bis", formatDate(subscription.validUntil));
+  appendFact(summary, "Promocode", subscription.promoCode || "Keiner hinterlegt");
+
+  const promo = node("div", "promo-control");
+  const label = node("label", "", "Promocode");
+  const inputID = `promo-code-${dossierIndex}`;
+  label.htmlFor = inputID;
+  const input = document.createElement("input");
+  input.id = inputID;
+  input.type = "text";
+  input.placeholder = "Promocode eingeben";
+  input.autocomplete = "off";
+  input.disabled = !subscription.promoRedemptionAvailable;
+  const button = node("button", subscription.promoRedemptionAvailable ? "primary-button" : "disabled-button", "Einlösen");
+  button.type = "button";
+  button.disabled = !subscription.promoRedemptionAvailable;
+  promo.append(label, input, button);
+  panel.append(summary, promo);
+  return panel;
 }
 
 function renderSection(section) {
@@ -200,7 +302,16 @@ function statusText(label, tone) {
 }
 
 function invitationLabel(status) {
+  if (!status) return "Noch nicht eingeladen";
   return ({ open: "Einladung offen", pending: "Anfrage offen", accepted: "Angenommen", declined: "Abgelehnt", revoked: "Widerrufen" })[status] || status;
+}
+
+function subscriptionStatusLabel(status) {
+  return ({ active: "Aktiv", expired: "Abgelaufen", cancelled: "Gekündigt", promotional: "Promozugang", not_connected: "Noch nicht verfügbar" })[status] || "Unbekannt";
+}
+
+function appendFact(list, label, value) {
+  list.append(node("dt", "", label), node("dd", "", value));
 }
 
 function formatDate(value) {
@@ -226,6 +337,7 @@ function setEnvironment(environment) {
 
 function logout() {
   state.token = null;
+  state.currentAccount = null;
   sessionStorage.removeItem("supportToken");
   sessionStorage.removeItem("supportEnvironment");
   elements.result.hidden = true;

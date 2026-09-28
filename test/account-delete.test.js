@@ -91,3 +91,69 @@ test("rollt zurück, wenn die Abschlusskontrolle Restdaten findet", async () => 
   assert.equal(queries.at(-1), "ROLLBACK");
   assert.ok(!queries.includes("COMMIT"));
 });
+
+test("löscht verifizierbaren Object Storage vor dem Datenbank-Commit", async () => {
+  const events = [];
+  const dossierID = "00000000-0000-4000-8000-000000000002";
+  const client = {
+    engine: "mysql",
+    async query(sql) {
+      events.push(sql);
+      if (sql.includes("SELECT email FROM app_users")) return { rows: [{ email: "delete@example.ch" }], rowCount: 1 };
+      if (sql.includes("SELECT id FROM dossiers")) return { rows: [{ id: dossierID }], rowCount: 1 };
+      if (sql.includes("DELETE FROM app_users")) return { rows: [], rowCount: 1 };
+      if (sql.includes("COUNT(*)")) return { rows: [{ count: 0 }], rowCount: 1 };
+      return { rows: [], rowCount: 0 };
+    },
+    release() {}
+  };
+  await deleteAccountForUser({
+    userID: "00000000-0000-4000-8000-000000000001",
+    pool: { async connect() { return client; } },
+    storage: { async deleteDossier(id) { events.push(`storage:${id}`); } }
+  });
+  assert.ok(events.indexOf(`storage:${dossierID}`) < events.findIndex((event) => event.includes("DELETE FROM dossier_sections")));
+  assert.equal(events.at(-1), "COMMIT");
+});
+
+test("rollt bei nicht bestätigter Object-Storage-Löschung zurück", async () => {
+  const queries = [];
+  const client = {
+    engine: "mysql",
+    async query(sql) {
+      queries.push(sql);
+      if (sql.includes("SELECT email FROM app_users")) return { rows: [{ email: "delete@example.ch" }], rowCount: 1 };
+      if (sql.includes("SELECT id FROM dossiers")) return { rows: [{ id: "00000000-0000-4000-8000-000000000002" }], rowCount: 1 };
+      return { rows: [], rowCount: 0 };
+    },
+    release() {}
+  };
+  await assert.rejects(() => deleteAccountForUser({
+    userID: "00000000-0000-4000-8000-000000000001",
+    pool: { async connect() { return client; } },
+    storage: { async deleteDossier() { throw new Error("Storage nicht erreichbar"); } }
+  }), /Storage nicht erreichbar/);
+  assert.equal(queries.at(-1), "ROLLBACK");
+  assert.equal(queries.some((sql) => sql.includes("DELETE FROM app_users")), false);
+});
+
+test("schützt Administratorkonten auch innerhalb der gemeinsamen Löschroutine", async () => {
+  const queries = [];
+  const client = {
+    engine: "mysql",
+    async query(sql) {
+      queries.push(sql);
+      if (sql.includes("SELECT email FROM app_users")) return { rows: [{ email: "admin@example.ch" }], rowCount: 1 };
+      if (sql.includes("SELECT user_id FROM admin_users")) return { rows: [{ user_id: "admin-id" }], rowCount: 1 };
+      return { rows: [], rowCount: 0 };
+    },
+    release() {}
+  };
+  await assert.rejects(() => deleteAccountForUser({
+    userID: "00000000-0000-4000-8000-000000000001",
+    pool: { async connect() { return client; } },
+    forbidAdmin: true
+  }), /Administratorkonten/);
+  assert.equal(queries.at(-1), "ROLLBACK");
+  assert.equal(queries.some((sql) => sql.includes("DELETE FROM app_users")), false);
+});

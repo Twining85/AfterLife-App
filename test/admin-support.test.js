@@ -3,7 +3,9 @@ import test from "node:test";
 import { hashPassword, saveSession } from "../api/_auth.js";
 import {
   authenticateAdmin,
+  buildTrustedPeople,
   lookupSupportUser,
+  pendingSubscriptionStatus,
   payloadHasData,
   supportEnvironment,
   supportSiteEnabled
@@ -45,6 +47,17 @@ test("klassifiziert Bereichspayloads ohne Inhalte offenzulegen", () => {
   assert.equal(payloadHasData("dokumente", { dokumente: [{ id: "1" }], fotos: [] }), true);
 });
 
+test("liefert einen stabilen Platzhalter für die spätere Aboanbindung", () => {
+  assert.deepEqual(pendingSubscriptionStatus(), {
+    connected: false,
+    plan: null,
+    status: "not_connected",
+    validUntil: null,
+    promoCode: null,
+    promoRedemptionAvailable: false
+  });
+});
+
 test("erkennt die Supportumgebung konservativ", () => {
   assert.equal(supportEnvironment({ APP_ENV: "development" }), "development");
   assert.equal(supportEnvironment({ APP_ENV: "production" }), "production");
@@ -56,18 +69,70 @@ test("erkennt die Supportumgebung konservativ", () => {
 
 test("liefert in Produktion nur Status und keine Vertrauensperson-E-Mail", async () => {
   const pool = scriptedPool([
-    { rows: [{ id: "user-id", email: "owner@example.ch", email_verified_at: new Date(), created_at: new Date(), updated_at: new Date(), disabled_at: null }] },
+    { rows: [{ id: "user-id", email: "owner@example.ch", email_verified_at: new Date(), created_at: new Date(), updated_at: new Date(), disabled_at: null, is_admin: "0" }] },
     { rows: [{ id: "dossier-id", is_primary: 1, is_active: 1, is_released: 0, created_at: new Date(), updated_at: new Date() }] },
-    { rows: [{ section_type: "kontakte", schema_version: 1, revision: "2", payload: { hinterbliebene: [], vertrauenspersonen: [{ email: "trust@example.ch" }] }, deleted_at: null, updated_at: new Date() }] },
+    { rows: [{ section_type: "kontakte", schema_version: 1, revision: "2", payload: { hinterbliebene: [], vertrauenspersonen: [{ vorname: "Bea", name: "Beispiel", email: "trust@example.ch", beziehung: "Schwester", istPrimaereVertrauensperson: true }] }, deleted_at: null, updated_at: new Date() }] },
     { rows: [{ status: "accepted", invited_email: "trust@example.ch", requester_email: "trust@example.ch", access_active: 1 }] },
     { rows: [{ status: "available", count: "2", bytes: "1200" }] }
   ]);
   const result = await lookupSupportUser({ email: "owner@example.ch", pool, loadPayload: async (payload) => payload });
   assert.equal(result.found, true);
+  assert.equal(result.account.admin, false);
   assert.equal(result.dossiers[0].trustedPeople[0].email, null);
+  assert.deepEqual(result.dossiers[0].subscription, pendingSubscriptionStatus());
+  assert.equal(result.dossiers[0].trustedPeople[0].name, null);
+  assert.equal(result.dossiers[0].trustedPeople[0].configured, true);
+  assert.equal(result.dossiers[0].trustedPeople[0].primary, true);
+  assert.equal(result.dossiers[0].trustedPeople[0].status, "accepted");
   assert.equal(result.dossiers[0].trustedPeople[0].hasEmail, true);
   assert.equal(result.dossiers[0].sections.find((section) => section.type === "kontakte").hasData, true);
   assert.doesNotMatch(JSON.stringify(result), /trust@example\.ch/);
+  assert.doesNotMatch(JSON.stringify(result), /Bea|Beispiel|Schwester/);
+});
+
+test("erkennt MySQL-Adminflags und schützt den Account in der Supportantwort", async () => {
+  const pool = scriptedPool([
+    { rows: [{ id: "admin-id", email: "admin@example.ch", email_verified_at: new Date(), created_at: new Date(), updated_at: new Date(), disabled_at: null, is_admin: "1" }] },
+    { rows: [] }
+  ]);
+  const result = await lookupSupportUser({ email: "admin@example.ch", pool });
+  assert.equal(result.account.admin, true);
+});
+
+test("führt hinterlegte Vertrauenspersonen und Einladungen zusammen", () => {
+  const people = buildTrustedPeople({
+    vertrauenspersonen: [
+      { vorname: "Bea", name: "Beispiel", email: "TRUST@example.ch", beziehung: "Schwester", istPrimaereVertrauensperson: true },
+      { vorname: "Max", name: "Muster", email: "max@example.ch", beziehung: "Freund", istPrimaereVertrauensperson: false }
+    ]
+  }, [{
+    status: "pending",
+    invited_email: "trust@example.ch",
+    requester_email: "trust@example.ch",
+    requested_at: new Date("2026-09-28T10:00:00Z"),
+    access_release_at: new Date("2026-10-05T10:00:00Z"),
+    access_active: 0
+  }], true);
+
+  assert.equal(people.length, 2);
+  assert.deepEqual(people[0], {
+    configured: true,
+    primary: true,
+    hasName: true,
+    name: "Bea Beispiel",
+    hasEmail: true,
+    email: "trust@example.ch",
+    relationship: "Schwester",
+    status: "pending",
+    accessActive: false,
+    expiresAt: null,
+    requestedAt: new Date("2026-09-28T10:00:00Z"),
+    decidedAt: null,
+    accessReleaseAt: new Date("2026-10-05T10:00:00Z"),
+    autoReleasedAt: null
+  });
+  assert.equal(people[1].status, null);
+  assert.equal(people[1].name, "Max Muster");
 });
 
 function scriptedPool(responses) {

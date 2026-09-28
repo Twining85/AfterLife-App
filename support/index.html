@@ -76,6 +76,22 @@
         </section>
       </div>
     </section>
+
+    <dialog id="delete-dialog" class="delete-dialog" aria-labelledby="delete-title">
+      <form id="delete-form" method="dialog">
+        <p class="eyebrow">Endgültige Aktion</p>
+        <h2 id="delete-title">Konto vollständig löschen</h2>
+        <p>Account, Dossiers, sämtliche erfassten Inhalte, Dokumente, Zugänge und Vertrauensverbindungen werden unwiderruflich entfernt.</p>
+        <p>Gib zur Bestätigung die E-Mail-Adresse <strong id="delete-email"></strong> ein.</p>
+        <label for="delete-confirmation">E-Mail-Adresse bestätigen</label>
+        <input id="delete-confirmation" type="email" autocomplete="off" required>
+        <p id="delete-error" class="form-error" role="alert" hidden></p>
+        <div class="dialog-actions">
+          <button id="delete-cancel" class="quiet-button" type="button">Abbrechen</button>
+          <button id="delete-submit" class="danger-button" type="submit">Endgültig löschen</button>
+        </div>
+      </form>
+    </dialog>
   </main>
   <script src="/support/app.js" defer></script>
 </body>
