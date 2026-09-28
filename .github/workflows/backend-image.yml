@@ -138,84 +138,17 @@ jobs:
     name: Auf DEV bereitstellen
     if: github.event_name == 'workflow_dispatch' && inputs.deploy_dev
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, tschluessli-dev]
     environment: dev
     concurrency:
       group: tschluessli-dev-deployment
       cancel-in-progress: false
     steps:
-      - name: SSH-Zugang einrichten
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.DEV_SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.DEV_SSH_KNOWN_HOSTS }}
-        run: |
-          test -n "$SSH_PRIVATE_KEY"
-          test -n "$SSH_KNOWN_HOSTS"
-          install -d -m 700 ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/tschluessli-dev
-          chmod 600 ~/.ssh/tschluessli-dev
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
-
       - name: Image mit Migration und Healthcheck ausrollen
         env:
-          DEV_HOST: ${{ secrets.DEV_SSH_HOST }}
-          DEV_USER: ${{ secrets.DEV_SSH_USER }}
           IMAGE_DIGEST: ${{ needs.build.outputs.digest }}
         run: |
-          test -n "$DEV_HOST"
-          test -n "$DEV_USER"
-          test -n "$IMAGE_DIGEST"
-          case "$IMAGE_DIGEST" in
-            sha256:[0-9a-f][0-9a-f]*) ;;
-            *) echo "Ungültiger Image-Digest" >&2; exit 1 ;;
-          esac
-
-          ssh -i ~/.ssh/tschluessli-dev \
-            -o BatchMode=yes \
-            -o StrictHostKeyChecking=yes \
-            "$DEV_USER@$DEV_HOST" \
-            "IMAGE_DIGEST='$IMAGE_DIGEST' bash -s" <<'REMOTE'
-          set -euo pipefail
-          cd /opt/tschluessli
-
-          image_ref="ghcr.io/twining85/tschluessli-api@${IMAGE_DIGEST}"
-          backup_file=".env.before-deploy-$(date -u +%Y%m%dT%H%M%SZ)"
-          cp .env "$backup_file"
-
-          rollback() {
-            echo "Deployment fehlgeschlagen – vorherige Konfiguration wird wiederhergestellt." >&2
-            cp "$backup_file" .env
-            docker compose up -d --no-build api auto-release-worker || true
-          }
-          trap rollback ERR
-
-          TSCHLUESSLI_IMAGE_REF="$image_ref" docker compose pull api auto-release-worker
-          TSCHLUESSLI_IMAGE_REF="$image_ref" docker compose --profile tools run --rm migrate
-
-          if grep -q '^TSCHLUESSLI_IMAGE_REF=' .env; then
-            sed "s|^TSCHLUESSLI_IMAGE_REF=.*|TSCHLUESSLI_IMAGE_REF=${image_ref}|" .env > .env.next
-          else
-            cp .env .env.next
-            printf '\nTSCHLUESSLI_IMAGE_REF=%s\n' "$image_ref" >> .env.next
-          fi
-          mv .env.next .env
-
-          docker compose up -d --no-build api auto-release-worker
-
-          healthy=false
-          for _ in $(seq 1 18); do
-            if curl --fail --silent --show-error http://127.0.0.1:3000/health/ready >/dev/null; then
-              healthy=true
-              break
-            fi
-            sleep 5
-          done
-          test "$healthy" = true
-          docker compose ps
-          trap - ERR
-          echo "DEV erfolgreich auf ${image_ref} aktualisiert."
-          REMOTE
+          sudo /usr/local/sbin/tschluessli-deploy "$IMAGE_DIGEST"
 
       - name: Bereitgestellten Digest ausgeben
         env:

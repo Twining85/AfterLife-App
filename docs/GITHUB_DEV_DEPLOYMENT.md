@@ -5,18 +5,20 @@ bauen und dasselbe unveränderliche Image direkt auf DEV bereitstellen.
 
 ## Einmalige GitHub-Konfiguration
 
-Unter **Settings → Environments** das Environment `dev` anlegen. Anschliessend
-unter **Settings → Secrets and variables → Actions** diese Repository-Secrets
-hinterlegen:
+Unter **Settings → Environments** wird das Environment `dev` angelegt. Auf dem
+DEV-Server läuft ein ausschließlich für dieses Repository registrierter Runner
+mit dem zusätzlichen Label `tschluessli-dev`.
 
-- `DEV_SSH_HOST`: Hostname oder IP-Adresse des DEV-Servers
-- `DEV_SSH_USER`: SSH-Benutzer des DEV-Servers
-- `DEV_SSH_PRIVATE_KEY`: vollständiger privater Deployment-Schlüssel inklusive
-  BEGIN- und END-Zeile
-- `DEV_SSH_KNOWN_HOSTS`: geprüfter SSH-Hostschlüssel des DEV-Servers
+Der Runner hat weder einen allgemeinen SSH-Schlüssel noch direkten Docker- oder
+Administratorzugriff. Er darf über `sudo` ausschließlich das root-eigene Skript
+`/usr/local/sbin/tschluessli-deploy` mit einem SHA-256-Image-Digest aufrufen.
+Das Skript akzeptiert nur Images aus
+`ghcr.io/twining85/tschluessli-api`, führt Migration und Healthcheck aus und
+stellt bei einem Fehler die vorherige Konfiguration wieder her.
 
-Die Secrets werden von GitHub maskiert und dürfen weder im Workflow noch in
-Logs oder Repository-Dateien eingetragen werden.
+Die früher verwendeten Repository-Secrets `DEV_SSH_HOST`, `DEV_SSH_USER`,
+`DEV_SSH_PRIVATE_KEY` und `DEV_SSH_KNOWN_HOSTS` werden nicht benötigt und
+sollen gelöscht werden.
 
 ## DEV bereitstellen
 

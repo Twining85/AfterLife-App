@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -ne 1 || ! "$1" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+  echo "Erwartet wird genau ein gültiger SHA-256-Image-Digest." >&2
+  exit 2
+fi
+
+readonly image_digest="$1"
+readonly image_ref="ghcr.io/twining85/tschluessli-api@${image_digest}"
+readonly deployment_dir="/opt/tschluessli"
+readonly lock_file="/run/lock/tschluessli-deploy.lock"
+
+exec 9>"$lock_file"
+if ! flock -n 9; then
+  echo "Ein anderes DEV-Deployment läuft bereits." >&2
+  exit 3
+fi
+
+cd "$deployment_dir"
+backup_file=".env.before-deploy-$(date -u +%Y%m%dT%H%M%SZ)"
+cp .env "$backup_file"
+
+rollback() {
+  echo "Deployment fehlgeschlagen – vorherige Konfiguration wird wiederhergestellt." >&2
+  cp "$backup_file" .env
+  docker compose up -d --no-build api auto-release-worker || true
+}
+trap rollback ERR
+
+TSCHLUESSLI_IMAGE_REF="$image_ref" docker compose pull api auto-release-worker
+TSCHLUESSLI_IMAGE_REF="$image_ref" docker compose --profile tools run --rm migrate
+
+if grep -q '^TSCHLUESSLI_IMAGE_REF=' .env; then
+  sed "s|^TSCHLUESSLI_IMAGE_REF=.*|TSCHLUESSLI_IMAGE_REF=${image_ref}|" .env > .env.next
+else
+  cp .env .env.next
+  printf '\nTSCHLUESSLI_IMAGE_REF=%s\n' "$image_ref" >> .env.next
+fi
+chown --reference=.env .env.next
+chmod --reference=.env .env.next
+mv .env.next .env
+
+docker compose up -d --no-build api auto-release-worker
+
+healthy=false
+for _ in $(seq 1 18); do
+  if curl --fail --silent --show-error http://127.0.0.1:3000/health/ready >/dev/null; then
+    healthy=true
+    break
+  fi
+  sleep 5
+done
+test "$healthy" = true
+docker compose ps
+trap - ERR
+echo "DEV erfolgreich auf ${image_ref} aktualisiert."
