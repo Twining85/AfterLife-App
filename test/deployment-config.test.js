@@ -44,6 +44,12 @@ test("Support-DEV-Details werden als Felder statt als JSON-Code angezeigt", asyn
   assert.doesNotMatch(app, /JSON\.stringify\(section\.details/);
 });
 
+test("Supportdateien werden nach einem Deployment nicht aus einem alten Browsercache geladen", async () => {
+  const server = await fs.readFile(new URL("../server.js", import.meta.url), "utf8");
+  assert.match(server, /response\.setHeader\("Cache-Control", "no-store, max-age=0"\)/);
+  assert.doesNotMatch(server, /support\/app\.js[^\n]+max-age=300/);
+});
+
 function escape(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

@@ -82,7 +82,7 @@ async function serveSupportAsset(request, response, pathname) {
   const content = await fs.readFile(path.join(applicationDirectory, relativePath));
   response.statusCode = 200;
   response.setHeader("Content-Type", contentType);
-  response.setHeader("Cache-Control", pathname === "/support/app.js" || pathname === "/support/styles.css" ? "public, max-age=300" : "no-store");
+  response.setHeader("Cache-Control", "no-store, max-age=0");
   response.setHeader("Content-Security-Policy", "default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
   response.setHeader("Referrer-Policy", "no-referrer");
   response.setHeader("X-Content-Type-Options", "nosniff");
