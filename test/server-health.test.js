@@ -24,7 +24,8 @@ test("Healthchecks geben keine Datenbanknamen oder Secrets aus", async () => {
     const body = ready.body;
     assert.deepEqual(body, {
       status: "ok",
-      database: { engine: "mysql", connected: true, expectedDatabase: true, schemaReady: true }
+      database: { engine: "mysql", connected: true, expectedDatabase: true, schemaReady: true },
+      objectStorage: { configured: false, connected: false }
     });
     const serialized = JSON.stringify(body);
     assert.doesNotMatch(serialized, /tschluessli_dev|password|token|secret/i);

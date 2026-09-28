@@ -44,13 +44,10 @@ test("waehlt MySQL explizit und behaelt PostgreSQL als Standard-Fallback", () =>
 
 test("Object Storage bleibt ohne expliziten Adapter sicher deaktiviert", async () => {
   assert.deepEqual(storageConfiguration({}), { driver: "disabled", configured: false });
-  assert.deepEqual(
-    storageConfiguration({
-      STORAGE_DRIVER: "infomaniak",
-      OBJECT_STORAGE_CONTAINER: "files-a",
-      OBJECT_STORAGE_EXPECTED_CONTAINER: "files-a"
-    }),
-    { driver: "infomaniak", container: "files-a", configured: true }
-  );
+  assert.throws(() => storageConfiguration({
+    STORAGE_DRIVER: "infomaniak",
+    OBJECT_STORAGE_CONTAINER: "files-a",
+    OBJECT_STORAGE_EXPECTED_CONTAINER: "files-a"
+  }), /OBJECT_STORAGE_ENDPOINT/);
   await assert.rejects(() => storageService().initiateUpload(), StorageUnavailableError);
 });

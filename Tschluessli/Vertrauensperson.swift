@@ -1753,7 +1753,7 @@ struct VertrauenspersonView: View {
             sectionTitel(
                 "Vertrauensperson",
                 icon:
-                    "person.crop.circle.badge.plus"
+                    "person.crop.circle"
             )
 
             if kontaktIstAusgewaehlt {
@@ -1812,7 +1812,7 @@ struct VertrauenspersonView: View {
                     if kontaktLoeschungLaeuft {
                         ProgressView("Zugriff wird entfernt …")
                     } else {
-                        Label("Kontakt entfernen", systemImage: "trash")
+                        Label("Vertrauensperson entfernen", systemImage: "trash")
                     }
                 }
                 .disabled(kontaktLoeschungLaeuft)
@@ -2920,6 +2920,17 @@ struct VertrauenspersonView: View {
     private func kontaktLoeschen() {
         guard !kontaktLoeschungLaeuft else { return }
         let zugriff = aktuellerDossierZugriff ?? zugriffeFuerAktuelleVertrauensperson.first
+        let widerrufsToken = (einladungsToken ?? zugriff?.einladungsToken ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Ein rein lokal hinterlegter Kontakt besitzt noch keine Einladung und
+        // keinen Dossierzugriff. In diesem Fall gibt es serverseitig nichts zu
+        // widerrufen; die Vertrauensperson muss trotzdem entfernt werden können.
+        guard zugriff != nil || !widerrufsToken.isEmpty else {
+            kontaktLokalLoeschen()
+            return
+        }
+
         let widerrufsEmail = [
             zugriff?.eingeladeneEmail ?? "",
             zugriff?.registrierungsEmail ?? "",
@@ -2940,7 +2951,7 @@ struct VertrauenspersonView: View {
         Task {
             do {
                 try await PushEinladungsService.shared.einladungWiderrufen(
-                    token: einladungsToken ?? zugriff?.einladungsToken ?? "",
+                    token: widerrufsToken,
                     dossierID: dossierID,
                     email: widerrufsEmail
                 )

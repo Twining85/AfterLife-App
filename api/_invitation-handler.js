@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { databasePool } from "./_database.js";
 import { pushToUser } from "./_apns.js";
+import { storageService } from "./_storage.js";
 
 export async function handleInvitationOperation(operation, req, res, user) {
   if (operation === "device") return registerDevice(req, res, user);
@@ -470,14 +471,17 @@ async function sharedDossier(req, res, user) {
        FROM dossier_sections WHERE dossier_id = $1 ORDER BY section_type`,
     [invitation.dossier_id]
   );
-  let allSections = sections.rows.map((row) => ({
+  let allSections = await Promise.all(sections.rows.map(async (row) => ({
     sectionType: row.section_type,
     schemaVersion: Number(row.schema_version),
     revision: Number(row.revision),
-    payload: row.deleted_at ? null : row.payload,
+    payload: row.deleted_at ? null : await storageService().loadSectionPayload(row.payload, {
+      dossierID: invitation.dossier_id,
+      sectionType: row.section_type
+    }),
     deleted: Boolean(row.deleted_at),
     updatedAt: row.updated_at
-  }));
+  })));
   if (invitation.auto_released_at) {
     allSections = allSections.map(releaseAllWishDocuments);
   }
@@ -594,8 +598,14 @@ async function dossierStatusMetadata(dossierID, ownerUserID) {
       [dossierID, "profil"]
     )
   ]);
+  const profilePayload = profileResult.rows[0]?.payload
+    ? await storageService().loadSectionPayload(profileResult.rows[0].payload, {
+        dossierID,
+        sectionType: "profil"
+      })
+    : null;
   return {
-    ownerName: ownerNameFromProfilePayload(profileResult.rows[0]?.payload, ownerUserID),
+    ownerName: ownerNameFromProfilePayload(profilePayload, ownerUserID),
     lastContentUpdatedAt: latestResult.rows[0]?.last_content_updated_at || null
   };
 }

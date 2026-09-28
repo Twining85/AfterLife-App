@@ -4,6 +4,7 @@ import { databasePool, withUserTransaction } from "../_database.js";
 import { sendEmail } from "../_email-service.js";
 import { createActionGrant, createChallenge, createCode, expiresAt, readVerifiedChallenge, verifyActionGrant } from "../email-verification/_challenge.js";
 import { normalizeEmail, rateLimit, requireJSON, requireMethod, secureResponse } from "../_security.js";
+import { storageService } from "../_storage.js";
 
 export default async function handler(req, res) {
   secureResponse(res);
@@ -86,6 +87,7 @@ async function handleSessionRefresh(req, res) {
 export async function deleteAccountForUser({ userID, pool = databasePool() }) {
   const client = await pool.connect();
   const isMySQL = client.engine === "mysql";
+  let dossierIDs = [];
   try {
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.user_id', $1, true)", [userID]);
@@ -98,7 +100,7 @@ export async function deleteAccountForUser({ userID, pool = databasePool() }) {
       "SELECT id FROM dossiers WHERE owner_user_id = $1 FOR UPDATE",
       [userID]
     );
-    const dossierIDs = dossierResult.rows.map((row) => row.id);
+    dossierIDs = dossierResult.rows.map((row) => row.id);
 
     // Beziehungen zu fremden Dossiers zuerst entfernen. Ein gelöschter Benutzer
     // darf weder als Vertrauensperson noch als eingeladene Person zurückbleiben.
@@ -160,6 +162,20 @@ export async function deleteAccountForUser({ userID, pool = databasePool() }) {
     throw error;
   } finally {
     client.release();
+  }
+
+  // Die Datenbanklöschung bleibt atomar. Storage-Objekte sind zusätzlich mit
+  // einem serverseitig getrennten Schlüssel verschlüsselt und werden nach dem
+  // erfolgreichen Commit dossierweise vollständig entfernt.
+  for (const dossierID of dossierIDs) {
+    try {
+      await storageService().deleteDossier(dossierID);
+    } catch (error) {
+      console.error("Object-Storage-Bereinigung nach Kontolöschung:", {
+        dossierID,
+        code: error?.name || error?.code || "STORAGE_DELETE_ERROR"
+      });
+    }
   }
 }
 

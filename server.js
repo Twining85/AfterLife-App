@@ -13,6 +13,7 @@ import dossierSections from "./api/dossiers/sections.js";
 import autoRelease from "./api/cron/auto-release-invitations.js";
 import { databaseHealth, databasePool } from "./api/_database.js";
 import { secureResponse } from "./api/_security.js";
+import { storageService } from "./api/_storage.js";
 
 const routes = new Map([
   ["/api/accounts/login", accountLogin],
@@ -64,9 +65,11 @@ export async function readyHealth(req, res) {
   if (req.method !== "GET") return res.status(405).json({ error: "Methode nicht erlaubt" });
   try {
     const health = await databaseHealth();
+    const storage = await storageService().health();
     const expected = process.env.MYSQL_EXPECTED_DATABASE;
     const correctDatabase = !expected || health.database === expected;
-    const ready = health.healthy && correctDatabase && health.schemaReady;
+    const storageReady = !storage.configured || storage.connected;
+    const ready = health.healthy && correctDatabase && health.schemaReady && storageReady;
     return res.status(ready ? 200 : 503).json({
       status: ready ? "ok" : "unavailable",
       database: {
@@ -74,13 +77,15 @@ export async function readyHealth(req, res) {
         connected: health.healthy,
         expectedDatabase: correctDatabase,
         schemaReady: health.schemaReady
-      }
+      },
+      objectStorage: storage
     });
   } catch (error) {
-    console.error("Datenbank-Healthcheck fehlgeschlagen", { code: error?.code || "DATABASE_ERROR" });
+    console.error("Readiness-Healthcheck fehlgeschlagen", { code: error?.code || "READINESS_ERROR" });
     return res.status(503).json({
       status: "unavailable",
-      database: { connected: false, expectedDatabase: false, schemaReady: false }
+      database: { connected: false, expectedDatabase: false, schemaReady: false },
+      objectStorage: { configured: process.env.STORAGE_DRIVER === "infomaniak", connected: false }
     });
   }
 }
