@@ -132,14 +132,13 @@ export class InfomaniakStorageService {
 
   async deleteDossier(dossierID) {
     const prefix = dossierObjectPrefix(dossierID);
-    let continuationToken;
-    do {
+    for (let pass = 0; pass < 1_000; pass += 1) {
       const listed = await this.client.send(new ListObjectsV2Command({
         Bucket: this.configuration.container,
-        Prefix: prefix,
-        ContinuationToken: continuationToken
+        Prefix: prefix
       }));
       const objects = (listed.Contents || []).map(({ Key }) => ({ Key })).filter(({ Key }) => Key);
+      if (objects.length === 0) return;
       for (let index = 0; index < objects.length; index += 20) {
         await Promise.all(objects.slice(index, index + 20).map(({ Key }) =>
           this.client.send(new DeleteObjectCommand({
@@ -148,8 +147,8 @@ export class InfomaniakStorageService {
           }))
         ));
       }
-      continuationToken = listed.IsTruncated ? listed.NextContinuationToken : undefined;
-    } while (continuationToken);
+    }
+    throw new Error("Object-Storage-Bereinigung konnte nicht verifiziert werden");
   }
 }
 

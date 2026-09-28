@@ -84,7 +84,12 @@ async function handleSessionRefresh(req, res) {
   }
 }
 
-export async function deleteAccountForUser({ userID, pool = databasePool() }) {
+export async function deleteAccountForUser({
+  userID,
+  pool = databasePool(),
+  storage = storageService(),
+  forbidAdmin = false
+}) {
   const client = await pool.connect();
   const isMySQL = client.engine === "mysql";
   let dossierIDs = [];
@@ -95,12 +100,25 @@ export async function deleteAccountForUser({ userID, pool = databasePool() }) {
     const userResult = await client.query("SELECT email FROM app_users WHERE id = $1 FOR UPDATE", [userID]);
     const email = userResult.rows[0]?.email;
     if (!email) throw new Error("Konto nicht gefunden");
+    if (forbidAdmin) {
+      const adminResult = await client.query("SELECT user_id FROM admin_users WHERE user_id = $1 FOR UPDATE", [userID]);
+      if (adminResult.rowCount > 0) {
+        const error = new Error("Administratorkonten können nicht über den Support gelöscht werden");
+        error.code = "ADMIN_ACCOUNT_PROTECTED";
+        throw error;
+      }
+    }
 
     const dossierResult = await client.query(
       "SELECT id FROM dossiers WHERE owner_user_id = $1 FOR UPDATE",
       [userID]
     );
     dossierIDs = dossierResult.rows.map((row) => row.id);
+
+    // Externe Objekte werden zuerst entfernt und durch eine anschliessende leere
+    // Präfixabfrage bestätigt. Schlägt dies fehl, bleiben die Datenbankdaten für
+    // einen kontrollierten erneuten Löschversuch erhalten.
+    for (const dossierID of dossierIDs) await storage.deleteDossier(dossierID);
 
     // Beziehungen zu fremden Dossiers zuerst entfernen. Ein gelöschter Benutzer
     // darf weder als Vertrauensperson noch als eingeladene Person zurückbleiben.
@@ -164,19 +182,7 @@ export async function deleteAccountForUser({ userID, pool = databasePool() }) {
     client.release();
   }
 
-  // Die Datenbanklöschung bleibt atomar. Storage-Objekte sind zusätzlich mit
-  // einem serverseitig getrennten Schlüssel verschlüsselt und werden nach dem
-  // erfolgreichen Commit dossierweise vollständig entfernt.
-  for (const dossierID of dossierIDs) {
-    try {
-      await storageService().deleteDossier(dossierID);
-    } catch (error) {
-      console.error("Object-Storage-Bereinigung nach Kontolöschung:", {
-        dossierID,
-        code: error?.name || error?.code || "STORAGE_DELETE_ERROR"
-      });
-    }
-  }
+  return { userID, dossierIDs };
 }
 
 async function verifyAccountDeletion(client, { userID, email, dossierIDs, isMySQL }) {

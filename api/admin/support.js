@@ -4,6 +4,7 @@ import { databasePool } from "../_database.js";
 import { normalizeEmail, rateLimit, requireJSON, requireMethod, secureResponse } from "../_security.js";
 import { storageService } from "../_storage.js";
 import { supportedSectionVersions } from "../_sync-contract.js";
+import { deleteAccountForUser } from "../accounts/login.js";
 
 const sectionLabels = Object.freeze({
   dossier_einstellungen: "Dossier-Einstellungen",
@@ -65,11 +66,56 @@ export async function supportLookupHandler(req, res) {
     return res.status(200).json({
       ...result,
       environment: supportEnvironment(),
-      capabilities: { devDetails: devDetailsAllowed(), accountDeletion: false }
+      capabilities: { devDetails: devDetailsAllowed(), accountDeletion: true }
     });
   } catch (error) {
     console.error("Support-Abfrage:", { code: error?.code || "SUPPORT_LOOKUP_ERROR" });
     return res.status(500).json({ error: "Support-Abfrage fehlgeschlagen" });
+  }
+}
+
+export async function supportDeleteAccountHandler(req, res) {
+  secureResponse(res);
+  if (!supportSiteEnabled()) return res.status(404).json({ error: "Nicht gefunden" });
+  if (!requireMethod(req, res, "POST") || !requireJSON(req, res)) return;
+  if (!rateLimit(req, res, { namespace: "admin-account-delete", limit: 5, windowMilliseconds: 60 * 60 * 1000 })) return;
+
+  const admin = await authenticatedAdmin(req);
+  if (!admin) return res.status(401).json({ error: "Admin-Anmeldung erforderlich" });
+  const userID = String(req.body?.userID || "").toLowerCase();
+  const email = normalizeEmail(req.body?.email);
+  const confirmation = normalizeEmail(req.body?.confirmation);
+  if (!uuidPattern.test(userID) || !email || confirmation !== email) {
+    return res.status(400).json({ error: "Löschbestätigung stimmt nicht überein" });
+  }
+
+  try {
+    const target = await databasePool().query(
+      `SELECT u.id, a.user_id IS NOT NULL AS is_admin
+         FROM app_users u
+         LEFT JOIN admin_users a ON a.user_id = u.id
+        WHERE u.id = $1 AND u.email = $2`,
+      [userID, email]
+    );
+    if (!target.rows[0]) return res.status(404).json({ error: "Konto nicht gefunden" });
+    if (databaseFlag(target.rows[0].is_admin)) {
+      return res.status(403).json({ error: "Administratorkonten können hier nicht gelöscht werden" });
+    }
+
+    await deleteAccountForUser({ userID, forbidAdmin: true });
+    await writeAudit({
+      actorUserID: admin.id,
+      action: "support.account.deleted",
+      requestID: requestID(res),
+      metadata: { environment: supportEnvironment() }
+    });
+    return res.status(200).json({ deleted: true });
+  } catch (error) {
+    if (error?.code === "ADMIN_ACCOUNT_PROTECTED") {
+      return res.status(403).json({ error: error.message });
+    }
+    console.error("Support-Kontolöschung:", { code: error?.code || "SUPPORT_DELETE_ERROR" });
+    return res.status(500).json({ error: "Das Konto konnte nicht vollständig gelöscht werden" });
   }
 }
 
@@ -101,8 +147,11 @@ export async function lookupSupportUser({
   loadPayload = (payload, context) => storageService().loadSectionPayload(payload, context)
 }) {
   const userResult = await pool.query(
-    `SELECT id, email, email_verified_at, created_at, updated_at, disabled_at
-       FROM app_users WHERE email = $1`,
+    `SELECT u.id, u.email, u.email_verified_at, u.created_at, u.updated_at, u.disabled_at,
+            a.user_id IS NOT NULL AS is_admin
+       FROM app_users u
+       LEFT JOIN admin_users a ON a.user_id = u.id
+      WHERE u.email = $1`,
     [email]
   );
   const user = userResult.rows[0];
@@ -166,9 +215,9 @@ export async function lookupSupportUser({
 
     dossiers.push({
       id: dossier.id,
-      primary: Boolean(dossier.is_primary),
-      active: Boolean(dossier.is_active),
-      released: Boolean(dossier.is_released),
+      primary: databaseFlag(dossier.is_primary),
+      active: databaseFlag(dossier.is_active),
+      released: databaseFlag(dossier.is_released),
       releasedAt: dossier.released_at,
       lastOpenedAt: dossier.last_opened_at,
       createdAt: dossier.created_at,
@@ -189,6 +238,7 @@ export async function lookupSupportUser({
     account: {
       id: user.id,
       email: user.email,
+      admin: databaseFlag(user.is_admin),
       verified: Boolean(user.email_verified_at),
       active: !user.disabled_at,
       createdAt: user.created_at,
@@ -311,7 +361,7 @@ function trustedPersonResponse({ invitation, configured, primary, hasName, name,
     email,
     relationship,
     status: invitation?.status || localInvitationStatus || null,
-    accessActive: Boolean(invitation?.access_active),
+    accessActive: databaseFlag(invitation?.access_active),
     expiresAt: invitation?.expires_at || null,
     requestedAt: invitation?.requested_at || null,
     decidedAt: invitation?.decided_at || null,
@@ -322,6 +372,10 @@ function trustedPersonResponse({ invitation, configured, primary, hasName, name,
 
 function normalizedOptionalEmail(value) {
   return normalizeEmail(value) || null;
+}
+
+function databaseFlag(value) {
+  return value === true || value === 1 || value === "1";
 }
 
 function redactDeveloperPayload(value, key = "") {
@@ -350,3 +404,5 @@ async function writeAudit({ actorUserID, action, targetUserID = null, requestID,
 function requestID(res) {
   return typeof res.getHeader === "function" ? res.getHeader("X-Request-ID") : undefined;
 }
+
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

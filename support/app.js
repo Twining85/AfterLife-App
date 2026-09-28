@@ -1,6 +1,7 @@
 const state = {
   token: sessionStorage.getItem("supportToken"),
-  environment: sessionStorage.getItem("supportEnvironment")
+  environment: sessionStorage.getItem("supportEnvironment"),
+  currentAccount: null
 };
 
 const elements = {
@@ -16,12 +17,21 @@ const elements = {
   detailsOption: document.querySelector("#details-option"),
   notice: document.querySelector("#notice"),
   emptyState: document.querySelector("#empty-state"),
-  result: document.querySelector("#result")
+  result: document.querySelector("#result"),
+  deleteDialog: document.querySelector("#delete-dialog"),
+  deleteForm: document.querySelector("#delete-form"),
+  deleteEmail: document.querySelector("#delete-email"),
+  deleteConfirmation: document.querySelector("#delete-confirmation"),
+  deleteError: document.querySelector("#delete-error"),
+  deleteCancel: document.querySelector("#delete-cancel"),
+  deleteSubmit: document.querySelector("#delete-submit")
 };
 
 elements.loginForm.addEventListener("submit", login);
 elements.searchForm.addEventListener("submit", search);
 elements.logoutButton.addEventListener("click", logout);
+elements.deleteForm.addEventListener("submit", deleteAccount);
+elements.deleteCancel.addEventListener("click", closeDeleteDialog);
 showAuthenticated(Boolean(state.token));
 
 async function login(event) {
@@ -83,6 +93,7 @@ async function search(event) {
 
 function renderResult(data) {
   const account = data.account;
+  state.currentAccount = account;
   elements.emptyState.hidden = true;
   elements.result.hidden = false;
   elements.result.replaceChildren();
@@ -105,12 +116,59 @@ function renderResult(data) {
 
   const actions = node("section", "safe-actions");
   const actionCopy = node("div");
-  actionCopy.append(node("h3", "", "Kontolöschung"), node("p", "", "Die Diagnoseansicht führt keine Löschung aus. Löschungen benötigen einen separat bestätigten Supportprozess."));
-  const disabled = node("button", "disabled-button", "Löschung nicht freigeschaltet");
-  disabled.type = "button";
-  disabled.disabled = true;
-  actions.append(actionCopy, disabled);
+  const protectedAccount = account.admin || !data.capabilities.accountDeletion;
+  const actionText = account.admin
+    ? "Administratorkonten sind vor der Löschung über die Supportwebsite geschützt."
+    : "Entfernt den Account und alle zugehörigen Cloud- und Dossierdaten endgültig.";
+  actionCopy.append(node("h3", "", "Kontolöschung"), node("p", "", actionText));
+  const deleteButton = node("button", protectedAccount ? "disabled-button" : "danger-button", account.admin ? "Admin geschützt" : "Konto löschen");
+  deleteButton.type = "button";
+  deleteButton.disabled = protectedAccount;
+  if (!protectedAccount) deleteButton.addEventListener("click", openDeleteDialog);
+  actions.append(actionCopy, deleteButton);
   elements.result.append(actions);
+}
+
+function openDeleteDialog() {
+  if (!state.currentAccount || state.currentAccount.admin) return;
+  elements.deleteEmail.textContent = state.currentAccount.email;
+  elements.deleteConfirmation.value = "";
+  elements.deleteError.hidden = true;
+  elements.deleteDialog.showModal();
+  elements.deleteConfirmation.focus();
+}
+
+function closeDeleteDialog() {
+  if (!elements.deleteSubmit.disabled) elements.deleteDialog.close();
+}
+
+async function deleteAccount(event) {
+  event.preventDefault();
+  if (!state.currentAccount || state.currentAccount.admin) return;
+  elements.deleteError.hidden = true;
+  setBusy(elements.deleteSubmit, true, "Endgültig löschen");
+  elements.deleteCancel.disabled = true;
+  try {
+    await request("/api/admin/users/delete", {
+      userID: state.currentAccount.id,
+      email: state.currentAccount.email,
+      confirmation: elements.deleteConfirmation.value
+    });
+    const deletedEmail = state.currentAccount.email;
+    state.currentAccount = null;
+    elements.deleteDialog.close();
+    elements.result.hidden = true;
+    elements.result.replaceChildren();
+    elements.emptyState.hidden = false;
+    elements.searchForm.reset();
+    showNotice(`Das Konto ${deletedEmail} und sämtliche zugehörigen Daten wurden vollständig gelöscht.`);
+  } catch (error) {
+    elements.deleteError.textContent = error.message;
+    elements.deleteError.hidden = false;
+  } finally {
+    elements.deleteCancel.disabled = false;
+    setBusy(elements.deleteSubmit, false, "Endgültig löschen");
+  }
 }
 
 function renderDossier(dossier, index) {
@@ -279,6 +337,7 @@ function setEnvironment(environment) {
 
 function logout() {
   state.token = null;
+  state.currentAccount = null;
   sessionStorage.removeItem("supportToken");
   sessionStorage.removeItem("supportEnvironment");
   elements.result.hidden = true;

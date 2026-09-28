@@ -69,7 +69,7 @@ test("erkennt die Supportumgebung konservativ", () => {
 
 test("liefert in Produktion nur Status und keine Vertrauensperson-E-Mail", async () => {
   const pool = scriptedPool([
-    { rows: [{ id: "user-id", email: "owner@example.ch", email_verified_at: new Date(), created_at: new Date(), updated_at: new Date(), disabled_at: null }] },
+    { rows: [{ id: "user-id", email: "owner@example.ch", email_verified_at: new Date(), created_at: new Date(), updated_at: new Date(), disabled_at: null, is_admin: "0" }] },
     { rows: [{ id: "dossier-id", is_primary: 1, is_active: 1, is_released: 0, created_at: new Date(), updated_at: new Date() }] },
     { rows: [{ section_type: "kontakte", schema_version: 1, revision: "2", payload: { hinterbliebene: [], vertrauenspersonen: [{ vorname: "Bea", name: "Beispiel", email: "trust@example.ch", beziehung: "Schwester", istPrimaereVertrauensperson: true }] }, deleted_at: null, updated_at: new Date() }] },
     { rows: [{ status: "accepted", invited_email: "trust@example.ch", requester_email: "trust@example.ch", access_active: 1 }] },
@@ -77,6 +77,7 @@ test("liefert in Produktion nur Status und keine Vertrauensperson-E-Mail", async
   ]);
   const result = await lookupSupportUser({ email: "owner@example.ch", pool, loadPayload: async (payload) => payload });
   assert.equal(result.found, true);
+  assert.equal(result.account.admin, false);
   assert.equal(result.dossiers[0].trustedPeople[0].email, null);
   assert.deepEqual(result.dossiers[0].subscription, pendingSubscriptionStatus());
   assert.equal(result.dossiers[0].trustedPeople[0].name, null);
@@ -87,6 +88,15 @@ test("liefert in Produktion nur Status und keine Vertrauensperson-E-Mail", async
   assert.equal(result.dossiers[0].sections.find((section) => section.type === "kontakte").hasData, true);
   assert.doesNotMatch(JSON.stringify(result), /trust@example\.ch/);
   assert.doesNotMatch(JSON.stringify(result), /Bea|Beispiel|Schwester/);
+});
+
+test("erkennt MySQL-Adminflags und schützt den Account in der Supportantwort", async () => {
+  const pool = scriptedPool([
+    { rows: [{ id: "admin-id", email: "admin@example.ch", email_verified_at: new Date(), created_at: new Date(), updated_at: new Date(), disabled_at: null, is_admin: "1" }] },
+    { rows: [] }
+  ]);
+  const result = await lookupSupportUser({ email: "admin@example.ch", pool });
+  assert.equal(result.account.admin, true);
 });
 
 test("führt hinterlegte Vertrauenspersonen und Einladungen zusammen", () => {

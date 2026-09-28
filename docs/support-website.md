@@ -44,8 +44,19 @@ Jede Kontosuche wird in `audit_log` protokolliert.
 Passwörter, Tokens, Schlüssel und Binärdaten werden auch in der DEV-Detailansicht
 ausgeblendet.
 
-## Noch nicht freigeschaltet
+## Kontolöschung
 
-Die Website führt absichtlich keine Konto- oder Dossierlöschungen aus. Dafür ist
-ein separater Ablauf mit Identitätsprüfung, Vorgangsnummer, erneuter Bestätigung
-und wiederaufnehmbarer Object-Storage-Löschung erforderlich.
+Die Supportwebsite kann Nicht-Admin-Konten nach erneuter Eingabe der exakten
+Konto-E-Mail endgültig löschen. Administratorkonten sind sowohl im Endpunkt als
+auch innerhalb der gemeinsamen Löschroutine geschützt.
+
+Support- und Selbstlöschung verwenden dieselbe Funktion. Sie entfernt externe
+Object-Storage-Objekte und bestätigt den leeren Dossierpräfix, bevor die
+Datenbanktransaktion Account, Dossiers, Bereiche, Dateien, Schlüsselumschläge,
+Einladungen, Vertrauensverbindungen, Syncdaten, Sitzungen und Push-Tokens löscht.
+Schlägt die Storage-Bereinigung fehl, wird die Datenbanktransaktion nicht
+abgeschlossen. Abschliessend werden sämtliche relevanten Tabellen auf Restdaten
+geprüft.
+
+Serverbackups unterliegen unabhängig davon der definierten Backup- und
+Aufbewahrungsfrist und müssen im Datenschutz- und Löschkonzept dokumentiert sein.

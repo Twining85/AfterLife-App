@@ -70,11 +70,15 @@ test("verschlüsselt grosse Bereichspayloads und entschlüsselt sie beim Lesen",
 
 test("lässt kleine Payloads in der Datenbank und löscht Dossierobjekte präfixbasiert", async () => {
   const calls = [];
+  let listCalls = 0;
   const client = {
     async send(command) {
       calls.push(command);
       if (command.constructor.name === "ListObjectsV2Command") {
-        return { Contents: [{ Key: `dossiers/${dossierID}/sections/dokumente/1-a.json.enc` }] };
+        listCalls += 1;
+        return listCalls === 1
+          ? { Contents: [{ Key: `dossiers/${dossierID}/sections/dokumente/1-a.json.enc` }] }
+          : { Contents: [] };
       }
       if (command.constructor.name === "DeleteObjectCommand") return {};
       throw new Error(`Unerwarteter Storage-Befehl: ${command.constructor.name}`);
@@ -92,4 +96,5 @@ test("lässt kleine Payloads in der Datenbank und löscht Dossierobjekte präfix
   await service.deleteDossier(dossierID);
   assert.equal(calls[0].input.Prefix, `dossiers/${dossierID}/`);
   assert.equal(calls[1].input.Key, `dossiers/${dossierID}/sections/dokumente/1-a.json.enc`);
+  assert.equal(calls[2].input.Prefix, `dossiers/${dossierID}/`);
 });
