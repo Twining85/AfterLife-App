@@ -126,6 +126,14 @@ input:focus { border-color: #2f7564; box-shadow: 0 0 0 3px rgba(47, 117, 100, 0.
 .detail-disclosure { margin-top: 8px; }
 .detail-disclosure summary { cursor: pointer; color: #376b5e; font-weight: 700; }
 .detail-disclosure pre { max-height: 300px; overflow: auto; padding: 12px; background: #f4f6f4; border: 1px solid #dfe4e1; border-radius: 6px; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.subscription-panel { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr); gap: 18px; margin: 0 20px 20px; padding: 16px; background: #f6f8f6; border: 1px solid #e0e5e2; border-radius: 6px; }
+.subscription-summary { display: grid; grid-template-columns: minmax(100px, 1fr) minmax(140px, 1.5fr); gap: 8px 14px; margin: 0; font-size: 12px; }
+.subscription-summary dt { color: #74807a; }
+.subscription-summary dd { margin: 0; color: #303a35; font-weight: 700; }
+.promo-control { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: start; gap: 7px 8px; }
+.promo-control label { grid-column: 1 / -1; margin: 0; color: #58635e; font-size: 12px; font-weight: 750; }
+.promo-control input { width: 100%; min-width: 0; height: 40px; padding: 0 11px; border: 1px solid #c4cdc8; border-radius: 6px; background: #fff; }
+.promo-control input:disabled { color: #858e89; background: #edf0ee; cursor: not-allowed; }
 .trust-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 0 20px 20px; }
 .trust-item { padding: 14px; background: #f6f8f6; border: 1px solid #e0e5e2; border-radius: 6px; }
 .trust-item p { margin: 6px 0 0; color: #68736d; font-size: 12px; }
@@ -148,6 +156,7 @@ input:focus { border-color: #2f7564; box-shadow: 0 0 0 3px rgba(47, 117, 100, 0.
   .summary-item:nth-child(2) { border-right: 0; }
   .summary-item:nth-child(-n+2) { border-bottom: 1px solid #e3e7e4; }
   .trust-grid { grid-template-columns: 1fr; }
+  .subscription-panel { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 520px) {
@@ -163,4 +172,6 @@ input:focus { border-color: #2f7564; box-shadow: 0 0 0 3px rgba(47, 117, 100, 0.
   .section-table th:nth-child(3), .section-table td:nth-child(3) { display: none; }
   .section-table th:first-child { width: 54%; }
   .safe-actions .disabled-button { margin-top: 14px; width: 100%; }
+  .promo-control { grid-template-columns: 1fr; }
+  .promo-control label { grid-column: auto; }
 }

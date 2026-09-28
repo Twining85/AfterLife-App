@@ -136,6 +136,8 @@ function renderDossier(dossier, index) {
   table.append(thead, tbody);
   band.append(table);
 
+  band.append(node("div", "section-title", "Abos"), renderSubscription(dossier.subscription, index));
+
   band.append(node("div", "section-title", `Vertrauenspersonen (${dossier.trustedPeople.length})`));
   const trustGrid = node("div", "trust-grid");
   if (dossier.trustedPeople.length === 0) {
@@ -169,6 +171,32 @@ function renderDossier(dossier, index) {
   }
   band.append(trustGrid);
   return band;
+}
+
+function renderSubscription(subscription = {}, dossierIndex = 0) {
+  const panel = node("section", "subscription-panel");
+  const summary = node("dl", "subscription-summary");
+  appendFact(summary, "Aktuelles Abo", subscription.plan || "Noch nicht angebunden");
+  appendFact(summary, "Status", subscriptionStatusLabel(subscription.status));
+  appendFact(summary, "Gültig bis", formatDate(subscription.validUntil));
+  appendFact(summary, "Promocode", subscription.promoCode || "Keiner hinterlegt");
+
+  const promo = node("div", "promo-control");
+  const label = node("label", "", "Promocode");
+  const inputID = `promo-code-${dossierIndex}`;
+  label.htmlFor = inputID;
+  const input = document.createElement("input");
+  input.id = inputID;
+  input.type = "text";
+  input.placeholder = "Promocode eingeben";
+  input.autocomplete = "off";
+  input.disabled = !subscription.promoRedemptionAvailable;
+  const button = node("button", subscription.promoRedemptionAvailable ? "primary-button" : "disabled-button", "Einlösen");
+  button.type = "button";
+  button.disabled = !subscription.promoRedemptionAvailable;
+  promo.append(label, input, button);
+  panel.append(summary, promo);
+  return panel;
 }
 
 function renderSection(section) {
@@ -218,6 +246,10 @@ function statusText(label, tone) {
 function invitationLabel(status) {
   if (!status) return "Noch nicht eingeladen";
   return ({ open: "Einladung offen", pending: "Anfrage offen", accepted: "Angenommen", declined: "Abgelehnt", revoked: "Widerrufen" })[status] || status;
+}
+
+function subscriptionStatusLabel(status) {
+  return ({ active: "Aktiv", expired: "Abgelaufen", cancelled: "Gekündigt", promotional: "Promozugang", not_connected: "Noch nicht verfügbar" })[status] || "Unbekannt";
 }
 
 function appendFact(list, label, value) {

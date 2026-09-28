@@ -5,6 +5,7 @@ import {
   authenticateAdmin,
   buildTrustedPeople,
   lookupSupportUser,
+  pendingSubscriptionStatus,
   payloadHasData,
   supportEnvironment,
   supportSiteEnabled
@@ -46,6 +47,17 @@ test("klassifiziert Bereichspayloads ohne Inhalte offenzulegen", () => {
   assert.equal(payloadHasData("dokumente", { dokumente: [{ id: "1" }], fotos: [] }), true);
 });
 
+test("liefert einen stabilen Platzhalter für die spätere Aboanbindung", () => {
+  assert.deepEqual(pendingSubscriptionStatus(), {
+    connected: false,
+    plan: null,
+    status: "not_connected",
+    validUntil: null,
+    promoCode: null,
+    promoRedemptionAvailable: false
+  });
+});
+
 test("erkennt die Supportumgebung konservativ", () => {
   assert.equal(supportEnvironment({ APP_ENV: "development" }), "development");
   assert.equal(supportEnvironment({ APP_ENV: "production" }), "production");
@@ -66,6 +78,7 @@ test("liefert in Produktion nur Status und keine Vertrauensperson-E-Mail", async
   const result = await lookupSupportUser({ email: "owner@example.ch", pool, loadPayload: async (payload) => payload });
   assert.equal(result.found, true);
   assert.equal(result.dossiers[0].trustedPeople[0].email, null);
+  assert.deepEqual(result.dossiers[0].subscription, pendingSubscriptionStatus());
   assert.equal(result.dossiers[0].trustedPeople[0].name, null);
   assert.equal(result.dossiers[0].trustedPeople[0].configured, true);
   assert.equal(result.dossiers[0].trustedPeople[0].primary, true);

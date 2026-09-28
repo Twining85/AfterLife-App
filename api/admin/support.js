@@ -174,6 +174,7 @@ export async function lookupSupportUser({
       createdAt: dossier.created_at,
       updatedAt: dossier.updated_at,
       sections,
+      subscription: pendingSubscriptionStatus(),
       trustedPeople: buildTrustedPeople(contacts, invitationsResult.rows, includeDetails),
       files: filesResult.rows.map((row) => ({
         status: row.status,
@@ -244,6 +245,17 @@ export function buildTrustedPeople(contactsPayload, invitations, includeDetails 
     }));
   });
   return people;
+}
+
+export function pendingSubscriptionStatus() {
+  return {
+    connected: false,
+    plan: null,
+    status: "not_connected",
+    validUntil: null,
+    promoCode: null,
+    promoRedemptionAvailable: false
+  };
 }
 
 export function payloadHasData(sectionType, rawPayload) {
