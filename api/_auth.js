@@ -35,16 +35,18 @@ export function hashSessionToken(token) {
   return crypto.createHash("sha256").update(String(token)).digest("hex");
 }
 
-export async function saveSession(userID) {
+export async function saveSession(userID, options = {}) {
+  const lifetimeMilliseconds = options.lifetimeMilliseconds || sessionLifetimeMilliseconds;
+  const refreshEnabled = options.refresh !== false;
   const token = createSessionToken();
-  const refreshToken = createRefreshToken();
-  const expiresAt = new Date(Date.now() + sessionLifetimeMilliseconds);
-  const refreshExpiresAt = new Date(Date.now() + refreshLifetimeMilliseconds);
+  const refreshToken = refreshEnabled ? createRefreshToken() : null;
+  const expiresAt = new Date(Date.now() + lifetimeMilliseconds);
+  const refreshExpiresAt = refreshEnabled ? new Date(Date.now() + refreshLifetimeMilliseconds) : null;
   await databasePool().query(
     `INSERT INTO user_sessions (
        user_id, token_hash, expires_at, refresh_token_hash, refresh_expires_at
      ) VALUES ($1, $2, $3, $4, $5)`,
-    [userID, hashSessionToken(token), expiresAt, hashSessionToken(refreshToken), refreshExpiresAt]
+    [userID, hashSessionToken(token), expiresAt, refreshToken ? hashSessionToken(refreshToken) : null, refreshExpiresAt]
   );
   return { token, expiresAt, refreshToken, refreshExpiresAt };
 }
