@@ -272,26 +272,99 @@ function renderSubscription(subscription = {}, dossierIndex = 0) {
 }
 
 function renderSection(section) {
+  const fragment = document.createDocumentFragment();
   const row = document.createElement("tr");
   const nameCell = document.createElement("td");
   const name = node("div", "section-name", section.label);
   name.append(node("small", "", section.selected ? "In der App gewählt" : "Nicht gewählt"));
   nameCell.append(name);
-  if (section.details) {
-    const disclosure = node("details", "detail-disclosure");
-    const summary = document.createElement("summary");
-    summary.textContent = "DEV-Daten prüfen";
-    const pre = document.createElement("pre");
-    pre.textContent = JSON.stringify(section.details, null, 2);
-    disclosure.append(summary, pre);
-    nameCell.append(disclosure);
-  }
   const statusCell = document.createElement("td");
   statusCell.append(sectionStatus(section));
   const dateCell = document.createElement("td");
   dateCell.textContent = formatDate(section.updatedAt);
   row.append(nameCell, statusCell, dateCell);
+  fragment.append(row);
+  if (section.details) fragment.append(renderSectionDetails(section));
+  return fragment;
+}
+
+function renderSectionDetails(section) {
+  const row = node("tr", "detail-row-container");
+  const cell = document.createElement("td");
+  cell.colSpan = 3;
+  const disclosure = node("details", "detail-disclosure");
+  const summary = document.createElement("summary");
+  summary.textContent = `${section.label}: DEV-Daten anzeigen`;
+  disclosure.append(summary, renderDetailValue(section.details));
+  cell.append(disclosure);
+  row.append(cell);
   return row;
+}
+
+function renderDetailValue(value) {
+  const container = node("div", "detail-fields");
+  if (!value || typeof value !== "object") {
+    container.append(detailField("Wert", displayDetailValue(value)));
+    return container;
+  }
+  const entries = Array.isArray(value) ? value.map((item, index) => [String(index), item]) : Object.entries(value);
+  if (entries.length === 0) {
+    container.append(node("p", "detail-empty", "Keine Einträge"));
+    return container;
+  }
+  entries.forEach(([key, item], index) => {
+    if (item && typeof item === "object") {
+      const group = node("section", "detail-group");
+      group.append(node("h4", "", Array.isArray(value) ? detailItemTitle(item, index) : fieldLabel(key)));
+      group.append(renderDetailValue(item));
+      container.append(group);
+    } else {
+      container.append(detailField(Array.isArray(value) ? `Eintrag ${index + 1}` : fieldLabel(key), displayDetailValue(item)));
+    }
+  });
+  return container;
+}
+
+function detailField(label, value) {
+  const row = node("div", "detail-field");
+  row.append(node("span", "", label), node("strong", "", value));
+  return row;
+}
+
+function detailItemTitle(item, index) {
+  const identifyingValue = item?.dateiName || item?.titel || item?.name || item?.vorname;
+  return identifyingValue ? String(identifyingValue) : `Eintrag ${index + 1}`;
+}
+
+function displayDetailValue(value) {
+  if (value === null || value === undefined || value === "") return "Nicht erfasst";
+  if (typeof value === "boolean") return value ? "Ja" : "Nein";
+  if (typeof value === "number") return formatNumber(value);
+  const text = String(value);
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(text)) return formatDate(text);
+  return text;
+}
+
+function fieldLabel(key) {
+  const labels = {
+    id: "ID",
+    vorname: "Vorname",
+    name: "Name",
+    email: "E-Mail-Adresse",
+    telefon: "Telefon",
+    dateiName: "Dateiname",
+    dateiTyp: "Dateityp",
+    dateiDaten: "Dateiinhalt",
+    bildDaten: "Bildinhalt",
+    audioDaten: "Audioinhalt",
+    hochgeladenAm: "Hochgeladen am",
+    hinzugefuegtAm: "Hinzugefügt am",
+    erstelltAm: "Erstellt am",
+    aktualisiertAm: "Aktualisiert am"
+  };
+  if (labels[key]) return labels[key];
+  const words = String(key).replace(/([a-zäöü])([A-ZÄÖÜ])/g, "$1 $2").replace(/_/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 function sectionStatus(section) {

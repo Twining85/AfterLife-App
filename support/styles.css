@@ -140,9 +140,19 @@ input:focus { border-color: #2f7564; box-shadow: 0 0 0 3px rgba(47, 117, 100, 0.
 .section-table th:first-child { width: 38%; }
 .section-name { font-weight: 750; }
 .section-name small { display: block; margin-top: 3px; color: #7a847f; font-weight: 500; }
-.detail-disclosure { margin-top: 8px; }
-.detail-disclosure summary { cursor: pointer; color: #376b5e; font-weight: 700; }
-.detail-disclosure pre { max-height: 300px; overflow: auto; padding: 12px; background: #f4f6f4; border: 1px solid #dfe4e1; border-radius: 6px; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.section-table .detail-row-container td { padding: 0; background: #f8faf8; }
+.detail-disclosure summary { padding: 12px 20px; cursor: pointer; color: #376b5e; font-weight: 750; }
+.detail-disclosure[open] summary { border-bottom: 1px solid #dfe5e1; }
+.detail-fields { display: grid; gap: 0; }
+.detail-disclosure > .detail-fields { padding: 6px 20px 18px; }
+.detail-field { display: grid; grid-template-columns: minmax(150px, 0.8fr) minmax(180px, 1.5fr); gap: 16px; padding: 9px 0; border-bottom: 1px solid #e5eae7; }
+.detail-field:last-child { border-bottom: 0; }
+.detail-field span { color: #6f7a74; font-weight: 500; }
+.detail-field strong { min-width: 0; color: #2d3732; font-weight: 650; white-space: pre-wrap; overflow-wrap: anywhere; }
+.detail-group { margin-top: 10px; padding: 12px 14px; background: #fff; border: 1px solid #dfe5e1; border-radius: 6px; }
+.detail-group h4 { margin: 0 0 5px; color: #35413b; font-size: 13px; }
+.detail-group .detail-group { background: #f7f9f7; }
+.detail-empty { margin: 0; padding: 10px 0; color: #7a847f; }
 .subscription-panel { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr); gap: 18px; margin: 0 20px 20px; padding: 16px; background: #f6f8f6; border: 1px solid #e0e5e2; border-radius: 6px; }
 .subscription-summary { display: grid; grid-template-columns: minmax(100px, 1fr) minmax(140px, 1.5fr); gap: 8px 14px; margin: 0; font-size: 12px; }
 .subscription-summary dt { color: #74807a; }
@@ -204,6 +214,7 @@ input:focus { border-color: #2f7564; box-shadow: 0 0 0 3px rgba(47, 117, 100, 0.
   .dossier-meta { margin-top: 10px; flex-wrap: wrap; }
   .section-table th:nth-child(3), .section-table td:nth-child(3) { display: none; }
   .section-table th:first-child { width: 54%; }
+  .detail-field { grid-template-columns: 1fr; gap: 3px; }
   .safe-actions .disabled-button { margin-top: 14px; width: 100%; }
   .promo-control { grid-template-columns: 1fr; }
   .promo-control label { grid-column: auto; }

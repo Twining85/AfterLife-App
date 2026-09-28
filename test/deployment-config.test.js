@@ -37,6 +37,13 @@ test("Docker-Kontext enthält nur das Object-Storage-Migrationsskript", async ()
   assert.doesNotMatch(ignored, /^!scripts\/\*\*$/m);
 });
 
+test("Support-DEV-Details werden als Felder statt als JSON-Code angezeigt", async () => {
+  const app = await fs.readFile(new URL("../support/app.js", import.meta.url), "utf8");
+  assert.match(app, /function renderDetailValue/);
+  assert.match(app, /function fieldLabel/);
+  assert.doesNotMatch(app, /JSON\.stringify\(section\.details/);
+});
+
 function escape(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
