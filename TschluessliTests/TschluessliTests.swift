@@ -324,6 +324,107 @@ struct TschluessliTests {
         #expect(geladen.name == "Stand")
     }
 
+    @Test func profilSyncIgnoriertLeerenRecoveryDoppelgaenger() async throws {
+        let container = try ModelContainer(
+            for: ProfilModell.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let dossierID = UUID()
+        let userID = UUID()
+        let cloudProfil = ProfilModell(
+            userID: userID,
+            dossierID: dossierID,
+            vorname: "Cloud",
+            name: "Profil",
+            email: "profil@example.com",
+            erstelltAm: Date(timeIntervalSince1970: 100)
+        )
+        let leererDoppelgaenger = ProfilModell(
+            userID: userID,
+            dossierID: dossierID,
+            email: "profil@example.com",
+            erstelltAm: Date(timeIntervalSince1970: 200)
+        )
+        container.mainContext.insert(cloudProfil)
+        container.mainContext.insert(leererDoppelgaenger)
+        try container.mainContext.save()
+
+        let export = try await ProfilBereichAdapter().exportiere(
+            dossierID: dossierID,
+            aus: container.mainContext
+        )
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let exportierteProfile = try decoder.decode(
+            CloudDatenListe<CloudProfilDaten>.self,
+            from: export.daten
+        )
+        #expect(exportierteProfile.items.count == 1)
+        #expect(exportierteProfile.items.first?.vorname == "Cloud")
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let verunreinigterCloudStand = try encoder.encode(CloudDatenListe(items: [
+            CloudProfilDaten(cloudProfil),
+            CloudProfilDaten(leererDoppelgaenger)
+        ]))
+        try await DossierBereichImport.importiere(
+            verunreinigterCloudStand,
+            bereich: "profil",
+            dossierID: dossierID,
+            in: container.mainContext
+        )
+
+        let lokaleProfile = try container.mainContext.fetch(FetchDescriptor<ProfilModell>())
+            .filter { $0.dossierID == dossierID && $0.userID == userID }
+        #expect(lokaleProfile.count == 1)
+        #expect(lokaleProfile.first?.vorname == "Cloud")
+        #expect(lokaleProfile.first?.name == "Profil")
+    }
+
+    @Test func kontakteRecoveryErgaenztFehlendeBesitzerZuordnung() async throws {
+        let container = try ModelContainer(
+            for: DossierModell.self,
+            HinterbliebeneModell.self,
+            VertrauenspersonModell.self,
+            VertrauenspersonEinladungsHistorieModell.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let dossierID = UUID()
+        let besitzerID = UUID()
+        container.mainContext.insert(DossierModell(
+            dossierID: dossierID,
+            besitzerUserID: besitzerID,
+            vorsorgendePersonName: "Test"
+        ))
+        let vertrauensperson = VertrauenspersonModell(
+            vorname: "Erika",
+            name: "Muster",
+            email: "erika@example.com",
+            dossierID: dossierID,
+            vorsorgendeUserID: nil
+        )
+        let cloud = CloudKontaktDaten(
+            hinterbliebene: [],
+            vertrauenspersonen: [CloudKontaktDaten.Vertrauensperson(vertrauensperson)]
+        )
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try await DossierBereichImport.importiere(
+            encoder.encode(cloud),
+            bereich: "kontakte",
+            dossierID: dossierID,
+            in: container.mainContext
+        )
+
+        let geladen = try #require(
+            container.mainContext.fetch(FetchDescriptor<VertrauenspersonModell>()).first
+        )
+        #expect(geladen.vorname == "Erika")
+        #expect(geladen.dossierID == dossierID)
+        #expect(geladen.vorsorgendeUserID == besitzerID)
+    }
+
     @Test func recoveryCodeBestehtAusZwoelfGueltigenWoertern() throws {
         let woerter = try DossierRecoveryCode.erstellen()
         #expect(woerter.count == 12)
@@ -340,6 +441,50 @@ struct TschluessliTests {
         #expect(ersterHash.count == 32)
         #expect(ersterHash == wiederholt)
         #expect(ersterHash != zweiterHash)
+    }
+
+    @Test func recoveryPDFCodiertNormalisiertenCodeImQRCode() throws {
+        let code = Array(DossierRecoveryCode.woerter.prefix(12)).joined(separator: " ")
+        let inhalt = try DossierRecoveryPDF.qrCodeInhalt(code: code.uppercased())
+        #expect(inhalt == "TSCHLUESSLI-RECOVERY:1:\(code)")
+        #expect(try DossierRecoveryCode.ausQRCode(inhalt) == code)
+        #expect(throws: DossierRecoveryFehler.self) {
+            try DossierRecoveryCode.ausQRCode("https://example.com/\(code)")
+        }
+
+        let url = try DossierRecoveryPDF.erstellen(code: code)
+        defer { try? FileManager.default.removeItem(at: url) }
+        #expect(FileManager.default.fileExists(atPath: url.path))
+        #expect((try Data(contentsOf: url)).count > 0)
+    }
+
+    @Test func recoveryAktiviertDossierbezogeneHomeEinstellungen() throws {
+        let suite = "TschluessliTests.Recovery.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let dossierID = UUID()
+        let suffix = dossierID.uuidString.lowercased()
+
+        defaults.set("profil", forKey: "homeBereicheReihenfolge")
+        defaults.set("", forKey: "homeAktiveBereiche")
+        defaults.set(
+            "profil,wuensche,gesundheit,herzensstuecke",
+            forKey: "homeBereicheReihenfolge.\(suffix)"
+        )
+        defaults.set(
+            "wuensche,gesundheit,herzensstuecke",
+            forKey: "homeAktiveBereiche.\(suffix)"
+        )
+        defaults.set("gefuehrt", forKey: "dossierErstellungsart.\(suffix)")
+
+        DossierEinstellungenStore.aktiviereLokaleEinstellungen(
+            fuer: dossierID,
+            defaults: defaults
+        )
+
+        #expect(defaults.string(forKey: "homeBereicheReihenfolge") == "profil,wuensche,gesundheit,herzensstuecke")
+        #expect(defaults.string(forKey: "homeAktiveBereiche") == "wuensche,gesundheit,herzensstuecke")
+        #expect(defaults.string(forKey: "dossierErstellungsart") == "gefuehrt")
     }
 
     @Test func erscheinungsbildOrdnetSystemHellUndDunkelKorrektZu() {

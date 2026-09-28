@@ -58,6 +58,29 @@ nonisolated struct CloudProfilDaten: Codable, Sendable {
     }
 }
 
+nonisolated extension CloudProfilDaten {
+    /// Alte Recovery-Versionen konnten dasselbe Profil zweimal hochladen:
+    /// einmal mit den Cloud-Daten und einmal als leeres Login-Profil. Bis alle
+    /// Geräte bereinigt sind, gewinnt bei gleicher User-ID der inhaltlich
+    /// vollständigere und bei Gleichstand der ursprünglich ältere Datensatz.
+    func istBevorzugt(gegenueber anderer: CloudProfilDaten) -> Bool {
+        if inhaltswert != anderer.inhaltswert {
+            return inhaltswert > anderer.inhaltswert
+        }
+        return erstelltAm < anderer.erstelltAm
+    }
+
+    private var inhaltswert: Int {
+        let texte = [
+            vorname, name, strasse, hausnummer, plz, stadt, land, telefon,
+            ahvNummer, email, notfallHinweis, registrierungsart, registrierungsEmail
+        ]
+        return texte.reduce(0) {
+            $0 + ($1.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 1)
+        } + (profilbild == nil ? 0 : 2)
+    }
+}
+
 nonisolated struct CloudGesundheitDaten: Codable, Sendable {
     let gesundheitID: UUID?
     let userID: UUID?

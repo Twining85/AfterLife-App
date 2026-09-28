@@ -181,7 +181,7 @@ struct EinladungQRCodeAnnehmenView: View {
 
 }
 
-private struct QRCodeScannerView: UIViewControllerRepresentable {
+struct QRCodeScannerView: UIViewControllerRepresentable {
     let ergebnis: (String) -> Void
     let abbruch: () -> Void
 
@@ -195,7 +195,7 @@ private struct QRCodeScannerView: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: QRCodeScannerViewController, context: Context) {}
 }
 
-private final class QRCodeScannerViewController: UIViewController, AVCaptureMetadataOutputObjectsDelegate {
+final class QRCodeScannerViewController: UIViewController, AVCaptureMetadataOutputObjectsDelegate {
     var ergebnis: ((String) -> Void)?
     var abbruch: (() -> Void)?
     private let sitzung = AVCaptureSession()

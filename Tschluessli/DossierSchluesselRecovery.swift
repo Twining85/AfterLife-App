@@ -1,4 +1,6 @@
 import CryptoKit
+import CoreImage
+import CoreImage.CIFilterBuiltins
 import Foundation
 import Security
 import UIKit
@@ -36,6 +38,8 @@ enum DossierRecoveryFehler: LocalizedError {
 }
 
 nonisolated enum DossierRecoveryCode {
+    private static let qrPraefix = "TSCHLUESSLI-RECOVERY:1:"
+
     // 8 x 16 x 16 eindeutig lesbare Wortkombinationen ergeben 2'048 Wörter.
     // Zwölf unabhaengige 11-Bit-Wörter liefern 132 Bit Recovery-Entropie.
     private static let vorsilben = [
@@ -87,11 +91,24 @@ nonisolated enum DossierRecoveryCode {
         let material = Data("Tschluessli-Dossier-Recovery-v1\u{0}\(normalisiert)".utf8)
         return SymmetricKey(data: Data(SHA256.hash(data: material)))
     }
+
+    static func qrCodeInhalt(aus code: String) throws -> String {
+        qrPraefix + (try normalisieren(code))
+    }
+
+    static func ausQRCode(_ inhalt: String) throws -> String {
+        guard inhalt.hasPrefix(qrPraefix) else {
+            throw DossierRecoveryFehler.ungueltigerCode
+        }
+        return try normalisieren(String(inhalt.dropFirst(qrPraefix.count)))
+    }
 }
 
 @MainActor
 enum DossierRecoveryPDF {
     static func erstellen(code: String) throws -> URL {
+        let normalisierterCode = try DossierRecoveryCode.normalisieren(code)
+        let qrCode = try qrCodeBild(code: normalisierterCode)
         let format = UIGraphicsPDFRendererFormat()
         format.documentInfo = [
             kCGPDFContextTitle as String: "Tschlüssli Wiederherstellungscode",
@@ -109,12 +126,12 @@ enum DossierRecoveryPDF {
                 .font: UIFont.boldSystemFont(ofSize: 25),
                 .foregroundColor: UIColor(red: 0.16, green: 0.36, blue: 0.42, alpha: 1)
             ])
-            let hinweis = "Neues Gerät? Mit diesen 12 Wörtern können die verschlüsselten Zugangsdaten wiederhergestellt werden. Wer diese Wörter kennt, kann auf diese Daten zugreifen. Bewahre das Dokument offline und sicher auf. Teile es niemals per ungeschützter E-Mail oder Chat."
-            hinweis.draw(in: CGRect(x: 48, y: 108, width: 499, height: 100), withAttributes: [
-                .font: UIFont.systemFont(ofSize: 14),
+            let hinweis = "Neues Gerät? Wähle bei der Registrierung „Mit bestehendem Konto anmelden“ und gib deine E-Mail-Adresse und dein Passwort ein. Danach kannst du entweder die 12 Wörter manuell eingeben oder den QR-Code scannen, um deine verschlüsselten Daten wiederherzustellen. Wer diese Wörter kennt, kann auf deine Daten zugreifen. Bewahre dieses Dokument deshalb sicher auf und teile es niemals."
+            hinweis.draw(in: CGRect(x: 48, y: 108, width: 499, height: 108), withAttributes: [
+                .font: UIFont.systemFont(ofSize: 13.5),
                 .foregroundColor: UIColor.darkGray
             ])
-            let woerter = code.split(separator: " ").map(String.init)
+            let woerter = normalisierterCode.split(separator: " ").map(String.init)
             for (index, wort) in woerter.enumerated() {
                 let spalte = index / 6
                 let zeile = index % 6
@@ -124,8 +141,22 @@ enum DossierRecoveryPDF {
                     .foregroundColor: UIColor.black
                 ])
             }
+
+            let qrRahmen = CGRect(x: 204, y: 552, width: 187, height: 187)
+            UIColor.white.setFill()
+            UIBezierPath(roundedRect: qrRahmen, cornerRadius: 8).fill()
+            qrCode.draw(in: qrRahmen.insetBy(dx: 10, dy: 10))
+
+            let qrHinweis = "Auf einem neuen iPhone direkt in Tschlüssli scannen. Der QR-Code enthält den vollständigen Wiederherstellungscode."
+            let absatz = NSMutableParagraphStyle()
+            absatz.alignment = .center
+            qrHinweis.draw(in: CGRect(x: 100, y: 742, width: 395, height: 34), withAttributes: [
+                .font: UIFont.systemFont(ofSize: 10, weight: .medium),
+                .foregroundColor: UIColor.darkGray,
+                .paragraphStyle: absatz
+            ])
             "Erstellt am \(Date().formatted(date: .long, time: .shortened))"
-                .draw(at: CGPoint(x: 48, y: 775), withAttributes: [
+                .draw(at: CGPoint(x: 48, y: 802), withAttributes: [
                     .font: UIFont.systemFont(ofSize: 10),
                     .foregroundColor: UIColor.gray
                 ])
@@ -136,5 +167,25 @@ enum DossierRecoveryPDF {
         var geschuetzteURL = url
         try geschuetzteURL.setResourceValues(resourceValues)
         return url
+    }
+
+    static func qrCodeInhalt(code: String) throws -> String {
+        try DossierRecoveryCode.qrCodeInhalt(aus: code)
+    }
+
+    private static func qrCodeBild(code: String) throws -> UIImage {
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data(try qrCodeInhalt(code: code).utf8)
+        filter.correctionLevel = "Q"
+        guard let ausgabe = filter.outputImage else {
+            throw DossierRecoveryFehler.ungueltigerCode
+        }
+
+        let skaliert = ausgabe.transformed(by: CGAffineTransform(scaleX: 10, y: 10))
+        let context = CIContext(options: [.useSoftwareRenderer: false])
+        guard let cgBild = context.createCGImage(skaliert, from: skaliert.extent) else {
+            throw DossierRecoveryFehler.ungueltigerCode
+        }
+        return UIImage(cgImage: cgBild)
     }
 }

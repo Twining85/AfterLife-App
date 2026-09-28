@@ -54,6 +54,27 @@ enum DossierEinstellungenStore {
         VorsorgeBereichStatusStore.setzeStatus(daten.vorsorgeBereichStatus, fuerDossierID: dossierID.uuidString)
     }
 
+    /// Aktiviert nach einer Gerätewiederherstellung die bereits importierten,
+    /// dossierbezogenen Einstellungen für die sichtbare App-Oberfläche. Beim
+    /// Recovery wird der Cloud-Stand geladen, bevor das Dossier lokal als aktiv
+    /// abgeschlossen ist. Deshalb dürfen die globalen Kompatibilitäts-Keys
+    /// nicht mit einer leeren Startauswahl weiterlaufen.
+    static func aktiviereLokaleEinstellungen(
+        fuer dossierID: UUID,
+        defaults: UserDefaults = .standard
+    ) {
+        [Key.reihenfolge, Key.aktiveBereiche, Key.erstellungsart,
+         Key.uebersprungeneSchritte, Key.erinnerungAktiv,
+         Key.zuletztGeprueft, Key.letzterExport].forEach { key in
+            let scopedKey = dossierKey(key, dossierID: dossierID)
+            if let wert = defaults.object(forKey: scopedKey) {
+                defaults.set(wert, forKey: key)
+            } else {
+                defaults.removeObject(forKey: key)
+            }
+        }
+    }
+
     static func loesche(fuer dossierID: UUID) {
         [Key.reihenfolge, Key.aktiveBereiche, Key.erstellungsart, Key.uebersprungeneSchritte,
          Key.erinnerungAktiv, Key.zuletztGeprueft, Key.letzterExport].forEach {

@@ -489,7 +489,9 @@ struct VertrauenspersonView: View {
 
         return gespeicherteVertrauenspersonen
             .filter {
-                $0.vorsorgendeUserID == aktiveUserUUID
+                ($0.vorsorgendeUserID == aktiveUserUUID
+                    || (aktivesDossierUUID != nil && $0.dossierID == aktivesDossierUUID))
+                    && $0.istLokalHinterlegt
             }
             .sorted {
                 if $0.istPrimaereVertrauensperson != $1.istPrimaereVertrauensperson {
@@ -3639,6 +3641,11 @@ struct VertrauenspersonView: View {
             try modelContext.save()
             ausstehendeFreigabeSyncBereiche.insert("kontakte")
             ausstehendeFreigabeSyncBereiche.formUnion(geaenderteBereiche)
+            NotificationCenter.default.post(
+                name: .dossierBereichGespeichert,
+                object: "kontakte"
+            )
+            DossierSyncDienst.shared?.synchronisieren()
         } catch {
             fehlermeldung =
             "Vertrauensperson konnte nicht gespeichert werden."

@@ -80,11 +80,34 @@ enum DossierBereichImport {
     private static func importiereProfil(
         _ cloud: CloudDatenListe<CloudProfilDaten>, _ dossierID: UUID, _ context: ModelContext
     ) throws {
+        var cloudNachUserID: [UUID: CloudProfilDaten] = [:]
+        for kandidat in cloud.items {
+            if let vorhanden = cloudNachUserID[kandidat.userID],
+               !kandidat.istBevorzugt(gegenueber: vorhanden) {
+                continue
+            }
+            cloudNachUserID[kandidat.userID] = kandidat
+        }
+
         let bestehend = try context.fetch(FetchDescriptor<ProfilModell>()).filter { $0.dossierID == dossierID }
-        let ids = Set(cloud.items.map(\.userID))
-        for modell in bestehend where !ids.contains(modell.userID) { context.delete(modell) }
-        for wert in cloud.items {
-            let modell = bestehend.first { $0.userID == wert.userID } ?? ProfilModell(userID: wert.userID, dossierID: dossierID)
+        var modellNachUserID: [UUID: ProfilModell] = [:]
+        for kandidat in bestehend {
+            if let vorhanden = modellNachUserID[kandidat.userID] {
+                if CloudProfilDaten(kandidat).istBevorzugt(gegenueber: CloudProfilDaten(vorhanden)) {
+                    context.delete(vorhanden)
+                    modellNachUserID[kandidat.userID] = kandidat
+                } else {
+                    context.delete(kandidat)
+                }
+            } else {
+                modellNachUserID[kandidat.userID] = kandidat
+            }
+        }
+
+        let ids = Set(cloudNachUserID.keys)
+        for modell in modellNachUserID.values where !ids.contains(modell.userID) { context.delete(modell) }
+        for wert in cloudNachUserID.values {
+            let modell = modellNachUserID[wert.userID] ?? ProfilModell(userID: wert.userID, dossierID: dossierID)
             if modell.modelContext == nil { context.insert(modell) }
             modell.dossierID = dossierID; modell.istVertrauensperson = wert.istVertrauensperson
             modell.vorname = wert.vorname; modell.name = wert.name; modell.geburtsdatum = wert.geburtsdatum
@@ -224,6 +247,8 @@ enum DossierBereichImport {
     }
 
     private static func importiereKontakte(_ c: CloudKontaktDaten, _ id: UUID, _ context: ModelContext) throws {
+        let dossierBesitzerID = try context.fetch(FetchDescriptor<DossierModell>())
+            .first(where: { $0.dossierID == id })?.besitzerUserID
         let alteVertrauenspersonen = try context.fetch(FetchDescriptor<VertrauenspersonModell>()).filter { $0.dossierID == id }
         try loesche(HinterbliebeneModell.self, id, context) { $0.dossierID }
         try loesche(VertrauenspersonModell.self, id, context) { $0.dossierID }
@@ -231,7 +256,7 @@ enum DossierBereichImport {
         for w in c.vertrauenspersonen {
             let historie = w.historie.map { VertrauenspersonEinladungsHistorieModell(datum:$0.datum,beschreibung:$0.beschreibung) }
             let alt = alteVertrauenspersonen.first { $0.personenID == w.personenID || (!$0.email.isEmpty && $0.email.caseInsensitiveCompare(w.email) == .orderedSame) }
-            context.insert(VertrauenspersonModell(personenID:w.personenID,vorname:w.vorname,name:w.name,email:w.email,telefon:w.telefon,beziehung:w.beziehung,einladungsStatus:w.einladungsStatus,vorsorgeprozessStatus:w.vorsorgeprozessStatus,einladungsToken:alt?.einladungsToken,einladungsEmail:w.einladungsEmail,einladungsLinkErstelltAm:w.einladungsLinkErstelltAm,dossierID:id,vorsorgendeUserID:w.vorsorgendeUserID,vertrauenspersonUserID:w.vertrauenspersonUserID,einladungAngenommenAm:w.einladungAngenommenAm,einladungAbgelehntAm:w.einladungAbgelehntAm,istPrimaereVertrauensperson:w.istPrimaereVertrauensperson,reihenfolge:w.reihenfolge,wuenscheSichtbarBeiDossierfreigabe:w.wuenscheSichtbarBeiDossierfreigabe ?? true,menschenDesVertrauensSichtbarBeiDossierfreigabe:w.menschenDesVertrauensSichtbarBeiDossierfreigabe ?? true,finanzenSichtbarBeiDossierfreigabe:w.finanzenSichtbarBeiDossierfreigabe ?? false,dokumenteSichtbarBeiDossierfreigabe:w.dokumenteSichtbarBeiDossierfreigabe ?? false,abosUndProfileSichtbarBeiDossierfreigabe:w.abosUndProfileSichtbarBeiDossierfreigabe ?? false,herzensstueckeSichtbarBeiDossierfreigabe:w.herzensstueckeSichtbarBeiDossierfreigabe ?? true,gesundheitSichtbarBeiDossierfreigabe:w.gesundheitSichtbarBeiDossierfreigabe ?? true,zugriffsHistorieJSON:w.zugriffsHistorieJSON ?? alt?.zugriffsHistorieJSON ?? "[]",einladungsHistorie:historie,erstelltAm:w.erstelltAm,geaendertAm:w.geaendertAm))
+            context.insert(VertrauenspersonModell(personenID:w.personenID,vorname:w.vorname,name:w.name,email:w.email,telefon:w.telefon,beziehung:w.beziehung,einladungsStatus:w.einladungsStatus,vorsorgeprozessStatus:w.vorsorgeprozessStatus,einladungsToken:alt?.einladungsToken,einladungsEmail:w.einladungsEmail,einladungsLinkErstelltAm:w.einladungsLinkErstelltAm,dossierID:id,vorsorgendeUserID:w.vorsorgendeUserID ?? dossierBesitzerID,vertrauenspersonUserID:w.vertrauenspersonUserID,einladungAngenommenAm:w.einladungAngenommenAm,einladungAbgelehntAm:w.einladungAbgelehntAm,istPrimaereVertrauensperson:w.istPrimaereVertrauensperson,reihenfolge:w.reihenfolge,wuenscheSichtbarBeiDossierfreigabe:w.wuenscheSichtbarBeiDossierfreigabe ?? true,menschenDesVertrauensSichtbarBeiDossierfreigabe:w.menschenDesVertrauensSichtbarBeiDossierfreigabe ?? true,finanzenSichtbarBeiDossierfreigabe:w.finanzenSichtbarBeiDossierfreigabe ?? false,dokumenteSichtbarBeiDossierfreigabe:w.dokumenteSichtbarBeiDossierfreigabe ?? false,abosUndProfileSichtbarBeiDossierfreigabe:w.abosUndProfileSichtbarBeiDossierfreigabe ?? false,herzensstueckeSichtbarBeiDossierfreigabe:w.herzensstueckeSichtbarBeiDossierfreigabe ?? true,gesundheitSichtbarBeiDossierfreigabe:w.gesundheitSichtbarBeiDossierfreigabe ?? true,zugriffsHistorieJSON:w.zugriffsHistorieJSON ?? alt?.zugriffsHistorieJSON ?? "[]",einladungsHistorie:historie,erstelltAm:w.erstelltAm,geaendertAm:w.geaendertAm))
         }
     }
 

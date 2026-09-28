@@ -813,7 +813,7 @@ struct Registrierung: View {
   private func bestehendesKontoNachRecoveryAbschliessen(_ sitzung: CloudKontoSitzung, email: String)
   {
     let bereinigteEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    guard sitzung.dossierID != nil else {
+    guard let dossierID = sitzung.dossierID else {
       bestehendesKontoAnmelden = false
       fehlermeldung = "Für dieses Konto konnte kein aktives Dossier geladen werden."
       return
@@ -824,6 +824,11 @@ struct Registrierung: View {
       userID: sitzung.userID,
       dossierID: sitzung.dossierID
     )
+    // `speichereRegistrierungsdaten` setzt für ein lokales Dossier zunächst
+    // die Startauswahl zurück. Beim Recovery liegt der gültige Cloud-Stand zu
+    // diesem Zeitpunkt aber bereits unter den dossierbezogenen Keys vor und
+    // muss sofort wieder als aktive Oberfläche übernommen werden.
+    DossierEinstellungenStore.aktiviereLokaleEinstellungen(fuer: dossierID)
     do {
       try modelContext.save()
       gespeicherteEmail = bereinigteEmail
@@ -844,8 +849,12 @@ struct Registrierung: View {
     art: String, email: String, userID: UUID, dossierID: UUID?
   ) {
     let bereinigteEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
-    let profil = ProfilModell(userID: userID, dossierID: dossierID)
-    modelContext.insert(profil)
+    let profil = (try? modelContext.fetch(FetchDescriptor<ProfilModell>()))?
+      .first(where: { $0.userID == userID && $0.dossierID == dossierID })
+      ?? ProfilModell(userID: userID, dossierID: dossierID)
+    if profil.modelContext == nil {
+      modelContext.insert(profil)
+    }
 
     profil.registrierungsart = art
     profil.registrierungsEmail = bereinigteEmail

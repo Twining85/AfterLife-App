@@ -125,8 +125,17 @@ struct ProfilBereichAdapter: CodableDossierBereichAdapter {
 
     func erzeugePayload(dossierID: UUID, aus modelContext: ModelContext) throws -> CloudDatenListe<CloudProfilDaten> {
         let modelle = try modelContext.fetch(FetchDescriptor<ProfilModell>())
-        return CloudDatenListe(items: modelle.filter { $0.dossierID == dossierID }.map {
-            CloudProfilDaten($0)
+        var profilNachUserID: [UUID: CloudProfilDaten] = [:]
+        for modell in modelle where modell.dossierID == dossierID {
+            let kandidat = CloudProfilDaten(modell)
+            if let vorhanden = profilNachUserID[modell.userID],
+               !kandidat.istBevorzugt(gegenueber: vorhanden) {
+                continue
+            }
+            profilNachUserID[modell.userID] = kandidat
+        }
+        return CloudDatenListe(items: profilNachUserID.values.sorted {
+            $0.userID.uuidString < $1.userID.uuidString
         })
     }
 }
