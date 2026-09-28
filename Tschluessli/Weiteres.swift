@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 
 struct WeiteresView: View {
+    @Environment(\.appLayout) private var appLayout
     @Environment(\.modelContext) private var modelContext
     @Query private var gespeicherteWeiteresModelle: [WeiteresModell]
 
@@ -17,13 +18,10 @@ struct WeiteresView: View {
                     Text("Zugangsdaten & Abos")
                         .font(.largeTitle)
                         .fontWeight(.bold)
-                        .padding(.horizontal)
+                        .appPagePadding()
 
                     LazyVGrid(
-                        columns: [
-                            GridItem(.flexible()),
-                            GridItem(.flexible())
-                        ],
+                        columns: gridSpalten,
                         spacing: 30
                     ) {
                         KreisKachel(
@@ -50,7 +48,7 @@ struct WeiteresView: View {
                             farbe: kreisFarbe
                         )
                     }
-                    .padding(.horizontal)
+                    .appPagePadding()
 
                     if let modell = gespeicherteWeiteresModelle.first {
                         WeiteresInhaltView(modell: modell)
@@ -62,6 +60,13 @@ struct WeiteresView: View {
                 ladeOderErstelleModellFallsNoetig()
             }
         }
+    }
+
+    private var gridSpalten: [GridItem] {
+        if appLayout.isCompact || appLayout.dynamicTypeSize >= .xLarge {
+            return [GridItem(.flexible())]
+        }
+        return [GridItem(.flexible()), GridItem(.flexible())]
     }
 
     // MARK: - SwiftData
@@ -86,6 +91,7 @@ struct WeiteresView: View {
 // MARK: - Gespeicherte Inhalte
 
 struct WeiteresInhaltView: View {
+    @Environment(\.appLayout) private var appLayout
     @Environment(\.modelContext) private var modelContext
     @Bindable var modell: WeiteresModell
 
@@ -97,7 +103,7 @@ struct WeiteresInhaltView: View {
             schluesselUndZugaengeSection
             weitereInformationenSection
         }
-        .padding(.horizontal)
+        .appPagePadding()
     }
 
     private var allgemeineNotizenSection: some View {
@@ -471,8 +477,8 @@ struct KreisKachel: View {
                     .frame(width: 120, height: 120)
 
                 Image(systemName: icon)
-                    .font(.system(size: 34))
-                    .foregroundStyle(.black)
+                    .font(.largeTitle)
+                    .foregroundStyle(Color.appPrimaryText)
             }
 
             Text(titel)

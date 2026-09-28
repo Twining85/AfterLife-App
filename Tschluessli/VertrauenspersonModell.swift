@@ -45,6 +45,7 @@ final class VertrauenspersonModell {
     var abosUndProfileSichtbarBeiDossierfreigabe: Bool = false
     var herzensstueckeSichtbarBeiDossierfreigabe: Bool = true
     var gesundheitSichtbarBeiDossierfreigabe: Bool = true
+    var zugriffsHistorieJSON: String = "[]"
 
     @Relationship(deleteRule: .cascade)
     var einladungsHistorie: [VertrauenspersonEinladungsHistorieModell]
@@ -78,6 +79,7 @@ final class VertrauenspersonModell {
         abosUndProfileSichtbarBeiDossierfreigabe: Bool = false,
         herzensstueckeSichtbarBeiDossierfreigabe: Bool = true,
         gesundheitSichtbarBeiDossierfreigabe: Bool = true,
+        zugriffsHistorieJSON: String = "[]",
         einladungsHistorie: [VertrauenspersonEinladungsHistorieModell] = [],
         erstelltAm: Date = Date(),
         geaendertAm: Date = Date()
@@ -107,6 +109,7 @@ final class VertrauenspersonModell {
         self.abosUndProfileSichtbarBeiDossierfreigabe = abosUndProfileSichtbarBeiDossierfreigabe
         self.herzensstueckeSichtbarBeiDossierfreigabe = herzensstueckeSichtbarBeiDossierfreigabe
         self.gesundheitSichtbarBeiDossierfreigabe = gesundheitSichtbarBeiDossierfreigabe
+        self.zugriffsHistorieJSON = zugriffsHistorieJSON
         self.einladungsHistorie = einladungsHistorie
         self.erstelltAm = erstelltAm
         self.geaendertAm = geaendertAm

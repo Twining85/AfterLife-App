@@ -18,6 +18,7 @@ private struct ProfilSafariView: UIViewControllerRepresentable {
 
 
 struct ProfilView: View {
+    @Environment(\.appLayout) private var appLayout
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dismiss) private var dismiss
     var dossierKontext: DossierKontext = .eigenesDossier(dossierID: UUID())
@@ -38,15 +39,18 @@ struct ProfilView: View {
     @Query(sort: \HerzensstueckModell.erstelltAm) private var gespeicherteHerzensstuecke: [HerzensstueckModell]
     @Query private var gespeicherteAboModelle: [AboModell]
     @Query private var gespeicherteAboEintraege: [AboEintrag]
+    @Query private var gespeicherteDigitaleKonten: [DigitalekontenModell]
+    @Query private var gespeicherteWeiteresDaten: [WeiteresModell]
     @Query private var gespeicherteVertrauenspersonen: [VertrauenspersonModell]
     @Query private var gespeicherteEinladungsHistorien: [VertrauenspersonEinladungsHistorieModell]
     @Query private var gespeicherteDossiers: [DossierModell]
     @Query private var gespeicherteDossierZugriffe: [DossierZugriffModell]
     @Query private var syncKonflikte: [SyncKonflikt]
+    @Query private var syncAuftraege: [SyncAuftrag]
 
-    private let profilKartenFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
-    private let profilAkzentFarbe = Color(red: 0.16, green: 0.36, blue: 0.42)
-    private let profilHintergrundFarbe = Color(red: 0.985, green: 0.98, blue: 0.965)
+    private let profilKartenFarbe = Color.appCard
+    private let profilAkzentFarbe = Color.appAccent
+    private let profilHintergrundFarbe = Color.appCanvas
 
     @AppStorage("gespeicherteEmail") private var gespeicherteEmail = ""
     @AppStorage("registrierungsArt") private var registrierungsArt = "E-Mail"
@@ -62,8 +66,12 @@ struct ProfilView: View {
     @AppStorage("dossierLetzterExportAmISO") private var dossierLetzterExportAmISO = ""
     @AppStorage("profilWurdeGeradeGeloescht") private var profilWurdeGeradeGeloescht = false
     @AppStorage("wurdeGeradeAusgeloggt") private var wurdeGeradeAusgeloggt = false
+    @AppStorage("neuregistrierungErzwungen") private var neuregistrierungErzwungen = false
     @AppStorage("mitteilungenNachVollstaendigemNamenAngefragt")
     private var mitteilungenNachVollstaendigemNamenAngefragt = false
+    @AppStorage("dossierErstellungsart") private var dossierErstellungsartRawValue = ""
+    @AppStorage("uebersprungeneDossierSchritte") private var uebersprungeneDossierSchritte = ""
+    @AppStorage("appErscheinungsbild") private var appErscheinungsbildRawValue = AppErscheinungsbild.system.rawValue
 
     @State private var vorname = ""
 
@@ -126,11 +134,8 @@ struct ProfilView: View {
     @State private var biometriePruefungLaeuft = false
     @State private var biometrieFehlermeldung = ""
     @State private var dossierRecoveryAnzeigen = false
-    @State private var dossierResetAnzeigen = false
     @State private var passwortAendernAnzeigen = false
     @State private var syncKonflikteAnzeigen = false
-    @State private var vertrauenspersonHinterlegenAnzeigen = false
-    @State private var einladungQRCodeAnnehmenAnzeigen = false
     @State private var vertrauenspersonEntscheidungsFehler = ""
 
     private var vertrauenspersonEntscheidungsFehlerAnzeigen: Binding<Bool> {
@@ -152,6 +157,17 @@ struct ProfilView: View {
 
         return email.range(of: emailRegex, options: .regularExpression) != nil
 
+    }
+
+    private var dossierErstellungsartBeschreibung: String {
+        switch DossierErstellungsart(rawValue: dossierErstellungsartRawValue) {
+        case .gefuehrt:
+            "Du erhältst auf der Startseite Empfehlungen für den nächsten sinnvollen Schritt."
+        case .selbstaendig:
+            "Du entscheidest selbst, welche Bereiche du wann bearbeitest."
+        case nil:
+            "Wähle, ob du Empfehlungen erhalten oder dein Dossier selbständig bearbeiten möchtest."
+        }
     }
 
     private func gehoertZumExportDossier(_ dossierID: UUID?) -> Bool {
@@ -215,7 +231,7 @@ struct ProfilView: View {
                 istGefuellt: !exportWuensche.isEmpty
             ),
             DossierExportBereich(
-                titel: "Menschen meines Vertrauens",
+                titel: "Wichtige Menschen",
                 detail: "Kontakte, Rollen und Informationshinweise",
                 status: lokalHinterlegteVertrauenspersonen.isEmpty
                     ? "Noch keine Vertrauensperson"
@@ -337,7 +353,7 @@ struct ProfilView: View {
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .stroke(Color.white.opacity(0.75), lineWidth: 1)
+                            .stroke(Color.appBorder, lineWidth: 1)
                     )
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                     .listRowBackground(Color.clear)
@@ -362,12 +378,9 @@ struct ProfilView: View {
                         .textContentType(.streetAddressLine2)
                         .disabled(dossierKontext.istReadOnly)
 
-                    HStack {
-                        TextField("PLZ", text: $plz)
-                            .keyboardType(.numberPad)
-                            .disabled(dossierKontext.istReadOnly)
-                        TextField("Stadt", text: $stadt)
-                            .disabled(dossierKontext.istReadOnly)
+                    ViewThatFits(in: .horizontal) {
+                        HStack { postleitzahlFeld; stadtFeld }
+                        VStack(alignment: .leading) { postleitzahlFeld; stadtFeld }
                     }
 
                     Picker("Land", selection: $land) {
@@ -435,68 +448,81 @@ struct ProfilView: View {
                                     ahvNummer = formatiert
                                 }
                             }
+                            .contextMenu {
+                                Button {
+                                    ahvNummerAusZwischenablageEinsetzen()
+                                } label: {
+                                    Label("Einfügen", systemImage: "doc.on.clipboard")
+                                }
+                            }
                     }
                     .padding(.vertical, 4)
                 }
                 .listRowBackground(profilKartenFarbe)
                 .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
 
-                Section {
-                    dossierExportKarte
-                        .listRowInsets(EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10))
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                }
+                Section("App-Einstellungen") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Erscheinungsbild")
+                            .font(.subheadline.weight(.semibold))
 
-                if dossierKontext.kannBearbeiten {
-                    Section("Vertrauensperson") {
-                        Button {
-                            vertrauenspersonHinterlegenAnzeigen = true
-                        } label: {
-                            Label(
-                                lokalHinterlegteVertrauenspersonen.isEmpty
-                                    ? "Vertrauensperson hinterlegen"
-                                    : "Vertrauensperson verwalten",
-                                systemImage: lokalHinterlegteVertrauenspersonen.isEmpty
-                                    ? "person.badge.plus"
-                                    : "person.crop.circle.badge.checkmark"
-                            )
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-
-                        Button {
-                            NotificationService.shared.berechtigungAnfragen { _ in
-                                einladungQRCodeAnnehmenAnzeigen = true
+                        Picker("Erscheinungsbild", selection: $appErscheinungsbildRawValue) {
+                            ForEach(AppErscheinungsbild.allCases) { erscheinungsbild in
+                                Text(erscheinungsbild.titel).tag(erscheinungsbild.rawValue)
                             }
-                        } label: {
-                            Label("QR-Code als Vertrauensperson scannen", systemImage: "qrcode.viewfinder")
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .tint(profilAkzentFarbe)
+                    }
 
-                        ForEach(ausstehendeVertrauenspersonAnfragen) { zugriff in
-                            VStack(alignment: .leading, spacing: 10) {
-                                Text("Die Vertrauensperson möchte die Einladung annehmen")
-                                    .font(.headline)
-                                Text(zugriff.registrierungsEmail ?? zugriff.eingeladeneEmail)
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                                HStack {
-                                    Button("Bestätigen") { bestaetigeVertrauensperson(zugriff) }
-                                        .buttonStyle(.borderedProminent)
-                                    Button("Ablehnen", role: .destructive) { lehneVertrauenspersonAb(zugriff) }
-                                        .buttonStyle(.bordered)
+                    Text("Mit „Systemeinstellungen“ folgt Tschlüssli automatisch dem Erscheinungsbild deines iPhones.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    if dossierKontext.kannBearbeiten {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Art der Dossier-Erstellung")
+                                .font(.subheadline.weight(.semibold))
+
+                            Picker(
+                                "Art der Dossier-Erstellung",
+                                selection: Binding(
+                                    get: { dossierErstellungsartRawValue },
+                                    set: { neuerWert in
+                                        dossierErstellungsartRawValue = neuerWert
+                                        DossierEinstellungenStore.markiereGeaendert()
+                                    }
+                                )
+                            ) {
+                                ForEach(DossierErstellungsart.allCases) { art in
+                                    Text(art.titel).tag(art.rawValue)
                                 }
                             }
-                            .padding(.vertical, 6)
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                            .tint(profilAkzentFarbe)
+                        }
+
+                        Text(dossierErstellungsartBeschreibung)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+
+                        if dossierErstellungsartRawValue == DossierErstellungsart.gefuehrt.rawValue,
+                           !uebersprungeneDossierSchritte.isEmpty {
+                            Button {
+                                uebersprungeneDossierSchritte = ""
+                                DossierEinstellungenStore.markiereGeaendert()
+                            } label: {
+                                Label("Übersprungene Empfehlungen erneut anzeigen", systemImage: "arrow.counterclockwise")
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .buttonStyle(.borderless)
                         }
                     }
-                    .listRowBackground(profilKartenFarbe)
-                    .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
                 }
+                .listRowBackground(profilKartenFarbe)
+                .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
 
                 if dossierKontext.kannBearbeiten {
                     Section("Zugangsdaten") {
@@ -535,7 +561,6 @@ struct ProfilView: View {
                                 Label("Synchronisationskonflikte (\(syncKonflikte.count))", systemImage: "exclamationmark.arrow.triangle.2.circlepath")
                             }
                         }
-                        Divider()
                         Toggle("Biometrische Anmeldung verwenden", isOn: Binding(
                             get: {
                                 biometrieAktiviert
@@ -576,14 +601,6 @@ struct ProfilView: View {
                 }
                 if dossierKontext.kannBearbeiten {
                     Section {
-#if DEBUG
-                        Button(role: .destructive) {
-                            dossierResetAnzeigen = true
-                        } label: {
-                            Label("DEV-Testdaten zurücksetzen", systemImage: "arrow.counterclockwise.circle")
-                        }
-                        .buttonStyle(.borderless)
-#endif
                         Button {
                             abmelden()
                         } label: {
@@ -623,17 +640,18 @@ struct ProfilView: View {
                 .listRowBackground(profilKartenFarbe)
                 .listRowSeparatorTint(profilAkzentFarbe.opacity(0.18))
 
+                Section("Export") {
+                    dossierExportKarte
+                        .listRowInsets(EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                }
+
             }
             .scrollContentBackground(.hidden)
             .background(profilHintergrundFarbe.ignoresSafeArea())
             .tint(profilAkzentFarbe)
             .navigationTitle("Mein Profil")
-            .navigationDestination(isPresented: $vertrauenspersonHinterlegenAnzeigen) {
-                VertrauenspersonView()
-            }
-            .navigationDestination(isPresented: $einladungQRCodeAnnehmenAnzeigen) {
-                EinladungQRCodeAnnehmenView()
-            }
             .alert("Profil wirklich löschen?", isPresented: $profilLoeschenBestaetigen) {
 
                 Button("Abbrechen", role: .cancel) { }
@@ -685,14 +703,6 @@ struct ProfilView: View {
             .sheet(isPresented: $syncKonflikteAnzeigen) {
                 SyncKonfliktView()
             }
-#if DEBUG
-            .sheet(isPresented: $dossierResetAnzeigen) {
-                DossierNotfallResetView(email: gespeicherteEmail) { neueDossierID in
-                    lokalesDossierNachResetNeuAnlegen(neueDossierID)
-                }
-            }
-#endif
-
             .onAppear {
                 ladeOderErstelleProfil()
                 verarbeiteGespeichertenVertrauenspersonPush()
@@ -841,18 +851,20 @@ struct ProfilView: View {
 
     @ViewBuilder
     private var profilbildAnsicht: some View {
+        let bildgroesse: CGFloat = appLayout.isCompact ? 82 : 90
+
         if let angezeigteProfilbildDaten,
            let uiImage = UIImage(data: angezeigteProfilbildDaten) {
             Image(uiImage: uiImage)
                 .resizable()
                 .scaledToFill()
-                .frame(width: 90, height: 90)
+                .frame(width: bildgroesse, height: bildgroesse)
                 .clipShape(Circle())
         } else {
             Image(systemName: "person.crop.circle.fill")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 90, height: 90)
+                .frame(width: bildgroesse, height: bildgroesse)
                 .foregroundStyle(profilAkzentFarbe.opacity(0.65))
         }
     }
@@ -866,6 +878,17 @@ struct ProfilView: View {
         case name
         case adresse
         case hausnummer
+    }
+
+    private var postleitzahlFeld: some View {
+        TextField("PLZ", text: $plz)
+            .keyboardType(.numberPad)
+            .disabled(dossierKontext.istReadOnly)
+    }
+
+    private var stadtFeld: some View {
+        TextField("Stadt", text: $stadt)
+            .disabled(dossierKontext.istReadOnly)
     }
 
     private func formatiereGeburtsdatum(_ datum: Date) -> String {
@@ -890,6 +913,14 @@ struct ProfilView: View {
         }
 
         return formatiert
+    }
+
+    private func ahvNummerAusZwischenablageEinsetzen() {
+        guard let text = UIPasteboard.general.string else { return }
+        let ziffern = String(text.filter(\.isNumber).prefix(13))
+        guard !ziffern.isEmpty else { return }
+
+        ahvNummer = formatiereAHVNummer(ziffern)
     }
 
     private func datumAusGeburtsdatumText(_ text: String) -> Date? {
@@ -1154,6 +1185,7 @@ struct ProfilView: View {
 
         if hatEintraegeEntfernt {
             try? modelContext.save()
+            VorsorgeBereichStatusStore.markiereBearbeitet(.abos)
         }
     }
 
@@ -1194,6 +1226,11 @@ struct ProfilView: View {
         profil.registrierungsEmail = gespeicherteEmail
         profil.profilbildDaten = profilbildData
         profil.biometrieAktiviert = biometrieAktiviert
+        profil.aktualisiertAm = Date()
+        if let dossierID = profil.dossierID,
+           let dossier = gespeicherteDossiers.first(where: { $0.dossierID == dossierID }) {
+            dossier.titelAktualisieren(vorname: vorname, nachname: name)
+        }
         try? modelContext.save()
         VorsorgeBereichStatusStore.markiereBearbeitet(.profil)
     }
@@ -1222,6 +1259,14 @@ struct ProfilView: View {
                 + [gespeicherteEmail.trimmingCharacters(in: .whitespacesAndNewlines)]
                     .filter { !$0.isEmpty }
         )
+        let lokaleFinanzdateien = Set(
+            gespeicherteBankkonten.map(\.dokumentPfad)
+                + gespeicherteSchulden.map(\.dokumentPfad)
+                + gespeicherteVersicherungen.map(\.dokumentPfad)
+                + gespeicherteLiegenschaften.map(\.dokumentPfad)
+                + gespeicherteWertsachen.map(\.dokumentPfad)
+                + gespeicherteSteuerdokumente.map(\.dokumentPfad)
+        ).filter { !$0.isEmpty }
 
         vorname = ""
 
@@ -1248,12 +1293,17 @@ struct ProfilView: View {
         geburtsdatumText = ""
 
         gespeicherteDossierZugriffe.forEach { modelContext.delete($0) }
+        syncAuftraege.forEach { modelContext.delete($0) }
+        syncKonflikte.forEach { modelContext.delete($0) }
         gespeicherteEinladungsHistorien.forEach { modelContext.delete($0) }
         gespeicherteVertrauenspersonen.forEach { modelContext.delete($0) }
         gespeicherteWeitereDokumente.forEach { modelContext.delete($0) }
         gespeicherteFotos.forEach { modelContext.delete($0) }
+        gespeicherteHerzensstuecke.forEach { modelContext.delete($0) }
+        gespeicherteDigitaleKonten.forEach { modelContext.delete($0) }
         gespeicherteAboEintraege.forEach { modelContext.delete($0) }
         gespeicherteAboModelle.forEach { modelContext.delete($0) }
+        gespeicherteWeiteresDaten.forEach { modelContext.delete($0) }
         gespeicherteSteuerdokumente.forEach { modelContext.delete($0) }
         gespeicherteWertsachen.forEach { modelContext.delete($0) }
         gespeicherteLiegenschaften.forEach { modelContext.delete($0) }
@@ -1266,7 +1316,17 @@ struct ProfilView: View {
         gespeicherteDossiers.forEach { modelContext.delete($0) }
         gespeicherteProfile.forEach { modelContext.delete($0) }
 
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            profilLoeschenFehlermeldung =
+                "Das Cloud-Konto wurde gelöscht, die lokalen Profildaten konnten aber nicht vollständig entfernt werden. Bitte versuche die lokale Bereinigung erneut. (\(error.localizedDescription))"
+            return
+        }
+
+        lokaleFinanzdateien.forEach { pfad in
+            try? FileManager.default.removeItem(at: URL(fileURLWithPath: pfad))
+        }
 
         keychainKonten.forEach { konto in
             try? KeychainHelper.shared.delete(service: "Tschluessli.Login", account: konto)
@@ -1274,6 +1334,10 @@ struct ProfilView: View {
         await CloudKontoService.shared.alleLokalenKontoschluesselLoeschen()
 
         NotificationService.shared.jaehrlicheDossierPruefungEntfernen()
+
+        if let bundleID = Bundle.main.bundleIdentifier {
+            UserDefaults.standard.removePersistentDomain(forName: bundleID)
+        }
 
         gespeicherteEmail = ""
         registrierungsArt = "E-Mail"
@@ -1286,6 +1350,8 @@ struct ProfilView: View {
         dossierZuletztGeprueftAmISO = ""
         UserDefaults.standard.removeObject(forKey: "homeBereicheReihenfolge")
         UserDefaults.standard.removeObject(forKey: "homeAktiveBereiche")
+        UserDefaults.standard.removeObject(forKey: "dossierErstellungsart")
+        UserDefaults.standard.removeObject(forKey: "uebersprungeneDossierSchritte")
         UserDefaults.standard.removeObject(forKey: "dossierFloatingNavigationScrollOffset")
         UserDefaults.standard.removeObject(forKey: "eingehenderEinladungsToken")
         UserDefaults.standard.removeObject(forKey: "eingehendeEinladungsURL")
@@ -1293,6 +1359,7 @@ struct ProfilView: View {
         profilGeladen = false
         direktNachRegistrierungEingeloggt = false
         istEingeloggt = false
+        neuregistrierungErzwungen = true
         profilWurdeGeradeGeloescht = true
     }
 
@@ -1357,6 +1424,8 @@ struct ProfilView: View {
             dossierLetzterExportAmISO = ""
             UserDefaults.standard.removeObject(forKey: "homeBereicheReihenfolge")
             UserDefaults.standard.removeObject(forKey: "homeAktiveBereiche")
+            UserDefaults.standard.removeObject(forKey: "dossierErstellungsart")
+            UserDefaults.standard.removeObject(forKey: "uebersprungeneDossierSchritte")
             UserDefaults.standard.removeObject(forKey: "dossierFloatingNavigationScrollOffset")
             ladeOderErstelleProfil()
         } catch {
@@ -1375,28 +1444,28 @@ struct ProfilView: View {
 
                     Image(systemName: "doc.text.magnifyingglass")
                         .font(.system(size: 27, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.appOnAccent)
                 }
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Dein Vorsorge-Dossier")
                         .font(.title3.weight(.bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.appOnAccent)
 
                     Text("Aus deinen erfassten Angaben wird ein vollständiges Vorsorge-Dossier als PDF erstellt.")
                         .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.82))
+                        .foregroundStyle(Color.appOnAccent.opacity(0.82))
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
             HStack(spacing: 8) {
                 Image(systemName: "checkmark.seal.fill")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.appOnAccent)
 
                 Text("\(anzahlBereiteExportBereiche) von \(anzahlExportBereiche) Bereichen mit Daten bereit")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.appOnAccent)
             }
             .padding(.vertical, 8)
             .padding(.horizontal, 11)
@@ -1419,7 +1488,7 @@ struct ProfilView: View {
                     Image(systemName: "chevron.right")
                         .font(.caption.weight(.bold))
                 }
-                .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+                .foregroundStyle(Color.appPrimaryText)
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 13)
@@ -1561,7 +1630,7 @@ struct ProfilView: View {
 
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.appOnAccent)
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
@@ -1611,6 +1680,7 @@ struct ProfilView: View {
             do {
                 let url = try erstelleModularesDossierPDF()
                 dossierLetzterExportAmISO = ISO8601DateFormatter().string(from: Date())
+                DossierEinstellungenStore.markiereGeaendert()
                 dossierExportLaeuft = false
                 dossierExportSheetAnzeigen = false
                 dossierPDF = ExportiertesDossier(url: url)
@@ -1642,6 +1712,7 @@ struct ProfilView: View {
             herzensstuecke: exportHerzensstuecke,
             aboModelle: exportAboModelle,
             vertrauenspersonen: lokalHinterlegteVertrauenspersonen,
+            wunschDokumenteNachFreigabeFiltern: dossierKontext.istFreigegebenesDossier,
             options: options,
             attachments: dossierAnhaenge()
         )
@@ -1666,7 +1737,8 @@ struct ProfilView: View {
         }
 
         for wunsch in exportWuensche {
-            if let data = wunsch.testamentDateiData, !data.isEmpty {
+            if dokumentDarfExportiertWerden(wunsch.testamentFreigegebenBeiDossierfreigabe),
+               let data = wunsch.testamentDateiData, !data.isEmpty {
                 anhaenge.append(
                     DossierPDFAttachment(
                         titel: "Testament",
@@ -1679,7 +1751,8 @@ struct ProfilView: View {
                 )
             }
 
-            if let data = wunsch.patientenverfuegungDateiData, !data.isEmpty {
+            if dokumentDarfExportiertWerden(wunsch.patientenverfuegungFreigegebenBeiDossierfreigabe),
+               let data = wunsch.patientenverfuegungDateiData, !data.isEmpty {
                 anhaenge.append(
                     DossierPDFAttachment(
                         titel: "Patientenverfügung",
@@ -1692,7 +1765,8 @@ struct ProfilView: View {
                 )
             }
 
-            if let data = wunsch.vorsorgeauftragDateiData, !data.isEmpty {
+            if dokumentDarfExportiertWerden(wunsch.vorsorgeauftragFreigegebenBeiDossierfreigabe),
+               let data = wunsch.vorsorgeauftragDateiData, !data.isEmpty {
                 anhaenge.append(
                     DossierPDFAttachment(
                         titel: "Vorsorgeauftrag",
@@ -1705,7 +1779,8 @@ struct ProfilView: View {
                 )
             }
 
-            if let data = wunsch.sterbebegleitungDateiData, !data.isEmpty {
+            if dokumentDarfExportiertWerden(wunsch.sterbebegleitungFreigegebenBeiDossierfreigabe),
+               let data = wunsch.sterbebegleitungDateiData, !data.isEmpty {
                 anhaenge.append(
                     DossierPDFAttachment(
                         titel: "Sterbebegleitung",
@@ -1770,6 +1845,10 @@ struct ProfilView: View {
         }
 
         return anhaenge
+    }
+
+    private func dokumentDarfExportiertWerden(_ freigegeben: Bool) -> Bool {
+        dossierKontext.istEigenesDossier || freigegeben
     }
 
     private func fallbackDateiname(_ dateiname: String, fallback: String) -> String {

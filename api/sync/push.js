@@ -7,7 +7,7 @@ import { handleInvitationOperation } from "../_invitation-handler.js";
 
 export default async function handler(req, res) {
   secureResponse(res);
-  if (!requireMethod(req, res, "POST") || !requireJSON(req, res, 256_000)) return;
+  if (!requireMethod(req, res, "POST") || !requireJSON(req, res, 50_000_000)) return;
 
   const user = await authenticatedUser(req);
   if (!user) return res.status(401).json({ error: "Anmeldung erforderlich" });

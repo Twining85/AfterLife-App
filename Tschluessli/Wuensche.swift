@@ -3,16 +3,18 @@ import SwiftData
 import PhotosUI
 import Photos
 import UniformTypeIdentifiers
-import QuickLook
 import AVKit
 
 
 struct WuenscheView: View {
+    @Environment(\.appLayout) private var appLayout
     var dossierKontext: DossierKontext = .eigenesDossier(dossierID: UUID())
     @Environment(\.modelContext) private var modelContext
     @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
     @Query private var gespeicherteWuensche: [WuenscheModell]
     @Query private var gespeicherteHinterbliebeneKontakte: [HinterbliebeneModell]
+    @Query private var gespeicherteVertrauenspersonen: [VertrauenspersonModell]
+    @Query private var gespeicherteDossierZugriffe: [DossierZugriffModell]
     @State private var wuenscheGeladen = false
     @State private var speicherTask: Task<Void, Never>? = nil
     @State private var speicherungLaeuft = false
@@ -115,10 +117,12 @@ struct WuenscheView: View {
     @State private var dokumentImporterAnzeigen = false
     @State private var aktiverDokumentTyp: DokumentTyp?
     @State private var dokumentVorschauURL: URL?
+    @State private var dokumentFreigabeAbfrageAnzeigen = false
+    @State private var dokumentFreigabeAbfrageTyp: DokumentTyp?
 
-    private let wuenscheCardColor = Color(red: 0.96, green: 0.95, blue: 0.92)
-    private let wuenscheAccentColor = Color(red: 0.72, green: 0.42, blue: 0.28)
-    private let wuenscheBackgroundColor = Color(red: 0.985, green: 0.975, blue: 0.955)
+    private let wuenscheCardColor = Color.appCard
+    private let wuenscheAccentColor = Color.areaWishes
+    private let wuenscheBackgroundColor = Color.appCanvas
 
 
     private var kontakteSpeicherSignatur: String {
@@ -208,7 +212,7 @@ struct WuenscheView: View {
                         ausgewaehlteThemenListe
                     }
                 }
-                .padding(.horizontal, 18)
+                .appPagePadding()
                 .padding(.top, 18)
                 .padding(.bottom, 32)
             }
@@ -228,6 +232,24 @@ struct WuenscheView: View {
                 allowsMultipleSelection: false
             ) { result in
                 dokumentImportVerarbeiten(result)
+            }
+            .alert(
+                "Dokument für Vertrauensperson freigeben?",
+                isPresented: $dokumentFreigabeAbfrageAnzeigen
+            ) {
+                Button("Nicht sichtbar", role: .cancel) {
+                    dokumentFreigabeAbfrageTyp = nil
+                    speichereWuenscheVerzoegert()
+                }
+                Button("Sichtbar machen") {
+                    if let typ = dokumentFreigabeAbfrageTyp {
+                        setzeDokumentFreigabe(true, fuer: typ)
+                    }
+                    dokumentFreigabeAbfrageTyp = nil
+                    speichereWuenscheVerzoegert()
+                }
+            } message: {
+                Text("\(dokumentFreigabeAbfrageTyp?.titel ?? "Dieses Dokument") auch im freigegebenen Dossier für deine Vertrauensperson sichtbar machen?")
             }
             .sheet(isPresented: $testamentScannerAnzeigen) {
                 DocumentScanner { pdfData in
@@ -287,7 +309,7 @@ struct WuenscheView: View {
                     ShareSheet(activityItems: [dokumentExportURL])
                 }
             }
-            .quickLookPreview($dokumentVorschauURL)
+            .documentPreviewSheet(url: $dokumentVorschauURL)
             .onChange(of: nachrufBildAuswahl) { _, neueAuswahl in
                 Task {
                     if let data = try? await neueAuswahl?.loadTransferable(type: Data.self) {
@@ -355,28 +377,20 @@ struct WuenscheView: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "heart.text.square.fill")
                     .font(.title3.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.appOnAccent)
                     .frame(width: 42, height: 42)
                     .background(Circle().fill(wuenscheAccentColor))
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Meine Wünsche")
                         .font(.title2.weight(.bold))
-                        .foregroundStyle(.black)
+                        .foregroundStyle(Color.appPrimaryText)
 
                     Text("Ich habe besondere Wünsche und möchte, dass diese respektiert werden.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    if let lesemodusHinweis = dossierKontext.lesemodusHinweis {
-                        Text(lesemodusHinweis)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(wuenscheAccentColor)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 7)
-                            .background(wuenscheAccentColor.opacity(0.10), in: Capsule())
-                    }
                 }
             }
 
@@ -404,7 +418,7 @@ struct WuenscheView: View {
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(Color.white.opacity(0.68), lineWidth: 1)
+                .stroke(Color.appBorder, lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.055), radius: 14, x: 0, y: 7)
     }
@@ -506,7 +520,7 @@ struct WuenscheView: View {
             .padding(.vertical, 11)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(istAusgewaehlt ? wuenscheAccentColor : Color.white.opacity(0.82))
+                    .fill(istAusgewaehlt ? wuenscheAccentColor : Color.appField)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -701,7 +715,7 @@ struct WuenscheView: View {
             styledTextField("Bemerkungen", text: haustier.bemerkungen, axis: .vertical, lineLimit: 2...6)
         }
         .padding(12)
-        .background(Color.white.opacity(0.72))
+        .background(Color.appField)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
@@ -943,7 +957,7 @@ struct WuenscheView: View {
                     .disabled(auswaehlbareHinterbliebenenKontakte.isEmpty)
 
                     if auswaehlbareHinterbliebenenKontakte.isEmpty {
-                        Text("Erfasse zuerst eine Person unter «Menschen meines Vertrauens». Bereits gewählte Personen werden hier nicht nochmals angeboten.")
+                        Text("Erfasse zuerst eine Person unter «Wichtige Menschen». Bereits gewählte Personen werden hier nicht nochmals angeboten.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -1027,7 +1041,7 @@ struct WuenscheView: View {
                             Text("Hinzufügen")
                                 .font(.subheadline.weight(.semibold))
                         }
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.appOnAccent)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 13)
                         .background(wuenscheAccentColor, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -1049,7 +1063,7 @@ struct WuenscheView: View {
                         .foregroundStyle(wuenscheAccentColor)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(Color.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .background(Color.appField, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                         .overlay {
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
                                 .stroke(wuenscheAccentColor.opacity(0.24), lineWidth: 1)
@@ -1104,7 +1118,7 @@ struct WuenscheView: View {
                     }
                 }
                 .padding(12)
-                .background(Color.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(Color.appField, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             } else {
                 leerText("Es ist kein Dokument vorhanden.")
             }
@@ -1453,6 +1467,35 @@ struct WuenscheView: View {
         return UUID(uuidString: aktivesDossierID) ?? dossierKontext.dossierID
     }
 
+    /// Neue, private Wunschdokumente sollen bei einem bereits vollständig
+    /// freigegebenen Dossier nicht stillschweigend sichtbar werden. Die
+    /// Rückfrage ist deshalb nur nötig, wenn sowohl ein aktiver Zugriff als
+    /// auch die Freigabe aller Dossierbereiche besteht.
+    private var bestehtAktiverVollzugriff: Bool {
+        guard dossierKontext.istEigenesDossier else { return false }
+
+        let dossierID = zielDossierID
+        let hatAktivenZugriff = gespeicherteDossierZugriffe.contains { zugriff in
+            zugriff.dossierID == dossierID
+                && zugriff.istAktiv
+                && (zugriff.status == DossierZugriffStatus.angenommen
+                    || zugriff.status == DossierZugriffStatus.freigegeben)
+        }
+
+        guard hatAktivenZugriff else { return false }
+
+        return gespeicherteVertrauenspersonen.contains { person in
+            person.dossierID == dossierID
+                && person.wuenscheSichtbarBeiDossierfreigabe
+                && person.menschenDesVertrauensSichtbarBeiDossierfreigabe
+                && person.finanzenSichtbarBeiDossierfreigabe
+                && person.dokumenteSichtbarBeiDossierfreigabe
+                && person.abosUndProfileSichtbarBeiDossierfreigabe
+                && person.herzensstueckeSichtbarBeiDossierfreigabe
+                && person.gesundheitSichtbarBeiDossierfreigabe
+        }
+    }
+
     private func bindingFuerHaustier(id: UUID) -> Binding<WuenschePetEntry>? {
         guard haustiere.contains(where: { $0.id == id }) else { return nil }
 
@@ -1622,6 +1665,7 @@ struct WuenscheView: View {
 
     private func migriereBestehendeWuenscheKontaktKopien() {
         let kopien = gespeicherteHinterbliebeneKontakte.filter(istWuenscheKontaktKopie)
+        guard !kopien.isEmpty else { return }
         var masterKontakte = gespeicherteHinterbliebeneKontakte.filter { !istWuenscheKontaktKopie($0) }
 
         for kopie in kopien {
@@ -1651,6 +1695,7 @@ struct WuenscheView: View {
         }
 
         try? modelContext.save()
+        VorsorgeBereichStatusStore.markiereBearbeitet(.hinterbliebene)
     }
 
     private func istGleicherKontakt(_ gespeicherterKontakt: HinterbliebeneModell, wie kontakt: BeisetzungsKontakt) -> Bool {
@@ -1757,8 +1802,8 @@ struct WuenscheView: View {
             kontaktAnzeigeZeile(titel: "Hausnummer", wert: kontakt.wrappedValue.hausnummer)
             kontaktAnzeigeZeile(titel: "PLZ", wert: kontakt.wrappedValue.plz)
             kontaktAnzeigeZeile(titel: "Ort", wert: kontakt.wrappedValue.ort)
-            kontaktAnzeigeZeile(titel: "Telefonnummer", wert: kontakt.wrappedValue.telefon)
-            kontaktAnzeigeZeile(titel: "E-Mail", wert: kontakt.wrappedValue.email)
+            kontaktAnzeigeZeile(titel: "Telefonnummern", wert: kontakt.wrappedValue.telefon)
+            kontaktAnzeigeZeile(titel: "E-Mail-Adressen", wert: kontakt.wrappedValue.email)
 
             Picker("Im Todesfall", selection: Binding(
                 get: { kontakt.wrappedValue.einladen ? KontaktBehandlung.informierenUndEinladen : .nurInformieren },
@@ -1775,7 +1820,7 @@ struct WuenscheView: View {
                 .disabled(dossierKontext.istReadOnly)
         }
         .padding(12)
-        .background(Color.white.opacity(0.72))
+        .background(Color.appField)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
@@ -1785,13 +1830,13 @@ struct WuenscheView: View {
             HStack(spacing: 10) {
                 Image(systemName: systemImage)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.appOnAccent)
                     .frame(width: 30, height: 30)
                     .background(Circle().fill(wuenscheAccentColor))
 
                 Text(titel)
                     .font(.headline.weight(.semibold))
-                    .foregroundStyle(.black)
+                    .foregroundStyle(Color.appPrimaryText)
 
                 Spacer()
 
@@ -1820,7 +1865,7 @@ struct WuenscheView: View {
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(Color.white.opacity(0.65), lineWidth: 1)
+                .stroke(Color.appBorder, lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.045), radius: 12, x: 0, y: 6)
     }
@@ -1838,7 +1883,7 @@ struct WuenscheView: View {
                 .textFieldStyle(.plain)
                 .disabled(dossierKontext.istReadOnly)
                 .padding(12)
-                .background(Color.white.opacity(0.8))
+                .background(Color.appField)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -1849,7 +1894,7 @@ struct WuenscheView: View {
                 .textFieldStyle(.plain)
                 .disabled(dossierKontext.istReadOnly)
                 .padding(12)
-                .background(Color.white.opacity(0.8))
+                .background(Color.appField)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -1862,7 +1907,7 @@ struct WuenscheView: View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.appOnAccent)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .background(wuenscheAccentColor)
@@ -1885,7 +1930,7 @@ struct WuenscheView: View {
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(wuenscheAccentColor)
                 .frame(width: 26, height: 26)
-                .background(Circle().fill(Color.white.opacity(0.85)))
+                .background(Circle().fill(Color.appField))
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
@@ -2098,6 +2143,7 @@ struct WuenscheView: View {
         switch result {
         case .success(let urls):
             guard let url = urls.first else { return }
+            guard let dokumentTyp = aktiverDokumentTyp else { return }
 
             let hatZugriffErhalten = url.startAccessingSecurityScopedResource()
             defer {
@@ -2108,7 +2154,7 @@ struct WuenscheView: View {
 
             let dateiData = try? Data(contentsOf: url)
 
-            switch aktiverDokumentTyp {
+            switch dokumentTyp {
             case .testament:
                 testamentDateiURL = url
                 testamentDateiName = url.lastPathComponent
@@ -2133,10 +2179,8 @@ struct WuenscheView: View {
                 sterbebegleitungDateiData = dateiData
                 sterbebegleitungHochgeladenAm = Date()
                 
-            case .none:
-                break
             }
-            speichereWuenscheVerzoegert()
+            verarbeiteNeuesDokument(dokumentTyp)
         case .failure:
             break
         }
@@ -2216,7 +2260,7 @@ struct WuenscheView: View {
         pendingDokumentScanData = nil
         pendingDokumentScanDateiName = ""
         aktiverScanDokumentTyp = nil
-        speichereWuenscheVerzoegert()
+        verarbeiteNeuesDokument(typ)
     }
 
     private func speichereGescanntesTestament(sollZusätzlichSpeichern: Bool) {
@@ -2240,7 +2284,47 @@ struct WuenscheView: View {
 
         pendingTestamentScanData = nil
         pendingTestamentScanDateiName = ""
-        speichereWuenscheVerzoegert()
+        verarbeiteNeuesDokument(.testament)
+    }
+
+    private func verarbeiteNeuesDokument(_ typ: DokumentTyp) {
+        guard bestehtAktiverVollzugriff, !dokumentIstFreigegeben(typ) else {
+            speichereWuenscheVerzoegert()
+            return
+        }
+
+        dokumentFreigabeAbfrageTyp = typ
+        // Beim Scan wird unmittelbar zuvor bereits die Speichern-Abfrage
+        // geschlossen. Die kurze Verzögerung verhindert überlappende Alerts.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            dokumentFreigabeAbfrageAnzeigen = true
+        }
+    }
+
+    private func dokumentIstFreigegeben(_ typ: DokumentTyp) -> Bool {
+        switch typ {
+        case .testament:
+            return testamentFreigegebenBeiDossierfreigabe
+        case .patientenverfuegung:
+            return patientenverfuegungFreigegebenBeiDossierfreigabe
+        case .vorsorgeauftrag:
+            return vorsorgeauftragFreigegebenBeiDossierfreigabe
+        case .sterbebegleitung:
+            return sterbebegleitungFreigegebenBeiDossierfreigabe
+        }
+    }
+
+    private func setzeDokumentFreigabe(_ sichtbar: Bool, fuer typ: DokumentTyp) {
+        switch typ {
+        case .testament:
+            testamentFreigegebenBeiDossierfreigabe = sichtbar
+        case .patientenverfuegung:
+            patientenverfuegungFreigegebenBeiDossierfreigabe = sichtbar
+        case .vorsorgeauftrag:
+            vorsorgeauftragFreigegebenBeiDossierfreigabe = sichtbar
+        case .sterbebegleitung:
+            sterbebegleitungFreigegebenBeiDossierfreigabe = sichtbar
+        }
     }
 
     private func testamentDateiEntfernen() {
@@ -2356,7 +2440,7 @@ struct WuenscheChipFlowLayout: Layout {
 }
 
 struct DetailBox<Content: View>: View {
-    var accentColor: Color = Color(red: 0.72, green: 0.42, blue: 0.28)
+    var accentColor: Color = Color.areaWishes
     @ViewBuilder let content: Content
 
     var body: some View {
@@ -2457,7 +2541,7 @@ struct SwipeToDeleteRow<Content: View>: View {
 
                             Image(systemName: "trash.fill")
                                 .font(.subheadline.weight(.bold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color.appOnAccent)
                                 .frame(width: 64, height: proxy.size.height)
                         }
                         .frame(width: max(0, breite), height: proxy.size.height)
@@ -2577,7 +2661,7 @@ struct DokumentUploadBox: View {
                     }
                 }
                 .padding(12)
-                .background(Color.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(Color.appField, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             } else {
                 Text("Es ist kein Dokument vorhanden.")
                     .font(.footnote)
@@ -2598,7 +2682,7 @@ struct DokumentUploadBox: View {
                         Text("Hinzufügen")
                             .font(.subheadline.weight(.semibold))
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.appOnAccent)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)
                     .background(accentColor, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -2621,7 +2705,7 @@ struct DokumentUploadBox: View {
                         .foregroundStyle(accentColor)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(Color.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .background(Color.appField, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                         .overlay {
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
                                 .stroke(accentColor.opacity(0.24), lineWidth: 1)
@@ -2775,6 +2859,15 @@ struct DokumentUploadBox: View {
         case patientenverfuegung
         case vorsorgeauftrag
         case sterbebegleitung
+
+        var titel: String {
+            switch self {
+            case .testament: return "Testament"
+            case .patientenverfuegung: return "Patientenverfügung"
+            case .vorsorgeauftrag: return "Vorsorgeauftrag"
+            case .sterbebegleitung: return "Dokument zur Sterbebegleitung"
+            }
+        }
     }
     
     enum SchwereErkrankung: String, CaseIterable, Identifiable {

@@ -2,6 +2,7 @@ import SwiftData
 import SwiftUI
 
 struct EinladungsanfrageSendenView: View {
+    @Environment(\.appLayout) private var appLayout
     @Environment(\.modelContext) private var modelContext
     @Query private var profile: [ProfilModell]
     @Bindable var zugriff: DossierZugriffModell
@@ -11,7 +12,7 @@ struct EinladungsanfrageSendenView: View {
     @State private var meldung = ""
     @State private var fehler = false
 
-    private let akzent = Color(red: 0.16, green: 0.36, blue: 0.42)
+    private let akzent = Color.appAccent
 
     private var requesterName: String {
         let userID = UUID(uuidString: aktiveUserID)
@@ -25,19 +26,29 @@ struct EinladungsanfrageSendenView: View {
 
     private var kannAnfragen: Bool {
         zugriff.status == DossierZugriffStatus.erstellt ||
-            zugriff.status == DossierZugriffStatus.abgelehnt
+            zugriff.status == DossierZugriffStatus.abgelehnt ||
+            (zugriff.status == DossierZugriffStatus.angenommen && hatGesperrteBereiche)
+    }
+
+    private var hatGesperrteBereiche: Bool {
+        let suffix = zugriff.dossierID.uuidString.lowercased()
+        let defaults = UserDefaults.standard
+        let verfuegbar = Set((defaults.string(forKey: "verfuegbareBereiche.\(suffix)") ?? "").split(separator: ",").map(String.init))
+        let freigegeben = Set((defaults.string(forKey: "freigegebeneBereiche.\(suffix)") ?? "").split(separator: ",").map(String.init))
+        return !verfuegbar.isEmpty && !verfuegbar.isSubset(of: freigegeben)
     }
 
     var body: some View {
-        VStack(spacing: 22) {
+        ScrollView {
+            VStack(spacing: appLayout.sectionSpacing) {
             Image(systemName: "lock.shield.fill")
-                .font(.system(size: 58, weight: .semibold))
+                .font(.largeTitle.weight(.semibold))
                 .foregroundStyle(akzent)
 
-            Text("Vorsorge-Dossier gesperrt")
+            Text("Zugriff für gesperrte Bereiche anfragen")
                 .font(.title2.bold())
 
-            Text("Der Zugang wurde erkannt, aber es wurden noch keine Daten geladen. Fordere die Erlaubnis erst an, wenn du das Dossier aus der Cloud laden möchtest.")
+            Text("Die bereits freigegebenen Bereiche kannst du weiterhin ansehen. Sende diese Anfrage nur, wenn du auch Zugriff auf die bisher verborgenen Bereiche benötigst.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
 
@@ -49,9 +60,9 @@ struct EinladungsanfrageSendenView: View {
                 sendeAnfrage()
             } label: {
                 Label(
-                    zugriff.status == DossierZugriffStatus.abgelehnt
-                        ? "Datenzugriff erneut anfragen"
-                        : "Datenzugriff anfragen",
+                    zugriff.status == DossierZugriffStatus.abgelehnt || zugriff.status == DossierZugriffStatus.angenommen
+                        ? "Zugriff für gesperrte Bereiche erneut anfragen"
+                        : "Zugriff auf alle gesperrten Bereiche anfragen",
                     systemImage: "icloud.and.arrow.down"
                 )
                     .font(.headline)
@@ -76,9 +87,11 @@ struct EinladungsanfrageSendenView: View {
                     .background((fehler ? Color.red : akzent).opacity(0.09), in: RoundedRectangle(cornerRadius: 16))
             }
 
-            Spacer()
+                Spacer(minLength: appLayout.sectionSpacing)
+            }
+            .appPagePadding()
+            .padding(.vertical, appLayout.sectionSpacing)
         }
-        .padding(24)
         .navigationTitle("Einladung")
         .navigationBarTitleDisplayMode(.inline)
     }

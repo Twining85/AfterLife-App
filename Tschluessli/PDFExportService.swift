@@ -45,6 +45,7 @@ struct PDFExportService {
         herzensstuecke: [HerzensstueckModell] = [],
         aboModelle: [AboModell] = [],
         vertrauenspersonen: [VertrauenspersonModell] = [],
+        wunschDokumenteNachFreigabeFiltern: Bool = false,
         options: DossierPDFExportOptions = .standard,
         attachments: [DossierPDFAttachment] = [],
         fileName: String? = nil
@@ -63,6 +64,7 @@ struct PDFExportService {
             herzensstuecke: herzensstuecke,
             aboModelle: aboModelle,
             vertrauenspersonen: vertrauenspersonen,
+            wunschDokumenteNachFreigabeFiltern: wunschDokumenteNachFreigabeFiltern,
             options: options,
             attachments: attachments
         )

@@ -112,7 +112,7 @@ struct DossierNotfallResetView: View {
                         .font(.title3.monospacedDigit().weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .frame(height: 52)
-                        .background(Color.white.opacity(0.9))
+                        .background(Color.appField)
                         .overlay(
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
                                 .stroke(

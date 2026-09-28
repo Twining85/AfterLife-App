@@ -12,6 +12,11 @@ enum DossierBereichImport {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         switch bereich {
+        case "dossier_einstellungen":
+            DossierEinstellungenStore.importiere(
+                try decoder.decode(CloudDossierEinstellungenDaten.self, from: daten),
+                fuer: dossierID
+            )
         case "profil":
             try importiereProfil(decoder.decode(CloudDatenListe<CloudProfilDaten>.self, from: daten), dossierID, context)
         case "gesundheit":
@@ -20,6 +25,8 @@ enum DossierBereichImport {
             try importiereWuensche(decoder.decode(CloudDatenListe<CloudWuenscheDaten>.self, from: daten), dossierID, context)
         case "finanzen":
             try importiereFinanzen(decoder.decode(CloudFinanzenDaten.self, from: daten), dossierID, context)
+        case "dokumente":
+            try importiereDokumente(decoder.decode(CloudDokumenteDaten.self, from: daten), dossierID, context)
         case "kontakte":
             try importiereKontakte(decoder.decode(CloudKontaktDaten.self, from: daten), dossierID, context)
         case "herzensstuecke":
@@ -42,11 +49,15 @@ enum DossierBereichImport {
         in context: ModelContext
     ) throws {
         switch bereich {
+        case "dossier_einstellungen": DossierEinstellungenStore.loesche(fuer: dossierID)
         case "profil": try loesche(ProfilModell.self, dossierID, context) { $0.dossierID }
         case "gesundheit": try loesche(GesundheitModell.self, dossierID, context) { $0.dossierID }
         case "wuensche": try loesche(WuenscheModell.self, dossierID, context) { $0.dossierID }
         case "finanzen":
             try loescheFinanzen(dossierID, context)
+        case "dokumente":
+            try loesche(DokumenteModell.self, dossierID, context) { $0.dossierID }
+            try loesche(FotoalbumBildModell.self, dossierID, context) { $0.dossierID }
         case "kontakte":
             try loesche(HinterbliebeneModell.self, dossierID, context) { $0.dossierID }
             try loesche(VertrauenspersonModell.self, dossierID, context) { $0.dossierID }
@@ -56,6 +67,14 @@ enum DossierBereichImport {
             try loesche(DigitalekontenModell.self, dossierID, context) { $0.dossierID }
         default: throw DossierBereichAdapterFehler.unbekannterBereich(bereich)
         }
+    }
+
+    static func importiereZugangsDaten(
+        _ daten: CloudZugangsDaten,
+        dossierID: UUID,
+        in context: ModelContext
+    ) throws {
+        try importiereZugaenge(daten, dossierID, context)
     }
 
     private static func importiereProfil(
@@ -145,22 +164,28 @@ enum DossierBereichImport {
         m.zeremonieFinanziellAbgesichert = w.zeremonieFinanziellAbgesichert
         m.moechteNochEtwasSagen = w.moechteNochEtwasSagen; m.letzteBotschaft = w.letzteBotschaft
         m.letzteBotschaftVideoName = w.letzteBotschaftVideoName; m.nachrufGewuenscht = w.nachrufGewuenscht
+        m.letzteBotschaftVideoData = w.letzteBotschaftVideo.flatMap { Data(base64Encoded: $0) }
         m.nachrufText = w.nachrufText; m.nachrufBildDateiName = w.nachrufBildDateiName
+        m.nachrufBildData = w.nachrufBild.flatMap { Data(base64Encoded: $0) }
         m.testamentVorhanden = w.testamentVorhanden; m.testamentAblageort = w.testamentAblageort
         m.testamentDateiName = w.testamentDateiName; m.testamentHochgeladenAm = w.testamentHochgeladenAm
+        m.testamentDateiData = w.testamentDatei.flatMap { Data(base64Encoded: $0) }
         m.testamentFreigegebenBeiDossierfreigabe = w.testamentFreigegebenBeiDossierfreigabe ?? false
         m.testamentErinnerungAktiv = w.testamentErinnerungAktiv; m.testamentErinnerungAm = w.testamentErinnerungAm
         m.patientenverfuegungVorhanden = w.patientenverfuegungVorhanden
         m.patientenverfuegungDateiName = w.patientenverfuegungDateiName
+        m.patientenverfuegungDateiData = w.patientenverfuegungDatei.flatMap { Data(base64Encoded: $0) }
         m.patientenverfuegungHochgeladenAm = w.patientenverfuegungHochgeladenAm
         m.patientenverfuegungFreigegebenBeiDossierfreigabe = w.patientenverfuegungFreigegebenBeiDossierfreigabe ?? true
         m.patientenverfuegungErinnerungAktiv = w.patientenverfuegungErinnerungAktiv
         m.patientenverfuegungErinnerungAm = w.patientenverfuegungErinnerungAm
         m.vorsorgeauftragVorhanden = w.vorsorgeauftragVorhanden; m.vorsorgeauftragDateiName = w.vorsorgeauftragDateiName
+        m.vorsorgeauftragDateiData = w.vorsorgeauftragDatei.flatMap { Data(base64Encoded: $0) }
         m.vorsorgeauftragHochgeladenAm = w.vorsorgeauftragHochgeladenAm
         m.vorsorgeauftragFreigegebenBeiDossierfreigabe = w.vorsorgeauftragFreigegebenBeiDossierfreigabe ?? true
         m.vorsorgeauftragErinnerungAktiv = w.vorsorgeauftragErinnerungAktiv; m.vorsorgeauftragErinnerungAm = w.vorsorgeauftragErinnerungAm
         m.sterbebegleitungGewuenscht = w.sterbebegleitungGewuenscht; m.sterbebegleitungDateiName = w.sterbebegleitungDateiName
+        m.sterbebegleitungDateiData = w.sterbebegleitungDatei.flatMap { Data(base64Encoded: $0) }
         m.sterbebegleitungHochgeladenAm = w.sterbebegleitungHochgeladenAm
         m.sterbebegleitungFreigegebenBeiDossierfreigabe = w.sterbebegleitungFreigegebenBeiDossierfreigabe ?? true
         m.sterbebegleitungErinnerungAktiv = w.sterbebegleitungErinnerungAktiv; m.sterbebegleitungErinnerungAm = w.sterbebegleitungErinnerungAm
@@ -182,7 +207,20 @@ enum DossierBereichImport {
         for w in c.versicherungen { context.insert(VersicherungModell(eintragsID:w.id,dossierID:id,art:w.art,anbieter:w.anbieter,policenNummer:w.policenNummer,praemie:w.praemie,waehrung:w.waehrung,bemerkungen:w.bemerkungen,dokumentDateiName:w.dokumentDateiName,dokumentPfad:alteVersicherungen[w.id] ?? "",erstelltAm:w.erstelltAm,aktualisiertAm:w.aktualisiertAm)) }
         for w in c.liegenschaften { context.insert(LiegenschaftModell(eintragsID:w.id,dossierID:id,art:w.art,adresse:w.adresse,plz:w.plz,stadt:w.stadt,land:w.land,verkehrswert:w.verkehrswert,eigenmietwert:w.eigenmietwert,eigenmietwertWaehrung:w.eigenmietwertWaehrung,waehrung:w.waehrung,bemerkungen:w.bemerkungen,dokumentDateiName:w.dokumentDateiName,dokumentPfad:alteLiegenschaften[w.id] ?? "",erstelltAm:w.erstelltAm,aktualisiertAm:w.aktualisiertAm)) }
         for w in c.wertsachen { context.insert(WertsacheModell(eintragsID:w.id,dossierID:id,art:w.art,beschreibung:w.beschreibung,betrag:w.betrag,waehrung:w.waehrung,aufbewahrungsort:w.aufbewahrungsort,bemerkungen:w.bemerkungen,dokumentDateiName:w.dokumentDateiName,dokumentPfad:alteWertsachen[w.id] ?? "",erstelltAm:w.erstelltAm,aktualisiertAm:w.aktualisiertAm)) }
-        for w in c.steuerdokumente { context.insert(SteuerdokumentModell(eintragsID:w.id,dossierID:id,titel:w.titel,jahr:w.jahr,dateiName:w.dateiName,dateiDaten:alteSteuern[w.id]?.0,dokumentPfad:alteSteuern[w.id]?.1 ?? "",hochgeladenAm:w.hochgeladenAm,bemerkungen:w.bemerkungen)) }
+        for w in c.steuerdokumente { context.insert(SteuerdokumentModell(eintragsID:w.id,dossierID:id,titel:w.titel,jahr:w.jahr,dateiName:w.dateiName,dateiDaten:w.dateiDaten.flatMap { Data(base64Encoded:$0) } ?? alteSteuern[w.id]?.0,dokumentPfad:alteSteuern[w.id]?.1 ?? "",hochgeladenAm:w.hochgeladenAm,bemerkungen:w.bemerkungen)) }
+    }
+
+    private static func importiereDokumente(_ c: CloudDokumenteDaten, _ id: UUID, _ context: ModelContext) throws {
+        try loesche(DokumenteModell.self, id, context) { $0.dossierID }
+        try loesche(FotoalbumBildModell.self, id, context) { $0.dossierID }
+        for w in c.dokumente {
+            guard let daten = Data(base64Encoded: w.dateiDaten) else { throw DossierBereichAdapterFehler.ungueltigerPayload }
+            context.insert(DokumenteModell(id:w.id,dossierID:id,dateiName:w.dateiName,kategorie:w.kategorie,hochgeladenAm:w.hochgeladenAm,dateiDaten:daten))
+        }
+        for w in c.fotos {
+            guard let daten = Data(base64Encoded: w.bildDaten) else { throw DossierBereichAdapterFehler.ungueltigerPayload }
+            context.insert(FotoalbumBildModell(id:w.id,dossierID:id,dateiName:w.dateiName,hinzugefuegtAm:w.hinzugefuegtAm,bildDaten:daten,reihenfolge:w.reihenfolge))
+        }
     }
 
     private static func importiereKontakte(_ c: CloudKontaktDaten, _ id: UUID, _ context: ModelContext) throws {
@@ -193,7 +231,7 @@ enum DossierBereichImport {
         for w in c.vertrauenspersonen {
             let historie = w.historie.map { VertrauenspersonEinladungsHistorieModell(datum:$0.datum,beschreibung:$0.beschreibung) }
             let alt = alteVertrauenspersonen.first { $0.personenID == w.personenID || (!$0.email.isEmpty && $0.email.caseInsensitiveCompare(w.email) == .orderedSame) }
-            context.insert(VertrauenspersonModell(personenID:w.personenID,vorname:w.vorname,name:w.name,email:w.email,telefon:w.telefon,beziehung:w.beziehung,einladungsStatus:w.einladungsStatus,vorsorgeprozessStatus:w.vorsorgeprozessStatus,einladungsToken:alt?.einladungsToken,einladungsEmail:w.einladungsEmail,einladungsLinkErstelltAm:w.einladungsLinkErstelltAm,dossierID:id,vorsorgendeUserID:w.vorsorgendeUserID,vertrauenspersonUserID:w.vertrauenspersonUserID,einladungAngenommenAm:w.einladungAngenommenAm,einladungAbgelehntAm:w.einladungAbgelehntAm,istPrimaereVertrauensperson:w.istPrimaereVertrauensperson,reihenfolge:w.reihenfolge,wuenscheSichtbarBeiDossierfreigabe:w.wuenscheSichtbarBeiDossierfreigabe ?? true,menschenDesVertrauensSichtbarBeiDossierfreigabe:w.menschenDesVertrauensSichtbarBeiDossierfreigabe ?? true,finanzenSichtbarBeiDossierfreigabe:w.finanzenSichtbarBeiDossierfreigabe ?? false,dokumenteSichtbarBeiDossierfreigabe:w.dokumenteSichtbarBeiDossierfreigabe ?? false,abosUndProfileSichtbarBeiDossierfreigabe:w.abosUndProfileSichtbarBeiDossierfreigabe ?? false,herzensstueckeSichtbarBeiDossierfreigabe:w.herzensstueckeSichtbarBeiDossierfreigabe ?? true,gesundheitSichtbarBeiDossierfreigabe:w.gesundheitSichtbarBeiDossierfreigabe ?? true,einladungsHistorie:historie,erstelltAm:w.erstelltAm,geaendertAm:w.geaendertAm))
+            context.insert(VertrauenspersonModell(personenID:w.personenID,vorname:w.vorname,name:w.name,email:w.email,telefon:w.telefon,beziehung:w.beziehung,einladungsStatus:w.einladungsStatus,vorsorgeprozessStatus:w.vorsorgeprozessStatus,einladungsToken:alt?.einladungsToken,einladungsEmail:w.einladungsEmail,einladungsLinkErstelltAm:w.einladungsLinkErstelltAm,dossierID:id,vorsorgendeUserID:w.vorsorgendeUserID,vertrauenspersonUserID:w.vertrauenspersonUserID,einladungAngenommenAm:w.einladungAngenommenAm,einladungAbgelehntAm:w.einladungAbgelehntAm,istPrimaereVertrauensperson:w.istPrimaereVertrauensperson,reihenfolge:w.reihenfolge,wuenscheSichtbarBeiDossierfreigabe:w.wuenscheSichtbarBeiDossierfreigabe ?? true,menschenDesVertrauensSichtbarBeiDossierfreigabe:w.menschenDesVertrauensSichtbarBeiDossierfreigabe ?? true,finanzenSichtbarBeiDossierfreigabe:w.finanzenSichtbarBeiDossierfreigabe ?? false,dokumenteSichtbarBeiDossierfreigabe:w.dokumenteSichtbarBeiDossierfreigabe ?? false,abosUndProfileSichtbarBeiDossierfreigabe:w.abosUndProfileSichtbarBeiDossierfreigabe ?? false,herzensstueckeSichtbarBeiDossierfreigabe:w.herzensstueckeSichtbarBeiDossierfreigabe ?? true,gesundheitSichtbarBeiDossierfreigabe:w.gesundheitSichtbarBeiDossierfreigabe ?? true,zugriffsHistorieJSON:w.zugriffsHistorieJSON ?? alt?.zugriffsHistorieJSON ?? "[]",einladungsHistorie:historie,erstelltAm:w.erstelltAm,geaendertAm:w.geaendertAm))
         }
     }
 
@@ -209,6 +247,23 @@ enum DossierBereichImport {
             m.persoenlicheNachricht=w.persoenlicheNachricht; m.hatGeschaetztenWert=w.hatGeschaetztenWert
             m.geschaetzterWert=w.geschaetzterWert; m.wertUnbekannt=w.wertUnbekannt; m.andereBestimmung=w.andereBestimmung
             m.erstelltAm=w.erstelltAm; m.aktualisiertAm=w.aktualisiertAm
+            let bisherigeBilder = Dictionary(uniqueKeysWithValues: m.bilder.map { ($0.id, $0.bildDaten) })
+            let bisherigeDokumente = Dictionary(uniqueKeysWithValues: m.dokumente.map { ($0.id, $0.dateiDaten) })
+            let bisherigesAudio = m.audio.map { ($0.id, $0.audioDaten) }
+            m.bilder = try w.bilder.map {
+                guard let daten = $0.daten.flatMap({ Data(base64Encoded: $0) }) ?? bisherigeBilder[$0.id] else { throw DossierBereichAdapterFehler.ungueltigerPayload }
+                return HerzensstueckBildModell(id:$0.id,dateiName:$0.dateiName,bildDaten:daten,reihenfolge:$0.reihenfolge ?? 0,hinzugefuegtAm:$0.datum)
+            }
+            m.dokumente = try w.dokumente.map {
+                guard let daten = $0.daten.flatMap({ Data(base64Encoded: $0) }) ?? bisherigeDokumente[$0.id] else { throw DossierBereichAdapterFehler.ungueltigerPayload }
+                return HerzensstueckDokumentModell(id:$0.id,dateiName:$0.dateiName,dateiTyp:$0.dateiTyp,dateiDaten:daten,hinzugefuegtAm:$0.datum)
+            }
+            if let audio = w.audio {
+                guard let daten = audio.daten.flatMap({ Data(base64Encoded: $0) }) ?? (bisherigesAudio?.0 == audio.id ? bisherigesAudio?.1 : nil) else { throw DossierBereichAdapterFehler.ungueltigerPayload }
+                m.audio = HerzensstueckAudioModell(id:audio.id,dateiName:audio.dateiName,dateiTyp:audio.dateiTyp,audioDaten:daten,hinzugefuegtAm:audio.datum)
+            } else {
+                m.audio = nil
+            }
         }
     }
 

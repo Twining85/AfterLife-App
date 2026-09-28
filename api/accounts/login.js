@@ -85,20 +85,118 @@ async function handleSessionRefresh(req, res) {
 
 export async function deleteAccountForUser({ userID, pool = databasePool() }) {
   const client = await pool.connect();
+  const isMySQL = client.engine === "mysql";
   try {
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.user_id', $1, true)", [userID]);
-    await client.query("DELETE FROM dossiers WHERE owner_user_id = $1", [userID]);
+
+    const userResult = await client.query("SELECT email FROM app_users WHERE id = $1 FOR UPDATE", [userID]);
+    const email = userResult.rows[0]?.email;
+    if (!email) throw new Error("Konto nicht gefunden");
+
+    const dossierResult = await client.query(
+      "SELECT id FROM dossiers WHERE owner_user_id = $1 FOR UPDATE",
+      [userID]
+    );
+    const dossierIDs = dossierResult.rows.map((row) => row.id);
+
+    // Beziehungen zu fremden Dossiers zuerst entfernen. Ein gelöschter Benutzer
+    // darf weder als Vertrauensperson noch als eingeladene Person zurückbleiben.
+    await client.query("DELETE FROM dossier_access_grants WHERE user_id = $1", [userID]);
+    if (isMySQL) await client.query("DELETE FROM dossier_key_envelopes WHERE recipient_user_id = $1", [userID]);
+    await client.query(
+      `DELETE FROM dossier_access_grants
+        WHERE invitation_id IN (
+          SELECT id FROM dossier_invitations
+           WHERE requester_user_id = $1 OR invited_email = $2 OR requester_email = $2
+        )`,
+      [userID, email]
+    );
+    await client.query(
+      "DELETE FROM dossier_invitations WHERE requester_user_id = $1 OR invited_email = $2 OR requester_email = $2",
+      [userID, email]
+    );
+
+    // Nicht jedes bestehende DEV-Schema besitzt garantiert alle CASCADE-Regeln.
+    // Deshalb werden sämtliche dossierbezogenen Tabellen explizit bereinigt.
+    for (const dossierID of dossierIDs) {
+      await client.query("DELETE FROM dossier_access_grants WHERE dossier_id = $1", [dossierID]);
+      if (isMySQL) {
+        await client.query("DELETE FROM dossier_key_envelopes WHERE dossier_id = $1", [dossierID]);
+        await client.query("DELETE FROM stored_files WHERE dossier_id = $1", [dossierID]);
+      }
+      await client.query("DELETE FROM dossier_invitations WHERE dossier_id = $1", [dossierID]);
+      await client.query("DELETE FROM sync_changes WHERE dossier_id = $1", [dossierID]);
+      await client.query("DELETE FROM dossier_sections WHERE dossier_id = $1", [dossierID]);
+      if (isMySQL) await client.query("DELETE FROM audit_log WHERE target_dossier_id = $1", [dossierID]);
+      await client.query("DELETE FROM dossiers WHERE id = $1", [dossierID]);
+    }
+
+    await client.query("DELETE FROM sync_idempotency WHERE owner_user_id = $1", [userID]);
+    await client.query("DELETE FROM push_device_tokens WHERE user_id = $1", [userID]);
+    await client.query("DELETE FROM password_reset_challenges WHERE user_id = $1", [userID]);
+    await client.query("DELETE FROM user_sessions WHERE user_id = $1", [userID]);
+    if (isMySQL) {
+      await client.query("DELETE FROM admin_users WHERE user_id = $1", [userID]);
+      await client.query("DELETE FROM audit_log WHERE actor_user_id = $1 OR target_user_id = $1", [userID]);
+    }
+
+    // Falls der Benutzer ein fremdes Dossier ursprünglich angelegt hat, wird nur
+    // die Erstellerreferenz neutralisiert; das Dossier des anderen Users bleibt bestehen.
+    await client.query(
+      "UPDATE dossiers SET created_by_user_id = owner_user_id WHERE created_by_user_id = $1 AND owner_user_id <> $1",
+      [userID]
+    );
+
     const result = client.engine === "mysql"
       ? await client.query("DELETE FROM app_users WHERE id = $1", [userID])
       : await client.query("DELETE FROM app_users WHERE id = $1 RETURNING id", [userID]);
     if (result.rowCount !== 1) throw new Error("Konto nicht gefunden");
+
+    await verifyAccountDeletion(client, { userID, email, dossierIDs, isMySQL });
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;
   } finally {
     client.release();
+  }
+}
+
+async function verifyAccountDeletion(client, { userID, email, dossierIDs, isMySQL }) {
+  const checks = [
+    ["SELECT COUNT(*) AS count FROM app_users WHERE id = $1", [userID]],
+    ["SELECT COUNT(*) AS count FROM dossiers WHERE owner_user_id = $1", [userID]],
+    ["SELECT COUNT(*) AS count FROM dossier_sections WHERE owner_user_id = $1", [userID]],
+    ["SELECT COUNT(*) AS count FROM sync_changes WHERE owner_user_id = $1", [userID]],
+    ["SELECT COUNT(*) AS count FROM sync_idempotency WHERE owner_user_id = $1", [userID]],
+    ["SELECT COUNT(*) AS count FROM dossier_access_grants WHERE user_id = $1", [userID]],
+    ["SELECT COUNT(*) AS count FROM dossier_invitations WHERE owner_user_id = $1 OR requester_user_id = $1 OR invited_email = $2 OR requester_email = $2", [userID, email]],
+    ["SELECT COUNT(*) AS count FROM user_sessions WHERE user_id = $1", [userID]],
+    ["SELECT COUNT(*) AS count FROM password_reset_challenges WHERE user_id = $1", [userID]],
+    ["SELECT COUNT(*) AS count FROM push_device_tokens WHERE user_id = $1", [userID]]
+  ];
+  if (isMySQL) {
+    checks.push(["SELECT COUNT(*) AS count FROM stored_files WHERE owner_user_id = $1", [userID]]);
+    checks.push(["SELECT COUNT(*) AS count FROM dossier_key_envelopes WHERE recipient_user_id = $1", [userID]]);
+    checks.push(["SELECT COUNT(*) AS count FROM audit_log WHERE actor_user_id = $1 OR target_user_id = $1", [userID]]);
+  }
+  for (const dossierID of dossierIDs) {
+    checks.push(["SELECT COUNT(*) AS count FROM dossier_sections WHERE dossier_id = $1", [dossierID]]);
+    checks.push(["SELECT COUNT(*) AS count FROM sync_changes WHERE dossier_id = $1", [dossierID]]);
+    checks.push(["SELECT COUNT(*) AS count FROM dossier_invitations WHERE dossier_id = $1", [dossierID]]);
+    checks.push(["SELECT COUNT(*) AS count FROM dossier_access_grants WHERE dossier_id = $1", [dossierID]]);
+    if (isMySQL) {
+      checks.push(["SELECT COUNT(*) AS count FROM stored_files WHERE dossier_id = $1", [dossierID]]);
+      checks.push(["SELECT COUNT(*) AS count FROM dossier_key_envelopes WHERE dossier_id = $1", [dossierID]]);
+      checks.push(["SELECT COUNT(*) AS count FROM audit_log WHERE target_dossier_id = $1", [dossierID]]);
+    }
+  }
+  for (const [sql, parameters] of checks) {
+    const result = await client.query(sql, parameters);
+    if (Number(result.rows[0]?.count || 0) !== 0) {
+      throw new Error("Kontolöschung hinterliess Cloud-Daten");
+    }
   }
 }
 

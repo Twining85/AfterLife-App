@@ -24,7 +24,7 @@ struct ReloginNeuesGeraet: View {
         Group {
             if wirdVorbereitet {
                 ZStack {
-                    Color(red: 0.96, green: 0.95, blue: 0.92)
+                    Color.appCard
                         .ignoresSafeArea()
 
                     ProgressView("Sichere Wiederherstellung wird vorbereitet …")

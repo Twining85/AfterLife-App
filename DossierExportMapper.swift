@@ -49,12 +49,17 @@ struct DossierExportMapper {
         herzensstuecke: [HerzensstueckModell] = [],
         aboModelle: [AboModell] = [],
         vertrauenspersonen: [VertrauenspersonModell] = [],
+        wunschDokumenteNachFreigabeFiltern: Bool = false,
         options: DossierPDFExportOptions = .standard,
         attachments: [DossierPDFAttachment] = []
     ) -> DossierPDFDocument {
         var chapters = [
             makeProfilChapter(profil: profil, options: options),
-            makeWuenscheChapter(wuensche: wuensche, options: options),
+            makeWuenscheChapter(
+                wuensche: wuensche,
+                dokumenteNachFreigabeFiltern: wunschDokumenteNachFreigabeFiltern,
+                options: options
+            ),
             makeGesundheitChapter(gesundheitsdaten: gesundheitsdaten, options: options),
             makeFinanzenChapter(
                 bankkonten: bankkonten,
@@ -110,6 +115,7 @@ struct DossierExportMapper {
 
     func makeWuenscheChapter(
         wuensche: [WuenscheModell],
+        dokumenteNachFreigabeFiltern: Bool = false,
         options: DossierPDFExportOptions
     ) -> DossierPDFChapter {
         DossierPDFChapter(
@@ -117,7 +123,11 @@ struct DossierExportMapper {
             titel: "Meine Wünsche",
             beschreibung: "Persönliche Vorstellungen zu Abschied, Beisetzung, wichtigen Botschaften und vorhandenen Vorsorgedokumenten.",
             farbe: PDFThemeColor(red: 0.46, green: 0.34, blue: 0.58),
-            sections: makeWuenscheSections(wuensche: wuensche, options: options)
+            sections: makeWuenscheSections(
+                wuensche: wuensche,
+                dokumenteNachFreigabeFiltern: dokumenteNachFreigabeFiltern,
+                options: options
+            )
         )
     }
 
@@ -211,14 +221,14 @@ struct DossierExportMapper {
     ) -> DossierPDFChapter {
         DossierPDFChapter(
             typ: .vertrauensperson,
-            titel: "Vertrauensperson",
-            beschreibung: "Die von dir hinterlegte Vertrauensperson und ihre Kontaktdaten.",
+            titel: "Wichtige Menschen",
+            beschreibung: "Die von dir hinterlegten wichtigen Menschen und ihre Kontaktdaten.",
             farbe: PDFThemeColor(red: 0.16, green: 0.36, blue: 0.42),
             sections: vertrauenspersonen.enumerated().map { index, person in
                 DossierPDFSection(
                     titel: vertrauenspersonen.count == 1
-                        ? "Vertrauensperson"
-                        : "Vertrauensperson \(index + 1)",
+                        ? "Wichtige Person"
+                        : "Wichtige Person \(index + 1)",
                     items: [
                         makeItem(label: "Name", value: person.vollerName, options: options),
                         makeItem(label: "Beziehung", value: person.beziehung, options: options),
@@ -245,7 +255,7 @@ struct DossierExportMapper {
             untertitel: subtitle,
             erstelltAm: erstelltAm,
             aktualisiertAm: aktualisiertAm,
-            vertraulichkeitshinweis: "Vertraulich. Dieses Dokument ist nur für die von dir bestimmten Vertrauenspersonen bestimmt.",
+            vertraulichkeitshinweis: "Vertraulich. Dieses Dokument ist nur für die von dir bestimmten wichtigen Menschen bestimmt.",
             kapitel: chapters,
             anhaenge: options.dokumenteAlsAnhangBeruecksichtigen ? attachments : []
         )
@@ -396,6 +406,7 @@ private extension DossierExportMapper {
 
     func makeWuenscheSections(
         wuensche: [WuenscheModell],
+        dokumenteNachFreigabeFiltern: Bool = false,
         options: DossierPDFExportOptions
     ) -> [DossierPDFSection] {
         guard !wuensche.isEmpty else {
@@ -413,6 +424,7 @@ private extension DossierExportMapper {
             makeWuenscheSections(
                 wunsch: wunsch,
                 titelPraefix: wuensche.count == 1 ? nil : "Wünsche \(index + 1)",
+                dokumenteNachFreigabeFiltern: dokumenteNachFreigabeFiltern,
                 options: options
             )
         }
@@ -421,6 +433,7 @@ private extension DossierExportMapper {
     func makeWuenscheSections(
         wunsch: WuenscheModell,
         titelPraefix: String?,
+        dokumenteNachFreigabeFiltern: Bool = false,
         options: DossierPDFExportOptions
     ) -> [DossierPDFSection] {
         [
@@ -430,7 +443,11 @@ private extension DossierExportMapper {
             makeZeremonieSection(wunsch: wunsch, options: options),
             makeLetzteWorteSection(wunsch: wunsch, options: options),
             makeNachrufSection(wunsch: wunsch, options: options),
-            makeVorsorgedokumenteSection(wunsch: wunsch, options: options),
+            makeVorsorgedokumenteSection(
+                wunsch: wunsch,
+                dokumenteNachFreigabeFiltern: dokumenteNachFreigabeFiltern,
+                options: options
+            ),
             makeLebensqualitaetSection(wunsch: wunsch, options: options),
             makeHaustiereSection(wunsch: wunsch, options: options)
         ].compactMap { section in
@@ -538,37 +555,38 @@ private extension DossierExportMapper {
 
     func makeVorsorgedokumenteSection(
         wunsch: WuenscheModell,
+        dokumenteNachFreigabeFiltern: Bool = false,
         options: DossierPDFExportOptions
     ) -> DossierPDFSection {
         let items = [
-            makeDocumentStatusItem(
+            (!dokumenteNachFreigabeFiltern || wunsch.testamentFreigegebenBeiDossierfreigabe) ? makeDocumentStatusItem(
                 label: "Testament",
                 isPresent: hasContent(wunsch.testamentDateiName) || hasData(wunsch.testamentDateiData),
                 fileName: wunsch.testamentDateiName,
                 uploadedAt: wunsch.testamentHochgeladenAm,
                 options: options
-            ),
-            makeDocumentStatusItem(
+            ) : nil,
+            (!dokumenteNachFreigabeFiltern || wunsch.patientenverfuegungFreigegebenBeiDossierfreigabe) ? makeDocumentStatusItem(
                 label: "Patientenverfügung",
                 isPresent: hasContent(wunsch.patientenverfuegungDateiName) || hasData(wunsch.patientenverfuegungDateiData),
                 fileName: wunsch.patientenverfuegungDateiName,
                 uploadedAt: wunsch.patientenverfuegungHochgeladenAm,
                 options: options
-            ),
-            makeDocumentStatusItem(
+            ) : nil,
+            (!dokumenteNachFreigabeFiltern || wunsch.vorsorgeauftragFreigegebenBeiDossierfreigabe) ? makeDocumentStatusItem(
                 label: "Vorsorgeauftrag",
                 isPresent: hasContent(wunsch.vorsorgeauftragDateiName) || hasData(wunsch.vorsorgeauftragDateiData),
                 fileName: wunsch.vorsorgeauftragDateiName,
                 uploadedAt: wunsch.vorsorgeauftragHochgeladenAm,
                 options: options
-            ),
-            makeDocumentStatusItem(
+            ) : nil,
+            (!dokumenteNachFreigabeFiltern || wunsch.sterbebegleitungFreigegebenBeiDossierfreigabe) ? makeDocumentStatusItem(
                 label: "Sterbebegleitung",
                 isPresent: hasContent(wunsch.sterbebegleitungDateiName) || hasData(wunsch.sterbebegleitungDateiData),
                 fileName: wunsch.sterbebegleitungDateiName,
                 uploadedAt: wunsch.sterbebegleitungHochgeladenAm,
                 options: options
-            )
+            ) : nil
         ].compactMap { $0 }
 
         return DossierPDFSection(

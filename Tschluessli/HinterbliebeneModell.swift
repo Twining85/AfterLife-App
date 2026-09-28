@@ -17,6 +17,9 @@ final class HinterbliebeneModell {
     var land: String
     var bemerkungen: String
     var quelle: String
+    /// Lokale Contacts-ID. Sie ist gerätespezifisch und wird nicht als
+    /// Bestandteil des freigegebenen Dossiers verwendet.
+    var systemKontaktIdentifier: String?
     var istVertrauensperson: Bool
     var sollInformiertWerden: Bool
     var darfDokumenteErhalten: Bool
@@ -41,6 +44,7 @@ final class HinterbliebeneModell {
         land: String = "Schweiz",
         bemerkungen: String = "",
         quelle: String = "",
+        systemKontaktIdentifier: String? = nil,
         istVertrauensperson: Bool = false,
         sollInformiertWerden: Bool = true,
         darfDokumenteErhalten: Bool = false,
@@ -61,6 +65,7 @@ final class HinterbliebeneModell {
         self.land = land
         self.bemerkungen = bemerkungen
         self.quelle = quelle
+        self.systemKontaktIdentifier = systemKontaktIdentifier
         self.istVertrauensperson = istVertrauensperson
         self.sollInformiertWerden = sollInformiertWerden
         self.darfDokumenteErhalten = darfDokumenteErhalten

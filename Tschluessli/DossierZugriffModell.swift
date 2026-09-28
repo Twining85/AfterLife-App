@@ -70,6 +70,10 @@ final class DossierZugriffModell {
     /// Serverseitig gespeicherter Zeitpunkt der automatischen Freigabe.
     var automatischeFreigabeAm: Date?
 
+    /// Letzte serverseitige Vollzugriffsentscheidung, die lokal bereits
+    /// auf die Bereichsfreigaben angewendet wurde.
+    var vollzugriffVerarbeitetAm: Date?
+
     /// Zeitpunkt, an dem der Zugriff widerrufen wurde.
     var widerrufenAm: Date?
 
@@ -112,6 +116,7 @@ final class DossierZugriffModell {
         abgelehntAm: Date? = nil,
         freigegebenAm: Date? = nil,
         automatischeFreigabeAm: Date? = nil,
+        vollzugriffVerarbeitetAm: Date? = nil,
         widerrufenAm: Date? = nil,
         rolle: String = "Vertrauensperson",
         istPrimaer: Bool = false,
@@ -138,6 +143,7 @@ final class DossierZugriffModell {
         self.abgelehntAm = abgelehntAm
         self.freigegebenAm = freigegebenAm
         self.automatischeFreigabeAm = automatischeFreigabeAm
+        self.vollzugriffVerarbeitetAm = vollzugriffVerarbeitetAm
         self.widerrufenAm = widerrufenAm
         self.rolle = rolle
         self.istPrimaer = istPrimaer
@@ -178,7 +184,9 @@ final class DossierZugriffModell {
         abgelehntAm = Date()
         angenommenAm = nil
         self.registrierungsEmail = registrierungsEmail
-        istAktiv = false
+        // Eine Ablehnung betrifft nur die angefragte Erweiterung. Der beim
+        // Scan gewährte Zugriff auf die vorab sichtbaren Bereiche bleibt aktiv.
+        istAktiv = true
         aktualisiertAm = Date()
         einladungAlsVerwendetMarkieren()
     }

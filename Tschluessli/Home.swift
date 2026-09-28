@@ -5,8 +5,8 @@ import UIKit
 struct Home: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.modelContext) private var modelContext
-    private let kachelFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
-    private let schluessliAkzent = Color(red: 0.16, green: 0.36, blue: 0.42)
+    private let kachelFarbe = Color.appCard
+    private let schluessliAkzent = Color.appAccent
     @AppStorage("aktiveUserID") private var aktiveUserID = ""
     @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
     @AppStorage("dossierZuletztGeprueftAmISO") private var dossierZuletztGeprueftAmISO = ""
@@ -20,10 +20,17 @@ struct Home: View {
     @Query private var gespeicherteVertrauenspersonen: [VertrauenspersonModell]
     @Query private var gespeicherteDossiers: [DossierModell]
     @Query private var gespeicherteBankkonten: [BankkontoModell]
+    @Query private var gespeicherteSchulden: [SchuldenModell]
     @Query private var gespeicherteVersicherungen: [VersicherungModell]
+    @Query private var gespeicherteLiegenschaften: [LiegenschaftModell]
     @Query private var gespeicherteWertsachen: [WertsacheModell]
+    @Query private var gespeicherteSteuerdokumente: [SteuerdokumentModell]
     @Query private var gespeicherteDokumente: [DokumenteModell]
+    @Query private var gespeicherteFotos: [FotoalbumBildModell]
     @Query private var gespeicherteAbos: [AboModell]
+    @Query private var gespeicherteWuensche: [WuenscheModell]
+    @Query private var gespeicherteHinterbliebene: [HinterbliebeneModell]
+    @Query private var gespeicherteHerzensstuecke: [HerzensstueckModell]
     @State private var heroIstSichtbar = false
     @State private var bereicheTitelIstSichtbar = false
     @State private var kachelnSindSichtbar = false
@@ -240,19 +247,28 @@ struct Home: View {
         return dossierFortschritt.aktionsText
     }
     
-    // TODO: Fortschrittsberechnung fachlich weiter verfeinern.
-    // Aktuell werden erste robuste Kriterien aus bestehenden Modellen gezählt.
+    // Das Profil trägt 20 Prozent bei. Die übrigen 80 Prozent werden
+    // gleichmässig auf die vom Benutzer gewählten Fachbereiche verteilt.
     private var dossierFortschritt: DossierFortschritt {
-        DossierFortschrittService.berechne(
+        let fortschritt = DynamischerDossierFortschrittService.berechne(
             profil: aktivesProfil,
             gesundheit: aktiveGesundheitsdaten,
-            wurdeVomUserGeprueft: dossierWurdeGeprueft,
-            anzahlDossierZugriffe: gespeicherteDossierZugriffe.count,
-            anzahlBankkonten: gespeicherteBankkonten.count,
-            anzahlVersicherungen: gespeicherteVersicherungen.count,
-            anzahlWertsachen: gespeicherteWertsachen.count,
-            anzahlDokumente: gespeicherteDokumente.count,
-            anzahlAbos: gespeicherteAbos.count
+            wuensche: gespeicherteWuensche,
+            hinterbliebene: gespeicherteHinterbliebene,
+            bankkonten: gespeicherteBankkonten,
+            schulden: gespeicherteSchulden,
+            versicherungen: gespeicherteVersicherungen,
+            liegenschaften: gespeicherteLiegenschaften,
+            wertsachen: gespeicherteWertsachen,
+            steuerdokumente: gespeicherteSteuerdokumente,
+            dokumente: gespeicherteDokumente,
+            fotos: gespeicherteFotos,
+            abos: gespeicherteAbos,
+            herzensstuecke: gespeicherteHerzensstuecke,
+            aktiveBereiche: Set(aktiveHomeBereiche.map(\.statusID))
+        )
+        return DossierFortschrittService.berechne(
+            statischerProzentwert: Int((fortschritt * 100).rounded())
         )
     }
 
@@ -469,7 +485,7 @@ struct Home: View {
                                         
                                         Text("\(homeAnzeigename) 👋")
                                             .font(.system(size: titelGroesse, weight: .bold, design: .rounded))
-                                            .foregroundStyle(Color(red: 0.08, green: 0.12, blue: 0.18))
+                                            .foregroundStyle(Color.appPrimaryText)
                                             .lineLimit(1)
                                             .minimumScaleFactor(0.72)
                                         
@@ -487,7 +503,7 @@ struct Home: View {
                                     } label: {
                                         ZStack(alignment: .bottomTrailing) {
                                             Circle()
-                                                .fill(Color(red: 0.96, green: 0.95, blue: 0.92))
+                                                .fill(Color.appCard)
                                                 .frame(width: profilbildGroesse, height: profilbildGroesse)
                                                 .overlay {
                                                     Group {
@@ -513,7 +529,7 @@ struct Home: View {
                                             
                                             ZStack {
                                                 Circle()
-                                                    .fill(Color.white)
+                                                    .fill(Color.appRaisedCard)
                                                     .frame(width: 32, height: 32)
                                                     .shadow(color: .black.opacity(0.10), radius: 8, x: 0, y: 4)
                                                 
@@ -585,7 +601,7 @@ struct Home: View {
                         HStack(alignment: .firstTextBaseline) {
                             Text("Deine Bereiche")
                                 .font(.title.weight(.bold))
-                                .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+                                .foregroundStyle(Color.appPrimaryText)
 
                             Spacer()
 
@@ -638,9 +654,7 @@ struct Home: View {
                     //         .animation(.easeInOut(duration: 0.22), value: homeBearbeitungsmodus)
                     // }
 
-                    Image("Icon1_trans")
-                        .resizable()
-                        .scaledToFit()
+                    TschluessliLogo()
                         .frame(width: 150, height: 58)
                         .frame(maxWidth: .infinity)
                         .padding(.top, 24)
@@ -1102,7 +1116,7 @@ struct Home: View {
         bearbeiteteHomeBereiche = neueReihenfolge
         homeAktiveBereiche = neueReihenfolge.map(\.rawValue).joined(separator: ",")
         homeBereicheReihenfolge = neueReihenfolge.map(\.rawValue).joined(separator: ",")
-        NotificationCenter.default.post(name: .dossierBereichGespeichert, object: "profil")
+        DossierEinstellungenStore.markiereGeaendert()
         bereichsauswahlAnzeigen = false
     }
     
@@ -1126,7 +1140,7 @@ struct Home: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Freigegebene Vorsorge-Dossiers")
                             .font(.title3.weight(.semibold))
-                            .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+                            .foregroundStyle(Color.appPrimaryText)
                         
                         Text("Öffne ein Vorsorge-Dossier, für das du als Vertrauensperson berechtigt bist.")
                             .font(.subheadline)
@@ -1144,7 +1158,7 @@ struct Home: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(Color(red: 0.99, green: 0.96, blue: 0.91))
+                        .fill(Color.orange.opacity(0.12))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
@@ -1217,7 +1231,7 @@ struct Home: View {
             withTransaction(transaktion) {
                 homeBereicheReihenfolge = neueReihenfolge
             }
-            NotificationCenter.default.post(name: .dossierBereichGespeichert, object: "profil")
+            DossierEinstellungenStore.markiereGeaendert()
         }
 
         private func beendeHomeBearbeitung() {
@@ -1433,7 +1447,7 @@ struct Home: View {
                         Text(titel)
                             .font(.headline.weight(.semibold))
                             .multilineTextAlignment(.leading)
-                            .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+                            .foregroundStyle(Color.appPrimaryText)
                             .lineLimit(2)
                         
                         Text(untertitel)
@@ -1458,7 +1472,7 @@ struct Home: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(Color.white.opacity(0.72), lineWidth: 1)
+                        .stroke(Color.appBorder, lineWidth: 1)
                 )
                 .shadow(color: akzentFarbe.opacity(0.12), radius: 16, x: 0, y: 8)
             }
@@ -1489,7 +1503,7 @@ struct Home: View {
                     
                     Text(istAbgeschlossen ? "Vorsorge-Dossier geprüft" : "(Jährliche) Prüfung deines Vorsorge-Dossiers")
                         .font(.title2.weight(.bold))
-                        .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+                        .foregroundStyle(Color.appPrimaryText)
                         .multilineTextAlignment(.leading)
                         .lineLimit(nil)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1541,7 +1555,7 @@ struct Home: View {
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 15)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.appOnAccent)
                         .background(
                             RoundedRectangle(cornerRadius: 18, style: .continuous)
                                 .fill(istAbgeschlossen ? Color.green : accentColor)
@@ -1561,7 +1575,7 @@ struct Home: View {
                     .foregroundStyle(status == "Nicht begonnen" ? Color.secondary : accentColor)
                 Text(titel)
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+                    .foregroundStyle(Color.appPrimaryText)
 
                 Spacer(minLength: 8)
 
@@ -1644,7 +1658,7 @@ struct Home: View {
                     Button(action: speichern) {
                         Text(auswahl.filter { $0 != .profil }.isEmpty ? "Nur Profil anzeigen" : "Auswahl übernehmen")
                             .font(.body.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.appOnAccent)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
                             .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(accentColor))
@@ -1680,6 +1694,19 @@ struct Home: View {
             VorsorgeBereichID(rawValue: rawValue) ?? .profil
         }
 
+        var cloudSectionType: String {
+            switch self {
+            case .profil: "profil"
+            case .gesundheit: "gesundheit"
+            case .wuensche: "wuensche"
+            case .finanzen: "finanzen"
+            case .hinterbliebene: "kontakte"
+            case .dokumente: "dokumente"
+            case .abos: "zugaenge"
+            case .herzensstuecke: "herzensstuecke"
+            }
+        }
+
         var icon: String {
             switch self {
             case .profil:
@@ -1712,7 +1739,7 @@ struct Home: View {
             case .finanzen:
                 return "Finanzen"
             case .hinterbliebene:
-                return "Menschen meines Vertrauens"
+                return "Wichtige Menschen"
             case .dokumente:
                 return "Dokumente & Fotoalbum"
             case .abos:
@@ -1767,21 +1794,21 @@ struct Home: View {
         var akzentFarbe: Color {
             switch self {
             case .profil:
-                return Color(red: 0.16, green: 0.36, blue: 0.42)
+                return Color.appAccent
             case .gesundheit:
-                return Color(red: 0.76, green: 0.24, blue: 0.30)
+                return Color.areaHealth
             case .wuensche:
-                return Color(red: 0.72, green: 0.42, blue: 0.28)
+                return Color.areaWishes
             case .finanzen:
-                return Color(red: 0.62, green: 0.47, blue: 0.18)
+                return Color.areaFinance
             case .hinterbliebene:
-                return Color(red: 0.24, green: 0.50, blue: 0.34)
+                return Color.areaContacts
             case .dokumente:
-                return Color(red: 0.22, green: 0.43, blue: 0.68)
+                return Color.areaDocuments
             case .abos:
-                return Color(red: 0.46, green: 0.36, blue: 0.62)
+                return Color.areaSubscriptions
             case .herzensstuecke:
-                return Color(red: 0.78, green: 0.34, blue: 0.16)
+                return Color.areaKeepsakes
             }
         }
     }
@@ -1806,103 +1833,6 @@ struct Home: View {
     }
     
     struct DossierFortschrittService {
-        static func berechne(
-            profil: ProfilModell?,
-            gesundheit: GesundheitModell?,
-            wurdeVomUserGeprueft: Bool,
-            anzahlDossierZugriffe: Int,
-            anzahlBankkonten: Int,
-            anzahlVersicherungen: Int,
-            anzahlWertsachen: Int,
-            anzahlDokumente: Int,
-            anzahlAbos: Int
-        ) -> DossierFortschritt {
-            var punkte = 0
-            
-            
-            if profil != nil {
-                punkte += 5
-            }
-            
-            if let profil {
-                if !profil.vorname.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty {
-                    punkte += 5
-                }
-                
-                if !profil.name.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty {
-                    punkte += 5
-                }
-                
-                if !profil.telefon.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty {
-                    punkte += 5
-                }
-                
-                if let profilbildDaten = profil.profilbildDaten,
-                   !profilbildDaten.isEmpty {
-                    punkte += 2
-                }
-            }
-            
-            if let gesundheit {
-                if gesundheit.hatHausarzt {
-                    punkte += 8
-                }
-                
-                if gesundheit.blutgruppe != GesundheitBlutgruppe.unbekannt {
-                    punkte += 2
-                }
-                
-                if gesundheit.organspende != GesundheitOrganspendeStatus.nichtAngegeben {
-                    punkte += 2
-                }
-                
-                if gesundheit.hatAllergien,
-                   !gesundheit.allergien.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty {
-                    punkte += 2
-                }
-                
-                if gesundheit.nimmtMedikamente,
-                   !gesundheit.medikamente.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty {
-                    punkte += 2
-                }
-                
-                if !gesundheit.gesundheitlicheHinweise.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty {
-                    punkte += 2
-                }
-            }
-            
-            if anzahlDossierZugriffe > 0 {
-                punkte += 15
-            }
-            
-            if anzahlBankkonten > 0 {
-                punkte += 10
-            }
-            
-            if anzahlVersicherungen > 0 {
-                punkte += 5
-            }
-            
-            if anzahlWertsachen > 0 {
-                punkte += 2
-            }
-            
-            if anzahlDokumente > 1 {
-                punkte += 15
-            }
-            
-            if anzahlAbos >= 2 {
-                punkte += 5
-            } else if anzahlAbos == 1 {
-                punkte += 3
-            }
-            
-            if wurdeVomUserGeprueft {
-                punkte = max(punkte, 100)
-            }
-            return berechne(statischerProzentwert: punkte)
-        }
-        
         static func berechne(statischerProzentwert: Int) -> DossierFortschritt {
             let prozent = min(max(statischerProzentwert, 0), 100)
             let einheitlicherAktionsText = "Vorsorge-Dossier als überprüft markieren"
@@ -1987,15 +1917,17 @@ struct Home: View {
         @State private var laedt = false
         @State private var geladen = false
         @State private var ladefehler = ""
+        @State private var hinweisAutomatischeFreigabeAnzeigen = false
+        @State private var automatischeFreigabeHinweisDatum: Date?
         private var darfAnzeigen: Bool {
             geladen && zugriffe.contains {
                 $0.zugriffID == dossierKontext.zugriffID && $0.istAktiv &&
-                ($0.status == DossierZugriffStatus.angenommen || $0.status == DossierZugriffStatus.freigegeben)
+                $0.status != DossierZugriffStatus.widerrufen
             }
         }
-        private let kachelFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
+        private let kachelFarbe = Color.appCard
         private let akzentFarbe = Color.orange
-        private let schluessliAkzent = Color(red: 0.16, green: 0.36, blue: 0.42)
+        private let schluessliAkzent = Color.appAccent
         @State private var dossierExportAnzeigen = false
 
         private var dossierName: String {
@@ -2020,6 +1952,18 @@ struct Home: View {
         }
 
         private func istBereichSichtbar(_ bereich: HomeBereich) -> Bool {
+            if let zugriff = zugriffe.first(where: { $0.zugriffID == dossierKontext.zugriffID }),
+               zugriff.status == DossierZugriffStatus.angenommen || zugriff.status == DossierZugriffStatus.freigegeben {
+                return true
+            }
+            let gespeicherteBereiche = Set(
+                UserDefaults.standard.string(
+                    forKey: "freigegebeneBereiche.\(dossierKontext.dossierID.uuidString.lowercased())"
+                )?.split(separator: ",").map(String.init) ?? []
+            )
+            if !gespeicherteBereiche.isEmpty {
+                return bereich == .profil || gespeicherteBereiche.contains(bereich.cloudSectionType)
+            }
             guard let freigabeEinstellungen else {
                 return bereich == .profil
             }
@@ -2044,13 +1988,30 @@ struct Home: View {
             }
         }
 
+        private func istBereichFreigegeben(_ bereich: HomeBereich) -> Bool {
+            let freigegebeneBereiche = Set(
+                UserDefaults.standard.string(
+                    forKey: "freigegebeneBereiche.\(dossierKontext.dossierID.uuidString.lowercased())"
+                )?.split(separator: ",").map(String.init) ?? []
+            )
+            return bereich == .profil || freigegebeneBereiche.contains(bereich.cloudSectionType)
+        }
+
+        private func hatGesperrteBereiche(_ zugriff: DossierZugriffModell) -> Bool {
+            let suffix = zugriff.dossierID.uuidString.lowercased()
+            let defaults = UserDefaults.standard
+            let verfuegbar = Set((defaults.string(forKey: "verfuegbareBereiche.\(suffix)") ?? "").split(separator: ",").map(String.init))
+            let freigegeben = Set((defaults.string(forKey: "freigegebeneBereiche.\(suffix)") ?? "").split(separator: ",").map(String.init))
+            return !verfuegbar.isEmpty && !verfuegbar.isSubset(of: freigegeben)
+        }
+
         private var angezeigteBereiche: [HomeBereich] {
             let suffix = dossierKontext.dossierID.uuidString.lowercased()
             let defaults = UserDefaults.standard
-            let aktiveIDs = defaults.string(forKey: "homeAktiveBereiche.\(suffix)") ?? ""
+            let verfuegbareIDs = defaults.string(forKey: "verfuegbareBereiche.\(suffix)") ?? ""
             let reihenfolgeIDs = defaults.string(forKey: "homeBereicheReihenfolge.\(suffix)") ?? ""
-            let explizitAktive = Set(aktiveIDs.split(separator: ",").compactMap {
-                HomeBereich(rawValue: String($0))
+            let explizitAktive = Set(verfuegbareIDs.split(separator: ",").compactMap { cloudID in
+                HomeBereich.allCases.first { $0.cloudSectionType == String(cloudID) }
             })
             let gespeicherteReihenfolge = reihenfolgeIDs.split(separator: ",").compactMap {
                 HomeBereich(rawValue: String($0))
@@ -2059,7 +2020,7 @@ struct Home: View {
             if !explizitAktive.isEmpty {
                 aktive = explizitAktive.union([.profil])
             } else if gespeicherteReihenfolge.isEmpty {
-                aktive = [.profil]
+                aktive = Set(HomeBereich.allCases.filter(istBereichSichtbar))
             } else {
                 aktive = Set(HomeBereich.allCases)
             }
@@ -2068,7 +2029,7 @@ struct Home: View {
             let fehlend = HomeBereich.allCases.filter {
                 aktive.contains($0) && !sortiert.contains($0)
             }
-            return (sortiert + fehlend).filter(istBereichSichtbar)
+            return sortiert + fehlend
         }
 
         var body: some View {
@@ -2085,12 +2046,34 @@ struct Home: View {
                     }.padding()
                 }
             }
+            .background(Color.appCanvas.ignoresSafeArea())
             // Der Inhalt eines Fremddossiers darf nicht aus einer alten
             // NavigationView-Instanz stammen. Bei jedem erneuten Öffnen wird
-            // deshalb ein vollständiger Cloud-Abgleich gestartet.
+            // deshalb ein vollständiger Cloud-Abgleich gestartet. Die Rückkehr
+            // aus einem Bereich in dieselbe Übersicht verwendet dagegen den
+            // bereits geladenen Spiegel und startet keinen zweiten Sync.
             .onAppear {
+                guard !geladen else { return }
                 Task { await laden() }
             }
+            .alert(
+                "Zugriff automatisch freigegeben",
+                isPresented: $hinweisAutomatischeFreigabeAnzeigen
+            ) {
+                Button("Verstanden") {
+                    guard let datum = automatischeFreigabeHinweisDatum else { return }
+                    UserDefaults.standard.set(
+                        datum.timeIntervalSince1970,
+                        forKey: automatischeFreigabeHinweisKey
+                    )
+                }
+            } message: {
+                Text("Der Zugriff wurde nach Ablauf der Wartefrist automatisch freigegeben. Falls ein Ernstfall eingetreten ist, nimm dir die nötige Zeit und gehe behutsam mit den hinterlegten Informationen um. Wir wünschen alles Gute. ❤️")
+            }
+        }
+
+        private var automatischeFreigabeHinweisKey: String {
+            "automatischeFreigabeHinweisGezeigt.\(dossierKontext.dossierID.uuidString.lowercased())"
         }
 
         private func laden() async {
@@ -2105,9 +2088,19 @@ struct Home: View {
                 return
             }
             do {
-                ladefehler = try await FreigegebenesDossierSync.laden(token: token, zugriff: zugriff,
-                    vorhandeneDossiers: dossiers, modelContext: modelContext) ?? ""
+                let ergebnis = try await FreigegebenesDossierSync.laden(
+                    token: token,
+                    zugriff: zugriff,
+                    vorhandeneDossiers: dossiers,
+                    modelContext: modelContext
+                )
+                ladefehler = ergebnis.hinweis ?? ""
                 geladen = true
+                if let datum = ergebnis.automatischFreigegebenAm,
+                   UserDefaults.standard.double(forKey: automatischeFreigabeHinweisKey) < datum.timeIntervalSince1970 {
+                    automatischeFreigabeHinweisDatum = datum
+                    hinweisAutomatischeFreigabeAnzeigen = true
+                }
             } catch {
                 ladefehler = error.localizedDescription
             }
@@ -2122,25 +2115,17 @@ struct Home: View {
                     }
                     VStack(alignment: .leading, spacing: 14) {
                         HStack(alignment: .top, spacing: 14) {
-                            ZStack {
-                                Circle()
-                                    .fill(akzentFarbe.opacity(0.14))
-                                    .frame(width: 54, height: 54)
-
-                                Image(systemName: "folder.badge.person.crop")
-                                    .font(.system(size: 26, weight: .semibold))
-                                    .foregroundStyle(akzentFarbe)
-                            }
+                            Image(systemName: "folder.badge.person.crop")
+                                .font(.title2.weight(.semibold))
+                                .foregroundStyle(Color.appOnAccent)
+                                .frame(width: 48, height: 48)
+                                .background(Circle().fill(schluessliAkzent))
+                                .shadow(color: schluessliAkzent.opacity(0.20), radius: 8, y: 4)
 
                             VStack(alignment: .leading, spacing: 6) {
-                                Text("Freigegebenes Vorsorge-Dossier")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(akzentFarbe)
-                                    .textCase(.uppercase)
-
                                 Text("Vorsorge-Dossier von \(dossierName)")
-                                    .font(.title2.weight(.bold))
-                                    .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.11))
+                                    .font(.title2.weight(.semibold))
+                                    .foregroundStyle(.primary)
 
                                 if let lesemodusHinweis = dossierKontext.lesemodusHinweis {
                                     Text(lesemodusHinweis)
@@ -2162,15 +2147,62 @@ struct Home: View {
                     .padding(18)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(kachelFarbe)
-                    .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
                     .overlay {
-                        RoundedRectangle(cornerRadius: 26, style: .continuous)
-                            .stroke(Color.white.opacity(0.72), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .stroke(schluessliAkzent.opacity(0.12), lineWidth: 1)
                     }
-                    .shadow(color: akzentFarbe.opacity(0.10), radius: 14, x: 0, y: 8)
+                    .shadow(color: Color.appShadow, radius: 10, y: 4)
+
+                    if let zugriff = zugriffe.first(where: { $0.zugriffID == dossierKontext.zugriffID }),
+                       zugriff.status == DossierZugriffStatus.erstellt ||
+                       zugriff.status == DossierZugriffStatus.abgelehnt ||
+                       (zugriff.status == DossierZugriffStatus.angenommen && hatGesperrteBereiche(zugriff)) {
+                        NavigationLink {
+                            EinladungsanfrageSendenView(zugriff: zugriff)
+                        } label: {
+                            Label(
+                                zugriff.status == DossierZugriffStatus.abgelehnt || zugriff.status == DossierZugriffStatus.angenommen
+                                    ? "Zugriff für gesperrte Bereiche erneut anfragen"
+                                    : "Zugriff auf weitere Bereiche anfragen",
+                                systemImage: "lock.open.fill"
+                            )
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(schluessliAkzent)
+                    } else if let zugriff = zugriffe.first(where: { $0.zugriffID == dossierKontext.zugriffID }),
+                              zugriff.status == DossierZugriffStatus.bestaetigungAusstehend {
+                        Label("Anfrage für weitere Bereiche ausstehend", systemImage: "clock.badge.checkmark")
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(.orange)
+                    }
 
                     Text("Vorsorge-Dossier")
                         .font(.title3.weight(.bold))
+
+                    LazyVGrid(
+                        columns: [
+                            GridItem(.flexible(), spacing: 14),
+                            GridItem(.flexible(), spacing: 14)
+                        ],
+                        spacing: 14
+                    ) {
+                        ForEach(angezeigteBereiche) { bereich in
+                            NavigationLink {
+                                if istBereichFreigegeben(bereich) {
+                                    zielView(fuer: bereich)
+                                } else {
+                                    GesperrterDossierBereichView(bereich: bereich)
+                                }
+                            } label: {
+                                freigegebeneBereichKachel(bereich)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
 
                     Button {
                         dossierExportAnzeigen = true
@@ -2187,7 +2219,7 @@ struct Home: View {
                             Image(systemName: "chevron.right")
                                 .font(.caption.weight(.bold))
                         }
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.appOnAccent)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 14)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -2197,37 +2229,12 @@ struct Home: View {
                         )
                     }
                     .buttonStyle(.plain)
-
-                    LazyVGrid(
-                        columns: [
-                            GridItem(.flexible(), spacing: 16),
-                            GridItem(.flexible(), spacing: 16)
-                        ],
-                        spacing: 16
-                    ) {
-                        ForEach(angezeigteBereiche) { bereich in
-                            NavigationLink {
-                                zielView(fuer: bereich)
-                            } label: {
-                                Home.HomeKachel(
-                                    icon: bereich.icon,
-                                    titel: bereich.titel,
-                                    untertitel: bereich.untertitel,
-                                    details: bereich.details,
-                                    statusText: nil,
-                                    farbe: kachelFarbe,
-                                    akzentFarbe: bereich.akzentFarbe
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 20)
-                .padding(.bottom, 32)
+                .padding(.horizontal, 20)
+                .padding(.top, 18)
+                .padding(.bottom, 28)
             }
-            .background(Color(.systemBackground))
+            .background(Color.appCanvas)
             .navigationTitle("Vorsorge-Dossier")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $dossierExportAnzeigen) {
@@ -2235,6 +2242,66 @@ struct Home: View {
                     dossierKontext: dossierKontext,
                     dossierExportDirektAnzeigen: true
                 )
+            }
+        }
+
+        private func freigegebeneBereichKachel(_ bereich: HomeBereich) -> some View {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: bereich.icon)
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(bereich.akzentFarbe)
+                        .frame(width: 45, height: 45)
+                        .background(bereich.akzentFarbe.opacity(0.12), in: Circle())
+
+                    Spacer(minLength: 0)
+
+                    if !istBereichFreigegeben(bereich) {
+                        Text("Zugriff noch gesperrt")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.red)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.75)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(.red.opacity(0.11), in: Capsule())
+                    }
+                }
+                Spacer(minLength: 0)
+                Text(bereich.titel)
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.leading)
+                Text(bereich.untertitel)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                Text(bereich.details)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+            }
+            .frame(maxWidth: .infinity, minHeight: 198, alignment: .leading)
+            .padding(16)
+            .background(Color.appRaisedCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(bereich.akzentFarbe.opacity(0.15))
+            )
+        }
+
+        private struct GesperrterDossierBereichView: View {
+            let bereich: HomeBereich
+
+            var body: some View {
+                ContentUnavailableView {
+                    Label("Zugriff noch gesperrt", systemImage: "lock.fill")
+                } description: {
+                    Text("Für den Bereich «\(bereich.titel)» wurde dir noch kein Zugriff gewährt.")
+                }
+                .foregroundStyle(.red)
+                .navigationTitle(bereich.titel)
+                .navigationBarTitleDisplayMode(.inline)
             }
         }
 

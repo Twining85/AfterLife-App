@@ -9,6 +9,7 @@ import SwiftUI
 import SwiftData
 
 struct EinladungEmailVerifizierung: View {
+    @Environment(\.appLayout) private var appLayout
     @Environment(\.modelContext) private var modelContext
     @Query private var gespeicherteProfile: [ProfilModell]
     @Query private var gespeicherteDossierZugriffe: [DossierZugriffModell]
@@ -30,12 +31,12 @@ struct EinladungEmailVerifizierung: View {
     @State private var einladungBereitsGeprueft = false
     @State private var showHome = false
 
-    private let hintergrundFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
-    private let kartenFarbe = Color.white.opacity(0.88)
-    private let akzentFarbe = Color(red: 0.16, green: 0.36, blue: 0.42)
-    private let akzentHell = Color(red: 0.16, green: 0.36, blue: 0.42).opacity(0.12)
-    private let textFarbe = Color.black.opacity(0.86)
-    private let sekundTextFarbe = Color.black.opacity(0.58)
+    private let hintergrundFarbe = Color.appCard
+    private let kartenFarbe = Color.appRaisedCard
+    private let akzentFarbe = Color.appAccent
+    private let akzentHell = Color.appAccent.opacity(0.12)
+    private let textFarbe = Color.appPrimaryText
+    private let sekundTextFarbe = Color.appSecondaryText
 
     var body: some View {
         NavigationStack {
@@ -63,7 +64,7 @@ struct EinladungEmailVerifizierung: View {
                                 warnHinweis(text: fehlermeldung)
                             }
                         }
-                        .padding(18)
+                        .padding(appLayout.authCardPadding)
                         .background(
                             RoundedRectangle(cornerRadius: 28, style: .continuous)
                                 .fill(kartenFarbe)
@@ -71,9 +72,9 @@ struct EinladungEmailVerifizierung: View {
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                                .stroke(Color.white.opacity(0.75), lineWidth: 1)
+                                .stroke(Color.appBorder, lineWidth: 1)
                         )
-                        .padding(.horizontal, 16)
+                        .appPagePadding()
                         .padding(.bottom, 18)
                     }
                     .padding(.top, 8)
@@ -138,7 +139,7 @@ struct EinladungEmailVerifizierung: View {
                     .frame(width: 58, height: 58)
 
                 Image(systemName: emailStimmtUeberein || verifizierungErfolgreich ? "checkmark.seal.fill" : "envelope.badge.shield.leadinghalf.filled")
-                    .font(.system(size: 26, weight: .semibold))
+                    .font(.title2.weight(.semibold))
                     .foregroundStyle(akzentFarbe)
             }
 
@@ -182,14 +183,12 @@ struct EinladungEmailVerifizierung: View {
                     .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
                 )
 
-            Image("Icon1_trans")
-                .resizable()
-                .scaledToFit()
+            TschluessliLogo()
                 .frame(width: 96, height: 96)
                 .accessibilityHidden(true)
         }
         .frame(height: 150)
-        .padding(.horizontal, 16)
+        .appPagePadding()
         .accessibilityHidden(true)
     }
 
@@ -217,7 +216,7 @@ struct EinladungEmailVerifizierung: View {
     private func emailZeile(icon: String, titel: String, wert: String) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 16, weight: .semibold))
+                .font(.body.weight(.semibold))
                 .foregroundStyle(akzentFarbe)
                 .frame(width: 24, height: 24)
 
@@ -243,7 +242,7 @@ struct EinladungEmailVerifizierung: View {
     private var erfolgreichAnsicht: some View {
         VStack(spacing: 12) {
             Image(systemName: "checkmark.seal.fill")
-                .font(.system(size: 42, weight: .semibold))
+                .font(.largeTitle.weight(.semibold))
                 .foregroundStyle(akzentFarbe)
 
             Text("Einladung bestätigt")
@@ -268,7 +267,7 @@ struct EinladungEmailVerifizierung: View {
                     .padding(.vertical, 11)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.appOnAccent)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(akzentFarbe)
@@ -320,7 +319,7 @@ struct EinladungEmailVerifizierung: View {
                         .padding(.vertical, 12)
                         .background(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(Color.white.opacity(0.92))
+                                .fill(Color.appField)
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -336,7 +335,7 @@ struct EinladungEmailVerifizierung: View {
                             .padding(.vertical, 11)
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.appOnAccent)
                     .background(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .fill(akzentFarbe)
@@ -352,7 +351,7 @@ struct EinladungEmailVerifizierung: View {
                         .padding(.vertical, 11)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.appOnAccent)
                 .background(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .fill(akzentFarbe)

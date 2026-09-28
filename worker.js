@@ -1,4 +1,4 @@
-import { releaseDueInvitations } from "./api/_invitation-handler.js";
+import { releaseDueInvitations, sendPendingAccessReminders } from "./api/_invitation-handler.js";
 import { databaseHealth, databasePool } from "./api/_database.js";
 
 let stopping = false;
@@ -8,6 +8,8 @@ async function run() {
   if (running || stopping) return;
   running = true;
   try {
+    const reminded = await sendPendingAccessReminders();
+    if (reminded > 0) console.log(JSON.stringify({ event: "access_request_reminded", count: reminded }));
     const released = await releaseDueInvitations();
     if (released > 0) console.log(JSON.stringify({ event: "automatic_access_released", count: released }));
   } catch (error) {
@@ -20,7 +22,8 @@ async function run() {
 async function main() {
   await databaseHealth();
   await run();
-  const timer = setInterval(run, 60_000);
+  const intervalSeconds = Number.parseInt(process.env.TRUST_WORKER_INTERVAL_SECONDS || "60", 10);
+  const timer = setInterval(run, Math.max(5, intervalSeconds) * 1000);
   const shutdown = async (signal) => {
     if (stopping) return;
     stopping = true;

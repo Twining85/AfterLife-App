@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
+    "verify:release": "bash scripts/verify-production-parity.sh",
     "db:migrate": "node database/migrate.js",
     "db:mysql:migrate": "node database/mysql/migrate.js",
     "db:migrate:baseline": "node database/migrate.js --baseline-existing"

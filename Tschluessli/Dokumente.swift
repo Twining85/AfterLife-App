@@ -66,9 +66,9 @@ struct DokumenteView: View {
         }
     }
 
-    private let dokumenteHintergrundFarbe = Color(red: 0.985, green: 0.975, blue: 0.955)
-    private let dokumenteKartenFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
-    private let dokumenteAkzentFarbe = Color(red: 0.16, green: 0.36, blue: 0.42)
+    private let dokumenteHintergrundFarbe = Color.appCanvas
+    private let dokumenteKartenFarbe = Color.appCard
+    private let dokumenteAkzentFarbe = Color.areaDocuments
 
     private var gespeicherteFotos: [FotoalbumBildModell] {
         alleGespeichertenFotos.filter { passtZumDossier($0.dossierID) }
@@ -115,14 +115,6 @@ struct DokumenteView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    if let lesemodusHinweis = dossierKontext.lesemodusHinweis {
-                        Text(lesemodusHinweis)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(dokumenteAkzentFarbe)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 7)
-                            .background(dokumenteAkzentFarbe.opacity(0.10), in: Capsule())
-                    }
                 }
             }
 
@@ -155,7 +147,7 @@ struct DokumenteView: View {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(dokumenteAkzentFarbe.opacity(0.12), lineWidth: 1)
         }
-        .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
+        .shadow(color: Color.appShadow, radius: 10, x: 0, y: 4)
     }
 
     private func dokumenteHeroChip(bereich: DokumentBereich) -> some View {
@@ -187,12 +179,12 @@ struct DokumenteView: View {
                 if anzahl > 0 {
                     Text("\(anzahl)")
                         .font(.caption2.weight(.bold))
-                        .foregroundStyle(istAusgewaehlt ? dokumenteAkzentFarbe : .white)
+                        .foregroundStyle(istAusgewaehlt ? dokumenteAkzentFarbe : Color.appOnAccent)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 3)
                         .background(
                             istAusgewaehlt
-                            ? Color.white.opacity(0.9)
+                            ? Color.appRaisedCard
                             : dokumenteAkzentFarbe.opacity(0.78),
                             in: Capsule()
                         )
@@ -200,7 +192,7 @@ struct DokumenteView: View {
             }
             .foregroundStyle(
                 istAusgewaehlt
-                ? Color.white
+                ? Color.appOnAccent
                 : istVerfuegbar ? dokumenteAkzentFarbe : Color.secondary.opacity(0.65)
             )
             .padding(.horizontal, 10)
@@ -208,7 +200,7 @@ struct DokumenteView: View {
             .background(
                 istAusgewaehlt
                 ? dokumenteAkzentFarbe
-                : Color.white.opacity(0.68),
+                : Color.appField,
                 in: Capsule()
             )
             .overlay {
@@ -325,6 +317,7 @@ struct DokumenteView: View {
 
                         if let dateiDaten = try? Data(contentsOf: url) {
                             let dokument = DokumenteModell(
+                                dossierID: zielDossierID,
                                 dateiName: url.lastPathComponent,
                                 kategorie: "Weitere Dokumente",
                                 hochgeladenAm: Date(),
@@ -407,7 +400,7 @@ struct DokumenteView: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.65))
+        .background(Color.appField)
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -438,7 +431,7 @@ struct DokumenteView: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.65))
+        .background(Color.appField)
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -454,7 +447,7 @@ struct DokumenteView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Mein persönliches Fotoalbum")
                     .font(.title3.weight(.semibold))
-                    .foregroundStyle(.black)
+                    .foregroundStyle(Color.appPrimaryText)
 
                 Text("Lade hier Fotos hoch, die für deine Vertrauenspersonen wichtig oder besonders wertvoll sind.")
                     .font(.subheadline)
@@ -488,7 +481,7 @@ struct DokumenteView: View {
             }
             .padding(15)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.white.opacity(0.65))
+            .background(Color.appField)
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -504,7 +497,7 @@ struct DokumenteView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Weitere Dokumente hochladen")
                     .font(.title3.weight(.semibold))
-                    .foregroundStyle(.black)
+                    .foregroundStyle(Color.appPrimaryText)
 
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Ergänze wichtige Unterlagen, die nicht direkt zu Wünsche oder Finanzen gehören.")
@@ -534,7 +527,7 @@ struct DokumenteView: View {
                             } label: {
                                 Label("Hinzufügen", systemImage: "doc.badge.plus")
                                     .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(Color.appOnAccent)
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 13)
                                     .background(dokumenteAkzentFarbe)
@@ -566,7 +559,7 @@ struct DokumenteView: View {
             }
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.white.opacity(0.65))
+            .background(Color.appField)
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -730,7 +723,7 @@ struct DokumenteView: View {
             HStack(spacing: 10) {
                 Text(titel)
                     .font(.title3.weight(.semibold))
-                    .foregroundStyle(.black)
+                    .foregroundStyle(Color.appPrimaryText)
 
                 Spacer()
 
@@ -946,7 +939,7 @@ struct DokumenteView: View {
             .accessibilityLabel("Dokument ansehen")
         }
         .padding(14)
-        .background(Color.white.opacity(0.72))
+        .background(Color.appField)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -993,6 +986,7 @@ struct DokumenteView: View {
         }
 
         let dokument = DokumenteModell(
+            dossierID: zielDossierID,
             dateiName: pendingScanDateiName,
             kategorie: "Weitere Dokumente",
             hochgeladenAm: Date(),
@@ -1106,6 +1100,7 @@ struct DokumenteView: View {
             if let data = try? await item.loadTransferable(type: Data.self),
                UIImage(data: data) != nil {
                 let photo = FotoalbumBildModell(
+                    dossierID: zielDossierID,
                     dateiName: "Foto_\(gespeicherteFotos.count + neueFotos.count + 1).jpg",
                     hinzugefuegtAm: Date(),
                     bildDaten: data,
@@ -1476,9 +1471,49 @@ struct DocumentScanner: UIViewControllerRepresentable {
     DokumenteView()
 }
 
-// This struct previews a document using QuickLook
+/// Zeigt eine Quick-Look-Vorschau mit einer immer erreichbaren Schliessen-Aktion.
+///
+/// Ein direkt in einem SwiftUI-Sheet präsentierter `QLPreviewController` erhält
+/// keine eigene Navigationsleiste. Insbesondere im Lesemodus eines fremden
+/// Dossiers konnte das Sheet deshalb nicht mehr geschlossen werden.
+struct DocumentPreview: View {
+    let url: URL
+    @Environment(\.dismiss) private var dismiss
 
-struct DocumentPreview: UIViewControllerRepresentable {
+    var body: some View {
+        NavigationStack {
+            QuickLookDocumentPreview(url: url)
+                .navigationTitle(url.lastPathComponent)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Schliessen") { dismiss() }
+                    }
+                }
+        }
+    }
+}
+
+extension View {
+    /// Präsentiert eine optionale Dokument-URL in der einheitlichen Vorschau
+    /// mit expliziter Schliessen-Aktion.
+    func documentPreviewSheet(url: Binding<URL?>) -> some View {
+        sheet(
+            isPresented: Binding(
+                get: { url.wrappedValue != nil },
+                set: { wirdAngezeigt in
+                    if !wirdAngezeigt { url.wrappedValue = nil }
+                }
+            )
+        ) {
+            if let previewURL = url.wrappedValue {
+                DocumentPreview(url: previewURL)
+            }
+        }
+    }
+}
+
+private struct QuickLookDocumentPreview: UIViewControllerRepresentable {
     let url: URL
 
     func makeUIViewController(context: Context) -> QLPreviewController {

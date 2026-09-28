@@ -42,11 +42,14 @@ Migrationsdateien werden promoted.
 In beiden Umgebungen wird die vollstaendige Referenz identisch gesetzt:
 
 ```sh
-export TSCHLUESSLI_IMAGE_REF=REGISTRY/TSCHLUESSLI-API@sha256:TESTED_IMAGE_DIGEST
+export TSCHLUESSLI_IMAGE_REF=ghcr.io/twining85/tschluessli-api@sha256:TESTED_IMAGE_DIGEST
 sudo --preserve-env=TSCHLUESSLI_IMAGE_REF docker compose -f compose.yml pull
 sudo --preserve-env=TSCHLUESSLI_IMAGE_REF docker compose -f compose.yml --profile tools run --rm migrate
 sudo --preserve-env=TSCHLUESSLI_IMAGE_REF docker compose -f compose.yml up -d api auto-release-worker
 ```
+
+Build, GHCR-Anmeldung und digestbasiertes Deployment sind in
+[`ghcr-release.md`](ghcr-release.md) beschrieben.
 
 ## iOS
 

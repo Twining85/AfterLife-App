@@ -11,8 +11,6 @@ import syncPush from "./api/sync/push.js";
 import syncPull from "./api/sync/pull.js";
 import dossierSections from "./api/dossiers/sections.js";
 import autoRelease from "./api/cron/auto-release-invitations.js";
-import autocomplete from "./api/autocomplete.js";
-import buildingVerification from "./api/building-verification.js";
 import { databaseHealth, databasePool } from "./api/_database.js";
 import { secureResponse } from "./api/_security.js";
 
@@ -28,9 +26,7 @@ const routes = new Map([
   ["/api/sync/push", syncPush],
   ["/api/sync/pull", syncPull],
   ["/api/dossiers/sections", dossierSections],
-  ["/api/cron/auto-release-invitations", autoRelease],
-  ["/api/autocomplete", autocomplete],
-  ["/api/building-verification", buildingVerification]
+  ["/api/cron/auto-release-invitations", autoRelease]
 ]);
 
 export function createServer() {
@@ -43,7 +39,10 @@ export function createServer() {
     if (!handler) { secureResponse(res); return res.status(404).json({ error: "Nicht gefunden" }); }
     try {
       request.query = Object.fromEntries(url.searchParams.entries());
-      if (!["GET", "HEAD"].includes(request.method)) request.body = await readJSONBody(request);
+      if (!["GET", "HEAD"].includes(request.method)) {
+        const maximumBytes = url.pathname === "/api/sync/push" ? 50_000_000 : 256_000;
+        request.body = await readJSONBody(request, maximumBytes);
+      }
       return await handler(request, res);
     } catch (error) {
       if (error?.statusCode) { secureResponse(res); return res.status(error.statusCode).json({ error: error.message }); }

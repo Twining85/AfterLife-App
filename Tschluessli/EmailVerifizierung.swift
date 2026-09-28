@@ -2,12 +2,13 @@ import SwiftUI
 import UIKit
 
 struct EmailVerifizierung: View {
+    @Environment(\.appLayout) private var appLayout
     let email: String
     let onVerifiziert: (String) -> Void
 
-    private let akzentFarbe = Color(red: 0.16, green: 0.36, blue: 0.42)
-    private let hintergrundFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
-    private let textPrimaer = Color(red: 0.12, green: 0.12, blue: 0.11)
+    private let akzentFarbe = Color.appAccent
+    private let hintergrundFarbe = Color.appCard
+    private let textPrimaer = Color.appPrimaryText
 
     @State private var code = ""
     @State private var fehlermeldung = ""
@@ -24,15 +25,13 @@ struct EmailVerifizierung: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 24) {
-                    Image("Icon1_trans")
-                        .resizable()
-                        .scaledToFit()
+                    TschluessliLogo()
                         .frame(width: 150, height: 58)
                         .accessibilityLabel("Tschlüssli")
 
                     VStack(spacing: 18) {
                         Image(systemName: "envelope.badge.shield.half.filled")
-                            .font(.system(size: 34, weight: .semibold))
+                            .font(.title.weight(.semibold))
                             .foregroundStyle(akzentFarbe)
                             .frame(width: 70, height: 70)
                             .background(akzentFarbe.opacity(0.11), in: Circle())
@@ -68,19 +67,19 @@ struct EmailVerifizierung: View {
                         }
 
                     }
-                    .padding(24)
+                    .padding(appLayout.authCardPadding)
                     .frame(maxWidth: 520)
                     .background(
                         RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .fill(Color.white.opacity(0.88))
+                            .fill(Color.appRaisedCard)
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .stroke(Color.white.opacity(0.75), lineWidth: 1)
+                            .stroke(Color.appBorder, lineWidth: 1)
                     )
                     .shadow(color: .black.opacity(0.04), radius: 14, y: 8)
                 }
-                .padding(.horizontal, 22)
+                .appPagePadding()
                 .padding(.vertical, 28)
                 .frame(maxWidth: .infinity)
             }
@@ -120,7 +119,7 @@ struct EmailVerifizierung: View {
                         .foregroundStyle(textPrimaer)
                         .frame(maxWidth: .infinity)
                         .frame(height: 54)
-                        .background(Color.white.opacity(0.82))
+                        .background(Color.appField)
                         .overlay(
                             RoundedRectangle(cornerRadius: 13, style: .continuous)
                                 .stroke(

@@ -101,6 +101,7 @@ enum EinladungsQRPayload {
 }
 
 struct VertrauenspersonView: View {
+    @Environment(\.appLayout) private var appLayout
     @Environment(\.modelContext) private var modelContext
 
     @Query private var gespeicherteVertrauenspersonen: [VertrauenspersonModell]
@@ -129,32 +130,29 @@ struct VertrauenspersonView: View {
     @AppStorage("aktivesDossierID")
     private var aktivesDossierID = ""
 
+    @AppStorage("vertrauenspersonKontaktEmailAdressen")
+    private var kontaktEmailAdressenJSON = "[]"
+
+    @AppStorage("vertrauenspersonKontaktTelefonnummern")
+    private var kontaktTelefonnummernJSON = "[]"
+
+    @AppStorage("vertrauenspersonKontaktAdressen")
+    private var kontaktAdressenJSON = "[]"
+
     // Neue Version, damit die überarbeitete Prozessgeschichte einmal vollständig
     // durchgespielt werden muss, bevor Verwaltung und Rückblick sichtbar werden.
     @AppStorage("vertrauenspersonErklaerungAbgeschlossenV2")
     private var erklaerungAbgeschlossen = false
 
-    private let hintergrundFarbe = Color(
-        red: 0.96,
-        green: 0.95,
-        blue: 0.92
-    )
+    private let hintergrundFarbe = Color.appCanvas
 
-    private let kartenFarbe = Color.white.opacity(0.88)
+    private let kartenFarbe = Color.appRaisedCard
 
-    private let akzentFarbe = Color(
-        red: 0.16,
-        green: 0.36,
-        blue: 0.42
-    )
+    private let akzentFarbe = Color.appAccent
 
-    private let textFarbe = Color(
-        red: 0.12,
-        green: 0.12,
-        blue: 0.12
-    )
+    private let textFarbe = Color.appPrimaryText
 
-    private let sekundaerTextFarbe = Color.black.opacity(0.58)
+    private let sekundaerTextFarbe = Color.appSecondaryText
 
     private let qrCodeKontext = CIContext()
     private let qrCodeFilter = CIFilter.qrCodeGenerator()
@@ -179,6 +177,13 @@ struct VertrauenspersonView: View {
     @State private var cloudAnmeldungErforderlich = false
     @State private var datenGeladen = false
     @State private var kontaktLoeschungLaeuft = false
+    @State private var zugriffsentscheidungLaeuft = false
+    @State private var vollzugriffFreigabeAnzeigen = false
+    @State private var vollzugriffAnfrageID: UUID?
+    @State private var vollzugriffAuswahl = VollzugriffFreigabeAuswahl()
+    @State private var zugriffVerwaltenAnzeigen = false
+    @State private var zugriffsverlaufAnzeigen = false
+    @State private var ausstehendeFreigabeSyncBereiche: Set<String> = []
 
     @State private var einladungsToken: String?
     @State private var einladungsEmail: String?
@@ -190,8 +195,12 @@ struct VertrauenspersonView: View {
     @State private var mailEmpfaenger = ""
     @State private var mailBetreff = ""
     @State private var mailNachrichtHTML = ""
-
     @State private var qrCodeAnzeigen = false
+    @State private var qrCodeSheetAnzeigen = false
+    @State private var screenshotHinweisAnzeigen = false
+    @State private var emailAuswahlFuerQRCodeAnzeigen = false
+    @State private var kontaktScrollAnforderung = 0
+    @State private var bildschirmWirdAufgezeichnet = false
     @State private var erklaerungsSchritt = 0
     @State private var erklaerungAusgeklappt = false
 
@@ -206,19 +215,19 @@ struct VertrauenspersonView: View {
     private let erklaerungsSchritte: [(rolle: String, icon: String, text: String)] = [
 
         ("DU", "person.crop.circle",
-         "1. Vertrauensperson aus deinen Kontakten auswählen. Sie muss eine aktuelle E-Mail-Adresse hinterlegt haben.\n\n2. Mitteilungen für Tschlüssli in den Einstellungen zulassen."),
+         "1. Vertrauensperson aus deinen Kontakten auswählen. Sie muss eine aktuelle E-Mail-Adresse hinterlegt haben.\n\n2. Mitteilungen für Tschlüssli in den Einstellungen zulassen, sofern nicht bereits vorgenommen."),
 
         ("DEINE VERTRAUENSPERSON", "person.crop.circle.badge.checkmark",
-         "1. Tschlüssli App installieren und sich mit derselben E-Mail-Adresse registrieren.\n\n2. Mitteilungen von Tschlüssli ebenfalls zulassen."),
+         "1. Tschlüssli App installieren und sich mit derselben E-Mail-Adresse registrieren.\n\n2. Mitteilungen von Tschlüssli ebenfalls zulassen, sofern nicht bereits vorgenommen."),
 
         ("DU", "qrcode",
          "Einmaligen QR-Code für deine Vertrauensperson erstellen."),
 
         ("DEINE VERTRAUENSPERSON", "qrcode.viewfinder",
-         "In der Tschlüssli App auf «Profil» gehen und den QR-Code scannen."),
+         "In der Tschlüssli App auf «Dossier von anderen» gehen und den QR-Code scannen."),
 
         ("", "checkmark.circle.fill",
-         "Verbunden – dein Vorsorgedossier ist nun bei deiner Vertrauensperson in der Übersicht ersichtlich."),
+         "Verbunden – das Vorsorge-Dossier ist nun bei deiner Vertrauensperson in «Dossier von anderen» hinterlegt und Inhalte gemäss deiner Freigabe ersichtlich."),
 
         ("DEINE VERTRAUENSPERSON", "lock.open.fill",
          "Bei Bedarf den vollständigen Zugriff auf dein Vorsorgedossier anfragen."),
@@ -258,6 +267,59 @@ struct VertrauenspersonView: View {
 
     private var emailIstGueltig: Bool {
         istGueltigeEmail(bereinigteEmail)
+    }
+
+    private var kontaktEmailAdressen: [String] {
+        guard let daten = kontaktEmailAdressenJSON.data(using: .utf8),
+              let adressen = try? JSONDecoder().decode([String].self, from: daten) else {
+            return emailIstGueltig ? [bereinigteEmail] : []
+        }
+
+        let eindeutigeAdressen = adressen.reduce(into: [String]()) { ergebnis, adresse in
+            let bereinigt = adresse.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard istGueltigeEmail(bereinigt),
+                  !ergebnis.contains(where: { $0.caseInsensitiveCompare(bereinigt) == .orderedSame }) else {
+                return
+            }
+            ergebnis.append(bereinigt)
+        }
+        let gehoertZumAktuellenKontakt = eindeutigeAdressen.contains {
+            $0.caseInsensitiveCompare(bereinigteEmail) == .orderedSame
+        }
+        guard gehoertZumAktuellenKontakt else {
+            return emailIstGueltig ? [bereinigteEmail] : []
+        }
+        return eindeutigeAdressen
+    }
+
+    private var qrEinladungHatGueltigeEmail: Bool {
+        !kontaktEmailAdressen.isEmpty
+    }
+
+    private var kontaktTelefonnummern: [String] {
+        dekodiereKontaktwerte(kontaktTelefonnummernJSON, fallback: telefon)
+    }
+
+    private var kontaktAdressen: [String] {
+        dekodiereKontaktwerte(kontaktAdressenJSON)
+    }
+
+    private func dekodiereKontaktwerte(_ json: String, fallback: String = "") -> [String] {
+        let werte: [String]
+        if let daten = json.data(using: .utf8),
+           let dekodiert = try? JSONDecoder().decode([String].self, from: daten) {
+            werte = dekodiert
+        } else {
+            werte = []
+        }
+
+        let bereinigteWerte = werte
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let bereinigterFallback = fallback.trimmingCharacters(in: .whitespacesAndNewlines)
+        return bereinigteWerte.isEmpty && !bereinigterFallback.isEmpty
+            ? [bereinigterFallback]
+            : bereinigteWerte
     }
 
     private var bereinigterEmpfaengerName: String {
@@ -347,6 +409,23 @@ struct VertrauenspersonView: View {
         }
     }
 
+    private var letzterZugangsCodeIstGueltig: Bool {
+        letzterZugangsCodeIstGueltig(am: Date())
+    }
+
+    private func letzterZugangsCodeIstGueltig(am datum: Date) -> Bool {
+        guard !sichererEinladungsLink.isEmpty,
+              let zugriff = aktuellerDossierZugriff,
+              let gueltigBis = zugriff.einladungGueltigBis else {
+            return false
+        }
+
+        return zugriff.status == DossierZugriffStatus.erstellt &&
+            zugriff.istAktiv &&
+            !zugriff.einladungsLinkVerwendet &&
+            datum <= gueltigBis
+    }
+
     // MARK: - Aktiver Benutzer und aktives Dossier
 
     private var aktiveUserUUID: UUID? {
@@ -376,6 +455,30 @@ struct VertrauenspersonView: View {
 
         return gefilterteZugriffe.sorted {
             $0.erstelltAm > $1.erstelltAm
+        }
+    }
+
+    private var zugriffeFuerAktuelleVertrauensperson: [DossierZugriffModell] {
+        let zielEmail = bereinigteEmail.lowercased()
+        return dossierZugriffeFuerAktivesDossier.filter { zugriff in
+            zugriff.vorsorgendeUserID == aktiveUserUUID &&
+            (zielEmail.isEmpty ||
+             zugriff.normalisierteEingeladeneEmail == zielEmail ||
+             zugriff.registrierungsEmail?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == zielEmail)
+        }
+    }
+
+    private var offeneErweiterungsanfragen: [DossierZugriffModell] {
+        zugriffeFuerAktuelleVertrauensperson.filter {
+            $0.istAktiv && $0.status == DossierZugriffStatus.bestaetigungAusstehend
+        }
+    }
+
+    private var letzterEntschiedenerErweiterungszugriff: DossierZugriffModell? {
+        zugriffeFuerAktuelleVertrauensperson.first {
+            $0.status == DossierZugriffStatus.angenommen ||
+            $0.status == DossierZugriffStatus.freigegeben ||
+            $0.status == DossierZugriffStatus.abgelehnt
         }
     }
 
@@ -581,8 +684,11 @@ struct VertrauenspersonView: View {
     // MARK: - Body
 
     var body: some View {
+        ScrollViewReader { scrollProxy in
         Form {
             mvpHeroBereich
+
+            zugriffsanfragenBereich
 
             if !erklaerungAbgeschlossen {
                 erklaerungsBereich
@@ -590,16 +696,17 @@ struct VertrauenspersonView: View {
                 abgeschlosseneErklaerung
 
                 vertrauenspersonBereich
+                    .id("vertrauensperson-bereich")
 
                 if kontaktIstAusgewaehlt {
-                    freigabeUndSichtbarkeitBereich
-                }
+                    if !einladungIstErstellt {
+                        freigabeUndSichtbarkeitBereich
+                    }
 
-                if kontaktIstAusgewaehlt {
                     Section("QR-Code-Einladung") {
                     qrCodeBereich
 
-                        if !emailIstGueltig {
+                        if !qrEinladungHatGueltigeEmail {
                             Text("Für den QR-Code benötigt die Vertrauensperson eine gültige E-Mail-Adresse.")
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
@@ -672,12 +779,29 @@ struct VertrauenspersonView: View {
         .onChange(of: freigabeSignatur) { _, _ in
             speichereVertrauensperson()
         }
+        .onDisappear {
+            synchronisiereAusstehendeFreigaben()
+        }
         .sheet(
             isPresented: $kontaktPickerAnzeigen
         ) {
             VertrauenspersonKontaktPicker { kontakt in
                 uebernehmeKontakt(kontakt)
             }
+        }
+        .sheet(isPresented: $qrCodeSheetAnzeigen) {
+            qrCodeSheet
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $zugriffVerwaltenAnzeigen) {
+            zugriffsverwaltung
+        }
+        .sheet(isPresented: $zugriffsverlaufAnzeigen) {
+            zugriffsverlauf
+        }
+        .sheet(isPresented: $vollzugriffFreigabeAnzeigen) {
+            vollzugriffFreigabeSheet
         }
         // MARK: - Nicht im MVP Scope: Einladung per E-Mail
         /* .sheet(
@@ -692,44 +816,69 @@ struct VertrauenspersonView: View {
             }
         } */
         .formStyle(.grouped)
+        .onChange(of: erklaerungsSchritt) { _, _ in
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(180))
+                withAnimation(.easeInOut(duration: 0.32)) {
+                    scrollProxy.scrollTo("erklaerung-weiter", anchor: .bottom)
+                }
+            }
+        }
+        .onChange(of: erklaerungAbgeschlossen) { _, abgeschlossen in
+            guard abgeschlossen else { return }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(180))
+                withAnimation(.easeInOut(duration: 0.36)) {
+                    scrollProxy.scrollTo("vertrauensperson-bereich", anchor: .top)
+                }
+            }
+        }
+        .onChange(of: kontaktScrollAnforderung) { _, _ in
+            withAnimation(.easeInOut(duration: 0.38)) {
+                scrollProxy.scrollTo(
+                    "vertrauensperson-bereich",
+                    anchor: UnitPoint(x: 0.5, y: 0.36)
+                )
+            }
+        }
+        }
     }
 
     // MARK: - Geführte Erklärung
 
     private var erklaerungsBereich: some View {
         Section {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("So funktioniert die sichere Verbindung")
-                    .font(.headline)
-                    .foregroundStyle(textFarbe)
+            Text("So funktioniert die sichere Verbindung")
+                .font(.headline)
+                .foregroundStyle(textFarbe)
 
-                ForEach(0...erklaerungsSchritt, id: \.self) { index in
-                    let schritt = erklaerungsSchritte[index]
-                    erklaerungsNachricht(schritt, index: index)
+            ForEach(0...erklaerungsSchritt, id: \.self) { index in
+                let schritt = erklaerungsSchritte[index]
+                erklaerungsNachricht(schritt, index: index)
+                    .id("erklaerung-\(index)")
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
-                }
-
-                Button {
-                    if erklaerungsSchritt == 0 {
-                        NotificationService.shared.berechtigungAnfragen { _ in }
-                    }
-                    withAnimation(.easeInOut(duration: 0.28)) {
-                        if erklaerungsSchritt < erklaerungsSchritte.count - 1 {
-                            erklaerungsSchritt += 1
-                        } else {
-                            erklaerungAbgeschlossen = true
-                        }
-                    }
-                } label: {
-                    Text("Verstanden")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 11)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(akzentFarbe)
             }
-            .padding(.vertical, 4)
+
+            Button {
+                if erklaerungsSchritt == 0 {
+                    NotificationService.shared.berechtigungAnfragen { _ in }
+                }
+                withAnimation(.easeInOut(duration: 0.28)) {
+                    if erklaerungsSchritt < erklaerungsSchritte.count - 1 {
+                        erklaerungsSchritt += 1
+                    } else {
+                        erklaerungAbgeschlossen = true
+                    }
+                }
+            } label: {
+                Text("Verstanden")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(akzentFarbe)
+            .id("erklaerung-weiter")
         } footer: {
             Text("Testversion: Erfolgt auf eine Zugriffsanfrage keine Reaktion, wird der Zugriff nach einer Minute automatisch freigegeben. Produktiv beträgt die Karenzfrist sieben Tage.")
         }
@@ -793,7 +942,7 @@ struct VertrauenspersonView: View {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .fill(schritt.rolle.isEmpty
                               ? Color.green.opacity(0.10)
-                              : (schritt.rolle == "DU" ? akzentFarbe.opacity(0.10) : Color.white.opacity(0.88)))
+                              : (schritt.rolle == "DU" ? akzentFarbe.opacity(0.10) : Color.appRaisedCard))
                 )
 
                 if schritt.rolle != "DU" {
@@ -807,28 +956,508 @@ struct VertrauenspersonView: View {
 
     private var mvpHeroBereich: some View {
         Section {
-            VStack(alignment: .leading, spacing: 12) {
-                Label("Vertrauensperson hinterlegen", systemImage: "person.crop.circle.badge.checkmark")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(akzentFarbe)
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .top, spacing: 14) {
+                    Image(systemName: "person.crop.circle.badge.checkmark")
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(Color.appOnAccent)
+                        .frame(width: 48, height: 48)
+                        .background(Circle().fill(akzentFarbe))
+                        .shadow(color: akzentFarbe.opacity(0.22), radius: 8, y: 4)
 
-                Text("Halte fest, wer deine Vertrauensperson ist und im Ernstfall auf dein Vorsorge-Dossier zugreifen darf.")
-                    .font(.footnote)
-                    .foregroundStyle(sekundaerTextFarbe)
-                    .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Vertrauensperson")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(textFarbe)
+
+                        Text("Halte fest, wer im Ernstfall auf dein Vorsorge-Dossier zugreifen darf.")
+                            .font(.subheadline)
+                            .foregroundStyle(sekundaerTextFarbe)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
 
                 if kontaktIstAusgewaehlt {
                     Label("Vertrauensperson hinterlegt", systemImage: "checkmark.circle.fill")
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(.green)
+
+                    if offeneErweiterungsanfragen.isEmpty,
+                       let zugriff = letzterEntschiedenerErweiterungszugriff {
+                        if zugriff.status == DossierZugriffStatus.angenommen ||
+                            zugriff.status == DossierZugriffStatus.freigegeben {
+                            Label("Vollen Zugriff gegeben", systemImage: "checkmark.circle.fill")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.green)
+                        } else if zugriff.status == DossierZugriffStatus.abgelehnt {
+                            Label("Zugriff abgelehnt", systemImage: "xmark.circle.fill")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.red)
+                        }
+                    }
+
+                    VStack(spacing: 10) {
+                        heroAktionskarte(
+                            titel: "Freigaben verwalten",
+                            beschreibung: "Festlegen, welche Bereiche \(kontaktAnzeigename) sehen darf.",
+                            status: "\(anzahlFreigegebeneBereiche) von 7 Bereichen freigegeben",
+                            symbol: "lock.shield.fill"
+                        ) {
+                            zugriffsverlaufAnzeigen = false
+                            zugriffVerwaltenAnzeigen = true
+                        }
+
+                        heroAktionskarte(
+                            titel: "Änderungsverlauf ansehen",
+                            beschreibung: "Nachvollziehen, wann Zugriffe erteilt oder gesperrt wurden.",
+                            status: letzterZugriffsAenderungstext,
+                            symbol: "clock.arrow.circlepath"
+                        ) {
+                            zugriffsverlaufAnzeigen = true
+                        }
+                    }
                 }
             }
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(cardHintergrund)
+            .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                    .stroke(akzentFarbe.opacity(0.12), lineWidth: 1)
+            }
+            .shadow(color: .black.opacity(0.04), radius: 10, y: 4)
         }
         .listRowBackground(Color.clear)
         .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
+    }
+
+    private func heroAktionskarte(
+        titel: String,
+        beschreibung: String,
+        status: String,
+        symbol: String,
+        aktion: @escaping () -> Void
+    ) -> some View {
+        Button(action: aktion) {
+            HStack(spacing: 12) {
+                Image(systemName: symbol)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(akzentFarbe)
+                    .frame(width: 36, height: 36)
+                    .background(akzentFarbe.opacity(0.10), in: Circle())
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(titel)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(textFarbe)
+                    Text(beschreibung)
+                        .font(.caption)
+                        .foregroundStyle(sekundaerTextFarbe)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(status)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(akzentFarbe)
+                }
+
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(sekundaerTextFarbe)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(akzentFarbe.opacity(0.045))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(akzentFarbe.opacity(0.10), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var letzterZugriffsAenderungstext: String {
+        guard let datum = zugriffsereignisse.map(\.datum).max() else {
+            return "Noch keine Änderung dokumentiert"
+        }
+        return "Letzte Änderung: \(datum.formatted(date: .abbreviated, time: .shortened))"
+    }
+
+    private var zugriffsverwaltung: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    zugriffszeile("Wünsche", bereich: "wuensche", binding: $wuenscheSichtbarBeiDossierfreigabe)
+                    if let wuensche = wuenscheFuerAktivesDossier {
+                        wunschDokumentToggle("inkl. Testament", istVorhanden: !wuensche.testamentDateiName.isEmpty, isOn: wunschDokumentFreigabeBinding(fuer: wuensche, keyPath: \WuenscheModell.testamentFreigegebenBeiDossierfreigabe))
+                        wunschDokumentToggle("inkl. Patientenverfügung", istVorhanden: !wuensche.patientenverfuegungDateiName.isEmpty, isOn: wunschDokumentFreigabeBinding(fuer: wuensche, keyPath: \WuenscheModell.patientenverfuegungFreigegebenBeiDossierfreigabe))
+                        wunschDokumentToggle("inkl. Vorsorgeauftrag", istVorhanden: !wuensche.vorsorgeauftragDateiName.isEmpty, isOn: wunschDokumentFreigabeBinding(fuer: wuensche, keyPath: \WuenscheModell.vorsorgeauftragFreigegebenBeiDossierfreigabe))
+                        wunschDokumentToggle("inkl. Sterbebegleitung", istVorhanden: !wuensche.sterbebegleitungDateiName.isEmpty, isOn: wunschDokumentFreigabeBinding(fuer: wuensche, keyPath: \WuenscheModell.sterbebegleitungFreigegebenBeiDossierfreigabe))
+                    }
+                    zugriffszeile("Wichtige Menschen", bereich: "kontakte", binding: $menschenDesVertrauensSichtbarBeiDossierfreigabe)
+                    zugriffszeile("Finanzen", bereich: "finanzen", binding: $finanzenSichtbarBeiDossierfreigabe)
+                    zugriffszeile("Dokumente & Fotoalbum", bereich: "dokumente", binding: $dokumenteSichtbarBeiDossierfreigabe)
+                    zugriffszeile("Abos & Profile", bereich: "zugaenge", binding: $abosUndProfileSichtbarBeiDossierfreigabe)
+                    zugriffszeile("Herzensstücke", bereich: "herzensstuecke", binding: $herzensstueckeSichtbarBeiDossierfreigabe)
+                    zugriffszeile("Gesundheit", bereich: "gesundheit", binding: $gesundheitSichtbarBeiDossierfreigabe)
+                } header: {
+                    Text("Zugriff für diese Vertrauensperson für die Bereiche")
+                } footer: {
+                    Text("Änderungen werden gespeichert und im freigegebenen Dossier übernommen.")
+                }
+
+            }
+            .navigationTitle("Zugriff verwalten")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Fertig") {
+                        // Auch bereits gesetzte Dokumentfreigaben nochmals
+                        // übertragen. Das repariert Geräte, bei denen die
+                        // frühere verzögerte Synchronisation ausblieb.
+                        ausstehendeFreigabeSyncBereiche.insert("wuensche")
+                        ausstehendeFreigabeSyncBereiche.insert("kontakte")
+                        synchronisiereAusstehendeFreigaben()
+                        zugriffsverlaufAnzeigen = false
+                        zugriffVerwaltenAnzeigen = false
+                    }
+                }
+            }
+        }
+    }
+
+    private func zugriffszeile(_ titel: String, bereich: String, binding: Binding<Bool>) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Toggle(isOn: binding) {
+                Text(titel)
+                Text(zugriffsstatusText(bereich: bereich, istFreigegeben: binding.wrappedValue))
+                    .font(.caption)
+                    .foregroundStyle(binding.wrappedValue ? .green : .secondary)
+            }
+            .tint(akzentFarbe)
+            NavigationLink("Verlauf anzeigen") {
+                bereichsverlauf(titel: titel, bereich: bereich)
+            }
+            .font(.caption)
+        }
+    }
+
+    private var zugriffsverlauf: some View {
+        NavigationStack {
+            List(zugriffsereignisse.sorted { $0.datum > $1.datum }) { ereignis in
+                zugriffsereignisZeile(ereignis)
+            }
+            .navigationTitle("Änderungsverlauf")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fertig") { zugriffsverlaufAnzeigen = false } } }
+        }
+    }
+
+    private func bereichsverlauf(titel: String, bereich: String) -> some View {
+        List(zugriffsereignisse.filter { $0.bereich == bereich }.sorted { $0.datum > $1.datum }) { ereignis in
+            zugriffsereignisZeile(ereignis)
+        }
+        .navigationTitle(titel)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func zugriffsereignisZeile(_ ereignis: ZugriffsHistorienEreignis) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label(
+                "\(zugriffsbereichTitel(ereignis.bereich)) – \(ereignis.freigegeben ? "Zugriff gewährt" : "Zugriff gesperrt")",
+                systemImage: ereignis.freigegeben ? "checkmark.circle.fill" : "xmark.circle.fill"
+            )
+                .foregroundStyle(ereignis.freigegeben ? .green : .red)
+                .font(.subheadline.weight(.semibold))
+            Text(ereignis.datum.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(.secondary)
+            Text(ereignis.ausloeser).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private func zugriffsbereichTitel(_ bereich: String) -> String {
+        switch bereich {
+        case "wuensche": "Wünsche"
+        case "kontakte": "Wichtige Menschen"
+        case "finanzen": "Finanzen"
+        case "dokumente": "Dokumente & Fotoalbum"
+        case "zugaenge": "Abos & Profile"
+        case "herzensstuecke": "Herzensstücke"
+        case "gesundheit": "Gesundheit"
+        case "wunschdokumente": "Dokumente in Wünsche"
+        default: bereich
+        }
+    }
+
+    private var zugriffsereignisse: [ZugriffsHistorienEreignis] {
+        guard let json = vertrauenspersonFuerAktivenUser?.zugriffsHistorieJSON,
+              let daten = json.data(using: .utf8) else { return [] }
+        return (try? JSONDecoder().decode([ZugriffsHistorienEreignis].self, from: daten)) ?? []
+    }
+
+    private var anzahlFreigegebeneBereiche: Int {
+        [wuenscheSichtbarBeiDossierfreigabe,
+         menschenDesVertrauensSichtbarBeiDossierfreigabe,
+         finanzenSichtbarBeiDossierfreigabe,
+         dokumenteSichtbarBeiDossierfreigabe,
+         abosUndProfileSichtbarBeiDossierfreigabe,
+         herzensstueckeSichtbarBeiDossierfreigabe,
+         gesundheitSichtbarBeiDossierfreigabe].filter { $0 }.count
+    }
+
+    private func zugriffsstatusText(bereich: String, istFreigegeben: Bool) -> String {
+        let letztes = zugriffsereignisse.filter { $0.bereich == bereich }.max { $0.datum < $1.datum }
+        let status = istFreigegeben ? "Freigegeben" : "Gesperrt"
+        guard let letztes else { return status }
+        return "\(status) · seit \(letztes.datum.formatted(date: .abbreviated, time: .omitted))"
+    }
+
+    @ViewBuilder
+    private var zugriffsanfragenBereich: some View {
+        if !offeneErweiterungsanfragen.isEmpty {
+            Section {
+                ForEach(offeneErweiterungsanfragen) { zugriff in
+                    VStack(alignment: .leading, spacing: 12) {
+                        Label("Anfrage auf vollen Dossierzugriff", systemImage: "lock.open.fill")
+                            .font(.headline)
+                            .foregroundStyle(akzentFarbe)
+
+                        Text("Deine Vertrauensperson möchte Zugriff auf die bisher gesperrten Bereiche erhalten.")
+                            .font(.subheadline)
+                            .foregroundStyle(sekundaerTextFarbe)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        HStack(spacing: 10) {
+                            Button("Vollen Zugriff geben") {
+                                bereiteVollzugriffFreigabeVor(zugriff)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(akzentFarbe)
+
+                            Button("Ablehnen", role: .destructive) {
+                                entscheideErweiterungsanfrage(zugriff, angenommen: false)
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        .disabled(zugriffsentscheidungLaeuft)
+                    }
+                    .padding(.vertical, 6)
+                }
+            }
+            .listRowBackground(Color.appRaisedCard)
+        }
+    }
+
+    private var vollzugriffFreigabeSheet: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    vollzugriffAuswahlZeile("Wünsche", isOn: $vollzugriffAuswahl.wuensche)
+
+                    if let wuensche = wuenscheFuerAktivesDossier {
+                        vollzugriffDokumentAuswahlZeile(
+                            "Testament",
+                            istVorhanden: !wuensche.testamentDateiName.isEmpty,
+                            isOn: $vollzugriffAuswahl.testament
+                        )
+                        vollzugriffDokumentAuswahlZeile(
+                            "Patientenverfügung",
+                            istVorhanden: !wuensche.patientenverfuegungDateiName.isEmpty,
+                            isOn: $vollzugriffAuswahl.patientenverfuegung
+                        )
+                        vollzugriffDokumentAuswahlZeile(
+                            "Vorsorgeauftrag",
+                            istVorhanden: !wuensche.vorsorgeauftragDateiName.isEmpty,
+                            isOn: $vollzugriffAuswahl.vorsorgeauftrag
+                        )
+                        vollzugriffDokumentAuswahlZeile(
+                            "Sterbebegleitung",
+                            istVorhanden: !wuensche.sterbebegleitungDateiName.isEmpty,
+                            isOn: $vollzugriffAuswahl.sterbebegleitung
+                        )
+                    }
+
+                    vollzugriffAuswahlZeile("Wichtige Menschen", isOn: $vollzugriffAuswahl.kontakte)
+                    vollzugriffAuswahlZeile("Finanzen", isOn: $vollzugriffAuswahl.finanzen)
+                    vollzugriffAuswahlZeile("Dokumente & Fotoalbum", isOn: $vollzugriffAuswahl.dokumente)
+                    vollzugriffAuswahlZeile("Abos & Profile", isOn: $vollzugriffAuswahl.zugaenge)
+                    vollzugriffAuswahlZeile("Herzensstücke", isOn: $vollzugriffAuswahl.herzensstuecke)
+                    vollzugriffAuswahlZeile("Gesundheit", isOn: $vollzugriffAuswahl.gesundheit)
+                } header: {
+                    Text("Diese Bereiche werden freigegeben")
+                } footer: {
+                    Text("Deaktivierte Bereiche bleiben gesperrt und können von deiner Vertrauensperson später erneut angefragt werden.")
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                HStack(spacing: 12) {
+                    Button(role: .cancel) {
+                        vollzugriffFreigabeAnzeigen = false
+                        vollzugriffAnfrageID = nil
+                    } label: {
+                        Text("Abbrechen")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 52, alignment: .center)
+                            .contentShape(Rectangle())
+                    }
+                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.plain)
+                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(.primary.opacity(0.10), lineWidth: 1)
+                    }
+                    .disabled(zugriffsentscheidungLaeuft)
+
+                    Button {
+                        bestaetigeVollzugriffFreigabe()
+                    } label: {
+                        HStack(spacing: 8) {
+                            if zugriffsentscheidungLaeuft {
+                                ProgressView()
+                                    .tint(.white)
+                            } else {
+                                Text("Zugriff gewähren")
+                            }
+                        }
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, minHeight: 52, alignment: .center)
+                        .contentShape(Rectangle())
+                    }
+                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.appOnAccent)
+                    .background(akzentFarbe, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .disabled(zugriffsentscheidungLaeuft)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(.regularMaterial)
+            }
+            .navigationTitle("Vollzugriff auf dein Vorsorge-Dossier gewähren?")
+            .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled(zugriffsentscheidungLaeuft)
+        }
+    }
+
+    private func vollzugriffAuswahlZeile(_ titel: String, isOn: Binding<Bool>) -> some View {
+        Toggle(isOn: isOn) {
+            Label {
+                Text(titel)
+            } icon: {
+                Image(systemName: isOn.wrappedValue ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isOn.wrappedValue ? .green : .secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func vollzugriffDokumentAuswahlZeile(
+        _ titel: String,
+        istVorhanden: Bool,
+        isOn: Binding<Bool>
+    ) -> some View {
+        if istVorhanden {
+            vollzugriffAuswahlZeile(titel, isOn: isOn)
+                .padding(.leading, 20)
+                .disabled(!vollzugriffAuswahl.wuensche)
+        }
+    }
+
+    private func bereiteVollzugriffFreigabeVor(_ zugriff: DossierZugriffModell) {
+        let wuensche = wuenscheFuerAktivesDossier
+        vollzugriffAuswahl = VollzugriffFreigabeAuswahl(
+            wuensche: true,
+            kontakte: true,
+            finanzen: true,
+            dokumente: true,
+            zugaenge: true,
+            herzensstuecke: true,
+            gesundheit: true,
+            testament: wuensche?.testamentFreigegebenBeiDossierfreigabe ?? false,
+            patientenverfuegung: wuensche?.patientenverfuegungFreigegebenBeiDossierfreigabe ?? true,
+            vorsorgeauftrag: wuensche?.vorsorgeauftragFreigegebenBeiDossierfreigabe ?? true,
+            sterbebegleitung: wuensche?.sterbebegleitungFreigegebenBeiDossierfreigabe ?? true
+        )
+        vollzugriffAnfrageID = zugriff.zugriffID
+        vollzugriffFreigabeAnzeigen = true
+    }
+
+    private func bestaetigeVollzugriffFreigabe() {
+        guard let anfrageID = vollzugriffAnfrageID,
+              let zugriff = offeneErweiterungsanfragen.first(where: { $0.zugriffID == anfrageID }) else {
+            vollzugriffFreigabeAnzeigen = false
+            return
+        }
+        entscheideErweiterungsanfrage(
+            zugriff,
+            angenommen: true,
+            freigabeAuswahl: vollzugriffAuswahl
+        )
+    }
+
+    private func entscheideErweiterungsanfrage(
+        _ zugriff: DossierZugriffModell,
+        angenommen: Bool,
+        freigabeAuswahl: VollzugriffFreigabeAuswahl? = nil
+    ) {
+        guard !zugriffsentscheidungLaeuft,
+              let token = zugriff.einladungsToken else { return }
+        zugriffsentscheidungLaeuft = true
+        fehlermeldung = ""
+        Task {
+            defer { zugriffsentscheidungLaeuft = false }
+            do {
+                try await PushEinladungsService.shared.entscheiden(
+                    token: token,
+                    angenommen: angenommen
+                )
+                if angenommen, let userID = zugriff.vertrauenspersonUserID {
+                    if let freigabeAuswahl {
+                        uebernehmeVollzugriffFreigabe(freigabeAuswahl)
+                    }
+                    zugriff.einladungAnnehmen(
+                        vertrauenspersonUserID: userID,
+                        registrierungsEmail: zugriff.registrierungsEmail
+                    )
+                    // Der Serverzeitpunkt liegt vor dieser lokalen Markierung.
+                    // Dadurch überschreibt die anschliessende Statussynchronisation
+                    // die bewusst eingeschränkte manuelle Auswahl nicht erneut.
+                    zugriff.vollzugriffVerarbeitetAm = Date()
+                } else if !angenommen {
+                    zugriff.einladungAblehnen(
+                        registrierungsEmail: zugriff.registrierungsEmail
+                    )
+                }
+                try modelContext.save()
+                if angenommen {
+                    synchronisiereAusstehendeFreigaben()
+                    vollzugriffFreigabeAnzeigen = false
+                    vollzugriffAnfrageID = nil
+                }
+            } catch {
+                fehlermeldung = error.localizedDescription
+            }
+        }
+    }
+
+    private func uebernehmeVollzugriffFreigabe(_ auswahl: VollzugriffFreigabeAuswahl) {
+        wuenscheSichtbarBeiDossierfreigabe = auswahl.wuensche
+        menschenDesVertrauensSichtbarBeiDossierfreigabe = auswahl.kontakte
+        finanzenSichtbarBeiDossierfreigabe = auswahl.finanzen
+        dokumenteSichtbarBeiDossierfreigabe = auswahl.dokumente
+        abosUndProfileSichtbarBeiDossierfreigabe = auswahl.zugaenge
+        herzensstueckeSichtbarBeiDossierfreigabe = auswahl.herzensstuecke
+        gesundheitSichtbarBeiDossierfreigabe = auswahl.gesundheit
+
+        if let wuensche = wuenscheFuerAktivesDossier {
+            wuensche.testamentFreigegebenBeiDossierfreigabe = auswahl.testament
+            wuensche.patientenverfuegungFreigegebenBeiDossierfreigabe = auswahl.patientenverfuegung
+            wuensche.vorsorgeauftragFreigegebenBeiDossierfreigabe = auswahl.vorsorgeauftrag
+            wuensche.sterbebegleitungFreigegebenBeiDossierfreigabe = auswahl.sterbebegleitung
+        }
+        speichereVertrauensperson()
+        ausstehendeFreigabeSyncBereiche.insert("wuensche")
     }
 
     // MARK: - Hero
@@ -1128,32 +1757,50 @@ struct VertrauenspersonView: View {
             if kontaktIstAusgewaehlt {
                 VStack(
                     alignment: .leading,
-                    spacing: 6
+                    spacing: 10
                 ) {
                     Text(kontaktAnzeigename)
                         .font(.headline)
+                        .confirmationDialog(
+                            "E-Mail-Adresse auswählen",
+                            isPresented: $emailAuswahlFuerQRCodeAnzeigen,
+                            titleVisibility: .visible
+                        ) {
+                            ForEach(kontaktEmailAdressen, id: \.self) { adresse in
+                                Button(adresse) {
+                                    qrCodeFuerDossierZugriffGenerieren(fuer: adresse)
+                                }
+                            }
+                            Button("Abbrechen", role: .cancel) { }
+                        } message: {
+                            Text("Welche E-Mail-Adresse verwendet \(kontaktAnzeigename) für das Tschlüssli-Konto?")
+                        }
 
-                    if !bereinigteEmail.isEmpty {
-                        Text(bereinigteEmail)
+                    ForEach(kontaktAdressen, id: \.self) { adresse in
+                        Label(adresse, systemImage: "mappin.and.ellipse")
                             .font(.footnote)
-                            .foregroundStyle(
-                                .secondary
-                            )
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    let bereinigtesTelefon =
-                        telefon.trimmingCharacters(
-                            in: .whitespacesAndNewlines
-                        )
-
-                    if !bereinigtesTelefon.isEmpty {
-                        Text(bereinigtesTelefon)
+                    ForEach(kontaktEmailAdressen, id: \.self) { adresse in
+                        Label(adresse, systemImage: "envelope")
                             .font(.footnote)
-                            .foregroundStyle(
-                                .secondary
-                            )
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+
+                    ForEach(kontaktTelefonnummern, id: \.self) { nummer in
+                        Label(nummer, systemImage: "phone")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
                     }
                 }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.appField)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
                 Button(
                     role: .destructive
@@ -1208,13 +1855,13 @@ struct VertrauenspersonView: View {
 
     private var freigabeUndSichtbarkeitBereich: some View {
         Section {
-            sectionTitel("Freigabe und Sichtbarkeit", icon: "eye.fill")
+            sectionTitel("Bestimme, wofür du bei deiner Freigabe Zugriff gewährst", icon: "lock.open.fill")
 
-            Toggle("Meine Wünsche", isOn: $wuenscheSichtbarBeiDossierfreigabe)
+            Toggle("Inhalte zu deinen Wünschen", isOn: $wuenscheSichtbarBeiDossierfreigabe)
 
             if let wuensche = wuenscheFuerAktivesDossier {
                 wunschDokumentToggle(
-                    "Testament",
+                    "inkl. Testament",
                     istVorhanden: !wuensche.testamentDateiName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                     isOn: wunschDokumentFreigabeBinding(
                         fuer: wuensche,
@@ -1222,7 +1869,7 @@ struct VertrauenspersonView: View {
                     )
                 )
                 wunschDokumentToggle(
-                    "Patientenverfügung",
+                    "inkl. Patientenverfügung",
                     istVorhanden: !wuensche.patientenverfuegungDateiName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                     isOn: wunschDokumentFreigabeBinding(
                         fuer: wuensche,
@@ -1230,7 +1877,7 @@ struct VertrauenspersonView: View {
                     )
                 )
                 wunschDokumentToggle(
-                    "Vorsorgeauftrag",
+                    "inkl. Vorsorgeauftrag",
                     istVorhanden: !wuensche.vorsorgeauftragDateiName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                     isOn: wunschDokumentFreigabeBinding(
                         fuer: wuensche,
@@ -1238,7 +1885,7 @@ struct VertrauenspersonView: View {
                     )
                 )
                 wunschDokumentToggle(
-                    "Sterbebegleitung",
+                    "inkl. Sterbebegleitung",
                     istVorhanden: !wuensche.sterbebegleitungDateiName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                     isOn: wunschDokumentFreigabeBinding(
                         fuer: wuensche,
@@ -1247,14 +1894,14 @@ struct VertrauenspersonView: View {
                 )
             }
 
-            Toggle("Menschen des Vertrauens", isOn: $menschenDesVertrauensSichtbarBeiDossierfreigabe)
-            Toggle("Finanzen", isOn: $finanzenSichtbarBeiDossierfreigabe)
-            Toggle("Dokumente", isOn: $dokumenteSichtbarBeiDossierfreigabe)
-            Toggle("Abos & Profile", isOn: $abosUndProfileSichtbarBeiDossierfreigabe)
-            Toggle("Herzensstücke", isOn: $herzensstueckeSichtbarBeiDossierfreigabe)
-            Toggle("Gesundheit", isOn: $gesundheitSichtbarBeiDossierfreigabe)
+            Toggle("Kontaktdaten der erfassten Personen", isOn: $menschenDesVertrauensSichtbarBeiDossierfreigabe)
+            Toggle("Liste der Finanzen und Wertsachen", isOn: $finanzenSichtbarBeiDossierfreigabe)
+            Toggle("Erfasste Dokumente & Fotoalbum", isOn: $dokumenteSichtbarBeiDossierfreigabe)
+            Toggle("Deine Abos & Profile mit Passwörter", isOn: $abosUndProfileSichtbarBeiDossierfreigabe)
+            Toggle("Deine Herzensstücke", isOn: $herzensstueckeSichtbarBeiDossierfreigabe)
+            Toggle("Informationen zur Gesundheit", isOn: $gesundheitSichtbarBeiDossierfreigabe)
         } footer: {
-            Text("Die Freigaben gelten für diese Vertrauensperson. Wunschdokumente können hier oder in «Meine Wünsche» bearbeitet werden.")
+            Text("Die Zugriffsrechte gelten für diese Vertrauensperson. Wunschdokumente können hier oder in «Meine Wünsche» bearbeitet werden.")
         }
         .tint(akzentFarbe)
     }
@@ -1268,6 +1915,7 @@ struct VertrauenspersonView: View {
         if istVorhanden {
             Toggle(titel, isOn: isOn)
                 .padding(.leading, 20)
+                .tint(akzentFarbe)
         }
     }
 
@@ -1281,6 +1929,15 @@ struct VertrauenspersonView: View {
                 wuensche[keyPath: keyPath] = neuerWert
                 do {
                     try modelContext.save()
+                    NotificationCenter.default.post(
+                        name: .dossierBereichGespeichert,
+                        object: "wuensche"
+                    )
+                    NotificationCenter.default.post(
+                        name: .dossierBereichGespeichert,
+                        object: "kontakte"
+                    )
+                    DossierSyncDienst.shared?.synchronisieren()
                 } catch {
                     fehlermeldung = "Dokumentfreigabe konnte nicht gespeichert werden."
                 }
@@ -1382,6 +2039,111 @@ struct VertrauenspersonView: View {
 
     // MARK: - QR-Code
 
+    private var qrCodeSheet: some View {
+        NavigationStack {
+            ZStack {
+                ScrollView {
+                VStack(spacing: 18) {
+                    Image(systemName: "qrcode.viewfinder")
+                        .font(.largeTitle.weight(.semibold))
+                        .foregroundStyle(akzentFarbe)
+
+                    VStack(spacing: 6) {
+                        Text("Vorsorge-Dossier-Zugriff")
+                            .font(.title2.weight(.bold))
+                        Text("Für \(kontaktAnzeigename)")
+                            .font(.subheadline)
+                            .foregroundStyle(sekundaerTextFarbe)
+                    }
+
+                    if let qrBild = qrCodeBild(aus: sichererEinladungsLink) {
+                        Image(uiImage: qrBild)
+                            .interpolation(.none)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: qrCodeKantenlaenge, height: qrCodeKantenlaenge)
+                            .padding(18)
+                            .background(Color.white, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                    .stroke(akzentFarbe.opacity(0.14), lineWidth: 1)
+                            }
+                            .shadow(color: .black.opacity(0.07), radius: 16, y: 8)
+                    }
+
+                    Text("Deine Vertrauensperson scannt diesen Code in der Tschlüssli App. Er ist persönlich, nur einmal nutzbar und läuft nach 30 Tagen ab.")
+                        .font(.subheadline)
+                        .foregroundStyle(sekundaerTextFarbe)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Label("Nur für \(bereinigteEmail)", systemImage: "person.badge.key.fill")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(akzentFarbe)
+
+                    VStack(alignment: .leading, spacing: 9) {
+                        Label("Einmalig nutzbar", systemImage: "1.circle.fill")
+                        Label("Nur für diese Person gültig", systemImage: "person.badge.key.fill")
+                        Label("Läuft nach 30 Tagen ab", systemImage: "calendar.badge.clock")
+                    }
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(akzentFarbe)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .background(akzentFarbe.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .frame(maxWidth: .infinity)
+                .appPagePadding()
+                .padding(.vertical, 28)
+                }
+
+                if bildschirmWirdAufgezeichnet {
+                    hintergrundFarbe
+                        .ignoresSafeArea()
+                    VStack(spacing: 14) {
+                        Image(systemName: "eye.slash.fill")
+                            .font(.largeTitle.weight(.semibold))
+                            .foregroundStyle(akzentFarbe)
+                        Text("Geschützte Ansicht")
+                            .font(.title2.weight(.bold))
+                        Text("Die Anzeige des QR-Codes ist während einer Bildschirmaufnahme nicht möglich.")
+                            .font(.subheadline)
+                            .foregroundStyle(sekundaerTextFarbe)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(32)
+                }
+            }
+            .background(hintergrundFarbe.ignoresSafeArea())
+            .navigationTitle("QR-Code")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Fertig") { qrCodeSheetAnzeigen = false }
+                }
+            }
+            .privacySensitive()
+            .onAppear {
+                bildschirmWirdAufgezeichnet = aktiveBildschirmaufnahme
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.userDidTakeScreenshotNotification)) { _ in
+                screenshotHinweisAnzeigen = true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIScreen.capturedDidChangeNotification)) { meldung in
+                bildschirmWirdAufgezeichnet = (meldung.object as? UIScreen)?.isCaptured ?? aktiveBildschirmaufnahme
+            }
+            .alert("Screenshot nicht erlaubt", isPresented: $screenshotHinweisAnzeigen) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Aus Sicherheitsgründen ist ein Screenshot dieser Seite nicht erlaubt.")
+            }
+        }
+    }
+
+    private var qrCodeKantenlaenge: CGFloat {
+        min(max(appLayout.containerWidth - (appLayout.pageInset * 2) - 48, 180), 248)
+    }
+
     @ViewBuilder
     private var qrCodeBereich: some View {
         VStack(
@@ -1392,7 +2154,9 @@ struct VertrauenspersonView: View {
                 qrCodeFuerDossierZugriffGenerieren()
             } label: {
                 Label(
-                    "QR-Code für Vorsorge-Dossier-Zugriff generieren",
+                    letzterZugangsCodeIstGueltig
+                        ? "Neuen Zugangs-Code erzeugen"
+                        : "QR-Code für Vorsorge-Dossier-Zugriff generieren",
                     systemImage: "qrcode"
                 )
                 .font(.headline)
@@ -1400,7 +2164,7 @@ struct VertrauenspersonView: View {
                 .padding(.vertical, 11)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.appOnAccent)
             .background(
                 RoundedRectangle(
                     cornerRadius: 16,
@@ -1410,11 +2174,11 @@ struct VertrauenspersonView: View {
             )
             .disabled(
                 !kontaktIstAusgewaehlt ||
-                !emailIstGueltig
+                !qrEinladungHatGueltigeEmail
             )
             .opacity(
                 kontaktIstAusgewaehlt &&
-                emailIstGueltig
+                qrEinladungHatGueltigeEmail
                 ? 1
                 : 0.45
             )
@@ -1425,166 +2189,52 @@ struct VertrauenspersonView: View {
             .font(.footnote)
             .foregroundStyle(.secondary)
 
-            if qrCodeAnzeigen,
-               !sichererEinladungsLink.isEmpty {
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                if letzterZugangsCodeIstGueltig(am: context.date),
+                   let gueltigBis = aktuellerDossierZugriff?.einladungGueltigBis,
+                   let qrBild = qrCodeBild(aus: sichererEinladungsLink) {
+                    Button {
+                        qrCodeSheetAnzeigen = true
+                    } label: {
+                        HStack(spacing: 16) {
+                            Image(uiImage: qrBild)
+                                .interpolation(.none)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 92, height: 92)
+                                .padding(8)
+                                .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-                VStack(
-                    alignment: .center,
-                    spacing: 14
-                ) {
-                    VStack(spacing: 6) {
-                        Image(
-                            systemName:
-                                "qrcode.viewfinder"
-                        )
-                        .font(
-                            .system(
-                                size: 30,
-                                weight: .semibold
-                            )
-                        )
-                        .foregroundStyle(
-                            akzentFarbe
-                        )
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Zuletzt erstellter Zugangs-Code")
+                                    .font(.headline)
+                                    .foregroundStyle(textFarbe)
+                                    .multilineTextAlignment(.leading)
 
-                        Text(
-                            "Vorsorge-Dossier-Zugriff per QR-Code"
-                        )
-                        .font(
-                            .headline.weight(
-                                .semibold
-                            )
-                        )
-                        .foregroundStyle(
-                            textFarbe
-                        )
+                                Text("Gültig bis \(gueltigBis.formatted(date: .abbreviated, time: .shortened))")
+                                    .font(.footnote)
+                                    .foregroundStyle(sekundaerTextFarbe)
 
-                        Text(
-                            "Deine Vertrauensperson kann diesen Code in der Tschlüssli App scannen. Der Code kann nur einmal genutzt werden."
-                        )
-                        .font(.footnote)
-                        .foregroundStyle(
-                            sekundaerTextFarbe
-                        )
-                        .multilineTextAlignment(
-                            .center
-                        )
-                        .lineSpacing(2)
+                                Label("Code anzeigen", systemImage: "arrow.up.right.square")
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundStyle(akzentFarbe)
+                            }
+
+                            Spacer(minLength: 0)
+                        }
+                        .padding(14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(cardHintergrund)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .stroke(akzentFarbe.opacity(0.12), lineWidth: 1)
+                        }
                     }
-
-                    if let qrBild = qrCodeBild(
-                        aus: sichererEinladungsLink
-                    ) {
-                        Image(uiImage: qrBild)
-                            .interpolation(.none)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(
-                                width: 210,
-                                height: 210
-                            )
-                            .padding(18)
-                            .background(
-                                RoundedRectangle(
-                                    cornerRadius: 24,
-                                    style:
-                                        .continuous
-                                )
-                                .fill(Color.white)
-                            )
-                            .overlay(
-                                RoundedRectangle(
-                                    cornerRadius: 24,
-                                    style:
-                                        .continuous
-                                )
-                                .stroke(
-                                    akzentFarbe
-                                        .opacity(
-                                            0.12
-                                        ),
-                                    lineWidth: 1
-                                )
-                            )
-                            .shadow(
-                                color:
-                                    Color.black
-                                    .opacity(0.06),
-                                radius: 14,
-                                x: 0,
-                                y: 8
-                            )
-                    } else {
-                        Text(
-                            "Der QR-Code konnte nicht erstellt werden."
-                        )
-                        .font(.footnote)
-                        .foregroundStyle(.red)
-                    }
-
-                    VStack(
-                        alignment: .leading,
-                        spacing: 8
-                    ) {
-                        Label(
-                            "Einmalig nutzbar",
-                            systemImage:
-                                "1.circle.fill"
-                        )
-
-                        Label(
-                            "Nur für diese Person gültig",
-                            systemImage:
-                                "person.badge.key.fill"
-                        )
-
-                        Label(
-                            "Läuft nach 30 Tagen ab",
-                            systemImage:
-                                "calendar.badge.clock"
-                        )
-                    }
-                    .font(
-                        .caption.weight(.medium)
-                    )
-                    .foregroundStyle(
-                        akzentFarbe
-                    )
-                    .frame(
-                        maxWidth: .infinity,
-                        alignment: .leading
-                    )
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(
-                            cornerRadius: 16,
-                            style: .continuous
-                        )
-                        .fill(
-                            akzentFarbe.opacity(
-                                0.08
-                            )
-                        )
-                    )
-
-                    Text(sichererEinladungsLink)
-                        .font(
-                            .caption2.monospaced()
-                        )
-                        .foregroundStyle(
-                            sekundaerTextFarbe
-                        )
-                        .multilineTextAlignment(
-                            .center
-                        )
-                        .textSelection(.enabled)
-                        .lineLimit(3)
+                    .buttonStyle(.plain)
                 }
-                .padding(16)
-                .frame(maxWidth: .infinity)
-                .background(cardHintergrund)
-                .padding(.top, 4)
             }
+
         }
         .padding(.top, 8)
     }
@@ -1918,12 +2568,12 @@ struct VertrauenspersonView: View {
                 style: .continuous
             )
             .stroke(
-                Color.white.opacity(0.75),
+                Color.appBorder,
                 lineWidth: 1
             )
         )
         .shadow(
-            color: Color.black.opacity(0.06),
+            color: Color.appShadow,
             radius: 16,
             x: 0,
             y: 8
@@ -1985,13 +2635,28 @@ struct VertrauenspersonView: View {
             return
         }
 
-        let empfaengerEmail = bereinigteEmail
-
-        guard istGueltigeEmail(empfaengerEmail) else {
+        guard qrEinladungHatGueltigeEmail else {
             fehlermeldung =
             "Bitte hinterlege zuerst eine gültige E-Mail-Adresse für die Vertrauensperson."
             return
         }
+
+        if kontaktEmailAdressen.count > 1 {
+            kontaktScrollAnforderung += 1
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(420))
+                emailAuswahlFuerQRCodeAnzeigen = true
+            }
+            return
+        }
+
+        guard let empfaengerEmail = kontaktEmailAdressen.first else { return }
+        qrCodeFuerDossierZugriffGenerieren(fuer: empfaengerEmail)
+    }
+
+    private func qrCodeFuerDossierZugriffGenerieren(fuer empfaengerEmail: String) {
+        email = empfaengerEmail
+        speichereVertrauensperson()
 
         erneuereEinladungsTokenFallsNoetig()
         stelleEinladungsTokenSicher(
@@ -2014,6 +2679,10 @@ struct VertrauenspersonView: View {
         erfolgsmeldung =
             "Sicherer QR-Code wird vorbereitet …"
 
+        // Die beim Erfassen gewählten Rechte und die dazugehörigen Inhalte
+        // müssen vor dem Scannen mindestens als gemeinsamer Sync vorgemerkt sein.
+        synchronisiereAusstehendeFreigaben()
+
         Task {
             do {
                 try await PushEinladungsService.shared.einladungRegistrieren(
@@ -2023,6 +2692,7 @@ struct VertrauenspersonView: View {
                     ownerName: vorsorgendePersonName
                 )
                 qrCodeAnzeigen = true
+                qrCodeSheetAnzeigen = true
                 einladungsHistorieEintragHinzufuegen(
                     "QR-Code für \(kontaktAnzeigename) wurde erstellt."
                 )
@@ -2133,6 +2803,10 @@ struct VertrauenspersonView: View {
 
         do {
             try modelContext.save()
+            NotificationCenter.default.post(
+                name: .dossierBereichGespeichert,
+                object: "kontakte"
+            )
         } catch {
             fehlermeldung =
             "Die angenommene Einladung konnte nicht gespeichert werden."
@@ -2189,24 +2863,34 @@ struct VertrauenspersonView: View {
         vorname = kontakt.givenName
         name = kontakt.familyName
 
-        if let ersteEmail =
-            kontakt.emailAddresses
-            .first?
-            .value {
-            email = String(ersteEmail)
+        let emailAdressen = kontakt.emailAddresses.map {
+            String($0.value).trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter(istGueltigeEmail)
+
+        kontaktEmailAdressenJSON = kodiereKontaktwerte(emailAdressen)
+
+        if let ersteEmail = emailAdressen.first {
+            email = ersteEmail
         } else {
             email = ""
         }
 
-        if let ersteTelefonnummer =
-            kontakt.phoneNumbers
-            .first?
-            .value
-            .stringValue {
+        let telefonnummern = kontakt.phoneNumbers.map {
+            $0.value.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter { !$0.isEmpty }
+        kontaktTelefonnummernJSON = kodiereKontaktwerte(telefonnummern)
+
+        if let ersteTelefonnummer = telefonnummern.first {
             telefon = ersteTelefonnummer
         } else {
             telefon = ""
         }
+
+        let adressen = kontakt.postalAddresses.map {
+            CNPostalAddressFormatter.string(from: $0.value, style: .mailingAddress)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter { !$0.isEmpty }
+        kontaktAdressenJSON = kodiereKontaktwerte(adressen)
 
         fehlermeldung = ""
 
@@ -2217,13 +2901,34 @@ struct VertrauenspersonView: View {
         speichereVertrauensperson()
     }
 
+    private func kodiereKontaktwerte(_ werte: [String]) -> String {
+        let eindeutigeWerte = werte.reduce(into: [String]()) { ergebnis, wert in
+            guard !ergebnis.contains(where: { $0.caseInsensitiveCompare(wert) == .orderedSame }) else {
+                return
+            }
+            ergebnis.append(wert)
+        }
+        guard let daten = try? JSONEncoder().encode(eindeutigeWerte),
+              let json = String(data: daten, encoding: .utf8) else {
+            return "[]"
+        }
+        return json
+    }
+
     private func kontaktLoeschen() {
         guard !kontaktLoeschungLaeuft else { return }
-        let mussCloudZugriffWiderrufen = einladungsToken != nil || aktuellerDossierZugriff != nil
-        guard mussCloudZugriffWiderrufen,
-              let token = einladungsToken ?? aktuellerDossierZugriff?.einladungsToken,
-              let dossierID = aktivesDossierUUID,
-              !bereinigteEmail.isEmpty else {
+        let zugriff = aktuellerDossierZugriff ?? zugriffeFuerAktuelleVertrauensperson.first
+        let widerrufsEmail = [
+            zugriff?.eingeladeneEmail ?? "",
+            zugriff?.registrierungsEmail ?? "",
+            einladungsEmail ?? "",
+            bereinigteEmail
+        ]
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+        .first { !$0.isEmpty }
+
+        guard let dossierID = zugriff?.dossierID ?? aktivesDossierUUID,
+              let widerrufsEmail else {
             kontaktLokalLoeschen()
             return
         }
@@ -2233,17 +2938,16 @@ struct VertrauenspersonView: View {
         Task {
             do {
                 try await PushEinladungsService.shared.einladungWiderrufen(
-                    token: token,
+                    token: einladungsToken ?? zugriff?.einladungsToken ?? "",
                     dossierID: dossierID,
-                    email: bereinigteEmail
+                    email: widerrufsEmail
                 )
                 kontaktLoeschungLaeuft = false
                 kontaktLokalLoeschen()
             } catch PushFehler.nichtGefunden {
-                // Der Zugriff wurde beispielsweise in einem früheren Test bereits
-                // serverseitig entfernt. Der lokale Kontakt darf dann ebenfalls weg.
                 kontaktLoeschungLaeuft = false
-                kontaktLokalLoeschen()
+                fehlermeldung = "Der Zugriff konnte auf dem Server nicht eindeutig gefunden werden. Die Vertrauensperson wurde lokal nicht entfernt."
+                erfolgsmeldung = ""
             } catch {
                 kontaktLoeschungLaeuft = false
                 fehlermeldung = "Die Vertrauensperson konnte nicht entfernt werden: \(error.localizedDescription)"
@@ -2277,6 +2981,20 @@ struct VertrauenspersonView: View {
         email = ""
         telefon = ""
         beziehung = ""
+        kontaktEmailAdressenJSON = "[]"
+        kontaktTelefonnummernJSON = "[]"
+        kontaktAdressenJSON = "[]"
+
+        // Eine neue Vertrauensperson beginnt immer mit den vorgesehenen
+        // Standardfreigaben und übernimmt keine Rechte des gelöschten Kontakts.
+        ausstehendeFreigabeSyncBereiche.removeAll()
+        wuenscheSichtbarBeiDossierfreigabe = true
+        menschenDesVertrauensSichtbarBeiDossierfreigabe = true
+        finanzenSichtbarBeiDossierfreigabe = false
+        dokumenteSichtbarBeiDossierfreigabe = false
+        abosUndProfileSichtbarBeiDossierfreigabe = false
+        herzensstueckeSichtbarBeiDossierfreigabe = true
+        gesundheitSichtbarBeiDossierfreigabe = true
 
         einladungsStatus = .offen
         vorsorgeprozessStatus =
@@ -2296,6 +3014,10 @@ struct VertrauenspersonView: View {
 
         do {
             try modelContext.save()
+            NotificationCenter.default.post(
+                name: .dossierBereichGespeichert,
+                object: "kontakte"
+            )
         } catch {
             fehlermeldung =
             "Kontakt konnte nicht vollständig gelöscht werden."
@@ -2379,6 +3101,12 @@ struct VertrauenspersonView: View {
     }
 
     // MARK: - E-Mail
+
+    private var aktiveBildschirmaufnahme: Bool {
+        UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.screen }
+            .contains { $0.isCaptured }
+    }
 
     private func einladungPerMailVorbereiten() {
         fehlermeldung = ""
@@ -2769,6 +3497,49 @@ struct VertrauenspersonView: View {
             neueVertrauensperson
         }
 
+        var zugriffsereignisse = (try? JSONDecoder().decode(
+            [ZugriffsHistorienEreignis].self,
+            from: Data(vertrauensperson.zugriffsHistorieJSON.utf8)
+        )) ?? []
+        let benoetigtAusgangszustand = zugriffsereignisse.isEmpty
+        let neueZustaende: [(String, Bool)] = [
+            ("wuensche", wuenscheSichtbarBeiDossierfreigabe),
+            ("kontakte", menschenDesVertrauensSichtbarBeiDossierfreigabe),
+            ("finanzen", finanzenSichtbarBeiDossierfreigabe),
+            ("dokumente", dokumenteSichtbarBeiDossierfreigabe),
+            ("zugaenge", abosUndProfileSichtbarBeiDossierfreigabe),
+            ("herzensstuecke", herzensstueckeSichtbarBeiDossierfreigabe),
+            ("gesundheit", gesundheitSichtbarBeiDossierfreigabe)
+        ]
+        let alteZustaende: [String: Bool] = [
+            "wuensche": vertrauensperson.wuenscheSichtbarBeiDossierfreigabe,
+            "kontakte": vertrauensperson.menschenDesVertrauensSichtbarBeiDossierfreigabe,
+            "finanzen": vertrauensperson.finanzenSichtbarBeiDossierfreigabe,
+            "dokumente": vertrauensperson.dokumenteSichtbarBeiDossierfreigabe,
+            "zugaenge": vertrauensperson.abosUndProfileSichtbarBeiDossierfreigabe,
+            "herzensstuecke": vertrauensperson.herzensstueckeSichtbarBeiDossierfreigabe,
+            "gesundheit": vertrauensperson.gesundheitSichtbarBeiDossierfreigabe
+        ]
+        let geaenderteBereiche = neueZustaende.compactMap { bereich, freigegeben in
+            (benoetigtAusgangszustand || alteZustaende[bereich] != freigegeben)
+                ? bereich
+                : nil
+        }
+        for (bereich, freigegeben) in neueZustaende
+        where benoetigtAusgangszustand || alteZustaende[bereich] != freigegeben {
+            zugriffsereignisse.append(ZugriffsHistorienEreignis(
+                bereich: bereich,
+                freigegeben: freigegeben,
+                datum: Date(),
+                ausloeser: benoetigtAusgangszustand
+                    ? "Erstfreigabe · Standardwert bestätigt"
+                    : "Durch die vorsorgende Person geändert"
+            ))
+        }
+        if let daten = try? JSONEncoder().encode(zugriffsereignisse) {
+            vertrauensperson.zugriffsHistorieJSON = String(decoding: daten, as: UTF8.self)
+        }
+
         if let aktiveUserUUID {
             vertrauensperson
                 .vorsorgendeUserID =
@@ -2866,12 +3637,37 @@ struct VertrauenspersonView: View {
 
         do {
             try modelContext.save()
+            ausstehendeFreigabeSyncBereiche.insert("kontakte")
+            ausstehendeFreigabeSyncBereiche.formUnion(geaenderteBereiche)
         } catch {
             fehlermeldung =
             "Vertrauensperson konnte nicht gespeichert werden."
 
             erfolgsmeldung = ""
         }
+    }
+
+    private func synchronisiereAusstehendeFreigaben() {
+        if abosUndProfileSichtbarBeiDossierfreigabe,
+           let token = einladungsToken, !token.isEmpty {
+            Task {
+                do {
+                    try await PushEinladungsService.shared.schluesselFreigeben(token: token)
+                } catch {
+                    fehlermeldung = "Die verschlüsselte Freigabe für Abos & Profile konnte nicht übertragen werden: \(error.localizedDescription)"
+                }
+            }
+        }
+        guard !ausstehendeFreigabeSyncBereiche.isEmpty else { return }
+        let bereiche = ausstehendeFreigabeSyncBereiche
+        ausstehendeFreigabeSyncBereiche.removeAll()
+        for bereich in bereiche {
+            NotificationCenter.default.post(
+                name: .dossierBereichGespeichert,
+                object: bereich
+            )
+        }
+        DossierSyncDienst.shared?.synchronisieren()
     }
 
     // MARK: - Validierung
@@ -3035,6 +3831,28 @@ private struct EinladungsHistorieEintrag:
     }
 }
 
+private struct VollzugriffFreigabeAuswahl {
+    var wuensche = true
+    var kontakte = true
+    var finanzen = true
+    var dokumente = true
+    var zugaenge = true
+    var herzensstuecke = true
+    var gesundheit = true
+    var testament = false
+    var patientenverfuegung = true
+    var vorsorgeauftrag = true
+    var sterbebegleitung = true
+}
+
+struct ZugriffsHistorienEreignis: Codable, Identifiable {
+    var id = UUID()
+    let bereich: String
+    let freigegeben: Bool
+    let datum: Date
+    let ausloeser: String
+}
+
 // MARK: - Kontakt Picker
 
 private struct VertrauenspersonKontaktPicker:
@@ -3048,6 +3866,14 @@ private struct VertrauenspersonKontaktPicker:
     ) -> CNContactPickerViewController {
         let picker =
             CNContactPickerViewController()
+
+        picker.displayedPropertyKeys = [
+            CNContactGivenNameKey,
+            CNContactFamilyNameKey,
+            CNContactPostalAddressesKey,
+            CNContactEmailAddressesKey,
+            CNContactPhoneNumbersKey
+        ]
 
         picker.delegate =
         context.coordinator

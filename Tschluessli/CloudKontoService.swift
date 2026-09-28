@@ -117,7 +117,7 @@ actor CloudKontoService {
     func kontoUnwiderruflichLoeschen() async throws {
         let token = try await sitzungsToken()
         var request = URLRequest(
-            url: CloudAPIKonfiguration.basisURL.appending(path: "api/accounts/login")
+            url: CloudAPIKonfiguration.basisURL.appending(path: "api/accounts/delete")
         )
         request.httpMethod = "DELETE"
         request.timeoutInterval = 20

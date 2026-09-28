@@ -3,6 +3,7 @@ import SwiftData
 import ContactsUI
 
 struct HinterbliebeneView: View {
+    @Environment(\.appLayout) private var appLayout
     var dossierKontext: DossierKontext = .eigenesDossier(dossierID: UUID())
 
     @Environment(\.modelContext) private var modelContext
@@ -11,13 +12,14 @@ struct HinterbliebeneView: View {
     @Query private var gespeicherteVertrauenspersonen: [VertrauenspersonModell]
     @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
 
-    private let vertrauenHintergrundFarbe = Color(red: 0.985, green: 0.975, blue: 0.955)
-    private let vertrauenKartenFarbe = Color(red: 0.96, green: 0.95, blue: 0.92)
-    private let vertrauenAkzentFarbe = Color(red: 0.24, green: 0.50, blue: 0.34)
-    private let vertrauenTextFarbe = Color.black.opacity(0.86)
+    private let vertrauenHintergrundFarbe = Color.appCanvas
+    private let vertrauenKartenFarbe = Color.appCard
+    private let vertrauenAkzentFarbe = Color.areaContacts
+    private let vertrauenTextFarbe = Color.primary
 
     @State private var aktiveKategorie: VertrauenspersonKategorie = .partner
     @State private var showKontaktPicker = false
+    @State private var angezeigterSystemKontakt: SystemKontaktReferenz?
     @State private var eingeklappteKategorien: Set<VertrauenspersonKategorie> = []
 
     var body: some View {
@@ -26,8 +28,6 @@ struct HinterbliebeneView: View {
                 VStack(spacing: 18) {
                     vertrauensHero
                         .padding(.top, 18)
-
-                    vertrauenspersonKarte
 
                     Text("Personen")
                         .font(.title2.weight(.bold))
@@ -66,12 +66,14 @@ struct HinterbliebeneView: View {
                         kategorie: .beguenstigte,
                         kontakte: kontakteFuerKategorie(.beguenstigte)
                     )
+
+                    vertrauenspersonKarte
                 }
-                .padding(.horizontal, 16)
+                .appPagePadding()
                 .padding(.bottom, 28)
             }
             .background(vertrauenHintergrundFarbe.ignoresSafeArea())
-            .navigationTitle("Menschen des Vertrauens")
+            .navigationTitle("Wichtige Menschen")
             .tint(vertrauenAkzentFarbe)
             .sheet(isPresented: $showKontaktPicker) {
                 HinterbliebeneKontaktPicker { kontakt in
@@ -80,6 +82,9 @@ struct HinterbliebeneView: View {
                     }
                     showKontaktPicker = false
                 }
+            }
+            .sheet(item: $angezeigterSystemKontakt) { referenz in
+                SystemKontaktDetailView(identifier: referenz.id)
             }
         }
         .dossierFloatingNavigation(.hinterbliebene, dossierKontext: dossierKontext)
@@ -90,7 +95,7 @@ struct HinterbliebeneView: View {
             HStack(alignment: .top, spacing: 14) {
                 Image(systemName: "person.3.sequence.fill")
                     .font(.title2.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.appOnAccent)
                     .frame(width: 48, height: 48)
                     .background(Circle().fill(vertrauenAkzentFarbe))
                     .shadow(color: vertrauenAkzentFarbe.opacity(0.22), radius: 8, x: 0, y: 4)
@@ -125,7 +130,7 @@ struct HinterbliebeneView: View {
             HStack(spacing: 16) {
                 Image(systemName: "person.crop.circle.badge.checkmark")
                     .font(.title2.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.appOnAccent)
                     .frame(width: 52, height: 52)
                     .background(Circle().fill(vertrauenAkzentFarbe))
 
@@ -152,7 +157,7 @@ struct HinterbliebeneView: View {
             }
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.white.opacity(0.82))
+            .background(Color.appField)
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
@@ -260,7 +265,7 @@ struct HinterbliebeneView: View {
                         Text("Kontakt hinzufügen")
                             .font(.subheadline.weight(.semibold))
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.appOnAccent)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
                     .background(vertrauenAkzentFarbe)
@@ -284,7 +289,7 @@ struct HinterbliebeneView: View {
         HStack(alignment: .top, spacing: 12) {
             Text(initialenFuerKontakt(kontakt))
                 .font(.subheadline.weight(.bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.appOnAccent)
                 .frame(width: 38, height: 38)
                 .background(Circle().fill(vertrauenAkzentFarbe.opacity(0.88)))
 
@@ -294,23 +299,29 @@ struct HinterbliebeneView: View {
                     .foregroundStyle(vertrauenTextFarbe)
 
                 if !kontakt.adresse.isEmpty || !kontakt.plz.isEmpty || !kontakt.stadt.isEmpty {
-                    Text([kontakt.adresse, plzOrtFuerKontakt(kontakt)].filter { !$0.isEmpty }.joined(separator: ", "))
+                    Label(
+                        [kontakt.adresse, plzOrtFuerKontakt(kontakt), kontakt.land]
+                            .filter { !$0.isEmpty }
+                            .joined(separator: "\n"),
+                        systemImage: "mappin.and.ellipse"
+                    )
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                if !kontakt.email.isEmpty {
-                    Label(kontakt.email, systemImage: "envelope")
+                ForEach(kontaktMehrfachwerte(kontakt.email), id: \.self) { email in
+                    Label(email, systemImage: "envelope")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                if !kontakt.telefon.isEmpty {
-                    Label(kontakt.telefon, systemImage: "phone")
+                ForEach(kontaktMehrfachwerte(kontakt.telefon), id: \.self) { telefon in
+                    Label(telefon, systemImage: "phone")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
@@ -333,12 +344,23 @@ struct HinterbliebeneView: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.58))
+        .background(Color.appField)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(vertrauenAkzentFarbe.opacity(0.08), lineWidth: 1)
         }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard let identifier = kontakt.systemKontaktIdentifier, !identifier.isEmpty else { return }
+            angezeigterSystemKontakt = SystemKontaktReferenz(id: identifier)
+        }
+    }
+
+    private func kontaktMehrfachwerte(_ wert: String) -> [String] {
+        wert.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
     }
 
     private func initialenFuerKontakt(_ kontakt: HinterbliebeneModell) -> String {
@@ -355,7 +377,7 @@ struct HinterbliebeneView: View {
     private func kontaktHinzufuegen(_ kontakt: HinterbliebeneKontakt, zu kategorie: VertrauenspersonKategorie) {
         guard dossierKontext.kannBearbeiten else { return }
         let neuerKontakt = HinterbliebeneModell(
-            dossierID: UUID(uuidString: aktivesDossierID),
+            dossierID: zielDossierID,
             vorname: kontakt.vorname,
             name: kontakt.name,
             rolle: kategorie.anzeigetitel,
@@ -365,6 +387,8 @@ struct HinterbliebeneView: View {
             adresse: kontakt.adresse,
             plz: kontakt.plz,
             stadt: kontakt.ort,
+            land: kontakt.land,
+            systemKontaktIdentifier: kontakt.systemKontaktIdentifier,
             istVertrauensperson: true,
             sollInformiertWerden: true
         )
@@ -472,11 +496,13 @@ struct HinterbliebeneView: View {
 
 struct HinterbliebeneKontakt: Identifiable, Equatable {
     let id = UUID()
+    var systemKontaktIdentifier: String
     var vorname: String
     var name: String
     var adresse: String
     var plz: String
     var ort: String
+    var land: String
     var email: String
     var telefon: String
 
@@ -544,8 +570,11 @@ struct HinterbliebeneKontaktPicker: UIViewControllerRepresentable {
 
         func contactPicker(_ picker: CNContactPickerViewController, didSelect contact: CNContact) {
             let postalAddress = contact.postalAddresses.first?.value
+            let emailadressen = eindeutigeWerte(contact.emailAddresses.map { String($0.value) })
+            let telefonnummern = eindeutigeWerte(contact.phoneNumbers.map { $0.value.stringValue })
 
             let kontakt = HinterbliebeneKontakt(
+                systemKontaktIdentifier: contact.identifier,
                 vorname: contact.givenName,
                 name: contact.familyName,
                 adresse: [postalAddress?.street, postalAddress?.subLocality]
@@ -554,15 +583,87 @@ struct HinterbliebeneKontaktPicker: UIViewControllerRepresentable {
                     .joined(separator: ", "),
                 plz: postalAddress?.postalCode ?? "",
                 ort: postalAddress?.city ?? "",
-                email: contact.emailAddresses.first.map { String($0.value) } ?? "",
-                telefon: contact.phoneNumbers.first.map { $0.value.stringValue } ?? ""
+                land: postalAddress?.country ?? "",
+                email: emailadressen.joined(separator: "\n"),
+                telefon: telefonnummern.joined(separator: "\n")
             )
 
             onSelect(kontakt)
         }
 
+        private func eindeutigeWerte(_ werte: [String]) -> [String] {
+            var gesehen: Set<String> = []
+            return werte
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty && gesehen.insert($0.lowercased()).inserted }
+        }
+
         func contactPickerDidCancel(_ picker: CNContactPickerViewController) {
             onSelect(nil)
+        }
+    }
+}
+
+struct SystemKontaktReferenz: Identifiable {
+    let id: String
+}
+
+struct SystemKontaktDetailView: UIViewControllerRepresentable {
+    let identifier: String
+    @Environment(\.dismiss) private var dismiss
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator { dismiss() }
+    }
+
+    func makeUIViewController(context: Context) -> UINavigationController {
+        let store = CNContactStore()
+        let keys = [CNContactViewController.descriptorForRequiredKeys()]
+        let inhalt: UIViewController
+
+        if let kontakt = try? store.unifiedContact(withIdentifier: identifier, keysToFetch: keys) {
+            let kontaktController = CNContactViewController(for: kontakt)
+            kontaktController.contactStore = store
+            kontaktController.allowsActions = true
+            kontaktController.allowsEditing = false
+            inhalt = kontaktController
+        } else {
+            let nichtVerfuegbar = UIViewController()
+            nichtVerfuegbar.view.backgroundColor = .systemBackground
+            let label = UILabel()
+            label.text = "Dieser Kontakt ist auf diesem Gerät nicht mehr verfügbar."
+            label.textAlignment = .center
+            label.numberOfLines = 0
+            label.textColor = .secondaryLabel
+            label.translatesAutoresizingMaskIntoConstraints = false
+            nichtVerfuegbar.view.addSubview(label)
+            NSLayoutConstraint.activate([
+                label.leadingAnchor.constraint(equalTo: nichtVerfuegbar.view.leadingAnchor, constant: 24),
+                label.trailingAnchor.constraint(equalTo: nichtVerfuegbar.view.trailingAnchor, constant: -24),
+                label.centerYAnchor.constraint(equalTo: nichtVerfuegbar.view.centerYAnchor)
+            ])
+            inhalt = nichtVerfuegbar
+        }
+
+        inhalt.navigationItem.rightBarButtonItem = UIBarButtonItem(
+            barButtonSystemItem: .done,
+            target: context.coordinator,
+            action: #selector(Coordinator.schliessen)
+        )
+        return UINavigationController(rootViewController: inhalt)
+    }
+
+    func updateUIViewController(_ uiViewController: UINavigationController, context: Context) { }
+
+    final class Coordinator: NSObject {
+        private let onClose: () -> Void
+
+        init(onClose: @escaping () -> Void) {
+            self.onClose = onClose
+        }
+
+        @objc func schliessen() {
+            onClose()
         }
     }
 }

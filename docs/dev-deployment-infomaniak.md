@@ -1,10 +1,11 @@
 # Erstmaliger DEV-Deploy auf `tschluessli-dev-api`
 
-Stand: 15. September 2026
+Stand: 28. September 2026
 
-Diese Anleitung migriert nur die leere DEV-Datenbank `tschluessli_dev`. Sie
-veraendert weder PROD noch den bisherigen Vercel/PostgreSQL-Pfad. Die iOS-App wird
-noch nicht auf den neuen Server umgeschaltet.
+Diese Anleitung betreibt die produktionsnahe DEV-Datenbank `tschluessli_dev`.
+Sie veraendert weder PROD noch den bisherigen Vercel/PostgreSQL-Pfad. Der
+iOS-Debug-Build verwendet `https://api-dev.tschluessli.ch`; der Release-Build
+erhaelt seine spaetere PROD-URL ausschliesslich ueber die Release-Konfiguration.
 
 ## 1. Lokal pruefen
 
@@ -82,7 +83,9 @@ APNS_TEAM_ID=APPLE_DEVELOPER_TEAM_ID
 APNS_SANDBOX_KEY_ID=APPLE_APNS_KEY_ID
 APNS_SANDBOX_PRIVATE_KEY=APPLE_P8_INHALT_MIT_ESCAPED_ZEILENUMBRUECHEN
 
-TRUST_ACCESS_GRACE_SECONDS=60
+TRUST_ACCESS_GRACE_SECONDS=90
+TRUST_ACCESS_REMINDER_SECONDS=30
+TRUST_WORKER_INTERVAL_SECONDS=10
 CRON_SECRET=RANDOM_SECRET
 STORAGE_DRIVER=disabled
 OBJECT_STORAGE_CONTAINER=tschluessli-dev-files
@@ -206,7 +209,7 @@ Fuer ein spaeteres Update Dateien erneut uebertragen und dann:
 
 ```sh
 cd /opt/tschluessli
-export TSCHLUESSLI_IMAGE_REF=REGISTRY/TSCHLUESSLI-API@sha256:TESTED_IMAGE_DIGEST
+export TSCHLUESSLI_IMAGE_REF=ghcr.io/twining85/tschluessli-api@sha256:TESTED_IMAGE_DIGEST
 sudo --preserve-env=TSCHLUESSLI_IMAGE_REF docker compose -f compose.yml pull api auto-release-worker
 sudo --preserve-env=TSCHLUESSLI_IMAGE_REF docker compose -f compose.yml --profile tools run --rm migrate
 sudo --preserve-env=TSCHLUESSLI_IMAGE_REF docker compose -f compose.yml up -d api auto-release-worker

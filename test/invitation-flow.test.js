@@ -2,11 +2,16 @@ import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import {
   automaticReleasePushPayload,
+  accessRequestReminderPushPayload,
   handleInvitationOperation,
   invitationDecisionPushPayload,
   invitationRequestPushPayload,
+  partialVisibleSectionTypes,
+  releaseAllWishDocuments,
   releaseDueInvitations,
+  sendPendingAccessReminders,
   trustAccessGraceSeconds,
+  trustAccessReminderSeconds,
   revokeInvitationForOwner
 } from "../api/_invitation-handler.js";
 import { resetDatabasePoolForTests, setDatabasePoolForTests } from "../api/_database.js";
@@ -15,14 +20,66 @@ process.env.NODE_ENV = "test";
 
 afterEach(() => resetDatabasePoolForTests());
 
+test("beschränkt auch angenommene Zugriffe auf die aktuell freigegebenen Bereiche", () => {
+  const sections = [{
+    sectionType: "kontakte",
+    deleted: false,
+    payload: {
+      vertrauenspersonen: [{
+        vertrauenspersonUserID: "a1a14c1c-289f-4719-b237-02c9c7534642",
+        email: "trust@example.ch",
+        wuenscheSichtbarBeiDossierfreigabe: false,
+        menschenDesVertrauensSichtbarBeiDossierfreigabe: true,
+        finanzenSichtbarBeiDossierfreigabe: false,
+        dokumenteSichtbarBeiDossierfreigabe: false,
+        abosUndProfileSichtbarBeiDossierfreigabe: false,
+        herzensstueckeSichtbarBeiDossierfreigabe: true,
+        gesundheitSichtbarBeiDossierfreigabe: false
+      }]
+    }
+  }];
+
+  assert.deepEqual(
+    partialVisibleSectionTypes(
+      sections,
+      "trust@example.ch",
+      "a1a14c1c-289f-4719-b237-02c9c7534642"
+    ),
+    ["profil", "kontakte", "herzensstuecke"]
+  );
+});
+
+test("automatische Freigabe schaltet alle Wunschdokumente für das Fremddossier frei", () => {
+  const section = releaseAllWishDocuments({
+    sectionType: "wuensche",
+    deleted: false,
+    payload: {
+      items: [{
+        testamentFreigegebenBeiDossierfreigabe: false,
+        patientenverfuegungFreigegebenBeiDossierfreigabe: false,
+        vorsorgeauftragFreigegebenBeiDossierfreigabe: false,
+        sterbebegleitungFreigegebenBeiDossierfreigabe: false
+      }]
+    }
+  });
+
+  assert.deepEqual(section.payload.items[0], {
+    testamentFreigegebenBeiDossierfreigabe: true,
+    patientenverfuegungFreigegebenBeiDossierfreigabe: true,
+    vorsorgeauftragFreigegebenBeiDossierfreigabe: true,
+    sterbebegleitungFreigegebenBeiDossierfreigabe: true
+  });
+});
+
 test("prüft den QR-Code gegen die verifizierte Konto-E-Mail", async () => {
-  const pool = scriptedPool([{ rows: [{
+  const pool = scriptedPool([{ rows: [] }, { rows: [{
+    id: "0ca650a8-a78c-4ef0-b62f-cb640531b668",
     dossier_id: "9ca650a8-a78c-4ef0-b62f-cb640531b667",
     owner_user_id: "cbcb4c1c-289f-4719-b237-02c9c7534642",
     owner_name: "Anna Beispiel",
     invited_email: "trust@example.ch",
     expires_at: new Date("2026-09-20T10:00:00Z")
-  }] }]);
+  }] }, { rows: [] }, { rows: [] }, { rows: [] }]);
   setDatabasePoolForTests(pool);
   const res = responseRecorder();
   await handleInvitationOperation(
@@ -32,8 +89,13 @@ test("prüft den QR-Code gegen die verifizierte Konto-E-Mail", async () => {
     { id: "a1a14c1c-289f-4719-b237-02c9c7534642", email: "TRUST@example.ch" }
   );
   assert.equal(res.statusCode, 200);
-  assert.equal(pool.calls[0].parameters[1], "trust@example.ch");
-  assert.equal(pool.calls[0].parameters.includes("manipulated@example.ch"), false);
+  assert.equal(pool.calls[1].parameters[1], "trust@example.ch");
+  assert.equal(pool.calls[1].parameters.includes("manipulated@example.ch"), false);
+  assert.match(pool.calls[2].text, /requester_user_id/);
+  assert.match(pool.calls[3].text, /dossier_access_grants/);
+  assert.equal(pool.calls[2].parameters[0], "a1a14c1c-289f-4719-b237-02c9c7534642");
+  assert.equal(pool.calls[0].text, "BEGIN");
+  assert.equal(pool.calls[4].text, "COMMIT");
 });
 
 test("Scan allein erzeugt keine Anfrage und der bewusste Request meldet fehlende Push-Zustellung", async () => {
@@ -90,10 +152,10 @@ test("nennt die beteiligten Personen in den Pushnachrichten", () => {
     ownerName: "Anna Beispiel",
     dossierID: "dossier-id"
   });
-  assert.equal(automatic.aps.alert.title, "Dein Zugriff wurde freigegeben");
+  assert.equal(automatic.aps.alert.title, "Zugriff automatisch freigegeben");
   assert.equal(
     automatic.aps.alert.body,
-    "Du kannst das Tschlüssli-Dossier von Anna Beispiel jetzt vollständig einsehen."
+    "Auf deine Anfrage erfolgte keine Reaktion. Du kannst das Vorsorge-Dossier von Anna Beispiel jetzt vollständig einsehen. Für solche Situationen ist Tschlüssli da."
   );
 });
 
@@ -101,6 +163,50 @@ test("verlangt ausserhalb von Tests eine konfigurierte Karenzfrist", () => {
   assert.equal(trustAccessGraceSeconds({ NODE_ENV: "test" }), 60);
   assert.equal(trustAccessGraceSeconds({ TRUST_ACCESS_GRACE_SECONDS: "604800" }), 604800);
   assert.throws(() => trustAccessGraceSeconds({}), /TRUST_ACCESS_GRACE_SECONDS/);
+});
+
+test("konfiguriert Erinnerungen in DEV und Produktion explizit", () => {
+  assert.equal(trustAccessReminderSeconds({ NODE_ENV: "test" }), 30);
+  assert.equal(trustAccessReminderSeconds({ TRUST_ACCESS_REMINDER_SECONDS: "86400" }), 86400);
+  assert.throws(() => trustAccessReminderSeconds({}), /TRUST_ACCESS_REMINDER_SECONDS/);
+  const payload = accessRequestReminderPushPayload({ requesterName: "Bea Beispiel" });
+  assert.equal(payload.type, "trust_invitation_request_reminder");
+  assert.equal(payload.aps.alert.title, "⚠️ Offene Zugriffsanfrage");
+  assert.match(payload.aps.alert.body, /Bea Beispiel/);
+});
+
+test("erinnert den Dossiereigentümer nur bei weiterhin offener Anfrage", async () => {
+  const queries = [];
+  const pushes = [];
+  const client = {
+    engine: "mysql",
+    async query(text, parameters = []) {
+      queries.push({ text: String(text), parameters });
+      if (String(text).includes("SELECT id, owner_user_id")) {
+        return { rows: [{
+          id: "9ca650a8-a78c-4ef0-b62f-cb640531b667",
+          owner_user_id: "cbcb4c1c-289f-4719-b237-02c9c7534642",
+          requester_name: "Bea Beispiel",
+          requester_email: "bea@example.ch"
+        }] };
+      }
+      return { rows: [] };
+    },
+    release() {}
+  };
+
+  const count = await sendPendingAccessReminders({
+    pool: { async connect() { return client; } },
+    async push(userID, payload) { pushes.push({ userID, payload }); },
+    intervalSeconds: 30
+  });
+
+  assert.equal(count, 1);
+  assert.match(queries[1].text, /status = 'pending'/);
+  assert.match(queries[1].text, /access_release_at > CURRENT_TIMESTAMP/);
+  assert.match(queries[2].text, /access_reminder_last_sent_at/);
+  assert.equal(pushes[0].payload.type, "trust_invitation_request_reminder");
+  assert.equal(queries.at(-1).text, "COMMIT");
 });
 
 test("gibt fällige Anfragen serverseitig frei und benachrichtigt die Vertrauensperson", async () => {
@@ -167,8 +273,9 @@ test("widerruft alle Einladungen und Dossierfreigaben einer Vertrauensperson gem
 
   assert.equal(count, 1);
   const update = queries.find(({ text }) => text.includes("UPDATE dossier_invitations"));
-  assert.doesNotMatch(update.text, /token_hash/);
-  assert.equal(update.parameters.length, 3);
+  assert.match(update.text, /token_hash/);
+  assert.equal(update.parameters.length, 4);
+  assert.equal(typeof update.parameters[3], "string");
   assert.equal(queries.some(({ text }) => text.includes("UPDATE dossier_access_grants")), true);
   assert.equal(queries.at(-1).text, "COMMIT");
   assert.equal(pushes[0].userID, "a1a14c1c-289f-4719-b237-02c9c7534642");
@@ -198,13 +305,16 @@ test("unterstützt beim Widerruf weiterhin installierte Apps ohne Token-Feld", a
 
   assert.equal(count, 1);
   const update = queries.find(({ text }) => text.includes("UPDATE dossier_invitations"));
-  assert.doesNotMatch(update.text, /token_hash/);
-  assert.equal(update.parameters.length, 3);
+  assert.match(update.text, /token_hash/);
+  assert.equal(update.parameters.length, 4);
+  assert.equal(update.parameters[3], null);
 });
 
 function scriptedPool(responses) {
   return {
     calls: [],
+    async connect() { return this; },
+    release() {},
     async query(text, parameters) {
       this.calls.push({ text: String(text), parameters });
       const response = responses.shift();

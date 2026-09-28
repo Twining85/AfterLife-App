@@ -24,6 +24,18 @@ final class KeychainHelper {
                 return "Unerwarteter Keychain-Fehler: \(status)"
             }
         }
+
+        /// Direkt beim Sperren oder Entsperren kann iOS die Keychain für einen
+        /// kurzen Moment noch nicht freigeben. Das ist kein Sitzungsfehler und
+        /// soll von Hintergrund-Synchronisationen später erneut versucht werden.
+        var istVoruebergehendNichtVerfuegbar: Bool {
+            switch self {
+            case .unexpectedStatus(let status):
+                return status == errSecInteractionNotAllowed || status == errSecNotAvailable
+            default:
+                return false
+            }
+        }
     }
 
     func save(_ value: String, service: String, account: String) throws {
