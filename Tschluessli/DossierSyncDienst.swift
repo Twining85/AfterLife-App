@@ -56,7 +56,9 @@ actor DossierSyncTransport {
         let token = try await CloudKontoService.shared.sitzungsToken()
         var request = URLRequest(url: CloudAPIKonfiguration.basisURL.appending(path: "api/sync/push"))
         request.httpMethod = "POST"
-        request.timeoutInterval = 25
+        // Fotoalbum und Dokumente können bis zur serverseitigen Obergrenze
+        // von 50 MB reichen und benötigen über Mobilfunk mehr als 25 Sekunden.
+        request.timeoutInterval = 120
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue(auftrag.idempotencyKey, forHTTPHeaderField: "Idempotency-Key")
@@ -82,6 +84,11 @@ actor DossierSyncTransport {
         }
         if http.statusCode == 409 {
             throw SyncVerarbeitungsFehler.konflikt("Dieser Bereich wurde auf einem anderen Gerät geändert.")
+        }
+        if http.statusCode == 413 {
+            throw SyncVerarbeitungsFehler.permanent(
+                "Der Bereich ist für einen einzelnen Cloud-Upload zu gross. Bitte reduziere die enthaltenen Dateien oder Fotos."
+            )
         }
         if http.statusCode == 408 || http.statusCode == 429 || (500...599).contains(http.statusCode) {
             throw SyncVerarbeitungsFehler.temporaer("Die Cloud-Synchronisation wird später erneut versucht.")
@@ -333,6 +340,16 @@ final class DossierSyncDienst {
         // Eine Bereichsänderung wird normalerweise kurz entprellt. Wird direkt
         // nach dem Hinzufügen eines Fotos ein Recovery-Code erstellt, darf
         // dieser noch nicht wartende Upload nicht übergangen werden.
+        do {
+            // Eine frühere 413-Antwort des Reverse Proxys hat den Auftrag als
+            // permanent blockiert markiert. Nach korrigierter Uploadgrenze
+            // muss derselbe lokale Datenstand erneut versucht werden können.
+            try outbox.entsperreBlockierteAuftraege()
+        } catch {
+            throw DossierRecoveryFehler.recoveryNichtSynchronisiertMitUrsache(
+                "Die lokale Sync-Warteschlange konnte nicht vorbereitet werden."
+            )
+        }
         synchronisierenSofort()
 
         // Bei einer Neuregistrierung kann der initiale Vollabgleich direkt
@@ -345,9 +362,17 @@ final class DossierSyncDienst {
             let offeneAuftraege = try modelContext.fetch(FetchDescriptor<SyncAuftrag>())
                 .filter { $0.dossierID == dossierID }
             guard offeneAuftraege.isEmpty else {
-                let bereiche = offeneAuftraege.map(\.bereich).sorted().joined(separator: ", ")
+                let details = offeneAuftraege
+                    .sorted { $0.bereich < $1.bereich }
+                    .map { auftrag in
+                        if let fehler = auftrag.letzterFehler, !fehler.isEmpty {
+                            return "\(auftrag.bereich): \(fehler)"
+                        }
+                        return auftrag.bereich
+                    }
+                    .joined(separator: "; ")
                 throw DossierRecoveryFehler.recoveryNichtSynchronisiertMitUrsache(
-                    "Noch nicht alle Dossierdaten sind sicher in der Cloud gespeichert (\(bereiche))."
+                    "Noch nicht alle Dossierdaten sind sicher in der Cloud gespeichert (\(details))."
                 )
             }
             let offeneKonflikte = try modelContext.fetch(FetchDescriptor<SyncKonflikt>())
