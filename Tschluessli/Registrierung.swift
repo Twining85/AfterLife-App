@@ -571,7 +571,7 @@ struct Registrierung: View {
         .foregroundStyle(.secondary)
         .multilineTextAlignment(.center)
 
-      Button("Mit bestehendem Konto anmelden") {
+      Button("Mit bestehendem Konto anmelden und Dossier wiederherstellen") {
         fehlermeldung = ""
         // Ein möglicherweise von einem früher abgebrochenen
         // Registrierungsablauf verbliebener Einmal-Status darf den

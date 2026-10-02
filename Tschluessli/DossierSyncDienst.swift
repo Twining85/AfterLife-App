@@ -330,13 +330,35 @@ final class DossierSyncDienst {
                 "Es ist kein aktives Dossier ausgewählt."
             )
         }
+        // Eine Bereichsänderung wird normalerweise kurz entprellt. Wird direkt
+        // nach dem Hinzufügen eines Fotos ein Recovery-Code erstellt, darf
+        // dieser noch nicht wartende Upload nicht übergangen werden.
+        synchronisierenSofort()
+
         // Bei einer Neuregistrierung kann der initiale Vollabgleich direkt
-        // einen Folgelauf einplanen. Nicht nur den zuerst beobachteten Task
-        // abwarten, sonst konkurriert der Recovery-Upload mit diesem Folgelauf.
+        // einen Folgelauf einplanen. Alle Läufe abwarten, bevor das Recovery-
+        // Paket als vollständig in der Cloud bestätigt wird.
         while let laufenderTask = syncLaufTask {
             await laufenderTask.value
         }
         do {
+            let offeneAuftraege = try modelContext.fetch(FetchDescriptor<SyncAuftrag>())
+                .filter { $0.dossierID == dossierID }
+            guard offeneAuftraege.isEmpty else {
+                let bereiche = offeneAuftraege.map(\.bereich).sorted().joined(separator: ", ")
+                throw DossierRecoveryFehler.recoveryNichtSynchronisiertMitUrsache(
+                    "Noch nicht alle Dossierdaten sind sicher in der Cloud gespeichert (\(bereiche))."
+                )
+            }
+            let offeneKonflikte = try modelContext.fetch(FetchDescriptor<SyncKonflikt>())
+                .filter { $0.dossierID == dossierID }
+            guard offeneKonflikte.isEmpty else {
+                let bereiche = offeneKonflikte.map(\.bereich).sorted().joined(separator: ", ")
+                throw DossierRecoveryFehler.recoveryNichtSynchronisiertMitUrsache(
+                    "Noch nicht alle Dossierdaten sind mit der Cloud abgeglichen (\(bereiche))."
+                )
+            }
+
             // Die aktuelle Revision wird unmittelbar vom Server gelesen. So
             // kann ein alter, blockierter Auftrag nicht verhindern, dass das
             // neue Recovery-Paket zum gerade ausgegebenen Code gehört.
@@ -903,7 +925,15 @@ final class DossierSyncDienst {
             let snapshot = try await transport.snapshot(dossierID: dossierID)
             guard !Task.isCancelled,
                   recoveryDownloadGeneration == generation else { return false }
-            try await importiere(snapshot.changes)
+            let erwarteteBereiche = Set(registry.bereiche)
+            let gelieferteBereiche = Set(snapshot.changes.map(\.sectionType))
+            let fehlendeBereiche = erwarteteBereiche.subtracting(gelieferteBereiche)
+            guard fehlendeBereiche.isEmpty else {
+                throw SyncVerarbeitungsFehler.temporaer(
+                    "Der Cloud-Snapshot ist unvollständig. Es fehlen: \(fehlendeBereiche.sorted().joined(separator: ", "))."
+                )
+            }
+            try await importiere(snapshot.changes, mussVollstaendigSein: true)
             guard !Task.isCancelled,
                   recoveryDownloadGeneration == generation else { return false }
             UserDefaults.standard.set(
@@ -961,7 +991,10 @@ final class DossierSyncDienst {
         try modelContext.save()
     }
 
-    private func importiere(_ aenderungen: [SyncDownloadAenderung]) async throws {
+    private func importiere(
+        _ aenderungen: [SyncDownloadAenderung],
+        mussVollstaendigSein: Bool = false
+    ) async throws {
         guard !aenderungen.isEmpty else { return }
         ignoriertEigeneSpeicherung = true
         defer { ignoriertEigeneSpeicherung = false }
@@ -1002,6 +1035,11 @@ final class DossierSyncDienst {
                     )
                 }
             } catch {
+                if mussVollstaendigSein {
+                    throw SyncVerarbeitungsFehler.temporaer(
+                        "Der Cloud-Bereich «\(aenderung.sectionType)» konnte nicht wiederhergestellt werden: \(error.localizedDescription)"
+                    )
+                }
                 try speichereKonflikt(aenderung)
                 continue
             }
