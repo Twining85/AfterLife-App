@@ -69,6 +69,7 @@ enum DossierRecoveryFehler: LocalizedError {
     case falscherCode
     case ungueltigesPaket
     case recoveryNichtSynchronisiert
+    case recoveryNichtSynchronisiertMitUrsache(String)
     case cloudWiederherstellungFehlgeschlagen
     case cloudWiederherstellungMitUrsache(String)
     case codeObsolet
@@ -85,6 +86,8 @@ enum DossierRecoveryFehler: LocalizedError {
             "Das Wiederherstellungspaket konnte nicht verarbeitet werden."
         case .recoveryNichtSynchronisiert:
             "Der Wiederherstellungscode konnte noch nicht sicher in der Cloud gespeichert werden. Bitte versuche es erneut."
+        case .recoveryNichtSynchronisiertMitUrsache(let ursache):
+            "Der Wiederherstellungscode konnte noch nicht sicher in der Cloud gespeichert werden: \(ursache)"
         case .cloudWiederherstellungFehlgeschlagen:
             "Der Schlüssel wurde bestätigt, aber das Dossier konnte noch nicht vollständig aus der Cloud geladen werden. Bitte versuche es erneut."
         case .cloudWiederherstellungMitUrsache(let ursache):

@@ -324,8 +324,12 @@ final class DossierSyncDienst {
 
     /// Sichert ein neu erstelltes Recovery-Paket, bevor der zugehörige
     /// 12-Wörter-Code angezeigt oder exportiert werden darf.
-    func recoveryPaketSynchronisieren() async -> Bool {
-        guard let dossierID = Self.aktivesDossierID else { return false }
+    func recoveryPaketSynchronisieren() async throws {
+        guard let dossierID = Self.aktivesDossierID else {
+            throw DossierRecoveryFehler.recoveryNichtSynchronisiertMitUrsache(
+                "Es ist kein aktives Dossier ausgewählt."
+            )
+        }
         if let syncLaufTask { await syncLaufTask.value }
         do {
             // Die aktuelle Revision wird unmittelbar vom Server gelesen. So
@@ -357,12 +361,28 @@ final class DossierSyncDienst {
             )
             await coordinator.synchronisieren()
 
-            guard try !hatOffenenAuftrag(dossierID: dossierID, bereich: "zugaenge"),
-                  !hatGespeichertenKonflikt(dossierID: dossierID, bereich: "zugaenge"),
-                  let bestaetigterBereich = try await CloudDossierSyncService.shared.laden(
+            let auftragDescriptor = FetchDescriptor<SyncAuftrag>(
+                predicate: #Predicate { $0.schluessel == schluessel }
+            )
+            if let offenerAuftrag = try modelContext.fetch(auftragDescriptor).first {
+                throw DossierRecoveryFehler.recoveryNichtSynchronisiertMitUrsache(
+                    offenerAuftrag.letzterFehler
+                        ?? "Der Cloud-Upload ist noch nicht abgeschlossen (\(offenerAuftrag.statusRaw))."
+                )
+            }
+            guard !hatGespeichertenKonflikt(dossierID: dossierID, bereich: "zugaenge") else {
+                throw DossierRecoveryFehler.recoveryNichtSynchronisiertMitUrsache(
+                    "Der Cloud-Stand wurde zwischenzeitlich verändert."
+                )
+            }
+            guard let bestaetigterBereich = try await CloudDossierSyncService.shared.laden(
                     dossierID: dossierID,
                     bereich: "zugaenge"
-                  ) else { return false }
+                  ) else {
+                throw DossierRecoveryFehler.recoveryNichtSynchronisiertMitUrsache(
+                    "Das gespeicherte Cloud-Paket konnte nicht wieder geladen werden."
+                )
+            }
 
             // Nicht nur einen leeren Outbox-Zustand akzeptieren: In der Cloud
             // muss exakt das soeben erzeugte aktive Paket liegen. Damit kann
@@ -373,10 +393,19 @@ final class DossierSyncDienst {
                 from: bestaetigterBereich.payload
             )
             let lokalesPaket = try await CloudFeldVerschluesselung.shared.aktuellesRecoveryPaket()
-            return cloudPayload.recovery?.status == .aktiv
-                && cloudPayload.recovery?.id == lokalesPaket.id
+            guard cloudPayload.recovery?.status == .aktiv,
+                  cloudPayload.recovery?.id == lokalesPaket.id else {
+                throw DossierRecoveryFehler.recoveryNichtSynchronisiertMitUrsache(
+                    "Die Bestätigung der neuen Paket-ID ist fehlgeschlagen."
+                )
+            }
         } catch {
-            return false
+            if let recoveryFehler = error as? DossierRecoveryFehler {
+                throw recoveryFehler
+            }
+            throw DossierRecoveryFehler.recoveryNichtSynchronisiertMitUrsache(
+                error.localizedDescription
+            )
         }
     }
 

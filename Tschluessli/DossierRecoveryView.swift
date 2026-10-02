@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 struct DossierRecoveryView: View {
     private enum WiederherstellungsPhase {
@@ -8,6 +9,7 @@ struct DossierRecoveryView: View {
     }
 
     @Environment(\.appLayout) private var appLayout
+    @Environment(\.modelContext) private var modelContext
     var nurWiederherstellen = false
     var nurErstellen = false
     var kontoEmail = ""
@@ -40,6 +42,7 @@ struct DossierRecoveryView: View {
     @State private var notfallResetAnzeigen = false
     @State private var recoveryScannerAnzeigen = false
     @State private var wiederherstellungsTask: Task<Void, Never>?
+    @State private var recoverySyncDienst: DossierSyncDienst?
 
     private let wiederherstellungsSchritte = [
         "Profildaten",
@@ -216,10 +219,18 @@ struct DossierRecoveryView: View {
         Task {
             do {
                 let neuerCode = try await CloudFeldVerschluesselung.shared.recoveryEinrichten()
-                guard let syncDienst = DossierSyncDienst.shared,
-                      await syncDienst.recoveryPaketSynchronisieren() else {
-                    throw DossierRecoveryFehler.recoveryNichtSynchronisiert
+                let syncDienst: DossierSyncDienst
+                if let vorhandenerDienst = DossierSyncDienst.shared {
+                    syncDienst = vorhandenerDienst
+                } else if let vorbereiteterDienst = recoverySyncDienst {
+                    syncDienst = vorbereiteterDienst
+                } else {
+                    let neuerDienst = try DossierSyncDienst(modelContext: modelContext)
+                    neuerDienst.starten()
+                    recoverySyncDienst = neuerDienst
+                    syncDienst = neuerDienst
                 }
+                try await syncDienst.recoveryPaketSynchronisieren()
                 code = neuerCode
                 recoveryBereitsEingerichtet = true
             } catch { meldung = error.localizedDescription }
