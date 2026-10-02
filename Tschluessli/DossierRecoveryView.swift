@@ -2,6 +2,12 @@ import SwiftUI
 import SwiftData
 
 struct DossierRecoveryView: View {
+    private enum Bestaetigungsfeld: Hashable {
+        case wortDrei
+        case wortSieben
+        case wortElf
+    }
+
     private enum WiederherstellungsPhase {
         case bereichePruefen
         case letzteDatenLaden
@@ -28,6 +34,7 @@ struct DossierRecoveryView: View {
     @State private var recoveryWoerter = Array(repeating: "", count: 12)
     @State private var verteiltRecoveryCode = false
     @FocusState private var fokussiertesRecoveryWort: Int?
+    @FocusState private var fokussiertesBestaetigungsfeld: Bestaetigungsfeld?
     @State private var shareDatei: RecoveryPDFDatei?
     @State private var meldung = ""
     @State private var arbeitet = false
@@ -103,18 +110,10 @@ struct DossierRecoveryView: View {
 
                 if !code.isEmpty {
                     Section("Code bestätigen") {
-                        TextField("Wort 3", text: $bestaetigungDrei)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                        TextField("Wort 7", text: $bestaetigungSieben)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                        TextField("Wort 11", text: $bestaetigungElf)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
+                        bestaetigungsfelder
                         Button("Als PDF sichern") { exportierePDF() }
                             .disabled(!istBestaetigt)
-                        if nurErstellen && istBestaetigt {
+                        if nurErstellen, istBestaetigt, onNeuerCodeBestaetigt != nil {
                             Button("Mit neuem Dossier fortfahren") {
                                 onNeuerCodeBestaetigt?()
                             }
@@ -158,6 +157,7 @@ struct DossierRecoveryView: View {
                     Section { Text(meldung).foregroundStyle(meldung.hasPrefix("Erfolgreich") ? .green : .red) }
                 }
         }
+        .scrollDismissesKeyboard(.interactively)
         .navigationTitle("Dossierwiederherstellungs-Code")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $shareDatei, onDismiss: {
@@ -211,6 +211,42 @@ struct DossierRecoveryView: View {
             return [GridItem(.flexible())]
         }
         return [GridItem(.flexible(), spacing: 12), GridItem(.flexible())]
+    }
+
+    private var bestaetigungsfelder: some View {
+        VStack(spacing: 10) {
+            bestaetigungsfeld("Wort 3", text: $bestaetigungDrei, fokus: .wortDrei)
+            bestaetigungsfeld("Wort 7", text: $bestaetigungSieben, fokus: .wortSieben)
+            bestaetigungsfeld("Wort 11", text: $bestaetigungElf, fokus: .wortElf)
+        }
+    }
+
+    private func bestaetigungsfeld(
+        _ titel: String,
+        text: Binding<String>,
+        fokus: Bestaetigungsfeld
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(titel)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TextField(titel, text: text)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .textFieldStyle(.roundedBorder)
+                .focused($fokussiertesBestaetigungsfeld, equals: fokus)
+                .submitLabel(fokus == .wortElf ? .done : .next)
+                .onSubmit { fokussiereNaechstesBestaetigungsfeld(nach: fokus) }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func fokussiereNaechstesBestaetigungsfeld(nach feld: Bestaetigungsfeld) {
+        switch feld {
+        case .wortDrei: fokussiertesBestaetigungsfeld = .wortSieben
+        case .wortSieben: fokussiertesBestaetigungsfeld = .wortElf
+        case .wortElf: fokussiertesBestaetigungsfeld = nil
+        }
     }
 
     private func erstelleCode() {

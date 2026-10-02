@@ -300,7 +300,7 @@ struct ProfilView: View {
         }
         .fullScreenCover(isPresented: $dossierRecoveryAnzeigen) {
             NavigationStack {
-                DossierRecoveryView()
+                DossierRecoveryView(nurErstellen: true)
                     .toolbar {
                         ToolbarItem(placement: .confirmationAction) {
                             Button("Fertig") { dossierRecoveryAnzeigen = false }
