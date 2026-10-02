@@ -136,10 +136,19 @@ struct ReloginNeuesGeraet: View {
                 ) else {
                     throw DossierRecoveryFehler.keinRecoveryPaket
                 }
-                let verschluesselt = try JSONDecoder().decode(
-                    VerschluesselterCloudBereich.self,
-                    from: bereich.payload
-                )
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
+                let verschluesselt: VerschluesselterCloudBereich
+                do {
+                    verschluesselt = try decoder.decode(
+                        VerschluesselterCloudBereich.self,
+                        from: bereich.payload
+                    )
+                } catch {
+                    throw DossierRecoveryFehler.cloudVorbereitungMitUrsache(
+                        "Das Wiederherstellungspaket in der Cloud ist nicht lesbar."
+                    )
+                }
                 try await CloudFeldVerschluesselung.shared.neueInstallationVorbereiten(
                     mit: verschluesselt
                 )
