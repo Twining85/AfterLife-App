@@ -463,13 +463,39 @@ struct TschluessliTests {
         #expect(migriert.erstelltAm == .distantPast)
     }
 
+    @Test func recoveryPaketLiestLokalesUndCloudDatumsformat() throws {
+        let datum = Date(timeIntervalSince1970: 1_800_000_000)
+        let paket = DossierRecoveryPaket(
+            version: 1,
+            algorithmus: "AES-256-GCM/SHA-256",
+            verschluesselterSchluessel: "test",
+            erstelltAm: datum
+        )
+
+        let lokaleDaten = try JSONEncoder().encode(paket)
+        let lokalesPaket = try JSONDecoder().decode(
+            DossierRecoveryPaket.self,
+            from: lokaleDaten
+        )
+        #expect(lokalesPaket.erstelltAm == datum)
+
+        let cloudEncoder = JSONEncoder()
+        cloudEncoder.dateEncodingStrategy = .iso8601
+        let cloudPaket = try JSONDecoder().decode(
+            DossierRecoveryPaket.self,
+            from: cloudEncoder.encode(paket)
+        )
+        #expect(cloudPaket.erstelltAm == datum)
+        #expect(cloudPaket.id == paket.id)
+    }
+
     @Test func recoveryCodeFingerabdruckErkenntAktuellenUndVeraltetenCode() throws {
         let aktuellerCode = Array(DossierRecoveryCode.woerter.prefix(12)).joined(separator: " ")
         let alterCode = Array(DossierRecoveryCode.woerter.dropFirst().prefix(12)).joined(separator: " ")
         let aktuellerFingerabdruck = try DossierRecoveryCode.fingerabdruck(aus: aktuellerCode)
         let alterFingerabdruck = try DossierRecoveryCode.fingerabdruck(aus: alterCode)
 
-        #expect(aktuellerFingerabdruck == DossierRecoveryCode.fingerabdruck(aus: aktuellerCode.uppercased()))
+        #expect(aktuellerFingerabdruck == (try DossierRecoveryCode.fingerabdruck(aus: aktuellerCode.uppercased())))
         #expect(aktuellerFingerabdruck != alterFingerabdruck)
 
         let paket = DossierRecoveryPaket(

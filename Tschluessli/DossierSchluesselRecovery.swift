@@ -54,7 +54,28 @@ nonisolated struct DossierRecoveryPaket: Codable, Sendable, Equatable {
         // Code erstellt wird, erhält er zwingend eine eindeutige ID und Status.
         id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         status = try container.decodeIfPresent(Status.self, forKey: .status) ?? .aktiv
-        erstelltAm = try container.decodeIfPresent(Date.self, forKey: .erstelltAm) ?? .distantPast
+        if !container.contains(.erstelltAm) {
+            erstelltAm = .distantPast
+        } else if try container.decodeNil(forKey: .erstelltAm) {
+            erstelltAm = .distantPast
+        } else if let datum = try? container.decode(Date.self, forKey: .erstelltAm) {
+            // Lokale Keychain-Pakete wurden mit der Standardstrategie als
+            // Sekunden seit dem Referenzdatum gespeichert.
+            erstelltAm = datum
+        } else if let text = try? container.decode(String.self, forKey: .erstelltAm),
+                  let datum = ISO8601DateFormatter().date(from: text) {
+            // Cloud-Bereichspayloads verwenden ISO 8601. Seit `erstelltAm`
+            // Teil des Recovery-Pakets ist, müssen beide Formate unterstützt
+            // werden; andernfalls kann die soeben hochgeladene Paket-ID nicht
+            // bestätigt werden.
+            erstelltAm = datum
+        } else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .erstelltAm,
+                in: container,
+                debugDescription: "Ungültiges Erstellungsdatum im Wiederherstellungspaket."
+            )
+        }
         codeFingerabdruck = try container.decodeIfPresent(String.self, forKey: .codeFingerabdruck)
         obsoleteCodeFingerabdruecke = try container.decodeIfPresent(
             [String].self,
