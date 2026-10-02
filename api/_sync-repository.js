@@ -147,7 +147,10 @@ export async function currentSnapshot(client, userID, dossierID) {
   // Snapshot bereits enthalten sein, wird wegen des älteren Cursors später
   // aber nochmals regulär synchronisiert und kann so niemals verloren gehen.
   const cursorResult = await client.query(
-    "SELECT COALESCE(MAX(change_id), 0) AS cursor FROM sync_changes WHERE owner_user_id = $1",
+    // `CURSOR` ist in MySQL ein reserviertes Wort. Ein unquotierter Alias
+    // gleichen Namens lässt den gesamten Recovery-Snapshot dort mit einem
+    // Syntaxfehler abbrechen.
+    "SELECT COALESCE(MAX(change_id), 0) AS sync_cursor FROM sync_changes WHERE owner_user_id = $1",
     [userID]
   );
   const sectionsResult = await client.query(
@@ -157,7 +160,7 @@ export async function currentSnapshot(client, userID, dossierID) {
       ORDER BY section_type`,
     [dossierID, userID]
   );
-  const cursor = String(cursorResult.rows[0]?.cursor ?? "0");
+  const cursor = String(cursorResult.rows[0]?.sync_cursor ?? "0");
   const changes = await Promise.all(sectionsResult.rows.map(async (row) => ({
     cursor,
     dossierID: row.dossier_id,

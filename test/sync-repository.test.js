@@ -113,7 +113,7 @@ test("liefert Upserts und Tombstones seitenweise seit dem Cursor", async () => {
 
 test("liefert für Recovery nur den aktuellen Bereichsstand und den aktuellen Cursor", async () => {
   const client = scriptedClient([
-    { rows: [{ cursor: "91" }] },
+    { rows: [{ sync_cursor: "91" }] },
     { rows: [
       { dossier_id: dossierID, section_type: "profil", schema_version: 1, revision: "7", payload: { name: "Aktuell" }, updated_at: new Date("2026-10-02T06:00:00Z") },
       { dossier_id: dossierID, section_type: "zugaenge", schema_version: 1, revision: "4", payload: { daten: "verschluesselt" }, updated_at: new Date("2026-10-02T06:01:00Z") }
@@ -130,6 +130,30 @@ test("liefert für Recovery nur den aktuellen Bereichsstand und den aktuellen Cu
   ]);
   assert.ok(client.calls[0].text.includes("MAX(change_id)"));
   assert.ok(client.calls[1].text.includes("dossier_sections"));
+});
+
+test("verwendet für den Recovery-Cursor keinen reservierten MySQL-Alias", async () => {
+  const client = {
+    engine: "mysql",
+    calls: [],
+    async query(text, parameters) {
+      this.calls.push({ text: String(text), parameters });
+      if (String(text).includes("MAX(change_id)")) {
+        if (/\bAS\s+cursor\b/i.test(String(text))) {
+          throw new Error("MySQL-Syntaxfehler durch reserviertes Wort CURSOR");
+        }
+        return { rows: [{ sync_cursor: "104" }] };
+      }
+      if (String(text).includes("FROM dossier_sections")) return { rows: [] };
+      throw new Error(`Unerwartete MySQL-Query: ${text}`);
+    }
+  };
+
+  const response = await currentSnapshot(client, userID, dossierID);
+
+  assert.equal(response.nextCursor, "104");
+  assert.equal(response.hasMore, false);
+  assert.deepEqual(response.changes, []);
 });
 
 test("verwendet im MySQL-Pfad Locks, JSON und MySQL-Upserts", async () => {
