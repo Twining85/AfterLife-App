@@ -158,7 +158,7 @@ struct DossierRecoveryView: View {
                     Section { Text(meldung).foregroundStyle(meldung.hasPrefix("Erfolgreich") ? .green : .red) }
                 }
         }
-        .navigationTitle("Dossierwiederherstellungs-Schlüssel")
+        .navigationTitle("Dossierwiederherstellungs-Code")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $shareDatei, onDismiss: {
             shareDatei = nil

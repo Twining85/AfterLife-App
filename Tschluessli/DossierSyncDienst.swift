@@ -330,7 +330,12 @@ final class DossierSyncDienst {
                 "Es ist kein aktives Dossier ausgewählt."
             )
         }
-        if let syncLaufTask { await syncLaufTask.value }
+        // Bei einer Neuregistrierung kann der initiale Vollabgleich direkt
+        // einen Folgelauf einplanen. Nicht nur den zuerst beobachteten Task
+        // abwarten, sonst konkurriert der Recovery-Upload mit diesem Folgelauf.
+        while let laufenderTask = syncLaufTask {
+            await laufenderTask.value
+        }
         do {
             // Die aktuelle Revision wird unmittelbar vom Server gelesen. So
             // kann ein alter, blockierter Auftrag nicht verhindern, dass das
@@ -359,6 +364,13 @@ final class DossierSyncDienst {
                 schemaVersion: adapter.schemaVersion,
                 erwarteteRevision: serverRevision
             )
+            // `SyncCoordinator.synchronisieren()` kehrt absichtlich sofort
+            // zurück, wenn bereits ein Lauf aktiv ist. Für das Recovery-Paket
+            // reicht das nicht: Der Code darf erst angezeigt werden, nachdem
+            // genau dieser Auftrag verarbeitet wurde.
+            while coordinator.laeuft {
+                await Task.yield()
+            }
             await coordinator.synchronisieren()
 
             let auftragDescriptor = FetchDescriptor<SyncAuftrag>(
