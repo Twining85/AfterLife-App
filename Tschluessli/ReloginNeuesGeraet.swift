@@ -19,6 +19,9 @@ struct ReloginNeuesGeraet: View {
     @State private var fehlermeldung = ""
     @State private var recoverySyncDienst: DossierSyncDienst?
     @State private var neuesDossierSitzung: CloudKontoSitzung?
+    @State private var vorbereitungsTask: Task<Void, Never>?
+    @State private var recoveryAbbruchToken = UUID()
+    @State private var recoveryDossierID: UUID?
 
     var body: some View {
         Group {
@@ -34,6 +37,7 @@ struct ReloginNeuesGeraet: View {
                 NavigationStack {
                     DossierRecoveryView(
                         nurErstellen: true,
+                        abbruchToken: recoveryAbbruchToken,
                         onNeuerCodeBestaetigt: {
                             onWiederhergestellt(neueSitzung, angemeldeteEmail)
                         }
@@ -45,6 +49,7 @@ struct ReloginNeuesGeraet: View {
                     DossierRecoveryView(
                         nurWiederherstellen: true,
                         kontoEmail: angemeldeteEmail,
+                        abbruchToken: recoveryAbbruchToken,
                         onDossierZurueckgesetzt: { neueDossierID in
                             let neueSitzung = CloudKontoSitzung(
                                 userID: sitzung.userID,
@@ -68,13 +73,16 @@ struct ReloginNeuesGeraet: View {
                                     syncDienst = vorbereiteterDienst
                                 } else {
                                     let neuerDienst = try DossierSyncDienst(modelContext: modelContext)
-                                    recoverySyncDienst = neuerDienst
                                     syncDienst = neuerDienst
                                 }
+                                recoverySyncDienst = syncDienst
                                 return await syncDienst.dossierNachRecoveryNeuLaden(dossierID: dossierID)
                             } catch {
                                 return false
                             }
+                        },
+                        onDatenLadeFehler: {
+                            recoverySyncDienst?.letzterRecoveryFehler ?? ""
                         },
                         onWiederhergestellt: {
                             onWiederhergestellt(sitzung, angemeldeteEmail)
@@ -118,7 +126,9 @@ struct ReloginNeuesGeraet: View {
         }
 
         wirdVorbereitet = true
-        Task {
+        recoveryDossierID = dossierID
+        vorbereitungsTask?.cancel()
+        vorbereitungsTask = Task {
             do {
                 guard let bereich = try await CloudDossierSyncService.shared.laden(
                     dossierID: dossierID,
@@ -133,9 +143,13 @@ struct ReloginNeuesGeraet: View {
                 try await CloudFeldVerschluesselung.shared.neueInstallationVorbereiten(
                     mit: verschluesselt
                 )
+                try Task.checkCancellation()
                 angemeldeteEmail = email
                 sitzung = neueSitzung
                 wirdVorbereitet = false
+            } catch is CancellationError {
+                await CloudFeldVerschluesselung.shared.lokaleSchluesselVollstaendigLoeschen()
+                await CloudKontoService.shared.lokaleSitzungLoeschen()
             } catch {
                 await CloudKontoService.shared.lokaleSitzungLoeschen()
                 wirdVorbereitet = false
@@ -145,9 +159,24 @@ struct ReloginNeuesGeraet: View {
     }
 
     private func abbrechen() {
-        Task { await CloudKontoService.shared.lokaleSitzungLoeschen() }
-        sitzung = nil
-        wirdVorbereitet = false
-        onAbbrechen()
+        guard !wirdVorbereitet else { return }
+        wirdVorbereitet = true
+        recoveryAbbruchToken = UUID()
+        vorbereitungsTask?.cancel()
+        vorbereitungsTask = nil
+        Task {
+            if let dossierID = recoveryDossierID,
+               let syncDienst = recoverySyncDienst ?? DossierSyncDienst.shared {
+                try? await syncDienst.abgebrocheneWiederherstellungVerwerfen(
+                    dossierID: dossierID
+                )
+            }
+            await CloudFeldVerschluesselung.shared.lokaleSchluesselVollstaendigLoeschen()
+            await CloudKontoService.shared.lokaleSitzungLoeschen()
+            sitzung = nil
+            recoveryDossierID = nil
+            wirdVorbereitet = false
+            onAbbrechen()
+        }
     }
 }

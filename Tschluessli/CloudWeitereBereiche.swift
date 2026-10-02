@@ -207,6 +207,12 @@ actor CloudFeldVerschluesselung {
 
     func recoveryEinrichten() async throws -> String {
         let code = try DossierRecoveryCode.erstellen().joined(separator: " ")
+        let bisherigesPaket = try? await gespeichertesRecoveryPaket()
+        var obsoleteFingerabdruecke = bisherigesPaket?.obsoleteCodeFingerabdruecke ?? []
+        if let bisherigerFingerabdruck = bisherigesPaket?.codeFingerabdruck {
+            obsoleteFingerabdruecke.append(bisherigerFingerabdruck)
+        }
+        obsoleteFingerabdruecke = Array(Set(obsoleteFingerabdruecke)).sorted()
         let dossierSchluessel = try await schluesselDaten()
         let recoverySchluessel = try DossierRecoveryCode.schluessel(aus: code)
         let box = try AES.GCM.seal(dossierSchluessel, using: recoverySchluessel)
@@ -214,14 +220,20 @@ actor CloudFeldVerschluesselung {
         let paket = DossierRecoveryPaket(
             version: 1,
             algorithmus: "AES-256-GCM/SHA-256",
-            verschluesselterSchluessel: combined.base64EncodedString()
+            verschluesselterSchluessel: combined.base64EncodedString(),
+            codeFingerabdruck: try DossierRecoveryCode.fingerabdruck(aus: code),
+            obsoleteCodeFingerabdruecke: obsoleteFingerabdruecke
         )
         try await speichereRecoveryPaket(paket)
         return code
     }
 
     func hatRecoveryPaket() async -> Bool {
-        (try? await gespeichertesRecoveryPaket()) != nil
+        (try? await gespeichertesRecoveryPaket().status) == .aktiv
+    }
+
+    func aktuellesRecoveryPaket() async throws -> DossierRecoveryPaket {
+        try await gespeichertesRecoveryPaket()
     }
 
     func neuesDossierVorbereiten() async {
@@ -244,6 +256,9 @@ actor CloudFeldVerschluesselung {
         guard let recovery = wert.recovery else {
             throw DossierRecoveryFehler.keinRecoveryPaket
         }
+        guard recovery.status == .aktiv else {
+            throw DossierRecoveryFehler.codeObsolet
+        }
         try await speichereRecoveryPaket(recovery)
         await MainActor.run {
             try? KeychainHelper.shared.delete(service: service, account: account)
@@ -252,10 +267,21 @@ actor CloudFeldVerschluesselung {
 
     func wiederherstellen(mit code: String) async throws {
         let paket = try await gespeichertesRecoveryPaket()
+        guard paket.status == .aktiv else {
+            throw DossierRecoveryFehler.codeObsolet
+        }
         guard paket.version == 1,
               paket.algorithmus == "AES-256-GCM/SHA-256",
               let data = Data(base64Encoded: paket.verschluesselterSchluessel) else {
             throw DossierRecoveryFehler.ungueltigesPaket
+        }
+        let fingerabdruck = try DossierRecoveryCode.fingerabdruck(aus: code)
+        if paket.obsoleteCodeFingerabdruecke.contains(fingerabdruck) {
+            throw DossierRecoveryFehler.codeObsolet
+        }
+        if let aktuellerFingerabdruck = paket.codeFingerabdruck,
+           aktuellerFingerabdruck != fingerabdruck {
+            throw DossierRecoveryFehler.falscherCode
         }
         do {
             let box = try AES.GCM.SealedBox(combined: data)

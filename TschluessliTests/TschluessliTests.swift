@@ -14,6 +14,11 @@ import Testing
 
 @MainActor
 struct TschluessliTests {
+    @Test func syncFehlerZeigtDieKonkreteMeldung() {
+        let fehler = SyncVerarbeitungsFehler.temporaer("Der Sync-Server ist nicht erreichbar.")
+        #expect(fehler.localizedDescription == "Der Sync-Server ist nicht erreichbar.")
+    }
+
 
     @Test func example() async throws {
         // Write your test here and use APIs like `#expect(...)` to check expected conditions.
@@ -441,6 +446,41 @@ struct TschluessliTests {
         #expect(ersterHash.count == 32)
         #expect(ersterHash == wiederholt)
         #expect(ersterHash != zweiterHash)
+    }
+
+    @Test func recoveryPaketHatEindeutigeAktiveIdentitaetUndMigriertAltbestand() throws {
+        let paket = DossierRecoveryPaket(
+            version: 1,
+            algorithmus: "AES-256-GCM/SHA-256",
+            verschluesselterSchluessel: "test"
+        )
+        #expect(paket.status == .aktiv)
+        #expect(paket.erstelltAm > .distantPast)
+
+        let altbestand = Data(#"{"version":1,"algorithmus":"AES-256-GCM/SHA-256","verschluesselterSchluessel":"test"}"#.utf8)
+        let migriert = try JSONDecoder().decode(DossierRecoveryPaket.self, from: altbestand)
+        #expect(migriert.status == .aktiv)
+        #expect(migriert.erstelltAm == .distantPast)
+    }
+
+    @Test func recoveryCodeFingerabdruckErkenntAktuellenUndVeraltetenCode() throws {
+        let aktuellerCode = Array(DossierRecoveryCode.woerter.prefix(12)).joined(separator: " ")
+        let alterCode = Array(DossierRecoveryCode.woerter.dropFirst().prefix(12)).joined(separator: " ")
+        let aktuellerFingerabdruck = try DossierRecoveryCode.fingerabdruck(aus: aktuellerCode)
+        let alterFingerabdruck = try DossierRecoveryCode.fingerabdruck(aus: alterCode)
+
+        #expect(aktuellerFingerabdruck == DossierRecoveryCode.fingerabdruck(aus: aktuellerCode.uppercased()))
+        #expect(aktuellerFingerabdruck != alterFingerabdruck)
+
+        let paket = DossierRecoveryPaket(
+            version: 1,
+            algorithmus: "AES-256-GCM/SHA-256",
+            verschluesselterSchluessel: "test",
+            codeFingerabdruck: aktuellerFingerabdruck,
+            obsoleteCodeFingerabdruecke: [alterFingerabdruck]
+        )
+        #expect(paket.codeFingerabdruck == aktuellerFingerabdruck)
+        #expect(paket.obsoleteCodeFingerabdruecke.contains(alterFingerabdruck))
     }
 
     @Test func recoveryPDFCodiertNormalisiertenCodeImQRCode() throws {

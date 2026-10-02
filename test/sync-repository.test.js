@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applySectionMutation, changesSince } from "../api/_sync-repository.js";
+import { applySectionMutation, changesSince, currentSnapshot } from "../api/_sync-repository.js";
 
 const userID = "cbcb4c1c-289f-4719-b237-02c9c7534642";
 const dossierID = "9ca650a8-a78c-4ef0-b62f-cb640531b667";
@@ -109,6 +109,27 @@ test("liefert Upserts und Tombstones seitenweise seit dem Cursor", async () => {
   assert.equal(response.nextCursor, "8");
   assert.equal(response.hasMore, true);
   assert.equal(response.changes[0].operation, "upsert");
+});
+
+test("liefert für Recovery nur den aktuellen Bereichsstand und den aktuellen Cursor", async () => {
+  const client = scriptedClient([
+    { rows: [{ cursor: "91" }] },
+    { rows: [
+      { dossier_id: dossierID, section_type: "profil", schema_version: 1, revision: "7", payload: { name: "Aktuell" }, updated_at: new Date("2026-10-02T06:00:00Z") },
+      { dossier_id: dossierID, section_type: "zugaenge", schema_version: 1, revision: "4", payload: { daten: "verschluesselt" }, updated_at: new Date("2026-10-02T06:01:00Z") }
+    ] }
+  ]);
+
+  const response = await currentSnapshot(client, userID, dossierID);
+
+  assert.equal(response.nextCursor, "91");
+  assert.equal(response.hasMore, false);
+  assert.deepEqual(response.changes.map(({ sectionType, revision }) => [sectionType, revision]), [
+    ["profil", 7],
+    ["zugaenge", 4]
+  ]);
+  assert.ok(client.calls[0].text.includes("MAX(change_id)"));
+  assert.ok(client.calls[1].text.includes("dossier_sections"));
 });
 
 test("verwendet im MySQL-Pfad Locks, JSON und MySQL-Upserts", async () => {

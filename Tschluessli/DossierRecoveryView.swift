@@ -11,8 +11,10 @@ struct DossierRecoveryView: View {
     var nurWiederherstellen = false
     var nurErstellen = false
     var kontoEmail = ""
+    var abbruchToken: UUID? = nil
     var onDossierZurueckgesetzt: ((UUID) -> Void)? = nil
     var onDatenLaden: (() async -> Bool)? = nil
+    var onDatenLadeFehler: (() -> String)? = nil
     var onWiederhergestellt: (() -> Void)? = nil
     var onNeuerCodeBestaetigt: (() -> Void)? = nil
     @Environment(\.accessibilityReduceMotion) private var bewegungReduzieren
@@ -37,6 +39,7 @@ struct DossierRecoveryView: View {
     @State private var finalisierungsMeldungsIndex = 0
     @State private var notfallResetAnzeigen = false
     @State private var recoveryScannerAnzeigen = false
+    @State private var wiederherstellungsTask: Task<Void, Never>?
 
     private let wiederherstellungsSchritte = [
         "Profildaten",
@@ -165,6 +168,14 @@ struct DossierRecoveryView: View {
         .task {
             recoveryBereitsEingerichtet = await CloudFeldVerschluesselung.shared.hatRecoveryPaket()
         }
+        .onChange(of: abbruchToken) { _, _ in
+            wiederherstellungsTask?.cancel()
+            wiederherstellungsTask = nil
+        }
+        .onDisappear {
+            wiederherstellungsTask?.cancel()
+            wiederherstellungsTask = nil
+        }
         .overlay {
             if wiederherstellungsFortschrittAnzeigen {
                 wiederherstellungsFortschritt
@@ -180,7 +191,10 @@ struct DossierRecoveryView: View {
                 }
             }
         }
-        .fullScreenCover(isPresented: $recoveryScannerAnzeigen) {
+        .fullScreenCover(
+            isPresented: $recoveryScannerAnzeigen,
+            onDismiss: recoveryScannerGeschlossen
+        ) {
             QRCodeScannerView(
                 ergebnis: recoveryQRCodeUebernehmen,
                 abbruch: { recoveryScannerAnzeigen = false }
@@ -226,11 +240,13 @@ struct DossierRecoveryView: View {
     private func stelleWiederHer() {
         arbeitet = true
         meldung = ""
-        Task {
+        wiederherstellungsTask?.cancel()
+        wiederherstellungsTask = Task {
             do {
                 try await CloudFeldVerschluesselung.shared.wiederherstellen(
                     mit: recoveryWoerter.joined(separator: " ")
                 )
+                try Task.checkCancellation()
                 recoveryWoerter = Array(repeating: "", count: 12)
                 fokussiertesRecoveryWort = nil
                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -246,7 +262,9 @@ struct DossierRecoveryView: View {
                     datenladenAbgeschlossen = true
                     return erfolgreich
                 }
+                defer { datenLadeTask.cancel() }
                 await animiereWiederherstellungsFortschritt()
+                try Task.checkCancellation()
                 if !datenladenAbgeschlossen {
                     finalisierungsMeldungsIndex = 0
                     withAnimation(.easeInOut(duration: bewegungReduzieren ? 0 : 0.3)) {
@@ -262,22 +280,31 @@ struct DossierRecoveryView: View {
                     withAnimation(.easeInOut(duration: 0.22)) {
                         wiederherstellungsFortschrittAnzeigen = false
                     }
-                    throw DossierRecoveryFehler.cloudWiederherstellungFehlgeschlagen
+                    let genauerFehler = onDatenLadeFehler?() ?? ""
+                    if genauerFehler.isEmpty {
+                        throw DossierRecoveryFehler.cloudWiederherstellungFehlgeschlagen
+                    }
+                    throw DossierRecoveryFehler.cloudWiederherstellungMitUrsache(genauerFehler)
                 }
+                try Task.checkCancellation()
                 finalisierungsTask.cancel()
 
                 withAnimation(.easeInOut(duration: bewegungReduzieren ? 0 : 0.28)) {
                     wiederherstellungsPhase = .erfolgreich
                 }
                 zeigeErfolgreichenAbschluss()
-                try? await Task.sleep(for: .milliseconds(bewegungReduzieren ? 900 : 1_500))
+                try await Task.sleep(for: .milliseconds(bewegungReduzieren ? 900 : 1_500))
+                try Task.checkCancellation()
                 withAnimation(.easeInOut(duration: bewegungReduzieren ? 0 : 0.22)) {
                     wiederherstellungsFortschrittAnzeigen = false
                 }
                 meldung = "Erfolgreich wiederhergestellt. Das Dossier wurde aus der Cloud geladen."
                 onWiederhergestellt?()
+            } catch is CancellationError {
+                wiederherstellungsFortschrittAnzeigen = false
             } catch { meldung = error.localizedDescription }
             arbeitet = false
+            wiederherstellungsTask = nil
         }
     }
 
@@ -553,12 +580,24 @@ struct DossierRecoveryView: View {
         recoveryScannerAnzeigen = false
         do {
             let normalisiert = try DossierRecoveryCode.ausQRCode(inhalt)
+            verteiltRecoveryCode = true
             recoveryWoerter = normalisiert.split(separator: " ").map(String.init)
+            verteiltRecoveryCode = false
             fokussiertesRecoveryWort = nil
             meldung = "Erfolgreich erkannt. Prüfe die zwölf Wörter und starte anschliessend die Wiederherstellung."
         } catch {
             meldung = "Dieser QR-Code ist kein gültiger Tschlüssli-Wiederherstellungscode."
         }
+    }
+
+    private func recoveryScannerGeschlossen() {
+        fokussiertesRecoveryWort = nil
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
     }
 }
 

@@ -11,6 +11,7 @@ import emailVerificationRequest from "./api/email-verification/request.js";
 import emailVerificationConfirm from "./api/email-verification/confirm.js";
 import syncPush from "./api/sync/push.js";
 import syncPull from "./api/sync/pull.js";
+import syncSnapshot from "./api/sync/snapshot.js";
 import dossierSections from "./api/dossiers/sections.js";
 import autoRelease from "./api/cron/auto-release-invitations.js";
 import { databaseHealth, databasePool } from "./api/_database.js";
@@ -38,6 +39,7 @@ const routes = new Map([
   ["/api/email-verification/confirm", emailVerificationConfirm],
   ["/api/sync/push", syncPush],
   ["/api/sync/pull", syncPull],
+  ["/api/sync/snapshot", syncSnapshot],
   ["/api/dossiers/sections", dossierSections],
   ["/api/cron/auto-release-invitations", autoRelease],
   ["/api/admin/login", adminLoginHandler],

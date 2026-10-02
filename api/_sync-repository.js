@@ -142,6 +142,38 @@ export async function changesSince(client, userID, cursor, limit = 100) {
   };
 }
 
+export async function currentSnapshot(client, userID, dossierID) {
+  // Cursor zuerst lesen: Eine danach parallel gespeicherte Änderung darf im
+  // Snapshot bereits enthalten sein, wird wegen des älteren Cursors später
+  // aber nochmals regulär synchronisiert und kann so niemals verloren gehen.
+  const cursorResult = await client.query(
+    "SELECT COALESCE(MAX(change_id), 0) AS cursor FROM sync_changes WHERE owner_user_id = $1",
+    [userID]
+  );
+  const sectionsResult = await client.query(
+    `SELECT dossier_id, section_type, schema_version, revision, payload, updated_at
+       FROM dossier_sections
+      WHERE dossier_id = $1 AND owner_user_id = $2 AND deleted_at IS NULL
+      ORDER BY section_type`,
+    [dossierID, userID]
+  );
+  const cursor = String(cursorResult.rows[0]?.cursor ?? "0");
+  const changes = await Promise.all(sectionsResult.rows.map(async (row) => ({
+    cursor,
+    dossierID: row.dossier_id,
+    sectionType: row.section_type,
+    schemaVersion: Number(row.schema_version),
+    revision: Number(row.revision),
+    operation: "upsert",
+    payload: await storageService().loadSectionPayload(
+      row.payload,
+      { dossierID: row.dossier_id, sectionType: row.section_type }
+    ),
+    changedAt: isoDate(row.updated_at)
+  })));
+  return { changes, nextCursor: cursor, hasMore: false };
+}
+
 async function storeResult(client, userID, mutation, requestHash, statusCode, body) {
   await client.query(
     `INSERT INTO sync_idempotency

@@ -538,7 +538,7 @@ struct ProfilView: View {
                         Button {
                             dossierRecoveryAnzeigen = true
                         } label: {
-                            Label("Wiederherstellungs-Schlüssel für dein Dossier erstellen oder erneuern.", systemImage: "key.horizontal.fill")
+                            Label("Wiederherstellungscode für dein Dossier erstellen oder erneuern.", systemImage: "key.horizontal.fill")
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .multilineTextAlignment(.leading)
                                 .contentShape(Rectangle())

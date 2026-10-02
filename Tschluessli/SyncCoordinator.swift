@@ -5,7 +5,7 @@ protocol SyncAuftragVerarbeiter: AnyObject {
     func verarbeite(_ auftrag: SyncAuftragSnapshot) async throws -> Int64
 }
 
-nonisolated enum SyncVerarbeitungsFehler: Error, Sendable, Equatable {
+nonisolated enum SyncVerarbeitungsFehler: LocalizedError, Sendable, Equatable {
     case temporaer(String)
     case authentifizierung(String)
     case konflikt(String)
@@ -17,6 +17,16 @@ nonisolated enum SyncVerarbeitungsFehler: Error, Sendable, Equatable {
         case .authentifizierung(let meldung): .authentifizierung(meldung)
         case .konflikt(let meldung): .konflikt(meldung)
         case .permanent(let meldung): .permanent(meldung)
+        }
+    }
+
+    var errorDescription: String? {
+        switch self {
+        case .temporaer(let meldung),
+             .authentifizierung(let meldung),
+             .konflikt(let meldung),
+             .permanent(let meldung):
+            meldung
         }
     }
 }

@@ -106,7 +106,9 @@ actor DossierSyncTransport {
             throw SyncVerarbeitungsFehler.permanent("Ungültige Sync-Adresse.")
         }
         var request = URLRequest(url: url)
-        request.timeoutInterval = 25
+        // Ein vollständiger Recovery-Lauf beginnt beim Cursor 0 und kann den
+        // gesamten Änderungsverlauf eines großen Dossiers umfassen.
+        request.timeoutInterval = 90
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         let (daten, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else {
@@ -123,6 +125,37 @@ actor DossierSyncTransport {
         } catch {
             throw SyncVerarbeitungsFehler.temporaer("Die Cloud-Daten konnten nicht gelesen werden.")
         }
+    }
+
+    func snapshot(dossierID: UUID) async throws -> SyncDownloadAntwort {
+        let token = try await CloudKontoService.shared.sitzungsToken()
+        var komponenten = URLComponents(
+            url: CloudAPIKonfiguration.basisURL.appending(path: "api/sync/snapshot"),
+            resolvingAgainstBaseURL: false
+        )
+        komponenten?.queryItems = [
+            URLQueryItem(name: "dossierID", value: dossierID.uuidString.lowercased())
+        ]
+        guard let url = komponenten?.url else {
+            throw SyncVerarbeitungsFehler.permanent("Ungültige Snapshot-Adresse.")
+        }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 90
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (daten, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw SyncVerarbeitungsFehler.temporaer("Der Sync-Server ist nicht erreichbar.")
+        }
+        if http.statusCode == 401 {
+            throw SyncVerarbeitungsFehler.authentifizierung("Deine Tschlüssli-Anmeldung ist abgelaufen.")
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw SyncVerarbeitungsFehler.temporaer(Self.serverMeldung(aus: daten))
+        }
+        guard let antwort = try? JSONDecoder.syncDecoder.decode(SyncDownloadAntwort.self, from: daten) else {
+            throw SyncVerarbeitungsFehler.temporaer("Der Cloud-Snapshot konnte nicht gelesen werden.")
+        }
+        return antwort
     }
 
     private static func serverMeldung(aus daten: Data) -> String {
@@ -191,6 +224,9 @@ final class DossierSyncDienst {
     private var ausstehendeBereiche: Set<String> = []
     private var initialerAbgleichAusstehend = false
     private var ignoriertEigeneSpeicherung = false
+    private var recoveryDownloadGeneration = UUID()
+    private var aktiveRecoveryDownloads: Set<UUID> = []
+    private(set) var letzterRecoveryFehler = ""
 
     init(modelContext: ModelContext) throws {
         self.modelContext = modelContext
@@ -321,8 +357,24 @@ final class DossierSyncDienst {
             )
             await coordinator.synchronisieren()
 
-            return try !hatOffenenAuftrag(dossierID: dossierID, bereich: "zugaenge")
-                && !hatGespeichertenKonflikt(dossierID: dossierID, bereich: "zugaenge")
+            guard try !hatOffenenAuftrag(dossierID: dossierID, bereich: "zugaenge"),
+                  !hatGespeichertenKonflikt(dossierID: dossierID, bereich: "zugaenge"),
+                  let bestaetigterBereich = try await CloudDossierSyncService.shared.laden(
+                    dossierID: dossierID,
+                    bereich: "zugaenge"
+                  ) else { return false }
+
+            // Nicht nur einen leeren Outbox-Zustand akzeptieren: In der Cloud
+            // muss exakt das soeben erzeugte aktive Paket liegen. Damit kann
+            // die UI niemals einen Code ausgeben, während dort noch ein altes
+            // (und damit faktisch weiterhin gültiges) Paket gespeichert ist.
+            let cloudPayload = try JSONDecoder().decode(
+                VerschluesselterCloudBereich.self,
+                from: bestaetigterBereich.payload
+            )
+            let lokalesPaket = try await CloudFeldVerschluesselung.shared.aktuellesRecoveryPaket()
+            return cloudPayload.recovery?.status == .aktiv
+                && cloudPayload.recovery?.id == lokalesPaket.id
         } catch {
             return false
         }
@@ -765,32 +817,85 @@ final class DossierSyncDienst {
     }
 
     @discardableResult
-    private func ladeAenderungenHerunter(dossierID expliziteDossierID: UUID? = nil) async -> Bool {
+    private func ladeAenderungenHerunter(
+        dossierID expliziteDossierID: UUID? = nil,
+        recoveryGeneration: UUID? = nil
+    ) async -> Bool {
         guard let dossierID = expliziteDossierID ?? Self.aktivesDossierID else { return false }
         let cursorKey = Self.cursorKey(dossierID: dossierID)
         var cursor = UserDefaults.standard.string(forKey: cursorKey) ?? "0"
         do {
             while true {
+                guard !Task.isCancelled else { return false }
+                if let recoveryGeneration,
+                   recoveryDownloadGeneration != recoveryGeneration { return false }
                 let antwort = try await transport.herunterladen(cursor: cursor)
+                guard !Task.isCancelled else { return false }
+                if let recoveryGeneration,
+                   recoveryDownloadGeneration != recoveryGeneration { return false }
                 try await importiere(antwort.changes)
+                guard !Task.isCancelled else { return false }
+                if let recoveryGeneration,
+                   recoveryDownloadGeneration != recoveryGeneration { return false }
                 cursor = antwort.nextCursor
                 UserDefaults.standard.set(cursor, forKey: cursorKey)
                 if !antwort.hasMore { break }
             }
             return true
         } catch {
+            if recoveryGeneration != nil {
+                letzterRecoveryFehler = error.localizedDescription
+            }
             // Downloadfehler lassen den Cursor unverändert und werden beim nächsten Auslöser erneut versucht.
             return false
         }
     }
 
     func dossierNachRecoveryNeuLaden(dossierID: UUID) async -> Bool {
+        letzterRecoveryFehler = ""
+        let generation = UUID()
+        recoveryDownloadGeneration = generation
+        aktiveRecoveryDownloads.insert(generation)
+        defer { aktiveRecoveryDownloads.remove(generation) }
         do {
             try bereiteVollstaendigeCloudWiederherstellungVor(dossierID: dossierID)
-            return await ladeAenderungenHerunter(dossierID: dossierID)
+            let snapshot = try await transport.snapshot(dossierID: dossierID)
+            guard !Task.isCancelled,
+                  recoveryDownloadGeneration == generation else { return false }
+            try await importiere(snapshot.changes)
+            guard !Task.isCancelled,
+                  recoveryDownloadGeneration == generation else { return false }
+            UserDefaults.standard.set(
+                snapshot.nextCursor,
+                forKey: Self.cursorKey(dossierID: dossierID)
+            )
+            return true
         } catch {
+            letzterRecoveryFehler = error.localizedDescription
             return false
         }
+    }
+
+    /// Stoppt einen Recovery-Download logisch und entfernt alle Daten, die er
+    /// bis zum Abbruch bereits in den lokalen Store importiert hat.
+    func abgebrocheneWiederherstellungVerwerfen(dossierID: UUID) async throws {
+        let abzubrechendeGeneration = recoveryDownloadGeneration
+        recoveryDownloadGeneration = UUID()
+        while aktiveRecoveryDownloads.contains(abzubrechendeGeneration) {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        for bereich in registry.bereiche {
+            try DossierBereichImport.loesche(
+                bereich: bereich,
+                dossierID: dossierID,
+                in: modelContext
+            )
+            UserDefaults.standard.removeObject(
+                forKey: Self.revisionKey(dossierID: dossierID, bereich: bereich)
+            )
+        }
+        UserDefaults.standard.removeObject(forKey: Self.cursorKey(dossierID: dossierID))
+        try modelContext.save()
     }
 
     private func bereiteVollstaendigeCloudWiederherstellungVor(dossierID: UUID) throws {

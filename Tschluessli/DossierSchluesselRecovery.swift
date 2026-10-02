@@ -6,9 +6,61 @@ import Security
 import UIKit
 
 nonisolated struct DossierRecoveryPaket: Codable, Sendable, Equatable {
+    enum Status: String, Codable, Sendable {
+        case aktiv
+        case obsolet
+    }
+
     let version: Int
     let algorithmus: String
     let verschluesselterSchluessel: String
+    let id: UUID
+    let status: Status
+    let erstelltAm: Date
+    let codeFingerabdruck: String?
+    let obsoleteCodeFingerabdruecke: [String]
+
+    init(
+        version: Int,
+        algorithmus: String,
+        verschluesselterSchluessel: String,
+        id: UUID = UUID(),
+        status: Status = .aktiv,
+        erstelltAm: Date = Date(),
+        codeFingerabdruck: String? = nil,
+        obsoleteCodeFingerabdruecke: [String] = []
+    ) {
+        self.version = version
+        self.algorithmus = algorithmus
+        self.verschluesselterSchluessel = verschluesselterSchluessel
+        self.id = id
+        self.status = status
+        self.erstelltAm = erstelltAm
+        self.codeFingerabdruck = codeFingerabdruck
+        self.obsoleteCodeFingerabdruecke = obsoleteCodeFingerabdruecke
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case version, algorithmus, verschluesselterSchluessel, id, status, erstelltAm
+        case codeFingerabdruck, obsoleteCodeFingerabdruecke
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        version = try container.decode(Int.self, forKey: .version)
+        algorithmus = try container.decode(String.self, forKey: .algorithmus)
+        verschluesselterSchluessel = try container.decode(String.self, forKey: .verschluesselterSchluessel)
+        // Bereits ausgelieferte Pakete bleiben migrierbar. Sobald ein neuer
+        // Code erstellt wird, erhält er zwingend eine eindeutige ID und Status.
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        status = try container.decodeIfPresent(Status.self, forKey: .status) ?? .aktiv
+        erstelltAm = try container.decodeIfPresent(Date.self, forKey: .erstelltAm) ?? .distantPast
+        codeFingerabdruck = try container.decodeIfPresent(String.self, forKey: .codeFingerabdruck)
+        obsoleteCodeFingerabdruecke = try container.decodeIfPresent(
+            [String].self,
+            forKey: .obsoleteCodeFingerabdruecke
+        ) ?? []
+    }
 }
 
 enum DossierRecoveryFehler: LocalizedError {
@@ -18,6 +70,8 @@ enum DossierRecoveryFehler: LocalizedError {
     case ungueltigesPaket
     case recoveryNichtSynchronisiert
     case cloudWiederherstellungFehlgeschlagen
+    case cloudWiederherstellungMitUrsache(String)
+    case codeObsolet
 
     var errorDescription: String? {
         switch self {
@@ -26,13 +80,17 @@ enum DossierRecoveryFehler: LocalizedError {
         case .keinRecoveryPaket:
             "Für dieses Dossier ist noch kein Wiederherstellungspaket vorhanden."
         case .falscherCode:
-            "Der Wiederherstellungscode ist nicht korrekt."
+            "Der Wiederherstellungscode ist nicht korrekt oder gehört zu einem anderen Profil."
         case .ungueltigesPaket:
             "Das Wiederherstellungspaket konnte nicht verarbeitet werden."
         case .recoveryNichtSynchronisiert:
             "Der Wiederherstellungscode konnte noch nicht sicher in der Cloud gespeichert werden. Bitte versuche es erneut."
         case .cloudWiederherstellungFehlgeschlagen:
             "Der Schlüssel wurde bestätigt, aber das Dossier konnte noch nicht vollständig aus der Cloud geladen werden. Bitte versuche es erneut."
+        case .cloudWiederherstellungMitUrsache(let ursache):
+            "Der Wiederherstellungscode wurde bestätigt, aber der Cloud-Download ist fehlgeschlagen: \(ursache)"
+        case .codeObsolet:
+            "Dieser Wiederherstellungscode ist nicht mehr gültig. Verwende den zuletzt erstellten Wiederherstellungscode."
         }
     }
 }
@@ -90,6 +148,12 @@ nonisolated enum DossierRecoveryCode {
         let normalisiert = try normalisieren(code)
         let material = Data("Tschluessli-Dossier-Recovery-v1\u{0}\(normalisiert)".utf8)
         return SymmetricKey(data: Data(SHA256.hash(data: material)))
+    }
+
+    static func fingerabdruck(aus code: String) throws -> String {
+        let normalisiert = try normalisieren(code)
+        let material = Data("Tschluessli-Dossier-Recovery-Fingerprint-v1\u{0}\(normalisiert)".utf8)
+        return Data(SHA256.hash(data: material)).base64EncodedString()
     }
 
     static func qrCodeInhalt(aus code: String) throws -> String {
