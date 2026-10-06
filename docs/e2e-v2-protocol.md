@@ -198,4 +198,27 @@ Verifikation des zweiten Schritts: 125 Node-Tests und zehn gezielte iOS-Tests
 (erfolgreich). Neue Tests decken V2-Kontaktexport/-import, Datenminimierung,
 Zustimmungsprojektion, beide SQL-Enginepfade, Idempotenz, Snapshot/Pull,
 Klartext-Downgrades, den alten PUT-Endpunkt und blockierte Legacy-Freigaben ab.
-Keine echte Cloud-Migration, kein Zwei-Geräte-Test und kein Deployment durchgeführt.
+Keine Inhaltsmigration und kein Zwei-Geräte-Test durchgeführt.
+
+### DEV-Deployment vom 6. Oktober 2026
+
+Die V2-Grundlage ist auf DEV ausgerollt, bleibt aber deaktiviert. API und
+Freigabe-Worker verwenden Commit `acb6e40d6cf6bb06c3c5fb7e78fb2af9f5a573f0`,
+Image `sha256:9da993c8e0405561edea8dd1d2c6e2e3aaeddcb7987722acd04ae794f9f9ecf3`.
+Der [Release-Lauf](https://github.com/Twining85/AfterLife-App/actions/runs/37438870074)
+ist erfolgreich. Öffentliche Readiness, Datenbankversion 5, Object Storage und
+Worker wurden nach dem Deployment geprüft. `E2E_V2_SYNC_ENABLED` ist weiterhin
+nicht aktiviert. Bestehende Inhalte wurden dadurch nicht nachträglich verschlüsselt.
+
+Vor der Schemaänderung wurde die DEV-Datenbank unter
+`/var/backups/tschluessli/dev-before-e2e-20261006T084548Z.sql` gesichert
+(root, Rechte 600). Wiederherstellung und Migration wurden in einer isolierten
+MySQL-Instanz erfolgreich geprüft; diese Instanz ist anschliessend entfernt worden.
+
+Der erste Deploymentversuch scheiterte am für Infomaniak unzulässigen Trigger.
+Da MySQL-DDL nicht transaktional ist, waren die vorangegangenen Schemaelemente
+bereits angelegt. Ihr Zustand wurde vor dem kontrollierten Abschluss geprüft;
+die fehlende `sync_changes.access_metadata`-Spalte und der Migrationseintrag
+wurden ergänzt. Version 5 war zuvor nicht als erfolgreich angewendet registriert.
+Das nachfolgende offizielle Deployment hat den neuen Migrationschecksum bestätigt.
+Die bestehende SMTP-Konfiguration wurde nicht geändert.
