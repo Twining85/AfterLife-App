@@ -161,7 +161,8 @@ test("Both SQL migrations retain encryption through old-image updates", async ()
   for (const file of ["database/migrations/012_e2e_access_metadata.sql", "database/mysql/migrations/005_e2e_access_metadata.sql"]) {
     const sql = await readFile(file, "utf8");
     assert.match(sql, /dossier_sections_v2_ciphertext/);
-    assert.match(sql, /CREATE TRIGGER dossier_sections_encryption_floor BEFORE UPDATE/);
+    if (file.includes("/mysql/")) assert.doesNotMatch(sql, /CREATE TRIGGER/);
+    else assert.match(sql, /CREATE TRIGGER dossier_sections_encryption_floor BEFORE UPDATE/);
     assert.match(sql, /access_metadata/);
     assert.doesNotMatch(sql, /DROP TABLE|DELETE FROM|TRUNCATE/);
   }

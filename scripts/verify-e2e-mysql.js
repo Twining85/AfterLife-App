@@ -21,11 +21,11 @@ try {
   await db.execute("INSERT INTO dossiers (id,owner_user_id,created_by_user_id,title) VALUES (?,?,?,?)", [dossier, user, user, "Synthetic migration check"]);
   const cipher = JSON.stringify({ formatVersion: 2, ciphertext: "synthetic" });
   await db.execute("INSERT INTO dossier_sections (dossier_id,owner_user_id,section_type,payload,encryption_version) VALUES (?,?,?, ?,2)", [dossier, user, "profil", cipher]);
-  await assert.rejects(db.execute("UPDATE dossier_sections SET payload=?,encryption_version=1 WHERE dossier_id=?", [JSON.stringify({ name: "plaintext" }), dossier]), error => error.code === "ER_CHECK_CONSTRAINT_VIOLATED");
-  await db.execute("UPDATE dossier_sections SET payload=NULL,deleted_at=NOW(),encryption_version=1 WHERE dossier_id=?", [dossier]);
+  await assert.rejects(db.execute("UPDATE dossier_sections SET payload=? WHERE dossier_id=?", [JSON.stringify({ name: "plaintext" }), dossier]), error => error.code === "ER_CHECK_CONSTRAINT_VIOLATED");
+  await db.execute("UPDATE dossier_sections SET payload=NULL,deleted_at=NOW() WHERE dossier_id=?", [dossier]);
   const [rows] = await db.execute("SELECT encryption_version FROM dossier_sections WHERE dossier_id=?", [dossier]);
   assert.equal(rows[0].encryption_version, 2);
-  await assert.rejects(db.execute("UPDATE dossier_sections SET payload=?,deleted_at=NULL,encryption_version=1 WHERE dossier_id=?", ["{}", dossier]), error => error.code === "ER_CHECK_CONSTRAINT_VIOLATED");
+  await assert.rejects(db.execute("UPDATE dossier_sections SET payload=?,deleted_at=NULL WHERE dossier_id=?", ["{}", dossier]), error => error.code === "ER_CHECK_CONSTRAINT_VIOLATED");
   await db.execute("UPDATE dossier_sections SET payload=?,deleted_at=NULL WHERE dossier_id=?", [cipher, dossier]);
   await assert.rejects(db.execute("INSERT INTO dossier_access_metadata (dossier_id,owner_user_id,section_type,revision,metadata) VALUES (?,?,?,1,?)", [dossier, user, "profil", "{}"]), error => error.code === "ER_CHECK_CONSTRAINT_VIOLATED");
   console.log("MySQL: alle Migrationen, Wiederholung, Klartextschutz und Tombstone-Schutz erfolgreich.");

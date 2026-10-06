@@ -309,7 +309,7 @@ async function applyMySQLSectionMutation(client, userID, mutation) {
     `INSERT INTO dossier_sections
        (dossier_id, owner_user_id, section_type, schema_version, revision, payload, deleted_at, encryption_version)
      VALUES ($1, $2, $3, $4, $5, $6, CASE WHEN $7 THEN CURRENT_TIMESTAMP(6) ELSE NULL END, $8)
-     ON DUPLICATE KEY UPDATE encryption_version = VALUES(encryption_version),
+     ON DUPLICATE KEY UPDATE encryption_version = GREATEST(encryption_version, VALUES(encryption_version)),
        schema_version = VALUES(schema_version), revision = VALUES(revision),
        payload = VALUES(payload), deleted_at = VALUES(deleted_at), updated_at = CURRENT_TIMESTAMP(6)`,
     [mutation.dossierID, userID, mutation.sectionType, mutation.schemaVersion, revision,

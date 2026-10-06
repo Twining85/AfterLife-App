@@ -24,7 +24,8 @@ ALTER TABLE dossier_sections ADD CONSTRAINT dossier_sections_v2_ciphertext CHECK
     COALESCE(JSON_EXTRACT(payload, '$.formatVersion') = 2, FALSE) OR
     COALESCE(JSON_EXTRACT(payload, '$._tschluessliStorage.encryptionVersion') = 2, FALSE)
 );
-CREATE TRIGGER dossier_sections_encryption_floor BEFORE UPDATE ON dossier_sections
-FOR EACH ROW
-SET NEW.encryption_version = IF(OLD.encryption_version = 2, 2, NEW.encryption_version);
+-- Managed MySQL does not permit triggers with binary logging and no SUPER
+-- privilege. Legacy backends never update encryption_version, so this CHECK
+-- still rejects their plaintext writes. The current backend retains the floor
+-- in both its locked application check and its SQL upsert.
 ALTER TABLE sync_changes ADD COLUMN access_metadata JSON;

@@ -173,10 +173,18 @@ Cloud-Recovery und Bestandsmigration sind nicht vollständig angebunden.
 
 Vor Deployment: Migration mit geeigneter Rolle in einer isolierten MySQL-8.4-
 Datenbank prüfen, erneut ausführen und Rückfall testen. Die Rolle benötigt unter
-anderem TRIGGER-Rechte. MySQL-DDL ist nicht als Ganzes transaktional; ein teilweise
+auf PostgreSQL TRIGGER-Rechte. MySQL-DDL ist nicht als Ganzes transaktional; ein teilweise
 fehlgeschlagener Lauf muss vor einem erneuten Versuch kontrolliert behandelt werden.
 Bei migrierten Bereichen ist ein altes Backend-Image kein vollständiger Rückfall,
 da es V2 nicht lesen kann. Die Datenbank verhindert jedoch Klartextüberschreibungen.
+
+Infomaniaks verwaltetes MySQL erlaubt bei aktivem Binary Log keine neuen Trigger
+mit unseren Kontorechten. MySQL verwendet deshalb keinen Trigger: Alte Images
+kennen die neue Versionsspalte nicht und erhalten ihren Wert; der CHECK verhindert
+deren Klartextschreibzugriffe. Der neue Backend-Code prüft die Version unter einer
+Sperre und verwendet GREATEST beim Upsert. Ein Datenbankadministrator mit direktem
+SQL-Zugriff könnte die Versionsspalte weiterhin selbst herabsetzen. PostgreSQL
+erzwingt die monotone Version zusätzlich über einen Trigger.
 
 Alle MySQL-Migrationen wurden am 6. Oktober 2026 gegen eine isolierte MySQL-8.4-
 Instanz auf DEV ausgeführt und erneut aufgerufen. Klartextüberschreibungen sowie
