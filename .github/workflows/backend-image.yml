@@ -12,9 +12,6 @@ on:
         required: true
         default: false
         type: boolean
-  push:
-    tags:
-      - "backend-v*"
 
 concurrency:
   group: backend-image-${{ github.ref }}
@@ -34,6 +31,15 @@ jobs:
     name: Vertrag und Syntax prüfen
     runs-on: ubuntu-latest
     steps:
+      - name: DEV-Quelle prüfen
+        env:
+          SOURCE_REF: ${{ github.ref }}
+        run: |
+          case "$SOURCE_REF" in
+            refs/heads/DEV|refs/heads/release/*) ;;
+            *) echo "Bitte DEV oder einen release/*-Branch auswählen." >&2; exit 1 ;;
+          esac
+
       - name: Repository laden
         uses: actions/checkout@v4
 
@@ -132,7 +138,8 @@ jobs:
         run: |
           echo "### Backend-Image" >> "$GITHUB_STEP_SUMMARY"
           echo '\`'"${IMAGE_REF}@${IMAGE_DIGEST}"'\`' >> "$GITHUB_STEP_SUMMARY"
-          echo "Diesen Digest zuerst in DEV und nach der Abnahme unverändert in PROD verwenden." >> "$GITHUB_STEP_SUMMARY"
+          echo "Quelle: ${GITHUB_REF_NAME} (${GITHUB_SHA})" >> "$GITHUB_STEP_SUMMARY"
+          echo "Dieses Image ist für DEV. Produktion wird später separat eingerichtet." >> "$GITHUB_STEP_SUMMARY"
 
   deploy-dev:
     name: Auf DEV bereitstellen
