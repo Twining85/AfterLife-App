@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import addressparser from "nodemailer/lib/addressparser/index.js";
 
 let transporter;
 
@@ -26,9 +27,28 @@ export function emailTransportConfiguration(environment = process.env) {
     port,
     secure: port === 465,
     requireTLS: port === 587,
+    ...(environment.SMTP_NAME ? { name: environment.SMTP_NAME } : {}),
+    connectionTimeout: 15_000,
+    greetingTimeout: 15_000,
+    socketTimeout: 30_000,
     tls: { rejectUnauthorized: true, minVersion: "TLSv1.2" },
     auth: { user, pass }
   };
+}
+
+export function emailDeliveryConfiguration({ to, subject }, environment = process.env) {
+  if (environment.APP_ENV !== "development") return { to, subject };
+  const allowed = String(environment.SMTP_DEV_ALLOWED_RECIPIENTS || "")
+    .split(",").map(value => value.trim().toLowerCase()).filter(Boolean);
+  const addresses = addressparser(to, { flatten: true });
+  if (!addresses.length || addresses.some(({ address }) => !allowed.includes(String(address).toLowerCase()))) {
+    throw new Error("DEV-Mailversand ist nur an ausdrücklich freigegebene Testempfänger erlaubt");
+  }
+  return { to, subject: String(subject).startsWith("[DEV] ") ? subject : `[DEV] ${subject}` };
+}
+
+export async function verifyEmailTransport() {
+  return mailTransporter().verify();
 }
 
 function mailTransporter() {
@@ -38,6 +58,7 @@ function mailTransporter() {
 }
 
 export async function sendEmail({ to, subject, text, html, attachments = [] }) {
+  const delivery = emailDeliveryConfiguration({ to, subject });
   const from = process.env.SMTP_FROM || process.env.EMAIL_SMTP_FROM || process.env.EMAIL_FROM;
   const replyTo = process.env.SMTP_REPLY_TO || process.env.EMAIL_SMTP_REPLY_TO || process.env.EMAIL_REPLY_TO;
   if (!from) throw new Error("SMTP-Absender fehlt");
@@ -45,8 +66,7 @@ export async function sendEmail({ to, subject, text, html, attachments = [] }) {
   return mailTransporter().sendMail({
     from,
     replyTo,
-    to,
-    subject,
+    ...delivery,
     text,
     html,
     attachments

@@ -1,10 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { emailTransportConfiguration } from "../api/_email-service.js";
+import { emailTransportConfiguration, emailDeliveryConfiguration } from "../api/_email-service.js";
 import { postgreSQLConnectionOptions, postgreSQLTLSOptions } from "../api/_database.js";
 import pg from "pg";
 
 const smtp = { SMTP_HOST: "mail.example.ch", SMTP_USER: "test-user", SMTP_PASSWORD: "test-only" };
+
+test("DEV blockiert ohne Freigabe und prüft jeden Empfänger vor dem Versand", () => {
+  const mail = { to: "Tester <tester@example.ch>", subject: "Einladung" };
+  const environment = { APP_ENV: "development", NODE_ENV: "production", SMTP_DEV_ALLOWED_RECIPIENTS: "tester@example.ch" };
+  assert.throws(() => emailDeliveryConfiguration(mail, { APP_ENV: "development" }), /Testempfänger/);
+  assert.equal(emailDeliveryConfiguration(mail, environment).subject, "[DEV] Einladung");
+  assert.throws(() => emailDeliveryConfiguration({ ...mail, to: "tester@example.ch, stranger@example.ch" }, environment), /Testempfänger/);
+  assert.throws(() => emailDeliveryConfiguration({ ...mail, to: "" }, environment), /Testempfänger/);
+  assert.deepEqual(emailDeliveryConfiguration(mail, { APP_ENV: "production" }), mail);
+});
 
 test("Mailversand benötigt einen ausdrücklich gewählten Anbieter", () => {
   assert.throws(() => emailTransportConfiguration({ SMTP_USER: "user", SMTP_PASSWORD: "test" }), /SMTP-Host/);

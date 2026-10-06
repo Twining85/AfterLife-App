@@ -68,13 +68,16 @@ MYSQL_EXPECTED_DATABASE=tschluessli_dev
 MYSQL_SSL_MODE=verify_identity
 
 EMAIL_VERIFICATION_SECRET=RANDOM_SECRET
-MAILOMAT_SMTP_HOST=SMTP_HOST
-MAILOMAT_SMTP_PORT=587
-MAILOMAT_SMTP_USER=SMTP_USER
-MAILOMAT_SMTP_PASSWORD=SMTP_PASSWORD
-EMAIL_FROM=Tschluessli <SENDER_ADDRESS>
-EMAIL_REPLY_TO=REPLY_ADDRESS
-EMAIL_VERIFICATION_ALLOWED_RECIPIENTS=DEV_TEST_ADDRESS_1,DEV_TEST_ADDRESS_2
+APP_ENV=development
+SMTP_HOST=mail.infomaniak.com
+SMTP_PORT=465
+SMTP_NAME=tschluessli.ch
+SMTP_USER=hallo@tschluessli.ch
+SMTP_PASSWORD=MAILBOX_PASSWORD
+SMTP_FROM=Tschluessli <hallo@tschluessli.ch>
+SMTP_REPLY_TO=hallo@tschluessli.ch
+SMTP_DEV_ALLOWED_RECIPIENTS=r_engeler@me.com,rene.engeler@me.com,neuigkeitenzumir@gmail.com,hallo@tschluessli.ch
+EMAIL_VERIFICATION_ALLOWED_RECIPIENTS=r_engeler@me.com,rene.engeler@me.com,neuigkeitenzumir@gmail.com,hallo@tschluessli.ch
 EMAIL_VERIFICATION_ALLOW_UNLISTED=false
 EMAIL_VERIFICATION_BLOCKED_DOMAINS=gmail.com,gmx.net,outlook.com
 
