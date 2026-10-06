@@ -38,6 +38,62 @@ Relevante Stellen: `DossierBereichAdapter.swift`, `DossierBereichImport.swift`,
 
 ## Ziel für die Verschlüsselung
 
+Die Umsetzung ist für DEV autorisiert. PROD wird dadurch nicht umgestellt.
+Die tatsächliche DEV-Konfiguration und die Art der bestehenden Daten sind vor
+einer Bestandsmigration zu klären. Die Supportanwendung soll weiterhin Inhalte
+von berechtigten Testdossiers anzeigen können.
+
+### Vereinbarte Umgebungen
+
+Es bleiben zwei Backend-Umgebungen: DEV und PROD. Beta bezeichnet die
+TestFlight-Phase auf der geschützten PROD-Umgebung, keine dritte Datenhaltung.
+Echte Daten von Testern werden wie spätere produktive Daten behandelt. Vor
+dieser Beta müssen die vorgesehene Verschlüsselung und die Migration abgenommen
+sein; die noch offene E2E-Implementierung ist keine bereits erfüllte Zusage.
+
+DEV dient technischen Tests mit erfundenen Daten, verkürzten Freigabefristen
+und echten APNs-Benachrichtigungen. Die dokumentierten DEV-Werte sind 90 Sekunden
+Karenzfrist und 30 Sekunden Reminder-Intervall. Beta/PROD verwenden sieben Tage
+Karenzfrist und das dokumentierte Reminder-Intervall von 24 Stunden. In beiden
+Umgebungen erlaubt nur Ja automatische Freigabe; Nein und fehlende Auswahl
+lassen Anfragen offen und Reminder aktiv. Die APNs-Umgebung richtet sich nach
+der Signierung des Builds; ein über TestFlight verteilter Build verwendet die
+Produktions-APNs-Konfiguration auch dann, wenn er gezielt auf DEV zeigen sollte.
+
+Die geplante lesbare Supportansicht für technische Testdossiers ist eine
+DEV-Funktion. Beta/PROD erhalten dadurch keinen allgemeinen Supportzugriff auf
+entschlüsselte Dossierinhalte.
+
+### Supportansicht für verschlüsselte Testdaten
+
+Die Supportansicht soll als berechtigter Client arbeiten: Testdossier-Schlüssel
+werden lokal im Browser verwendet, um vom Server gelieferte verschlüsselte
+Payloads zu entschlüsseln. Schlüssel und Wiederherstellungswörter werden dabei
+nicht an die Support-API gesendet. Der Server erhält keinen Generalschlüssel.
+Ohne lokale Freigabe bleiben nur Metadaten und Verschlüsselungsstatus sichtbar.
+
+Das ist noch nicht implementiert. Die bestehende Supportansicht redigiert
+verschlüsselte `daten` und erkennt bislang nur `zugaenge` als verschlüsselten
+Bereich. Beides muss für die neue Payload-Struktur angepasst und getestet werden.
+Der Umgang mit Klartext im Browser sowie die Freigabe ausschliesslich geeigneter
+Testdossiers gehören zur Umsetzung. Der bisherige serverseitige DEV-Payload-
+Schalter allein ist keine Entschlüsselungsberechtigung.
+
+### Transport und aktive Datenbank
+
+Infomaniak Mail unterstützt `mail.infomaniak.com` auf Port 465 mit direktem TLS
+oder Port 587 mit STARTTLS. Unsere SMTP-Konfiguration unterstützt beide Varianten
+mit Zertifikatsprüfung. Ein explizit konfiguriertes Infomaniak-Mailkonto und ein
+Versandtest aus der tatsächlich betriebenen Umgebung bleiben erforderlich.
+Quelle: https://www.infomaniak.com/en/support/faq/468/understanding-mail-server-ports-and-protocols
+
+Die DEV-Dokumentation `production-parity-dev.md` belegt für den 28. September
+2026 MySQL. PostgreSQL ist ein zusätzlicher, älterer Laufzeitpfad. Für MySQL ist
+die bereitgestellte CA bereits in Compose vorgesehen. Für PostgreSQL setzt der
+Code Zertifikatsprüfung ausdrücklich und übernimmt eine konfigurierte CA über
+`DATABASE_SSL_CA`; SSL-Parameter in der URL können diese Einstellung nicht
+aufheben. Der tatsächliche Verbindungsnachweis auf DEV ist gesondert zu führen.
+
 Das belastbare Ziel lautet: **Alle synchronisierten Dossierinhalte einschliesslich
 Anhängen werden vor dem Upload verschlüsselt. Das Backend erhält keine Schlüssel,
 mit denen es diese Inhalte entschlüsseln kann.** Konto- und Betriebsmetadaten
@@ -131,3 +187,27 @@ serverseitige Speicherung der Dossierinhalte bei Infomaniak.
 Keine Produktionsänderung, Bestandslöschung oder vollständige E2E-Migration wurde
 in diesem Arbeitsschritt durchgeführt. Bis zu deren Abnahme bleiben die bisherigen
 Grenzen der Nutzerkommunikation bestehen.
+
+## Fortschritt am 6. Oktober 2026
+
+Der Eigentümer hat bestätigt: Bestehende DEV-Dossiers enthalten ausschliesslich
+erfundene Testdaten. SMTP auf DEV ist mittlerweile nachgewiesen: Infomaniak,
+Port 587 mit STARTTLS, Anmeldung und Testzustellung erfolgreich; iCloud bestätigt
+SPF, DKIM und DMARC jeweils mit `pass`. DMARC-Policy ist `reject`.
+
+Die erste V2-Grundlage ist lokal implementiert: authentifizierte Payloads,
+getrennte Ressourcen-Schlüssel, kontogebundene Keychain-Ablage, lokales
+Recovery-Paket und selektive Freigabepakete mit unabhängigem Geheimnis.
+WebCrypto-Entschlüsselung und Support-Redaktion sind vorbereitet. Protokoll und
+noch fehlende Integration stehen in `e2e-v2-protocol.md`.
+
+Die Komponenten sind noch nicht im normalen Sync aktiv. Insbesondere sind
+Metadaten-Trennung, QR-/Link-Lifecycle, Dokumentaufteilung, Freigabemigration,
+Cloud-Recovery und Support-UI weiterhin umzusetzen. Kein bestehendes Dossier
+wurde migriert oder gelöscht und kein E2E-Update auf DEV/PROD deployt.
+
+Der zweite lokale Schritt verbindet revisionstreue Rechte-/Zustimmungsmetadaten
+mit dem Sync und explizitem V2-Export/-Import. Neue SQL-Migrationen halten die
+Verschlüsselungsstufe auch nach Löschung und blockieren Klartext-Downgrades.
+125 Backendtests und zehn iOS-Tests bestehen. Aktivierung und Live-Migration
+bleiben ausstehend; die neue Freigabe benötigt weiterhin ein getrenntes Geheimnis.
