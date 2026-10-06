@@ -1,8 +1,11 @@
 import { mutationHash } from "./_sync-contract.js";
 import { storageService } from "./_storage.js";
 import { syncAutomaticReleasePolicies } from "./_trust-policy.js";
+import { saveAccessMetadata } from "./_access-metadata.js";
+import { validateE2EMutation } from "./_e2e-contract.js";
 
 export async function applySectionMutation(client, userID, mutation) {
+  mutation = validateE2EMutation(mutation);
   if (client.engine === "mysql") return applyMySQLSectionMutation(client, userID, mutation);
   const requestHash = mutationHash(mutation);
   await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
@@ -42,7 +45,7 @@ export async function applySectionMutation(client, userID, mutation) {
   }
 
   const currentResult = await client.query(
-    `SELECT schema_version, revision, payload, deleted_at, updated_at
+    `SELECT schema_version, revision, encryption_version, payload, deleted_at, updated_at
        FROM dossier_sections
       WHERE dossier_id = $1 AND section_type = $2`,
     [mutation.dossierID, mutation.sectionType]
@@ -57,6 +60,12 @@ export async function applySectionMutation(client, userID, mutation) {
     });
   }
 
+  if (Number(current?.encryption_version) === 2 && mutation.operation === "upsert" && mutation.payload?.formatVersion !== 2) {
+    return storeResult(client, userID, mutation, requestHash, 422, {
+      error: "Ein verschlüsselter Bereich darf nicht auf Klartext zurückgesetzt werden", code: "encryption_downgrade"
+    });
+  }
+  const encryptionVersion = Number(current?.encryption_version) === 2 || mutation.payload?.formatVersion === 2 ? 2 : 1;
   const revision = currentRevision + 1;
   const deleted = mutation.operation === "delete";
   const storedPayload = deleted ? {} : await storageService().storeSectionPayload({
@@ -67,10 +76,11 @@ export async function applySectionMutation(client, userID, mutation) {
   });
   const saved = await client.query(
     `INSERT INTO dossier_sections
-       (dossier_id, owner_user_id, section_type, schema_version, revision, payload, deleted_at)
-     VALUES ($1, $2, $3, $4, $5, $6::jsonb, CASE WHEN $7 THEN now() ELSE NULL END)
+       (dossier_id, owner_user_id, section_type, schema_version, revision, payload, deleted_at, encryption_version)
+     VALUES ($1, $2, $3, $4, $5, $6::jsonb, CASE WHEN $7 THEN now() ELSE NULL END, $8)
      ON CONFLICT (dossier_id, section_type) DO UPDATE
-       SET schema_version = EXCLUDED.schema_version,
+       SET encryption_version = EXCLUDED.encryption_version,
+           schema_version = EXCLUDED.schema_version,
            revision = EXCLUDED.revision,
            payload = EXCLUDED.payload,
            deleted_at = EXCLUDED.deleted_at,
@@ -83,17 +93,20 @@ export async function applySectionMutation(client, userID, mutation) {
       mutation.schemaVersion,
       revision,
       JSON.stringify(storedPayload),
-      deleted
+      deleted,
+      encryptionVersion
     ]
   );
   const savedSection = saved.rows[0];
-  if (mutation.sectionType === "kontakte") {
+  if (encryptionVersion === 2 && ["kontakte", "dossier_einstellungen"].includes(mutation.sectionType)) {
+    await saveAccessMetadata(client, userID, mutation, revision);
+  } else if (mutation.sectionType === "kontakte") {
     await syncAutomaticReleasePolicies(client, userID, mutation.dossierID, deleted ? null : mutation.payload);
   }
   const change = await client.query(
     `INSERT INTO sync_changes
-       (owner_user_id, dossier_id, section_type, schema_version, revision, operation, payload)
-     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
+       (owner_user_id, dossier_id, section_type, schema_version, revision, operation, payload, access_metadata)
+     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb)
      RETURNING change_id, changed_at`,
     [
       userID,
@@ -102,7 +115,8 @@ export async function applySectionMutation(client, userID, mutation) {
       mutation.schemaVersion,
       revision,
       mutation.operation,
-      deleted ? null : JSON.stringify(storedPayload)
+      deleted ? null : JSON.stringify(storedPayload),
+      mutation.accessMetadata ? JSON.stringify(mutation.accessMetadata) : null
     ]
   );
   const body = {
@@ -118,7 +132,7 @@ export async function changesSince(client, userID, cursor, limit = 100) {
   if (client.engine === "mysql") return mysqlChangesSince(client, userID, cursor, limit);
   const rows = await client.query(
     `SELECT change_id, dossier_id, section_type, schema_version, revision,
-            operation, payload, changed_at
+            operation, payload, access_metadata, changed_at
        FROM sync_changes
       WHERE owner_user_id = $1 AND change_id > $2::bigint
       ORDER BY change_id
@@ -139,6 +153,7 @@ export async function changesSince(client, userID, cursor, limit = 100) {
         row.payload,
         { dossierID: row.dossier_id, sectionType: row.section_type }
       ),
+      ...(row.access_metadata ? { accessMetadata: parseJSON(row.access_metadata) } : {}),
       changedAt: isoDate(row.changed_at)
     }))),
     nextCursor: selected.length ? String(selected.at(-1).change_id) : cursor,
@@ -158,10 +173,13 @@ export async function currentSnapshot(client, userID, dossierID) {
     [userID]
   );
   const sectionsResult = await client.query(
-    `SELECT dossier_id, section_type, schema_version, revision, payload, updated_at
-       FROM dossier_sections
-      WHERE dossier_id = $1 AND owner_user_id = $2 AND deleted_at IS NULL
-      ORDER BY section_type`,
+    `SELECT s.dossier_id, s.section_type, s.schema_version, s.revision, s.payload, s.updated_at,
+            m.metadata AS access_metadata
+       FROM dossier_sections s
+       LEFT JOIN dossier_access_metadata m ON m.dossier_id = s.dossier_id AND m.section_type = s.section_type
+        AND m.revision = s.revision AND s.encryption_version = 2
+      WHERE s.dossier_id = $1 AND s.owner_user_id = $2 AND s.deleted_at IS NULL
+      ORDER BY s.section_type`,
     [dossierID, userID]
   );
   const cursor = String(cursorResult.rows[0]?.sync_cursor ?? "0");
@@ -176,6 +194,7 @@ export async function currentSnapshot(client, userID, dossierID) {
       row.payload,
       { dossierID: row.dossier_id, sectionType: row.section_type }
     ),
+    ...(row.access_metadata ? { accessMetadata: parseJSON(row.access_metadata) } : {}),
     changedAt: isoDate(row.updated_at)
   })));
   return { changes, nextCursor: cursor, hasMore: false };
@@ -259,7 +278,7 @@ async function applyMySQLSectionMutation(client, userID, mutation) {
     });
   }
   const currentResult = await client.query(
-    `SELECT schema_version, revision, payload, deleted_at, updated_at
+    `SELECT schema_version, revision, encryption_version, payload, deleted_at, updated_at
        FROM dossier_sections WHERE dossier_id = $1 AND section_type = $2 FOR UPDATE`,
     [mutation.dossierID, mutation.sectionType]
   );
@@ -272,6 +291,12 @@ async function applyMySQLSectionMutation(client, userID, mutation) {
       current: current ? await hydratedSectionResponse(mutation.dossierID, mutation.sectionType, current) : null
     });
   }
+  if (Number(current?.encryption_version) === 2 && mutation.operation === "upsert" && mutation.payload?.formatVersion !== 2) {
+    return storeMySQLResult(client, userID, mutation, requestHash, 422, {
+      error: "Ein verschlüsselter Bereich darf nicht auf Klartext zurückgesetzt werden", code: "encryption_downgrade"
+    });
+  }
+  const encryptionVersion = Number(current?.encryption_version) === 2 || mutation.payload?.formatVersion === 2 ? 2 : 1;
   const revision = currentRevision + 1;
   const deleted = mutation.operation === "delete";
   const storedPayload = deleted ? {} : await storageService().storeSectionPayload({
@@ -282,27 +307,31 @@ async function applyMySQLSectionMutation(client, userID, mutation) {
   });
   await client.query(
     `INSERT INTO dossier_sections
-       (dossier_id, owner_user_id, section_type, schema_version, revision, payload, deleted_at)
-     VALUES ($1, $2, $3, $4, $5, $6, CASE WHEN $7 THEN CURRENT_TIMESTAMP(6) ELSE NULL END)
-     ON DUPLICATE KEY UPDATE schema_version = VALUES(schema_version), revision = VALUES(revision),
+       (dossier_id, owner_user_id, section_type, schema_version, revision, payload, deleted_at, encryption_version)
+     VALUES ($1, $2, $3, $4, $5, $6, CASE WHEN $7 THEN CURRENT_TIMESTAMP(6) ELSE NULL END, $8)
+     ON DUPLICATE KEY UPDATE encryption_version = VALUES(encryption_version),
+       schema_version = VALUES(schema_version), revision = VALUES(revision),
        payload = VALUES(payload), deleted_at = VALUES(deleted_at), updated_at = CURRENT_TIMESTAMP(6)`,
     [mutation.dossierID, userID, mutation.sectionType, mutation.schemaVersion, revision,
-      deleted ? null : JSON.stringify(storedPayload), deleted]
+      deleted ? null : JSON.stringify(storedPayload), deleted, encryptionVersion]
   );
   const saved = await client.query(
-    `SELECT schema_version, revision, payload, deleted_at, updated_at FROM dossier_sections
+    `SELECT schema_version, revision, encryption_version, payload, deleted_at, updated_at FROM dossier_sections
       WHERE dossier_id = $1 AND section_type = $2`,
     [mutation.dossierID, mutation.sectionType]
   );
-  if (mutation.sectionType === "kontakte") {
+  if (encryptionVersion === 2 && ["kontakte", "dossier_einstellungen"].includes(mutation.sectionType)) {
+    await saveAccessMetadata(client, userID, mutation, revision);
+  } else if (mutation.sectionType === "kontakte") {
     await syncAutomaticReleasePolicies(client, userID, mutation.dossierID, deleted ? null : mutation.payload);
   }
   const change = await client.query(
     `INSERT INTO sync_changes
-       (owner_user_id, dossier_id, section_type, schema_version, revision, operation, payload)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+       (owner_user_id, dossier_id, section_type, schema_version, revision, operation, payload, access_metadata)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
     [userID, mutation.dossierID, mutation.sectionType, mutation.schemaVersion, revision,
-      mutation.operation, deleted ? null : JSON.stringify(storedPayload)]
+      mutation.operation, deleted ? null : JSON.stringify(storedPayload),
+      mutation.accessMetadata ? JSON.stringify(mutation.accessMetadata) : null]
   );
   const changed = await client.query(
     "SELECT change_id, changed_at FROM sync_changes WHERE change_id = $1",
@@ -320,7 +349,7 @@ async function applyMySQLSectionMutation(client, userID, mutation) {
 async function mysqlChangesSince(client, userID, cursor, limit) {
   const resultRows = await client.query(
     `SELECT change_id, dossier_id, section_type, schema_version, revision,
-            operation, payload, changed_at FROM sync_changes
+            operation, payload, access_metadata, changed_at FROM sync_changes
       WHERE owner_user_id = $1 AND change_id > $2 ORDER BY change_id LIMIT ${Number(limit) + 1}`,
     [userID, cursor]
   );
@@ -335,6 +364,7 @@ async function mysqlChangesSince(client, userID, cursor, limit) {
         row.payload,
         { dossierID: row.dossier_id, sectionType: row.section_type }
       ),
+      ...(row.access_metadata ? { accessMetadata: parseJSON(row.access_metadata) } : {}),
       changedAt: isoDate(row.changed_at)
     }))),
     nextCursor: selected.length ? String(selected.at(-1).change_id) : cursor,

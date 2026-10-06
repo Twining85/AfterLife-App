@@ -98,3 +98,16 @@ test("lässt kleine Payloads in der Datenbank und löscht Dossierobjekte präfix
   assert.equal(calls[1].input.Key, `dossiers/${dossierID}/sections/dokumente/1-a.json.enc`);
   assert.equal(calls[2].input.Prefix, `dossiers/${dossierID}/`);
 });
+
+test("V2 storage references retain the encryption marker for database downgrade checks", async () => {
+  let stored;
+  const client = { async send(command) {
+    if (command.constructor.name === "PutObjectCommand") { stored = Buffer.from(command.input.Body); return {}; }
+    return { Body: { async transformToByteArray() { return stored; } } };
+  } };
+  const service = storageService({ environment: environment(), client });
+  const payload = { formatVersion: 2, algorithm: "AES-256-GCM", context: {}, ciphertext: Buffer.alloc(2000, 1).toString("base64") };
+  const reference = await service.storeSectionPayload({ dossierID, sectionType: "dokumente", revision: 1, payload });
+  assert.equal(reference._tschluessliStorage.encryptionVersion, 2);
+  assert.deepEqual(await service.loadSectionPayload(reference, { dossierID, sectionType: "dokumente" }), payload);
+});

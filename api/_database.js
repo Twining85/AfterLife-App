@@ -182,7 +182,7 @@ export async function databaseHealth() {
     : await databasePool().query(
       "SELECT current_database() AS database_name, 1 AS healthy, (SELECT MAX(version) FROM schema_migrations) AS schema_version"
     );
-  const minimumSchemaVersion = engine === "mysql" ? 4 : 11;
+  const minimumSchemaVersion = engine === "mysql" ? 5 : 12;
   return {
     engine,
     database: result.rows[0]?.database_name,

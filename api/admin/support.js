@@ -5,6 +5,7 @@ import { normalizeEmail, rateLimit, requireJSON, requireMethod, secureResponse }
 import { storageService } from "../_storage.js";
 import { supportedSectionVersions } from "../_sync-contract.js";
 import { deleteAccountForUser } from "../accounts/login.js";
+import { isEncryptedPayload } from "../_encrypted-payload.js";
 
 const sectionLabels = Object.freeze({
   dossier_einstellungen: "Dossier-Einstellungen",
@@ -276,11 +277,12 @@ export async function lookupSupportUser({
     const selected = Array.isArray(settings?.homeAktiveBereiche) ? settings.homeAktiveBereiche : [];
     const sections = Object.keys(supportedSectionVersions).map((sectionType) => {
       const stored = rawSections.get(sectionType);
-      const encrypted = sectionType === "zugaenge" && Boolean(stored?.payload?.daten);
+      const encrypted = isEncryptedPayload(stored?.payload)
+        || (sectionType === "zugaenge" && Boolean(stored?.payload?.daten));
       return {
         type: sectionType,
         label: sectionLabels[sectionType] || sectionType,
-        selected: selected.includes(sectionType),
+        selected: isEncryptedPayload(settings) ? null : selected.includes(sectionType),
         stored: Boolean(stored && !stored.row.deleted_at),
         hasData: encrypted ? null : payloadHasData(sectionType, stored?.payload),
         encrypted,
@@ -389,6 +391,7 @@ export function pendingSubscriptionStatus() {
 
 export function payloadHasData(sectionType, rawPayload) {
   const payload = parseJSON(rawPayload);
+  if (isEncryptedPayload(payload)) return null;
   if (!payload || typeof payload !== "object") return false;
   if (["profil", "gesundheit", "wuensche", "herzensstuecke"].includes(sectionType)) {
     return Array.isArray(payload.items) ? payload.items.length > 0 : meaningfulValue(payload);
@@ -462,7 +465,7 @@ function databaseFlag(value) {
 }
 
 function redactDeveloperPayload(value, key = "") {
-  const sensitive = /passwort|password|token|secret|schluessel|encrypted_key|dateiDaten|bildDaten|audioDaten|daten$/i;
+  const sensitive = /passwort|password|token|secret|schluessel|encrypted_key|ciphertext|dateiDaten|bildDaten|audioDaten|daten$/i;
   if (sensitive.test(key)) return "[ausgeblendet]";
   if (Array.isArray(value)) return value.map((item) => redactDeveloperPayload(item));
   if (value && typeof value === "object") {

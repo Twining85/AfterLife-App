@@ -276,7 +276,9 @@ function renderSection(section) {
   const row = document.createElement("tr");
   const nameCell = document.createElement("td");
   const name = node("div", "section-name", section.label);
-  name.append(node("small", "", section.selected ? "In der App gewählt" : "Nicht gewählt"));
+  name.append(node("small", "", section.selected === null
+    ? "Bereichsauswahl verschlüsselt"
+    : section.selected ? "In der App gewählt" : "Nicht gewählt"));
   nameCell.append(name);
   const statusCell = document.createElement("td");
   statusCell.append(sectionStatus(section));

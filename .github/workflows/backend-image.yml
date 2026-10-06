@@ -30,6 +30,19 @@ jobs:
   verify:
     name: Vertrag und Syntax prüfen
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+          MYSQL_DATABASE: e2e_check
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
     steps:
       - name: DEV-Quelle prüfen
         env:
@@ -60,6 +73,11 @@ jobs:
 
       - name: Backend-Vertragstests ausführen
         run: npm test
+
+      - name: MySQL-Migrationen und Verschlüsselungsschutz prüfen
+        env:
+          E2E_TEST_MYSQL_URL: mysql://root@127.0.0.1/e2e_check
+        run: node scripts/verify-e2e-mysql.js
 
       - name: Compose-Vertrag prüfen
         env:

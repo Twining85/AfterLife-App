@@ -1,7 +1,10 @@
+import crypto from "node:crypto";
 import { authenticatedUser } from "../_auth.js";
 import { withUserTransaction } from "../_database.js";
 import { requireJSON, secureResponse } from "../_security.js";
 import { storageService } from "../_storage.js";
+import { parseMutation } from "../_sync-contract.js";
+import { applySectionMutation } from "../_sync-repository.js";
 
 export default async function handler(req, res) {
   secureResponse(res);
@@ -10,88 +13,34 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Methode nicht erlaubt" });
   }
   if (req.method === "PUT" && !requireJSON(req, res, 256_000)) return;
-
   const user = await authenticatedUser(req);
   if (!user) return res.status(401).json({ error: "Anmeldung erforderlich" });
-  const dossierID = String(req.query?.dossierID || "");
+  const dossierID = String(req.query?.dossierID || "").toLowerCase();
   const sectionType = String(req.query?.sectionType || "");
   if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(dossierID) || !/^[a-z][a-z0-9_-]{0,63}$/.test(sectionType)) {
     return res.status(400).json({ error: "Ungültiger Dossierbereich" });
   }
-
   try {
-    const result = await withUserTransaction(user.id, async (client) => {
-      if (req.method === "GET") {
-        return client.query(
-          `SELECT schema_version, revision, payload, updated_at
-             FROM dossier_sections WHERE dossier_id = $1 AND section_type = $2`,
-          [dossierID, sectionType]
-        );
+    const result = await withUserTransaction(user.id, async client => {
+      if (req.method === "PUT") {
+        // Both write routes use the same revision, consent and downgrade guards.
+        const mutation = parseMutation({ ...req.body, dossierID, sectionType, operation: "upsert",
+          schemaVersion: req.body?.schemaVersion ?? 1, expectedRevision: req.body?.expectedRevision ?? 0
+        }, req.headers?.["idempotency-key"] || `legacy:${crypto.randomUUID()}`);
+        const saved = await applySectionMutation(client, user.id, mutation);
+        if (saved.statusCode !== 200) return saved;
       }
-      const schemaVersion = Number(req.body?.schemaVersion || 1);
-      const expectedRevision = Number(req.body?.expectedRevision || 0);
-      const payload = req.body?.payload;
-      if (!Number.isInteger(schemaVersion) || schemaVersion < 1 || !Number.isInteger(expectedRevision) || expectedRevision < 0 || !payload || Array.isArray(payload) || typeof payload !== "object") {
-        const error = new Error("Ungültige Bereichsdaten");
-        error.statusCode = 400;
-        throw error;
-      }
-      if (client.engine === "mysql") {
-        const dossier = await client.query(
-          "SELECT id, owner_user_id FROM dossiers WHERE id = $1 AND owner_user_id = $2 FOR UPDATE",
-          [dossierID, user.id]
-        );
-        if (!dossier.rows[0]) return { rows: [] };
-        const existing = await client.query(
-          "SELECT revision FROM dossier_sections WHERE dossier_id = $1 AND section_type = $2 FOR UPDATE",
-          [dossierID, sectionType]
-        );
-        const revision = existing.rows[0] ? Number(existing.rows[0].revision) : 0;
-        if (revision !== expectedRevision) return { rows: [] };
-        const storedPayload = await storageService().storeSectionPayload({
-          dossierID,
-          sectionType,
-          revision: revision + 1,
-          payload
-        });
-        await client.query(
-          `INSERT INTO dossier_sections
-             (dossier_id, owner_user_id, section_type, schema_version, revision, payload)
-           VALUES ($1, $2, $3, $4, $5, $6)
-           ON DUPLICATE KEY UPDATE schema_version = VALUES(schema_version),
-             revision = VALUES(revision), payload = VALUES(payload), deleted_at = NULL,
-             updated_at = CURRENT_TIMESTAMP(6)`,
-          [dossierID, user.id, sectionType, schemaVersion, revision + 1, JSON.stringify(storedPayload)]
-        );
-        return client.query(
-          `SELECT schema_version, revision, payload, updated_at FROM dossier_sections
-            WHERE dossier_id = $1 AND section_type = $2`,
-          [dossierID, sectionType]
-        );
-      }
-      const storedPayload = await storageService().storeSectionPayload({
-        dossierID,
-        sectionType,
-        revision: expectedRevision + 1,
-        payload
-      });
-      return client.query(
-        `INSERT INTO dossier_sections (dossier_id, owner_user_id, section_type, schema_version, payload)
-         SELECT id, owner_user_id, $2, $3, $4::jsonb FROM dossiers WHERE id = $1 AND $5 = 0
-         ON CONFLICT (dossier_id, section_type) DO UPDATE
-           SET schema_version = EXCLUDED.schema_version,
-               payload = EXCLUDED.payload,
-               revision = dossier_sections.revision + 1,
-               updated_at = now()
-         WHERE dossier_sections.revision = $5
-         RETURNING schema_version, revision, payload, updated_at`,
-        [dossierID, sectionType, schemaVersion, JSON.stringify(storedPayload), expectedRevision]
+      const rows = await client.query(
+        `SELECT schema_version, revision, payload, updated_at FROM dossier_sections
+          WHERE dossier_id = $1 AND section_type = $2 AND owner_user_id = $3 AND deleted_at IS NULL`,
+        [dossierID, sectionType, user.id]
       );
+      return { statusCode: rows.rows[0] ? 200 : 404, body: rows.rows[0] || { error: "Bereich nicht gefunden" } };
     });
-    if (!result.rows[0]) return res.status(req.method === "PUT" ? 409 : 404).json({ error: req.method === "PUT" ? "Daten wurden zwischenzeitlich geändert" : "Bereich nicht gefunden" });
-    const row = result.rows[0];
-    row.payload = await storageService().loadSectionPayload(row.payload, { dossierID, sectionType });
-    return res.status(200).json(row);
+    if (result.statusCode === 200) {
+      result.body.payload = await storageService().loadSectionPayload(result.body.payload, { dossierID, sectionType });
+    }
+    return res.status(result.statusCode).json(result.body);
   } catch (error) {
     if (error.statusCode) return res.status(error.statusCode).json({ error: error.message });
     console.error("Dossierbereich:", error);

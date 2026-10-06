@@ -5,6 +5,14 @@ nonisolated struct DossierBereichPayload: Sendable, Equatable {
     let bereich: String
     let schemaVersion: Int
     let daten: Data
+    let zugriffsMetadaten: Data?
+
+    init(bereich: String, schemaVersion: Int, daten: Data, zugriffsMetadaten: Data? = nil) {
+        self.bereich = bereich
+        self.schemaVersion = schemaVersion
+        self.daten = daten
+        self.zugriffsMetadaten = zugriffsMetadaten
+    }
 }
 
 @MainActor

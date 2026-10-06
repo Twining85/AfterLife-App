@@ -10,6 +10,7 @@ nonisolated struct SyncDownloadAenderung: Decodable, Sendable {
     let operation: SyncVorgang
     let payload: SyncJSONWert?
     let changedAt: Date
+    let accessMetadata: SyncJSONWert?
 }
 
 nonisolated struct SyncDownloadAntwort: Decodable, Sendable {
@@ -72,6 +73,9 @@ actor DossierSyncTransport {
         ]
         if let payload {
             body["payload"] = try JSONSerialization.jsonObject(with: payload.daten)
+            if let metadata = payload.zugriffsMetadaten {
+                body["accessMetadata"] = try JSONSerialization.jsonObject(with: metadata)
+            }
         }
         request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])
 

@@ -12,7 +12,7 @@ test("Healthchecks geben keine Datenbanknamen oder Secrets aus", async () => {
   process.env.MYSQL_EXPECTED_DATABASE = "tschluessli_dev";
   setDatabasePoolForTests({
     engine: "mysql",
-    async query() { return { rows: [{ database_name: "tschluessli_dev", healthy: 1, schema_version: 4 }] }; }
+    async query() { return { rows: [{ database_name: "tschluessli_dev", healthy: 1, schema_version: 5 }] }; }
   });
   try {
     const live = mockResponse();

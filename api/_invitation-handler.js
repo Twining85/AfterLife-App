@@ -3,6 +3,8 @@ import { databasePool } from "./_database.js";
 import { pushToUser } from "./_apns.js";
 import { storageService } from "./_storage.js";
 import { trustAccessGraceSeconds } from "./_trust-policy.js";
+import { visibleTypesFromAccessMetadata } from "./_e2e-contract.js";
+import { isEncryptedPayload } from "./_encrypted-payload.js";
 export { trustAccessGraceSeconds } from "./_trust-policy.js";
 
 export async function handleInvitationOperation(operation, req, res, user) {
@@ -490,6 +492,11 @@ async function sharedDossier(req, res, user) {
     deleted: Boolean(row.deleted_at),
     updatedAt: row.updated_at
   })));
+  // Legacy invitation packages wrap the old master key using a backend token.
+  // Never deliver V2 through that protocol, even during a partial migration.
+  if (allSections.some(section => section.payload?.formatVersion === 2)) {
+    return res.status(409).json({ error: "Diese verschlüsselte Freigabe benötigt eine neue sichere Einladung", code: "e2e_invitation_migration_required" });
+  }
   if (invitation.auto_released_at) {
     allSections = allSections.map(releaseAllWishDocuments);
   }
@@ -520,6 +527,7 @@ export function releaseAllWishDocuments(section) {
   if (typeof payload === "string") {
     try { payload = JSON.parse(payload); } catch { return section; }
   }
+  if (isEncryptedPayload(payload)) return section;
   if (!payload || typeof payload !== "object" || !Array.isArray(payload.items)) return section;
   return {
     ...section,
@@ -549,12 +557,17 @@ function dossierSectionTypes(sections) {
   return [...new Set(["profil", ...available])];
 }
 
-export function partialVisibleSectionTypes(sections, invitedEmail, requesterUserID) {
+export function partialVisibleSectionTypes(sections, invitedEmail, requesterUserID, accessMetadata) {
   const visible = new Set(["profil"]);
   const kontakte = sections.find((section) => section.sectionType === "kontakte" && !section.deleted);
   let payload = kontakte?.payload;
   if (typeof payload === "string") {
     try { payload = JSON.parse(payload); } catch { payload = null; }
+  }
+  if (payload?.formatVersion === 2) {
+    // Missing/invalid revision-matched metadata must not restore legacy defaults.
+    try { return visibleTypesFromAccessMetadata(accessMetadata, invitedEmail); }
+    catch { return []; }
   }
   const personen = Array.isArray(payload?.vertrauenspersonen) ? payload.vertrauenspersonen : [];
   const normalizedEmail = String(invitedEmail || "").trim().toLowerCase();

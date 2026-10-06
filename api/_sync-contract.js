@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { validateE2EMutation } from "./_e2e-contract.js";
 
 export const supportedSectionVersions = Object.freeze({
   dossier_einstellungen: 1,
@@ -15,7 +16,7 @@ export const supportedSectionVersions = Object.freeze({
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const idempotencyPattern = /^[A-Za-z0-9][A-Za-z0-9:._-]{0,127}$/;
 
-export function parseMutation(body, idempotencyKey) {
+export function parseMutation(body, idempotencyKey, environment = process.env) {
   if (!idempotencyPattern.test(String(idempotencyKey || ""))) {
     throw contractError(400, "Gültiger Idempotency-Key erforderlich");
   }
@@ -49,15 +50,16 @@ export function parseMutation(body, idempotencyKey) {
     throw contractError(400, "Löschung darf keinen Payload enthalten");
   }
 
-  return {
+  return validateE2EMutation({
     idempotencyKey: String(idempotencyKey),
     dossierID,
     sectionType,
     operation,
     schemaVersion,
     expectedRevision,
-    payload: operation === "upsert" ? payload : null
-  };
+    payload: operation === "upsert" ? payload : null,
+    ...(body?.accessMetadata !== undefined ? { accessMetadata: body.accessMetadata } : {})
+  }, environment);
 }
 
 export function parseCursor(value) {
@@ -75,7 +77,8 @@ export function mutationHash(mutation) {
     operation: mutation.operation,
     schemaVersion: mutation.schemaVersion,
     expectedRevision: mutation.expectedRevision,
-    payload: mutation.payload
+    payload: mutation.payload,
+    ...(mutation.accessMetadata !== undefined ? { accessMetadata: mutation.accessMetadata } : {})
   });
   return crypto.createHash("sha256").update(serialized).digest("hex");
 }

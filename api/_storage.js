@@ -100,7 +100,8 @@ export class InfomaniakStorageService {
         version: 1,
         objectKey,
         sha256: digest,
-        encryptedBytes: encrypted.length
+        encryptedBytes: encrypted.length,
+        ...(payload?.formatVersion === 2 ? { encryptionVersion: 2 } : {})
       }
     };
   }
