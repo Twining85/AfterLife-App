@@ -680,6 +680,9 @@ struct Home: View {
 #endif
                 }
                 .background(Color(.systemBackground))
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    SyncKonfliktHinweis()
+                }
                 .navigationDestination(isPresented: $vertrauenspersonAnzeigen) {
                     VertrauenspersonView()
                 }
@@ -1120,8 +1123,6 @@ struct Home: View {
         bereichsauswahlAnzeigen = false
     }
     
-    // TODO: Fachliche Funktion noch fertig definieren.
-        // Aktuell wird mit Testdaten gearbeitet.
         private var vorsorgedossierWechselAktion: some View {
             Button {
                 vorsorgedossierWechseln()

@@ -211,6 +211,8 @@ struct VertrauenspersonView: View {
     @State private var abosUndProfileSichtbarBeiDossierfreigabe = false
     @State private var herzensstueckeSichtbarBeiDossierfreigabe = true
     @State private var gesundheitSichtbarBeiDossierfreigabe = true
+    @State private var automatischeVollfreigabeErlaubt: Bool? = nil
+    @State private var automatischeFreigabeSyncHinweis = ""
 
     private let erklaerungsSchritte: [(rolle: String, icon: String, text: String)] = [
 
@@ -236,7 +238,7 @@ struct VertrauenspersonView: View {
          "Zugriff freigeben oder ablehnen."),
 
         ("", "clock.fill",
-         "Notfall und keine Reaktion möglich? → Der Zugriff wird nach 7 Tagen automatisch freigegeben.")
+         "Notfall und keine Reaktion möglich? → Nur wenn du es für diese Vertrauensperson erlaubst, wird der Vollzugriff nach 7 Tagen automatisch freigegeben.")
     
     ]
 
@@ -705,8 +707,15 @@ struct VertrauenspersonView: View {
                         freigabeUndSichtbarkeitBereich
                     }
 
+                    automatischeVollfreigabeBereich
+
                     Section("QR-Code-Einladung") {
                     qrCodeBereich
+                        Text((automatischeVollfreigabeErlaubt ?? false)
+                             ? "Automatische Freigabe ist eingeschaltet. Ohne Reaktion auf eine Vollzugriffsanfrage wird das Dossier nach 7 Tagen vollständig freigegeben."
+                             : "Automatische Freigabe ist ausgeschaltet. Vollzugriff erfordert deine Bestätigung.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
 
                         if !qrEinladungHatGueltigeEmail {
                             Text("Für den QR-Code benötigt die Vertrauensperson eine gültige E-Mail-Adresse.")
@@ -780,6 +789,10 @@ struct VertrauenspersonView: View {
         }
         .onChange(of: freigabeSignatur) { _, _ in
             speichereVertrauensperson()
+        }
+        .onChange(of: automatischeVollfreigabeErlaubt) { _, _ in
+            speichereVertrauensperson()
+            synchronisiereAutomatischeFreigabeAuswahl()
         }
         .onDisappear {
             synchronisiereAusstehendeFreigaben()
@@ -882,7 +895,7 @@ struct VertrauenspersonView: View {
             .tint(akzentFarbe)
             .id("erklaerung-weiter")
         } footer: {
-            Text("Testversion: Erfolgt auf eine Zugriffsanfrage keine Reaktion, wird der Zugriff nach einer Minute automatisch freigegeben. Produktiv beträgt die Karenzfrist sieben Tage.")
+            Text("Nur mit deiner Erlaubnis wird eine unbeantwortete Anfrage automatisch freigegeben. Die Testversion verwendet eine verkürzte Frist; produktiv beträgt sie sieben Tage.")
         }
     }
 
@@ -1089,6 +1102,7 @@ struct VertrauenspersonView: View {
     private var zugriffsverwaltung: some View {
         NavigationStack {
             Form {
+                automatischeVollfreigabeBereich
                 Section {
                     zugriffszeile("Wünsche", bereich: "wuensche", binding: $wuenscheSichtbarBeiDossierfreigabe)
                     if let wuensche = wuenscheFuerAktivesDossier {
@@ -1853,6 +1867,68 @@ struct VertrauenspersonView: View {
             .padding(.top, 6)
             */
         }
+    }
+
+    private var automatischeVollfreigabeBereich: some View {
+        Section {
+            Text("Darf diese Vertrauensperson dein gesamtes Dossier erhalten, wenn du eine Anfrage nach Vollzugriff nicht bestätigen kannst?")
+                .fixedSize(horizontal: false, vertical: true)
+            automatischeFreigabeAuswahl(
+                true,
+                titel: "Ja, nach 7 Tagen automatisch freigeben · Empfohlen",
+                erklaerung: "Du kannst die Anfrage sofort bestätigen oder ablehnen. Reagierst du innerhalb von 7 Tagen nicht, erhält diese Person automatisch Vollzugriff."
+            )
+            automatischeFreigabeAuswahl(
+                false,
+                titel: "Nein, nur nach meiner Bestätigung",
+                erklaerung: "Ohne deine Bestätigung bleibt die Anfrage offen. Diese Person sieht weiterhin nur die bereits freigegebenen Inhalte. Wichtige Informationen für den Ernstfall könnten fehlen."
+            )
+        } header: {
+            Text("Vollzugriff im Ernstfall")
+        } footer: {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Ohne Auswahl gilt «Nein». Du erhältst bei beiden Optionen Erinnerungen. Auch eine übersehene Benachrichtigung führt bei «Ja» nach 7 Tagen zur Freigabe. Du kannst die Auswahl jederzeit ändern. Änderst du während einer offenen Anfrage von «Nein» auf «Ja», beginnen neue 7 Tage, sobald die Änderung synchronisiert ist.")
+                if !automatischeFreigabeSyncHinweis.isEmpty {
+                    Text(automatischeFreigabeSyncHinweis)
+                }
+            }
+        }
+    }
+
+    private func synchronisiereAutomatischeFreigabeAuswahl() {
+        let auswahl = automatischeVollfreigabeErlaubt
+        automatischeFreigabeSyncHinweis = "Änderung wird synchronisiert …"
+        Task { @MainActor in
+            do {
+                guard let syncDienst = DossierSyncDienst.shared else {
+                    throw SyncVerarbeitungsFehler.temporaer("Die Synchronisation ist noch nicht bereit.")
+                }
+                try await syncDienst.freigabenSynchronisieren()
+                guard automatischeVollfreigabeErlaubt == auswahl else { return }
+                automatischeFreigabeSyncHinweis = "Auswahl synchronisiert. Sie gilt auch für eine bereits offene Vollzugriffsanfrage."
+            } catch {
+                guard automatischeVollfreigabeErlaubt == auswahl else { return }
+                automatischeFreigabeSyncHinweis = "Noch nicht synchronisiert: \(error.localizedDescription) Bis dahin gilt auf dem Server die bisherige Auswahl."
+            }
+        }
+    }
+
+    private func automatischeFreigabeAuswahl(_ erlaubt: Bool, titel: String, erklaerung: String) -> some View {
+        Button {
+            automatischeVollfreigabeErlaubt = erlaubt
+        } label: {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: (automatischeVollfreigabeErlaubt ?? false) == erlaubt ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(akzentFarbe)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(titel).font(.subheadline.weight(.semibold)).foregroundStyle(textFarbe)
+                    Text(erklaerung).font(.footnote).foregroundStyle(sekundaerTextFarbe)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityValue((automatischeVollfreigabeErlaubt ?? false) == erlaubt ? "Ausgewählt" : "Nicht ausgewählt")
     }
 
     private var freigabeUndSichtbarkeitBereich: some View {
@@ -2687,11 +2763,16 @@ struct VertrauenspersonView: View {
 
         Task {
             do {
+                guard let syncDienst = DossierSyncDienst.shared else {
+                    throw SyncVerarbeitungsFehler.temporaer("Die Synchronisation ist noch nicht bereit.")
+                }
+                try await syncDienst.freigabenSynchronisieren()
                 try await PushEinladungsService.shared.einladungRegistrieren(
                     token: token,
                     dossierID: dossierID,
                     email: empfaengerEmail,
-                    ownerName: vorsorgendePersonName
+                    ownerName: vorsorgendePersonName,
+                    automaticReleaseAllowed: automatischeVollfreigabeErlaubt ?? false
                 )
                 qrCodeAnzeigen = true
                 qrCodeSheetAnzeigen = true
@@ -3008,6 +3089,7 @@ struct VertrauenspersonView: View {
         abosUndProfileSichtbarBeiDossierfreigabe = false
         herzensstueckeSichtbarBeiDossierfreigabe = true
         gesundheitSichtbarBeiDossierfreigabe = true
+        automatischeVollfreigabeErlaubt = nil
 
         einladungsStatus = .offen
         vorsorgeprozessStatus =
@@ -3363,6 +3445,7 @@ struct VertrauenspersonView: View {
 
         gesundheitSichtbarBeiDossierfreigabe =
         gespeicherteVertrauensperson.gesundheitSichtbarBeiDossierfreigabe
+        automatischeVollfreigabeErlaubt = gespeicherteVertrauensperson.automatischeVollfreigabeErlaubt
 
         einladungsStatus =
         EinladungsStatus(
@@ -3589,6 +3672,7 @@ struct VertrauenspersonView: View {
 
         vertrauensperson.gesundheitSichtbarBeiDossierfreigabe =
         gesundheitSichtbarBeiDossierfreigabe
+        vertrauensperson.automatischeVollfreigabeErlaubt = automatischeVollfreigabeErlaubt
 
         vertrauensperson
             .kontaktangabenAktualisieren(

@@ -1,11 +1,63 @@
 import SwiftData
 import SwiftUI
 
+struct SyncKonfliktHinweis: View {
+    @AppStorage("aktivesDossierID") private var aktivesDossierID = ""
+    @Query private var konflikte: [SyncKonflikt]
+    @State private var konfliktAufloesungAnzeigen = false
+
+    private var dossierID: UUID? { UUID(uuidString: aktivesDossierID) }
+
+    private var anzahlKonflikte: Int {
+        guard let dossierID else { return 0 }
+        return konflikte.filter { $0.dossierID == dossierID }.count
+    }
+
+    var body: some View {
+        if anzahlKonflikte > 0 {
+            Button {
+                konfliktAufloesungAnzeigen = true
+            } label: {
+                HStack(alignment: .center, spacing: 12) {
+                    Image(systemName: "exclamationmark.arrow.triangle.2.circlepath")
+                        .font(.title2)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Synchronisation benötigt deine Entscheidung")
+                            .font(.subheadline.weight(.semibold))
+                        Text("Cloud und dieses Gerät enthalten unterschiedliche Daten. Konflikte prüfen")
+                            .font(.footnote)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                }
+                .foregroundStyle(Color.appPrimaryText)
+                .padding(14)
+                .background(Color.orange.opacity(0.14), in: RoundedRectangle(cornerRadius: 16))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Color.appCanvas)
+            .accessibilityIdentifier("syncKonfliktHinweis")
+            .sheet(isPresented: $konfliktAufloesungAnzeigen) {
+                SyncKonfliktView(dossierID: dossierID)
+            }
+        }
+    }
+}
+
 struct SyncKonfliktView: View {
+    var dossierID: UUID? = nil
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @Query(sort: \SyncKonflikt.empfangenAm, order: .reverse) private var konflikte: [SyncKonflikt]
+    @Query(sort: \SyncKonflikt.empfangenAm, order: .reverse) private var gespeicherteKonflikte: [SyncKonflikt]
     @State private var fehlermeldung = ""
+
+    private var konflikte: [SyncKonflikt] {
+        gespeicherteKonflikte.filter { dossierID == nil || $0.dossierID == dossierID }
+    }
 
     var body: some View {
         NavigationStack {
@@ -25,9 +77,9 @@ struct SyncKonfliktView: View {
                         Button("Cloud-Version übernehmen") { uebernehmeCloud(konflikt) }
                         Button("Lokale Version behalten") { behalteLokal(konflikt) }
                     } header: {
-                        Label("Änderung auf einem anderen Gerät", systemImage: "arrow.triangle.2.circlepath")
+                        Label("Unterschiedliche Datenstände", systemImage: "arrow.triangle.2.circlepath")
                     } footer: {
-                        Text("Es wird nichts automatisch überschrieben. Wähle bewusst, welcher Stand weiterverwendet wird.")
+                        Text("Die Cloud-Version ersetzt deine lokalen Änderungen in diesem Bereich. Die lokale Version ersetzt den Cloud-Stand dieses Bereichs und wird auf deine anderen Geräte synchronisiert.")
                     }
                 }
                 if !fehlermeldung.isEmpty {

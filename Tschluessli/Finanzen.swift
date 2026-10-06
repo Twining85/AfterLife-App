@@ -8,6 +8,7 @@ struct FinanzenView: View {
     @Environment(\.appLayout) private var appLayout
     var dossierKontext: DossierKontext = .eigenesDossier(dossierID: UUID())
     @Environment(\.modelContext) private var modelContext
+    @Query private var gespeicherteProfile: [ProfilModell]
     @Query private var gespeicherteBankkonten: [BankkontoModell]
     @Query private var gespeicherteSchulden: [SchuldenModell]
     @Query private var gespeicherteVersicherungen: [VersicherungModell]
@@ -53,6 +54,15 @@ struct FinanzenView: View {
     @State private var ausgewaehlteFinanzenBereiche: Set<FinanzenBereich> = []
     @State private var scrollZuFinanzEintragID: UUID?
 
+
+    private var vorausgewaehlteWaehrung: CurrencyType {
+        let profile = gespeicherteProfile.filter {
+            $0.dossierID == zielDossierID || (dossierKontext.istEigenesDossier && $0.dossierID == nil)
+        }
+        let profil = profile.first(where: { $0.istAktiv })
+            ?? profile.max(by: { $0.aktualisiertAm < $1.aktualisiertAm })
+        return CurrencyType.vorauswahl(fuerLand: profil?.land ?? "")
+    }
 
     private var totalAssets: Double {
         bankEntries.reduce(0) { result, entry in
@@ -480,7 +490,7 @@ struct FinanzenView: View {
                             entryCount: bankEntries.count,
                             isExpanded: $showBankEntries,
                             addAction: {
-                                let neuerEintrag = BankEntry()
+                                let neuerEintrag = BankEntry(currency: vorausgewaehlteWaehrung)
                                 bankEntries.append(neuerEintrag)
                                 if bankEntries.count > 1 {
                                     showBankEntries = true
@@ -505,7 +515,7 @@ struct FinanzenView: View {
                             entryCount: debts.count,
                             isExpanded: $showDebtEntries,
                             addAction: {
-                                let neuerEintrag = DebtEntry()
+                                let neuerEintrag = DebtEntry(currency: vorausgewaehlteWaehrung)
                                 debts.append(neuerEintrag)
                                 if debts.count > 1 {
                                     showDebtEntries = true
@@ -530,7 +540,10 @@ struct FinanzenView: View {
                             entryCount: propertyEntries.count,
                             isExpanded: $showPropertyEntries,
                             addAction: {
-                                let neuerEintrag = PropertyEntry()
+                                let neuerEintrag = PropertyEntry(
+                                    marketValueCurrency: vorausgewaehlteWaehrung,
+                                    imputedRentalValueCurrency: vorausgewaehlteWaehrung
+                                )
                                 propertyEntries.append(neuerEintrag)
                                 if propertyEntries.count > 1 {
                                     showPropertyEntries = true
@@ -555,7 +568,7 @@ struct FinanzenView: View {
                             entryCount: valuableEntries.count,
                             isExpanded: $showValuableEntries,
                             addAction: {
-                                let neuerEintrag = ValuableEntry()
+                                let neuerEintrag = ValuableEntry(currency: vorausgewaehlteWaehrung)
                                 valuableEntries.append(neuerEintrag)
                                 if valuableEntries.count > 1 {
                                     showValuableEntries = true
@@ -585,7 +598,7 @@ struct FinanzenView: View {
                             entryCount: insuranceEntries.count,
                             isExpanded: $showInsuranceEntries,
                             addAction: {
-                                let neuerEintrag = InsuranceEntry()
+                                let neuerEintrag = InsuranceEntry(currency: vorausgewaehlteWaehrung)
                                 insuranceEntries.append(neuerEintrag)
                                 if insuranceEntries.count > 1 {
                                     showInsuranceEntries = true
@@ -1686,8 +1699,20 @@ enum ExchangeRateService {
     }
 }
 
-// TODO: Sobald das Land im Profil persistiert wird, soll die Default-Währung aus dem Profil-Land abgeleitet werden. Aktuell wird bewusst CHF als Default verwendet.
 enum CurrencyType: String, CaseIterable, Identifiable {
+    // Euro-Länder einschliesslich Bulgarien seit Januar 2026 sowie europäischer Kleinstaaten.
+    private static let euroLaender: Set<String> = [
+        "Belgien", "Bulgarien", "Deutschland", "Estland", "Finnland", "Frankreich",
+        "Griechenland", "Irland", "Italien", "Kroatien", "Lettland", "Litauen",
+        "Luxemburg", "Malta", "Niederlande", "Österreich", "Portugal", "Slowakei",
+        "Slowenien", "Spanien", "Zypern", "Andorra", "Monaco", "San Marino",
+        "Vatikanstadt", "Kosovo", "Montenegro"
+    ]
+
+    static func vorauswahl(fuerLand land: String) -> CurrencyType {
+        euroLaender.contains(land.trimmingCharacters(in: .whitespacesAndNewlines)) ? .eur : .chf
+    }
+
     case chf = "CHF"
     case eur = "EUR"
     case usd = "USD"

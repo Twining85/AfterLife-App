@@ -14,6 +14,23 @@ import Testing
 
 @MainActor
 struct TschluessliTests {
+    @Test func prozessstartVerlangtReloginUndBehaeltKontodaten() throws {
+        let suite = "ReloginStartTest-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(true, forKey: "istEingeloggt")
+        defaults.set(true, forKey: "direktNachRegistrierungEingeloggt")
+        defaults.set(true, forKey: "profilIstVorhanden")
+        defaults.set("test@example.ch", forKey: "gespeicherteEmail")
+
+        TschluessliApp.sperreBeimProzessstart(defaults: defaults)
+
+        #expect(!defaults.bool(forKey: "istEingeloggt"))
+        #expect(!defaults.bool(forKey: "direktNachRegistrierungEingeloggt"))
+        #expect(defaults.bool(forKey: "profilIstVorhanden"))
+        #expect(defaults.string(forKey: "gespeicherteEmail") == "test@example.ch")
+    }
+
     @Test func syncFehlerZeigtDieKonkreteMeldung() {
         let fehler = SyncVerarbeitungsFehler.temporaer("Der Sync-Server ist nicht erreichbar.")
         #expect(fehler.localizedDescription == "Der Sync-Server ist nicht erreichbar.")
@@ -385,6 +402,31 @@ struct TschluessliTests {
         #expect(lokaleProfile.count == 1)
         #expect(lokaleProfile.first?.vorname == "Cloud")
         #expect(lokaleProfile.first?.name == "Profil")
+    }
+
+    @Test func automatischeVollfreigabeWirdMitKontaktenSynchronisiert() async throws {
+        for erlaubt in [nil, false, true] as [Bool?] {
+            let container = try ModelContainer(
+                for: DossierModell.self, HinterbliebeneModell.self,
+                VertrauenspersonModell.self, VertrauenspersonEinladungsHistorieModell.self,
+                configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            )
+            let dossierID = UUID()
+            let person = VertrauenspersonModell(
+                email: "trust@example.ch", dossierID: dossierID,
+                automatischeVollfreigabeErlaubt: erlaubt
+            )
+            let cloud = CloudKontaktDaten(hinterbliebene: [], vertrauenspersonen: [CloudKontaktDaten.Vertrauensperson(person)])
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            try await DossierBereichImport.importiere(
+                encoder.encode(cloud), bereich: "kontakte", dossierID: dossierID, in: container.mainContext
+            )
+            try container.mainContext.save()
+            let geladen = try #require(container.mainContext.fetch(FetchDescriptor<VertrauenspersonModell>()).first)
+            #expect(geladen.automatischeVollfreigabeErlaubt == erlaubt)
+            #expect((geladen.automatischeVollfreigabeErlaubt ?? false) == (erlaubt ?? false))
+        }
     }
 
     @Test func kontakteRecoveryErgaenztFehlendeBesitzerZuordnung() async throws {

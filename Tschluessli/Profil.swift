@@ -91,26 +91,19 @@ struct ProfilView: View {
 
     @State private var land = "Schweiz"
 
-    private let laender = [
-        "Schweiz",
-        "Deutschland",
-        "Österreich",
-        "Liechtenstein",
-        "Frankreich",
-        "Italien",
-        "Spanien",
-        "Portugal",
-        "Niederlande",
-        "Belgien",
-        "Luxemburg",
-        "Vereinigtes Königreich",
-        "Irland",
-        "USA",
-        "Kanada",
-        "Australien",
-        "Neuseeland",
-        "Andere"
-    ]
+    private let laender: [String] = {
+        let bevorzugteLaender = ["Schweiz", "Deutschland", "Österreich"]
+        let locale = Locale(identifier: "de_CH")
+        let ausgeschlosseneRegionen: Set<String> = ["EU", "EZ", "QO", "UN", "XA", "XB", "ZZ"]
+        let weitereLaender = Set(Locale.Region.isoRegions.compactMap { region -> String? in
+            let code = region.identifier
+            guard code.count == 2, !ausgeschlosseneRegionen.contains(code) else { return nil }
+            return code == "US" ? "USA" : locale.localizedString(forRegionCode: code)
+        })
+        .subtracting(bevorzugteLaender)
+        .sorted { $0.compare($1, options: [.caseInsensitive, .diacriticInsensitive], locale: locale) == .orderedAscending }
+        return bevorzugteLaender + weitereLaender + ["Andere"]
+    }()
     @State private var telefon = ""
 
     @State private var email = ""
@@ -383,11 +376,25 @@ struct ProfilView: View {
                         VStack(alignment: .leading) { postleitzahlFeld; stadtFeld }
                     }
 
-                    Picker("Land", selection: $land) {
-                        ForEach(laender, id: \.self) { land in
-                            Text(land).tag(land)
+                    Menu {
+                        Picker("Land", selection: $land) {
+                            ForEach(laender, id: \.self) { land in
+                                Text(land).tag(land)
+                            }
                         }
+                    } label: {
+                        HStack {
+                            Text("Land")
+                                .foregroundStyle(Color.appPrimaryText)
+                            Spacer()
+                            Text(land)
+                            Image(systemName: "chevron.down")
+                                .font(.caption)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.borderless)
                     .disabled(dossierKontext.istReadOnly)
 
                     TextField("Telefon", text: $telefon)

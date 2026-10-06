@@ -329,6 +329,32 @@ final class DossierSyncDienst {
         }
     }
 
+    /// Freigabeeinstellungen gelten erst nach erfolgreichem Kontakte-Upload.
+    /// Fehler bleiben in der dauerhaften Outbox für den nächsten Versuch.
+    func freigabenSynchronisieren() async throws {
+        guard let dossierID = Self.aktivesDossierID else {
+            throw SyncVerarbeitungsFehler.permanent("Es ist kein aktives Dossier ausgewählt.")
+        }
+        let adapter = try registry.adapter(fuer: "kontakte")
+        _ = try outbox.markiereAenderung(
+            dossierID: dossierID,
+            bereich: "kontakte",
+            schemaVersion: adapter.schemaVersion,
+            erwarteteRevision: Int64(UserDefaults.standard.integer(forKey: Self.revisionKey(dossierID: dossierID, bereich: "kontakte")))
+        )
+        synchronisierenSofort()
+        while let task = syncLaufTask { await task.value }
+        let schluessel = SyncAuftrag.schluessel(dossierID: dossierID, bereich: "kontakte")
+        let descriptor = FetchDescriptor<SyncAuftrag>(predicate: #Predicate { $0.schluessel == schluessel })
+        if let auftrag = try modelContext.fetch(descriptor).first {
+            throw SyncVerarbeitungsFehler.temporaer(auftrag.letzterFehler ?? "Die Änderung wartet noch auf die Synchronisation.")
+        }
+        let konflikte = FetchDescriptor<SyncKonflikt>(predicate: #Predicate { $0.schluessel == schluessel })
+        if !(try modelContext.fetch(konflikte)).isEmpty {
+            throw SyncVerarbeitungsFehler.konflikt("Bitte löse zuerst den Sync-Konflikt bei den Vertrauenspersonen.")
+        }
+    }
+
     /// Sichert ein neu erstelltes Recovery-Paket, bevor der zugehörige
     /// 12-Wörter-Code angezeigt oder exportiert werden darf.
     func recoveryPaketSynchronisieren() async throws {

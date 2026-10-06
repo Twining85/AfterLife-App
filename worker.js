@@ -20,7 +20,8 @@ async function run() {
 }
 
 async function main() {
-  await databaseHealth();
+  const health = await databaseHealth();
+  if (!health.healthy || !health.schemaReady) throw new Error("Worker benötigt ein aktuelles Datenbankschema");
   await run();
   const intervalSeconds = Number.parseInt(process.env.TRUST_WORKER_INTERVAL_SECONDS || "60", 10);
   const timer = setInterval(run, Math.max(5, intervalSeconds) * 1000);

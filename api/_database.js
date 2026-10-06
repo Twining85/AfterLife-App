@@ -25,12 +25,37 @@ function createPostgreSQLPool() {
   const connectionString = process.env.TSCHLUESSLI_DATABASE_URL || process.env.DATABASE_URL;
   if (!connectionString) throw new Error("PostgreSQL-Verbindung fehlt");
   return new PostgreSQLPool({
-    connectionString,
+    ...postgreSQLConnectionOptions(connectionString),
     max: positiveInteger(process.env.DATABASE_POOL_MAX, 5),
     idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 5_000,
-    ssl: process.env.DATABASE_SSL === "disable" ? false : { rejectUnauthorized: true }
+    connectionTimeoutMillis: 5_000
   });
+}
+
+export function postgreSQLTLSOptions(environment = process.env) {
+  if (environment.DATABASE_SSL === "disable" || environment.DATABASE_SSL_MODE === "disable") {
+    if (environment.NODE_ENV !== "test") throw new Error("PostgreSQL-TLS darf ausserhalb von Tests nicht deaktiviert werden");
+    return false;
+  }
+  const ca = environment.DATABASE_SSL_CA?.replace(/\\n/g, "\n");
+  return { rejectUnauthorized: true, ...(ca ? { ca } : {}) };
+}
+
+export function postgreSQLConnectionOptions(connectionString, environment = process.env) {
+  // node-postgres lets connection-string SSL options override the explicit
+  // SSL object. Remove them so certificate validation cannot be weakened.
+  let url;
+  try { url = new URL(connectionString); }
+  catch { throw new Error("Ungültige PostgreSQL-Verbindungsadresse"); }
+  if (!["postgres:", "postgresql:"].includes(url.protocol)) {
+    throw new Error("PostgreSQL-Verbindung muss postgres:// oder postgresql:// verwenden");
+  }
+  for (const key of [...url.searchParams.keys()]) {
+    if (key.toLowerCase().startsWith("ssl") || key.toLowerCase() === "uselibpqcompat") {
+      url.searchParams.delete(key);
+    }
+  }
+  return { connectionString: url.toString(), ssl: postgreSQLTLSOptions(environment) };
 }
 
 function createMySQLPool() {
@@ -157,7 +182,7 @@ export async function databaseHealth() {
     : await databasePool().query(
       "SELECT current_database() AS database_name, 1 AS healthy, (SELECT MAX(version) FROM schema_migrations) AS schema_version"
     );
-  const minimumSchemaVersion = engine === "mysql" ? 1 : 8;
+  const minimumSchemaVersion = engine === "mysql" ? 4 : 11;
   return {
     engine,
     database: result.rows[0]?.database_name,

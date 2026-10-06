@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 import { databasePool } from "./_database.js";
 import { pushToUser } from "./_apns.js";
 import { storageService } from "./_storage.js";
+import { trustAccessGraceSeconds } from "./_trust-policy.js";
+export { trustAccessGraceSeconds } from "./_trust-policy.js";
 
 export async function handleInvitationOperation(operation, req, res, user) {
   if (operation === "device") return registerDevice(req, res, user);
@@ -38,9 +40,11 @@ async function registerInvitation(req, res, user) {
   const email = String(req.body?.email || "").trim().toLowerCase();
   const ownerName = personName(req.body?.ownerName, "Vorsorgende Person");
   const sharedKeyPackage = validSharedKeyPackage(req.body?.sharedKeyPackage);
+  if (req.body?.automaticReleaseAllowed !== undefined && typeof req.body.automaticReleaseAllowed !== "boolean") return res.status(400).json({ error: "Ungültige Auswahl zur automatischen Freigabe" });
+  const automaticReleaseAllowed = req.body?.automaticReleaseAllowed === true;
   if (!token || !/^[0-9a-f-]{36}$/i.test(dossierID) || !email.includes("@") || !sharedKeyPackage) return res.status(400).json({ error: "Ungültige Einladung" });
   if (databasePool().engine === "mysql") {
-    const found = await registerMySQLInvitation({ token, dossierID, email, ownerName, sharedKeyPackage, userID: user.id });
+    const found = await registerMySQLInvitation({ token, dossierID, email, ownerName, sharedKeyPackage, automaticReleaseAllowed, userID: user.id });
     return found ? res.status(204).end() : res.status(404).json({ error: "Dossier nicht gefunden" });
   }
   const result = await databasePool().query(
@@ -56,14 +60,15 @@ async function registerInvitation(req, res, user) {
           AND token_hash <> $1
           AND status IN ('open', 'pending')
      )
-     INSERT INTO dossier_invitations (token_hash, dossier_id, owner_user_id, invited_email, owner_name, shared_key_package, expires_at)
-     SELECT $1, id, owner_user_id, $3, $5, decode($6, 'base64'), now() + interval '30 days' FROM ziel_dossier
+     INSERT INTO dossier_invitations (token_hash, dossier_id, owner_user_id, invited_email, owner_name, shared_key_package, automatic_release_allowed, expires_at)
+     SELECT $1, id, owner_user_id, $3, $5, decode($6, 'base64'), $7, now() + interval '30 days' FROM ziel_dossier
      ON CONFLICT (token_hash) DO UPDATE SET
        dossier_id = EXCLUDED.dossier_id,
        owner_user_id = EXCLUDED.owner_user_id,
        invited_email = EXCLUDED.invited_email,
        owner_name = EXCLUDED.owner_name,
        shared_key_package = EXCLUDED.shared_key_package,
+       automatic_release_allowed = EXCLUDED.automatic_release_allowed,
        expires_at = EXCLUDED.expires_at,
        status = 'open',
        requester_user_id = NULL,
@@ -76,7 +81,7 @@ async function registerInvitation(req, res, user) {
        updated_at = now()
      WHERE dossier_invitations.status = 'open'
      RETURNING id`,
-    [hash(token), dossierID, email, user.id, ownerName, sharedKeyPackage]
+    [hash(token), dossierID, email, user.id, ownerName, sharedKeyPackage, automaticReleaseAllowed]
   );
   return result.rows[0] ? res.status(204).end() : res.status(404).json({ error: "Dossier nicht gefunden" });
 }
@@ -134,9 +139,12 @@ async function requestInvitation(req, res, user) {
   }
   const result = await databasePool().query(
     `UPDATE dossier_invitations SET requester_user_id = $2, requester_email = $3,
-        requester_name = $4, status = 'pending', requested_at = now(), decided_at = NULL,
-        access_reminder_last_sent_at = NULL,
-        access_release_at = now() + ($5::integer * interval '1 second'),
+        requester_name = $4, requested_at = CASE WHEN status = 'pending' THEN requested_at ELSE now() END,
+        access_reminder_last_sent_at = CASE WHEN status = 'pending' THEN access_reminder_last_sent_at ELSE NULL END,
+        access_release_at = CASE WHEN automatic_release_allowed THEN
+          CASE WHEN status = 'pending' AND access_release_at IS NOT NULL THEN access_release_at
+            ELSE now() + ($5::integer * interval '1 second') END ELSE NULL END,
+        status = 'pending', decided_at = NULL,
         auto_released_at = NULL, updated_at = now()
       WHERE token_hash = $1
         AND expires_at > now()
@@ -699,15 +707,6 @@ export function automaticReleasePushPayload({ ownerName, dossierID }) {
   };
 }
 
-export function trustAccessGraceSeconds(environment = process.env) {
-  const configured = Number.parseInt(environment.TRUST_ACCESS_GRACE_SECONDS || "", 10);
-  if (Number.isInteger(configured) && configured >= 60 && configured <= 2_592_000) {
-    return configured;
-  }
-  if (environment.NODE_ENV === "test") return 60;
-  throw new Error("TRUST_ACCESS_GRACE_SECONDS fehlt oder ist ungueltig");
-}
-
 export function trustAccessReminderSeconds(environment = process.env) {
   const configured = Number.parseInt(environment.TRUST_ACCESS_REMINDER_SECONDS || "", 10);
   if (Number.isInteger(configured) && configured >= 30 && configured <= 604_800) {
@@ -752,7 +751,7 @@ export async function sendPendingAccessReminders({
             AND requested_at <= DATE_SUB(CURRENT_TIMESTAMP(6), INTERVAL ${reminderSeconds} SECOND)
             AND (access_reminder_last_sent_at IS NULL OR
                  access_reminder_last_sent_at <= DATE_SUB(CURRENT_TIMESTAMP(6), INTERVAL ${reminderSeconds} SECOND))
-            AND (access_release_at IS NULL OR access_release_at > CURRENT_TIMESTAMP(6))
+            AND (NOT automatic_release_allowed OR access_release_at IS NULL OR access_release_at > CURRENT_TIMESTAMP(6))
           ORDER BY requested_at LIMIT ${cappedLimit} FOR UPDATE SKIP LOCKED`
       );
       reminders = due.rows;
@@ -770,7 +769,7 @@ export async function sendPendingAccessReminders({
               AND requested_at <= now() - ($1::integer * interval '1 second')
               AND (access_reminder_last_sent_at IS NULL OR
                    access_reminder_last_sent_at <= now() - ($1::integer * interval '1 second'))
-              AND (access_release_at IS NULL OR access_release_at > now())
+              AND (NOT automatic_release_allowed OR access_release_at IS NULL OR access_release_at > now())
             ORDER BY requested_at LIMIT $2 FOR UPDATE SKIP LOCKED
          )
          UPDATE dossier_invitations i SET access_reminder_last_sent_at = now()
@@ -809,7 +808,7 @@ export async function releaseDueInvitations({
     if (client.engine === "mysql") {
       const due = await client.query(
         `SELECT id, dossier_id, requester_user_id, owner_name FROM dossier_invitations
-          WHERE status = 'pending' AND access_release_at IS NOT NULL
+          WHERE status = 'pending' AND automatic_release_allowed = TRUE AND access_release_at IS NOT NULL
             AND access_release_at <= CURRENT_TIMESTAMP(6) AND requester_user_id IS NOT NULL
           ORDER BY access_release_at LIMIT ${Math.max(1, Math.min(Number(limit) || 100, 1000))}
           FOR UPDATE SKIP LOCKED`
@@ -833,6 +832,7 @@ export async function releaseDueInvitations({
          SELECT id
            FROM dossier_invitations
           WHERE status = 'pending'
+            AND automatic_release_allowed = TRUE
             AND access_release_at IS NOT NULL
             AND access_release_at <= now()
             AND requester_user_id IS NOT NULL
@@ -889,7 +889,7 @@ function personName(value, fallback) {
   return name || fallback;
 }
 
-async function registerMySQLInvitation({ token, dossierID, email, ownerName, sharedKeyPackage, userID }) {
+async function registerMySQLInvitation({ token, dossierID, email, ownerName, sharedKeyPackage, automaticReleaseAllowed, userID }) {
   const client = await databasePool().connect();
   try {
     await client.query("BEGIN");
@@ -917,13 +917,13 @@ async function registerMySQLInvitation({ token, dossierID, email, ownerName, sha
     );
     await client.query(
       `INSERT INTO dossier_invitations
-         (token_hash, dossier_id, owner_user_id, invited_email, owner_name, shared_key_package, expires_at)
-       VALUES ($1, $2, $3, $4, $5, FROM_BASE64($6), DATE_ADD(CURRENT_TIMESTAMP(6), INTERVAL 30 DAY))
+         (token_hash, dossier_id, owner_user_id, invited_email, owner_name, shared_key_package, automatic_release_allowed, expires_at)
+       VALUES ($1, $2, $3, $4, $5, FROM_BASE64($6), $7, DATE_ADD(CURRENT_TIMESTAMP(6), INTERVAL 30 DAY))
        ON DUPLICATE KEY UPDATE dossier_id = VALUES(dossier_id), owner_user_id = VALUES(owner_user_id),
          invited_email = VALUES(invited_email), owner_name = VALUES(owner_name), shared_key_package = VALUES(shared_key_package),
-         expires_at = VALUES(expires_at),
+         automatic_release_allowed = VALUES(automatic_release_allowed), expires_at = VALUES(expires_at),
          updated_at = CURRENT_TIMESTAMP(6)`,
-      [tokenHash, dossier.id, userID, email, ownerName, sharedKeyPackage]
+      [tokenHash, dossier.id, userID, email, ownerName, sharedKeyPackage, automaticReleaseAllowed]
     );
     await client.query("COMMIT");
     return true;
@@ -945,9 +945,12 @@ async function requestMySQLInvitation({ token, userID, accountEmail, requesterNa
     if (!selected.rows[0]) { await client.query("ROLLBACK"); return null; }
     await client.query(
       `UPDATE dossier_invitations SET requester_user_id = $1, requester_email = $2, requester_name = $3,
-        status = 'pending', requested_at = CURRENT_TIMESTAMP(6), decided_at = NULL,
-        access_reminder_last_sent_at = NULL,
-        access_release_at = DATE_ADD(CURRENT_TIMESTAMP(6), INTERVAL $4 SECOND), auto_released_at = NULL,
+        requested_at = CASE WHEN status = 'pending' THEN requested_at ELSE CURRENT_TIMESTAMP(6) END,
+        access_reminder_last_sent_at = CASE WHEN status = 'pending' THEN access_reminder_last_sent_at ELSE NULL END,
+        access_release_at = CASE WHEN automatic_release_allowed THEN
+          CASE WHEN status = 'pending' AND access_release_at IS NOT NULL THEN access_release_at
+            ELSE DATE_ADD(CURRENT_TIMESTAMP(6), INTERVAL $4 SECOND) END ELSE NULL END,
+        status = 'pending', decided_at = NULL, auto_released_at = NULL,
         updated_at = CURRENT_TIMESTAMP(6) WHERE id = $5`,
       [userID, accountEmail, requesterName, graceSeconds, selected.rows[0].id]
     );

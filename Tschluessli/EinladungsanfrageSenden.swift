@@ -115,7 +115,7 @@ struct EinladungsanfrageSendenView: View {
                 zugriff.automatischeFreigabeAm = cloud.accessReleaseAt
                 try modelContext.save()
                 let frist = cloud.accessReleaseAt?.formatted(date: .abbreviated, time: .shortened)
-                let fristText = frist.map { " Ohne Reaktion wird der Zugriff am \($0) automatisch freigegeben." } ?? ""
+                let fristText = frist.map { " Ohne Reaktion wird der Zugriff am \($0) automatisch freigegeben." } ?? " Ohne Bestätigung bleibt deine Anfrage offen. Du kannst weiterhin die bereits freigegebenen Inhalte einsehen."
                 meldung = (cloud.notificationDelivered
                     ? "Die vorsorgende Person wurde benachrichtigt."
                     : "Die Anfrage wurde gespeichert. Die vorsorgende Person sieht sie spätestens beim nächsten Öffnen der App.") + fristText

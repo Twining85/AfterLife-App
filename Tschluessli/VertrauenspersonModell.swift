@@ -45,6 +45,8 @@ final class VertrauenspersonModell {
     var abosUndProfileSichtbarBeiDossierfreigabe: Bool = false
     var herzensstueckeSichtbarBeiDossierfreigabe: Bool = true
     var gesundheitSichtbarBeiDossierfreigabe: Bool = true
+    /// nil means no explicit choice yet; never grants automatic access.
+    var automatischeVollfreigabeErlaubt: Bool? = nil
     var zugriffsHistorieJSON: String = "[]"
 
     @Relationship(deleteRule: .cascade)
@@ -79,6 +81,7 @@ final class VertrauenspersonModell {
         abosUndProfileSichtbarBeiDossierfreigabe: Bool = false,
         herzensstueckeSichtbarBeiDossierfreigabe: Bool = true,
         gesundheitSichtbarBeiDossierfreigabe: Bool = true,
+        automatischeVollfreigabeErlaubt: Bool? = nil,
         zugriffsHistorieJSON: String = "[]",
         einladungsHistorie: [VertrauenspersonEinladungsHistorieModell] = [],
         erstelltAm: Date = Date(),
@@ -109,6 +112,7 @@ final class VertrauenspersonModell {
         self.abosUndProfileSichtbarBeiDossierfreigabe = abosUndProfileSichtbarBeiDossierfreigabe
         self.herzensstueckeSichtbarBeiDossierfreigabe = herzensstueckeSichtbarBeiDossierfreigabe
         self.gesundheitSichtbarBeiDossierfreigabe = gesundheitSichtbarBeiDossierfreigabe
+        self.automatischeVollfreigabeErlaubt = automatischeVollfreigabeErlaubt
         self.zugriffsHistorieJSON = zugriffsHistorieJSON
         self.einladungsHistorie = einladungsHistorie
         self.erstelltAm = erstelltAm

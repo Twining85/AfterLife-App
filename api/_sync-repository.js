@@ -1,5 +1,6 @@
 import { mutationHash } from "./_sync-contract.js";
 import { storageService } from "./_storage.js";
+import { syncAutomaticReleasePolicies } from "./_trust-policy.js";
 
 export async function applySectionMutation(client, userID, mutation) {
   if (client.engine === "mysql") return applyMySQLSectionMutation(client, userID, mutation);
@@ -86,6 +87,9 @@ export async function applySectionMutation(client, userID, mutation) {
     ]
   );
   const savedSection = saved.rows[0];
+  if (mutation.sectionType === "kontakte") {
+    await syncAutomaticReleasePolicies(client, userID, mutation.dossierID, deleted ? null : mutation.payload);
+  }
   const change = await client.query(
     `INSERT INTO sync_changes
        (owner_user_id, dossier_id, section_type, schema_version, revision, operation, payload)
@@ -290,6 +294,9 @@ async function applyMySQLSectionMutation(client, userID, mutation) {
       WHERE dossier_id = $1 AND section_type = $2`,
     [mutation.dossierID, mutation.sectionType]
   );
+  if (mutation.sectionType === "kontakte") {
+    await syncAutomaticReleasePolicies(client, userID, mutation.dossierID, deleted ? null : mutation.payload);
+  }
   const change = await client.query(
     `INSERT INTO sync_changes
        (owner_user_id, dossier_id, section_type, schema_version, revision, operation, payload)

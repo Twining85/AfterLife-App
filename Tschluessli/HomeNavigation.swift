@@ -370,6 +370,9 @@ struct HomeNavigation: View {
                 }
             }
             .background(hintergrund.ignoresSafeArea())
+            .safeAreaInset(edge: .top, spacing: 0) {
+                SyncKonfliktHinweis()
+            }
             .navigationBarHidden(true)
             .navigationDestination(item: $ziel) { ziel in
                 switch ziel {

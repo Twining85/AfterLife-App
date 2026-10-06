@@ -76,7 +76,7 @@ actor PushEinladungsService {
         )
     }
 
-    func einladungRegistrieren(token: String, dossierID: UUID, email: String, ownerName: String) async throws {
+    func einladungRegistrieren(token: String, dossierID: UUID, email: String, ownerName: String, automaticReleaseAllowed: Bool) async throws {
         let sharedKeyPackage = try await CloudFeldVerschluesselung.shared.schluesselFreigabePaket(token: token)
         _ = try await sende(
             pfad: "api/sync/push?operation=register-invitation",
@@ -85,7 +85,8 @@ actor PushEinladungsService {
                 dossierID: dossierID,
                 email: email,
                 ownerName: ownerName,
-                sharedKeyPackage: sharedKeyPackage
+                sharedKeyPackage: sharedKeyPackage,
+                automaticReleaseAllowed: automaticReleaseAllowed
             ),
             antwort: LeereAntwort.self
         )
@@ -228,6 +229,7 @@ private nonisolated struct EinladungRegistrierenAnfrage: Encodable {
     let email: String
     let ownerName: String
     let sharedKeyPackage: String
+    let automaticReleaseAllowed: Bool
 }
 private nonisolated struct SchluesselFreigabeAnfrage: Encodable { let token: String; let sharedKeyPackage: String }
 private nonisolated struct TokenAnfrage: Encodable { let token: String }

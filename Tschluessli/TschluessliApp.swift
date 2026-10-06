@@ -13,6 +13,18 @@ import UIKit
 struct TschluessliApp: App {
     @UIApplicationDelegateAdaptor(PushAppDelegate.self) private var pushAppDelegate
     @AppStorage("appErscheinungsbild") private var appErscheinungsbildRawValue = AppErscheinungsbild.system.rawValue
+
+    init() {
+        Self.sperreBeimProzessstart()
+    }
+
+    static func sperreBeimProzessstart(defaults: UserDefaults = .standard) {
+        // Die lokale Freigabe gilt nur für den laufenden App-Prozess.
+        // Vor der ersten Ansicht sperren, damit kein Home-Inhalt aufblitzt.
+        defaults.set(false, forKey: "istEingeloggt")
+        defaults.set(false, forKey: "direktNachRegistrierungEingeloggt")
+    }
+
     var sharedModelContainer: ModelContainer = {
         LokaleSicherheitsMigration.ausfuehren()
 
@@ -461,9 +473,6 @@ struct AppStartView: View {
         istEingeloggt = false
         direktNachRegistrierungEingeloggt = false
 
-        print(
-            "Einladungstoken gespeichert: \(token)"
-        )
     }
 
     private func istGueltigerEinladungsLink(

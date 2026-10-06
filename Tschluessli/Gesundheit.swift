@@ -16,9 +16,6 @@ struct GesundheitView: View {
     @Query private var hinterbliebenenKontakte: [HinterbliebeneModell]
     @State private var datensatz: GesundheitModell?
 #else
-    // TODO: Sobald ein GesundheitModell für SwiftData existiert,
-    // diese View auf das Modell und SwiftData migrieren.
-    // Bis dahin KEINE neue Persistenz über @AppStorage einführen!
     @State private var hatHausarzt = false
     @State private var hausarztName = ""
     @State private var hausarztTelefon = ""
